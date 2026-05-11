@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #1f2937;
+  --brand-fg: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --border: #e2e8f0;
+  --danger: #b91c1c;
+  --ok: #047857;
+}
+
+[data-tenant="hunterhoney"] {
+  --brand: #b45309;
+  --brand-fg: #fffbeb;
+}
+
+[data-tenant="av"] {
+  --brand: #7c2d12;
+  --brand-fg: #fef2f2;
+}
+
+[data-tenant="ebw"] {
+  --brand: #0e7490;
+  --brand-fg: #ecfeff;
+}
+
+html, body {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

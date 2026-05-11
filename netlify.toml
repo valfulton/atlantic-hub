@@ -1,0 +1,31 @@
+# =====================================================================
+# Atlantic Hub — Netlify configuration
+# =====================================================================
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Force HTTPS, never serve the .netlify.app preview as production
+[context.production]
+  command = "npm run build"
+
+# Only deploy from main; preview deploys for everything else
+[context.deploy-preview]
+  command = "npm run build"
+
+# Security headers are also set in next.config.js, but Netlify-level
+# headers provide defense-in-depth for static assets.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

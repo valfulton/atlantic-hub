@@ -1,0 +1,44 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Build output
+/.next/
+/out/
+/build
+
+# Production
+/dist
+
+# Misc
+.DS_Store
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Environment files — NEVER commit
+.env
+.env*
+!.env.example
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vercel / Netlify
+.vercel
+.netlify
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets / credentials — NEVER commit
+secrets.*
+credentials.*
+auth.*
+*.secrets
+.ssh/
