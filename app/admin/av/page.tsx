@@ -1,22 +1,8 @@
 import Link from 'next/link';
-import { DataTable, Column } from '@/components/DataTable';
 import { MetricCard } from '@/components/MetricCard';
-import { StatusBadge } from '@/components/StatusBadge';
 import { serverFetch } from '@/lib/server-fetch';
-
-interface Lead {
-  id: number;
-  auditId: string;
-  company: string;
-  contactName: string | null;
-  email: string;
-  industry: string | null;
-  leadStatus: string;
-  aiScoreBand: string | null;
-  submissionDate: string;
-  sourceType: string;
-  clientId: number | null;
-}
+import { AvLeadsTable } from './AvLeadsTable';
+import type { AvLead } from './AvLeadsTable';
 
 interface Stats {
   total: number;
@@ -61,48 +47,9 @@ export default async function AvPage({
     ? await statsRes.json()
     : { stats: { total: 0, byStage: { new: 0, contacted: 0, qualified: 0, converted: 0, lost: 0 }, aiScored: 0 } };
 
-  const { leads }: { leads: Lead[] } = leadsRes.ok
+  const { leads }: { leads: AvLead[] } = leadsRes.ok
     ? await leadsRes.json()
     : { leads: [] };
-
-  const columns: Column<Lead>[] = [
-    {
-      key: 'company',
-      header: 'Company',
-      render: (r) => (
-        <Link href={`/admin/av/${r.auditId}`} className="text-brand hover:underline font-medium">
-          {r.company}
-        </Link>
-      )
-    },
-    {
-      key: 'contact',
-      header: 'Contact',
-      render: (r) => r.contactName ?? <span className="text-muted">—</span>
-    },
-    { key: 'email', header: 'Email', render: (r) => r.email },
-    {
-      key: 'industry',
-      header: 'Industry',
-      render: (r) => r.industry ?? <span className="text-muted">—</span>
-    },
-    { key: 'status', header: 'Stage', render: (r) => <StatusBadge value={r.leadStatus} /> },
-    {
-      key: 'ai',
-      header: 'AI Score',
-      render: (r) =>
-        r.aiScoreBand ? (
-          <StatusBadge value={r.aiScoreBand} />
-        ) : (
-          <span className="text-muted text-xs">pending</span>
-        )
-    },
-    {
-      key: 'date',
-      header: 'Submitted',
-      render: (r) => new Date(r.submissionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    }
-  ];
 
   const activeInPipeline = stats.byStage.contacted + stats.byStage.qualified;
 
@@ -126,7 +73,6 @@ export default async function AvPage({
         />
       </div>
 
-      {/* Filters */}
       <form method="GET" action="/admin/av" className="flex flex-wrap gap-3 mb-4 items-center">
         <select
           name="stage"
@@ -169,11 +115,7 @@ export default async function AvPage({
         <h2 className="text-sm font-medium text-muted mb-3">
           Atlantic &amp; Vine — Audit-form leads (your business)
         </h2>
-        <DataTable
-          columns={columns}
-          rows={leads}
-          emptyMessage="No leads match the current filter. Leads arrive via the atlanticandvine.com audit form."
-        />
+        <AvLeadsTable leads={leads} />
       </div>
     </div>
   );
