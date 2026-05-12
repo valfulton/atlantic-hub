@@ -3,37 +3,104 @@
 @tailwind utilities;
 
 :root {
-  --brand: #1f2937;
-  --brand-fg: #ffffff;
-  --ink: #0f172a;
-  --muted: #64748b;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --border: #e2e8f0;
-  --danger: #b91c1c;
-  --ok: #047857;
+  /* ──── Brand ──── */
+  --brand: #f59e0b;
+  --brand-fg: #0a0f1a;
+  --brand-hover: #fbbf24;
+  --brand-glow: rgba(245, 158, 11, 0.25);
+
+  /* ──── Surfaces (dark, glassy) ──── */
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --surface-3: rgba(255, 255, 255, 0.12);
+
+  /* ──── Text ──── */
+  --ink: #f1f5f9;
+  --muted: #94a3b8;
+
+  /* ──── Lines ──── */
+  --border: rgba(255, 255, 255, 0.10);
+
+  /* ──── Status ──── */
+  --danger: #f87171;
+  --ok: #34d399;
+
+  /* ──── Per-tenant accent (overridden below) ──── */
+  --tenant-accent: var(--brand);
+  --tenant-glow: var(--brand-glow);
 }
 
+/* Per-tenant accent: apply data-tenant="..." on any wrapper to flip the accent */
 [data-tenant="hunterhoney"] {
-  --brand: #b45309;
-  --brand-fg: #fffbeb;
+  --tenant-accent: #f59e0b;
+  --tenant-glow: rgba(245, 158, 11, 0.22);
 }
-
 [data-tenant="av"] {
-  --brand: #7c2d12;
-  --brand-fg: #fef2f2;
+  --tenant-accent: #c084fc;
+  --tenant-glow: rgba(192, 132, 252, 0.22);
 }
-
 [data-tenant="ebw"] {
-  --brand: #0e7490;
-  --brand-fg: #ecfeff;
+  --tenant-accent: #22d3ee;
+  --tenant-glow: rgba(34, 211, 238, 0.22);
 }
 
 html, body {
-  background: var(--surface-2);
+  background-color: #0a0f1a;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(245, 158, 11, 0.10), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 10% 100%, rgba(192, 132, 252, 0.06), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(34, 211, 238, 0.06), transparent 70%);
+  background-attachment: fixed;
   color: var(--ink);
+  min-height: 100vh;
 }
 
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ──── Pulsing live status dot ──── */
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6); opacity: 1; }
+  50%      { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); opacity: 0.85; }
+}
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* ──── Gradient text for hero metric values ──── */
+.metric-value {
+  background: linear-gradient(135deg, #ffffff 0%, var(--brand) 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ──── Subtle hover lift ──── */
+.lift {
+  transition: transform 200ms ease, background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+.lift:hover {
+  transform: translateY(-1px);
+  background: var(--surface-2);
+  border-color: var(--tenant-accent);
+  box-shadow: 0 8px 24px -12px var(--tenant-glow);
+}
+
+/* Tabular numerals for ledger-style numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Honeycomb hex glow used on hover for tenant cards */
+.tenant-glow:hover {
+  box-shadow: 0 0 0 1px var(--tenant-accent), 0 12px 32px -12px var(--tenant-glow);
 }
