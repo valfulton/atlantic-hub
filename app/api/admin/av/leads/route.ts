@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ leads });
   } catch (err) {
+    console.error('[av:leads:db-error]', (err as Error).message);
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }
 }

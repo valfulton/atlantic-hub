@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
       }
     });
   } catch (err) {
+    console.error('[av:stats:db-error]', (err as Error).message);
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }
 }
