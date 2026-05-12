@@ -3,7 +3,7 @@
  *
  * Endpoint that Netlify Forms POSTs to when a new submission arrives.
  *
- * - Header check: X-Atlantic-Hub-Webhook-Secret (constant-time compare)
+ * - Header check: X-Webhook-Signature (Netlify JWS / HS256 — verifies signature + body digest)
  * - Rate limit: 120 req/min per IP
  * - Feature flag: webhook_ingestion_enabled
  * - Idempotent on Netlify submission.id (re-deliveries return 200 'duplicate')
@@ -11,7 +11,7 @@
  * On success returns 200 + JSON status. On 5xx, Netlify will auto-retry.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyWebhookSecret } from '@/lib/webhook/verify-secret';
+import { verifyNetlifyFormsSignature } from '@/lib/webhook/verify-jws';
 import { ingestNetlifyFormsSubmission } from '@/lib/webhook/ingest-netlify-form';
 import { checkAndConsume, WEBHOOK_RATE_LIMIT } from '@/lib/rate-limit';
 import { writeAuditRow, extractClientIp } from '@/lib/audit';
@@ -41,28 +41,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
 
-  // Secret verification.
-  const provided = req.headers.get('x-atlantic-hub-webhook-secret');
-  if (!verifyWebhookSecret(provided)) {
-    await writeAuditRow({
-      targetResource: '/api/webhooks/netlify-forms',
-      action: 'webhook_bad_secret',
-      ip, userAgent: ua, statusCode: 401, errorClass: 'BadWebhookSecret'
-    });
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
-
-  // Feature flag.
-  if (!(await isFlagEnabled('webhook_ingestion_enabled'))) {
-    await writeAuditRow({
-      targetResource: '/api/webhooks/netlify-forms',
-      action: 'webhook_disabled',
-      ip, userAgent: ua, statusCode: 503, errorClass: 'WebhookDisabled'
-    });
-    return NextResponse.json({ error: 'webhook ingestion disabled' }, { status: 503 });
-  }
-
-  // Read body with a cap.
+  // Read body with a cap (must precede JWS verification — the sha256 claim covers the raw bytes).
   let raw: string;
   try {
     raw = await req.text();
@@ -76,6 +55,27 @@ export async function POST(req: NextRequest) {
     }
   } catch {
     return NextResponse.json({ error: 'cannot read body' }, { status: 400 });
+  }
+
+  // JWS signature verification.
+  const signature = req.headers.get('x-webhook-signature');
+  if (!(await verifyNetlifyFormsSignature(signature, raw))) {
+    await writeAuditRow({
+      targetResource: '/api/webhooks/netlify-forms',
+      action: 'webhook_bad_signature',
+      ip, userAgent: ua, statusCode: 401, errorClass: 'BadWebhookSignature'
+    });
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  // Feature flag.
+  if (!(await isFlagEnabled('webhook_ingestion_enabled'))) {
+    await writeAuditRow({
+      targetResource: '/api/webhooks/netlify-forms',
+      action: 'webhook_disabled',
+      ip, userAgent: ua, statusCode: 503, errorClass: 'WebhookDisabled'
+    });
+    return NextResponse.json({ error: 'webhook ingestion disabled' }, { status: 503 });
   }
 
   let payload: unknown;

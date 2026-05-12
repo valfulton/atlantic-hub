@@ -1,5 +1,7 @@
 # Atlantic Hub — Recovery Runbook
 
+> See also: docs/SECURITY_WINS.md for the engineering choices behind why this system fails closed.
+
 **Read this when something is wrong.**
 Three procedures. Each has exact SQL or terminal commands. Don't improvise — improvising at 11pm is how mistakes happen.
 

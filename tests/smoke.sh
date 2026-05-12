@@ -16,7 +16,8 @@
 #
 # IMPORTANT: never paste WEBHOOK_SECRET into a chat. Source it from
 # your local .env or read it from Netlify directly. The variable is
-# only used by tests #4 and #5.
+# used by tests #4 and #5, which generate a Netlify-shaped JWS
+# (X-Webhook-Signature / HS256) to exercise the webhook auth path.
 # =====================================================================
 
 set -u
@@ -30,6 +31,27 @@ fail=0
 red()    { printf "\033[31m%s\033[0m" "$*"; }
 green()  { printf "\033[32m%s\033[0m" "$*"; }
 yellow() { printf "\033[33m%s\033[0m" "$*"; }
+
+# Generate a compact JWS (HS256) matching the Netlify Forms signing contract.
+# Args: $1 = shared secret  $2 = raw request body string
+generate_jws() {
+  local secret="$1"
+  local body="$2"
+  JWS_SECRET="$secret" JWS_BODY="$body" node -e "
+    const crypto = require('crypto');
+    const secret = process.env.JWS_SECRET;
+    const body = process.env.JWS_BODY;
+    function b64url(buf) {
+      return buf.toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+    const sha256 = crypto.createHash('sha256').update(body,'utf8').digest('hex');
+    const hdr = b64url(Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})));
+    const pld = b64url(Buffer.from(JSON.stringify({iss:'netlify',sha256})));
+    const si = hdr+'.'+pld;
+    const sig = b64url(crypto.createHmac('sha256',secret).update(si).digest());
+    console.log(si+'.'+sig);
+  "
+}
 
 # Each test: assert the HTTP status matches expectations.
 expect_status() {
@@ -94,36 +116,40 @@ fi
 #          DataTable component HTML-encodes on render)
 # =====================================================================
 echo ""
-echo "4. XSS-shaped webhook payload stored safely (with correct secret)"
+echo "4. XSS-shaped webhook payload stored safely (valid JWS)"
 if [[ -z "$WEBHOOK_SECRET" ]]; then
   echo "  $(yellow SKIP)  WEBHOOK_SECRET env var not set; skipping"
 else
+  ts=$(date +%s)
+  body='{"id":"smoke-test-xss-'"$ts"'","form_name":"hh_subscribe","data":{"email":"xss-smoke+'"$ts"'@example.com","name":"<script>alert(1)</script>"}}'
+  jws=$(generate_jws "$WEBHOOK_SECRET" "$body")
   status=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "$BASE_URL/api/webhooks/netlify-forms" \
     -H "Content-Type: application/json" \
-    -H "X-Atlantic-Hub-Webhook-Secret: $WEBHOOK_SECRET" \
-    -d '{
-      "id": "smoke-test-xss-'"$(date +%s)"'",
-      "form_name": "hh_subscribe",
-      "data": {
-        "email": "xss-smoke+'"$(date +%s)"'@example.com",
-        "name": "<script>alert(1)</script>"
-      }
-    }')
-  expect_status "xss-payload → 200" "200" "$status"
+    -H "X-Webhook-Signature: $jws" \
+    --data-raw "$body")
+  expect_status "xss-payload-valid-jws → 200" "200" "$status"
 fi
 
 # =====================================================================
 # Test 5 — Webhook with WRONG secret is rejected
 # =====================================================================
 echo ""
-echo "5. Webhook with wrong secret is rejected"
-status=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X POST "$BASE_URL/api/webhooks/netlify-forms" \
-  -H "Content-Type: application/json" \
-  -H "X-Atlantic-Hub-Webhook-Secret: wrong-secret-value-here" \
-  -d '{"id":"x","form_name":"hh_subscribe","data":{"email":"a@b.co"}}')
-expect_status "bad-webhook-secret → 401" "401" "$status"
+echo "5. Tampered JWS is rejected"
+if [[ -z "$WEBHOOK_SECRET" ]]; then
+  echo "  $(yellow SKIP)  WEBHOOK_SECRET env var not set; skipping"
+else
+  body='{"id":"smoke-tamper-test","form_name":"hh_subscribe","data":{"email":"tamper@example.com"}}'
+  jws=$(generate_jws "$WEBHOOK_SECRET" "$body")
+  # Overwrite last 4 chars of the signature segment — must trigger 401.
+  tampered="${jws:0:${#jws}-4}XXXX"
+  status=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST "$BASE_URL/api/webhooks/netlify-forms" \
+    -H "Content-Type: application/json" \
+    -H "X-Webhook-Signature: $tampered" \
+    --data-raw "$body")
+  expect_status "tampered-jws → 401" "401" "$status"
+fi
 
 # =====================================================================
 # Test 6 — Login rate-limit kicks in after 5 attempts in 15 minutes
