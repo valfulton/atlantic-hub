@@ -33,7 +33,7 @@ export default async function ResearchApiPage() {
     <div>
       <h1 className="text-2xl font-semibold mb-1">Research API customers</h1>
       <p className="text-sm text-muted mb-6">{data.customers.length} total · v1 read-only</p>
-      <DataTable columns={columns} rows={data.customers as unknown as { [k: string]: unknown }[]} emptyMessage="No Research API inquiries yet." />
+      <DataTable columns={columns} rows={data.customers} emptyMessage="No Research API inquiries yet." />
     </div>
   );
 }

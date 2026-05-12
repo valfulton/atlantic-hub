@@ -32,7 +32,7 @@ export default async function SubscribersPage() {
     <div>
       <h1 className="text-2xl font-semibold mb-1">Subscribers</h1>
       <p className="text-sm text-muted mb-6">{data.subscribers.length} total · read-only in v1</p>
-      <DataTable columns={columns} rows={data.subscribers as unknown as { [k: string]: unknown }[]} emptyMessage="No subscribers yet. Submissions arrive here once Netlify Forms webhooks are wired." />
+      <DataTable columns={columns} rows={data.subscribers} emptyMessage="No subscribers yet. Submissions arrive here once Netlify Forms webhooks are wired." />
     </div>
   );
 }

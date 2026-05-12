@@ -6,7 +6,7 @@ export interface Column<T> {
   render: (row: T) => React.ReactNode;
 }
 
-export function DataTable<T extends { [k: string]: unknown }>({
+export function DataTable<T extends object>({
   columns,
   rows,
   emptyMessage = 'No records yet.'

@@ -33,7 +33,7 @@ export default async function FapApplicationsPage() {
     <div>
       <h1 className="text-2xl font-semibold mb-1">Founding Advisor Partner applications</h1>
       <p className="text-sm text-muted mb-6">{data.applications.length} total · verify CRD numbers on adviserinfo.sec.gov before approval</p>
-      <DataTable columns={columns} rows={data.applications as unknown as { [k: string]: unknown }[]} emptyMessage="No applications yet." />
+      <DataTable columns={columns} rows={data.applications} emptyMessage="No applications yet." />
     </div>
   );
 }

@@ -27,7 +27,7 @@ export default async function CohortWaitlistPage() {
     <div>
       <h1 className="text-2xl font-semibold mb-1">Cohort waitlist</h1>
       <p className="text-sm text-muted mb-6">{data.waitlist.length} total</p>
-      <DataTable columns={columns} rows={data.waitlist as unknown as { [k: string]: unknown }[]} emptyMessage="No waitlist signups yet." />
+      <DataTable columns={columns} rows={data.waitlist} emptyMessage="No waitlist signups yet." />
     </div>
   );
 }
