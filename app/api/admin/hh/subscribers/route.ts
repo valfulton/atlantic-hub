@@ -9,7 +9,7 @@ import { getHhDb } from '@/lib/db/hh';
 import { getPlatformDb } from '@/lib/db/platform';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { decryptEmail } from '@/lib/crypto/encrypt';
-import { isFlagEnabled } from '@/lib/feature-flags';
+import { isFlagEnabled, mysqlBoolToJs } from '@/lib/feature-flags';
 import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -20,7 +20,7 @@ interface SubscriberRow extends RowDataPacket {
   tier: 'free' | 'member' | 'cohort';
   signup_source: string | null;
   mrr_cents: number;
-  is_active: 0 | 1;
+  is_active: unknown;
   created_at: string;
 }
 
@@ -37,7 +37,6 @@ export async function GET(req: NextRequest) {
   });
   if (!guard.ok) return guard.response;
 
-  // Honor tab kill switch.
   if (!(await isFlagEnabled('tab_hh_enabled'))) {
     return NextResponse.json({ error: 'hh tab disabled' }, { status: 503 });
   }
@@ -80,7 +79,7 @@ export async function GET(req: NextRequest) {
         tier: s.tier,
         signupSource: s.signup_source,
         mrrCents: s.mrr_cents,
-        isActive: s.is_active === 1,
+        isActive: mysqlBoolToJs(s.is_active),
         createdAt: s.created_at
       };
     });

@@ -20,7 +20,7 @@ import { setSessionCookie } from '@/lib/auth/session';
 import { ensureOwnerBootstrap, type AdminUserRow } from '@/lib/auth/bootstrap';
 import { writeAuditRow, extractClientIp } from '@/lib/audit';
 import { checkAndConsume, LOGIN_RATE_LIMIT } from '@/lib/rate-limit';
-import { isFlagEnabled } from '@/lib/feature-flags';
+import { isFlagEnabled, mysqlBoolToJs } from '@/lib/feature-flags';
 import { ipHash } from '@/lib/crypto/hash';
 
 export const runtime = 'nodejs';
@@ -101,7 +101,11 @@ export async function POST(req: NextRequest) {
     const hashToCheck = user?.password_hash ?? '$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalid';
     const ok = await verifyPassword(password, hashToCheck);
 
-    if (!user || !ok || !user.is_active) {
+    // Use mysqlBoolToJs to handle Buffer/number/string representations
+    // of the is_active boolean — protects against logging in a disabled user.
+    const isActive = user ? mysqlBoolToJs(user.is_active) : false;
+
+    if (!user || !ok || !isActive) {
       await writeAuditRow({
         actorUserId: user?.user_id ?? null,
         targetResource: '/api/auth/login',
@@ -120,7 +124,7 @@ export async function POST(req: NextRequest) {
       role: user.role,
       sessionId
     });
-    setSessionCookie(token);
+    await setSessionCookie(token);
 
     await db.execute(
       'UPDATE admin_users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = ?',
