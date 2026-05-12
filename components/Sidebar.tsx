@@ -2,16 +2,20 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const NAV = [
-  { href: '/admin', label: 'Home', section: 'top' },
-  { href: '/admin/hh', label: 'HunterHoney', section: 'tenant', tenant: 'hunterhoney' },
-  { href: '/admin/hh/subscribers', label: 'Subscribers', section: 'sub' },
-  { href: '/admin/hh/fap-applications', label: 'FAP Applications', section: 'sub' },
-  { href: '/admin/hh/cohort-waitlist', label: 'Cohort Waitlist', section: 'sub' },
-  { href: '/admin/hh/research-api', label: 'Research API', section: 'sub' }
-] as const;
+const HH_NAV = [
+  { href: '/admin', label: 'Home', section: 'top' as const },
+  { href: '/admin/hh', label: 'HunterHoney', section: 'tenant' as const },
+  { href: '/admin/hh/subscribers', label: 'Subscribers', section: 'sub' as const },
+  { href: '/admin/hh/fap-applications', label: 'FAP Applications', section: 'sub' as const },
+  { href: '/admin/hh/cohort-waitlist', label: 'Cohort Waitlist', section: 'sub' as const },
+  { href: '/admin/hh/research-api', label: 'Research API', section: 'sub' as const }
+];
 
-export function Sidebar() {
+const AV_NAV = [
+  { href: '/admin/av', label: 'Atlantic & Vine', section: 'tenant' as const }
+];
+
+export function Sidebar({ showAv = false }: { showAv?: boolean }) {
   const pathname = usePathname();
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -52,7 +56,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 text-sm">
-        {NAV.map((n) => {
+        {[...HH_NAV, ...(showAv ? AV_NAV : [])].map((n) => {
           const active = pathname === n.href;
           const isSub = n.section === 'sub';
           const isTenantHeader = n.section === 'tenant';

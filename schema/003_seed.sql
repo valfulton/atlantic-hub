@@ -28,7 +28,7 @@ USE shhdbite_atlantic_hub;
 -- =====================================================================
 INSERT IGNORE INTO tenants (tenant_id, display_name, db_name, brand_color_hex, is_active) VALUES
   ('hunterhoney', 'HunterHoney Research', 'shhdbite_hunterhoney', '#F59E0B', TRUE),
-  ('av',          'Atlantic & Vine',      'shhdbite_av',          '#7C2D12', TRUE),
+  ('av',          'Atlantic & Vine',      'shhdbite_AV',          '#7C2D12', TRUE),
   ('ebw',         'Events by Water',      'shhdbite_ebw',         '#0E7490', TRUE);
 
 -- =====================================================================
@@ -44,7 +44,7 @@ INSERT IGNORE INTO tenants (tenant_id, display_name, db_name, brand_color_hex, i
 -- =====================================================================
 INSERT IGNORE INTO feature_flags (flag_name, enabled, notes) VALUES
   ('tab_hh_enabled',            TRUE,  'HunterHoney tab visible in dashboard'),
-  ('tab_av_enabled',            FALSE, 'Atlantic & Vine tab — ships in v2'),
+  ('tab_av_enabled',            TRUE,  'Atlantic & Vine tab — Phase 1 dashboard'),
   ('tab_ebw_enabled',           FALSE, 'Events by Water tab — ships in v2'),
   ('webhook_ingestion_enabled', TRUE,  'Accept inbound Netlify Forms webhooks'),
   ('audit_log_writes_enabled',  TRUE,  'Emergency-only kill switch — disable only if audit table is blocking reads'),
