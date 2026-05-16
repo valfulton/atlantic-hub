@@ -3,6 +3,7 @@ import { MetricCard } from '@/components/MetricCard';
 import { serverFetch } from '@/lib/server-fetch';
 import { AvLeadsTable } from './AvLeadsTable';
 import type { AvLead } from './AvLeadsTable';
+import { EnrichButton } from './EnrichButton';
 
 interface Stats {
   total: number;
@@ -112,9 +113,12 @@ export default async function AvPage({
       </form>
 
       <div className="mb-2">
-        <h2 className="text-sm font-medium text-muted mb-3">
-          Atlantic &amp; Vine — Audit-form leads (your business)
-        </h2>
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h2 className="text-sm font-medium text-muted">
+            Atlantic &amp; Vine — Audit-form leads (your business)
+          </h2>
+          <EnrichButton defaultLimit={5} />
+        </div>
         <AvLeadsTable leads={leads} />
       </div>
     </div>
