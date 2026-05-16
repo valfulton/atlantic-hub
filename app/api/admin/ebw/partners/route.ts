@@ -7,18 +7,29 @@ import type { RowDataPacket } from 'mysql2';
 export const runtime = 'nodejs';
 
 interface VesselRow extends RowDataPacket {
-  id: number; first_name: string | null; last_name: string | null;
-  email: string | null; phone: string | null;
-  vessel_name: string | null; vessel_type: string | null; vessel_length: string | null;
-  home_port: string | null; passenger_capacity: number | null;
-  daily_rate: string | null; markets: string | null; submitted_at: string;
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  vessel_name: string | null;
+  vessel_type: string | null;
+  markets: string | null;
+  submitted_at: string;
 }
 
 interface CaptainRow extends RowDataPacket {
-  id: number; first_name: string | null; last_name: string | null;
-  email: string | null; phone: string | null;
-  license_type: string | null; years_experience: string | null;
-  home_waters: string | null; markets: string | null; submitted_at: string;
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  state: string | null;
+  license_type: string | null;
+  experience_bio: string | null;
+  markets: string | null;
+  submitted_at: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -30,13 +41,11 @@ export async function GET(req: NextRequest) {
   try {
     const db = getEbwDb();
     const [vRows] = await db.execute<VesselRow[]>(
-      `SELECT id, first_name, last_name, email, phone, vessel_name, vessel_type, vessel_length,
-              home_port, passenger_capacity, daily_rate, markets, submitted_at
+      `SELECT id, first_name, last_name, email, phone, vessel_name, vessel_type, markets, submitted_at
          FROM vessel_listings ORDER BY submitted_at DESC LIMIT 500`
     );
     const [cRows] = await db.execute<CaptainRow[]>(
-      `SELECT id, first_name, last_name, email, phone, license_type, years_experience,
-              home_waters, markets, submitted_at
+      `SELECT id, first_name, last_name, email, phone, city, state, license_type, experience_bio, markets, submitted_at
          FROM captain_applications ORDER BY submitted_at DESC LIMIT 500`
     );
     return NextResponse.json({
@@ -47,10 +56,6 @@ export async function GET(req: NextRequest) {
         phone: r.phone,
         vesselName: r.vessel_name,
         vesselType: r.vessel_type,
-        vesselLength: r.vessel_length,
-        homePort: r.home_port,
-        passengerCapacity: r.passenger_capacity,
-        dailyRate: r.daily_rate,
         markets: r.markets,
         submittedAt: r.submitted_at
       })),
@@ -59,9 +64,9 @@ export async function GET(req: NextRequest) {
         name: [r.first_name, r.last_name].filter(Boolean).join(' '),
         email: r.email,
         phone: r.phone,
+        location: [r.city, r.state].filter(Boolean).join(', '),
         licenseType: r.license_type,
-        yearsExperience: r.years_experience,
-        homeWaters: r.home_waters,
+        experienceBio: r.experience_bio,
         markets: r.markets,
         submittedAt: r.submitted_at
       }))

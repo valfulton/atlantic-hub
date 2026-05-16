@@ -5,8 +5,7 @@ interface Investor {
   name: string;
   email: string | null;
   phone: string | null;
-  location: string;
-  investmentInterest: string | null;
+  signedName: string | null;
   ndaSigned: boolean;
   signedDate: string | null;
   submittedAt: string;
@@ -32,8 +31,7 @@ export default async function EbwInvestorsPage() {
               <tr className="border-b border-border">
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Contact</th>
-                <th className="py-2 pr-4">Location</th>
-                <th className="py-2 pr-4">Investment interest</th>
+                <th className="py-2 pr-4">Signed as</th>
                 <th className="py-2 pr-4">NDA</th>
                 <th className="py-2 pr-4">Signed</th>
                 <th className="py-2 pr-4">Registered</th>
@@ -47,8 +45,7 @@ export default async function EbwInvestorsPage() {
                     {i.email && <div>{i.email}</div>}
                     {i.phone && <div className="text-muted">{i.phone}</div>}
                   </td>
-                  <td className="py-3 pr-4">{i.location || '—'}</td>
-                  <td className="py-3 pr-4 max-w-xs text-xs">{i.investmentInterest || '—'}</td>
+                  <td className="py-3 pr-4 text-xs">{i.signedName || '—'}</td>
                   <td className="py-3 pr-4">
                     {i.ndaSigned ? (
                       <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-md">signed</span>

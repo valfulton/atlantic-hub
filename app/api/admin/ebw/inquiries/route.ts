@@ -16,7 +16,6 @@ interface InquiryRow extends RowDataPacket {
   group_size: string | null;
   event_type: string | null;
   budget: string | null;
-  message: string | null;
   submitted_at: string;
 }
 
@@ -29,7 +28,7 @@ export async function GET(req: NextRequest) {
   try {
     const db = getEbwDb();
     const [rows] = await db.execute<InquiryRow[]>(
-      `SELECT id, name, email, phone, market, event_date, group_size, event_type, budget, message, submitted_at
+      `SELECT id, name, email, phone, market, event_date, group_size, event_type, budget, submitted_at
          FROM charter_inquiries ORDER BY submitted_at DESC LIMIT 500`
     );
     return NextResponse.json({
@@ -43,7 +42,6 @@ export async function GET(req: NextRequest) {
         groupSize: r.group_size,
         eventType: r.event_type,
         budget: r.budget,
-        message: r.message,
         submittedAt: r.submitted_at
       }))
     });

@@ -10,7 +10,6 @@ interface Inquiry {
   groupSize: string | null;
   eventType: string | null;
   budget: string | null;
-  message: string | null;
   submittedAt: string;
 }
 
@@ -38,7 +37,6 @@ export default async function EbwInquiriesPage() {
                 <th className="py-2 pr-4">Market</th>
                 <th className="py-2 pr-4">Event</th>
                 <th className="py-2 pr-4">Budget</th>
-                <th className="py-2 pr-4">Message</th>
               </tr>
             </thead>
             <tbody>
@@ -57,7 +55,6 @@ export default async function EbwInquiriesPage() {
                     {i.groupSize && <div className="text-xs text-muted">group: {i.groupSize}</div>}
                   </td>
                   <td className="py-3 pr-4 text-xs">{i.budget || '—'}</td>
-                  <td className="py-3 pr-4 text-xs max-w-md">{i.message || ''}</td>
                 </tr>
               ))}
             </tbody>

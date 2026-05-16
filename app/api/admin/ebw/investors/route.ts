@@ -12,9 +12,7 @@ interface InvestorRow extends RowDataPacket {
   last_name: string | null;
   email: string | null;
   phone: string | null;
-  city: string | null;
-  state: string | null;
-  investment_interest: string | null;
+  signed_name: string | null;
   nda_signed: number;
   signed_date: string | null;
   submitted_at: string;
@@ -29,8 +27,7 @@ export async function GET(req: NextRequest) {
   try {
     const db = getEbwDb();
     const [rows] = await db.execute<InvestorRow[]>(
-      `SELECT id, first_name, last_name, email, phone, city, state, investment_interest,
-              nda_signed, signed_date, submitted_at
+      `SELECT id, first_name, last_name, email, phone, signed_name, nda_signed, signed_date, submitted_at
          FROM investor_registrations ORDER BY submitted_at DESC LIMIT 500`
     );
     return NextResponse.json({
@@ -39,8 +36,7 @@ export async function GET(req: NextRequest) {
         name: [r.first_name, r.last_name].filter(Boolean).join(' '),
         email: r.email,
         phone: r.phone,
-        location: [r.city, r.state].filter(Boolean).join(', '),
-        investmentInterest: r.investment_interest,
+        signedName: r.signed_name,
         ndaSigned: r.nda_signed === 1,
         signedDate: r.signed_date,
         submittedAt: r.submitted_at
