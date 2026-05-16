@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface DiscoverResult {
-  apolloPersonId: string;
+  apolloOrganizationId: string;
   outcome: 'inserted' | 'duplicate' | 'insert_failed';
   leadId?: number;
-  details?: { name?: string; title?: string; company?: string; domain?: string; error?: string };
+  details?: { company?: string; domain?: string; industry?: string; employeeEstimate?: number | null; error?: string };
 }
 
 interface DiscoverBatchSummary {
@@ -36,29 +36,15 @@ const EMPLOYEE_RANGES = [
   { label: '5,001+', value: '5001,1000000' }
 ];
 
-const SENIORITIES = [
-  { label: 'Owner', value: 'owner' },
-  { label: 'Founder', value: 'founder' },
-  { label: 'C-suite', value: 'c_suite' },
-  { label: 'Partner', value: 'partner' },
-  { label: 'VP', value: 'vp' },
-  { label: 'Head', value: 'head' },
-  { label: 'Director', value: 'director' },
-  { label: 'Manager', value: 'manager' },
-  { label: 'Senior', value: 'senior' }
-];
-
 interface IcpPreset {
   label: string;
   filters: {
-    personTitles?: string[];
-    personSeniorities?: string[];
-    personLocations?: string[];
+    qOrganizationName?: string;
     organizationLocations?: string[];
+    organizationNotLocations?: string[];
     qOrganizationDomainsList?: string[];
-    organizationIndustries?: string[];
+    qOrganizationKeywordTags?: string[];
     organizationNumEmployeesRanges?: string[];
-    qKeywords?: string;
   };
 }
 
@@ -66,51 +52,40 @@ const ICP_PRESETS: IcpPreset[] = [
   {
     label: 'St. Croix hospitality (your EBW prospects)',
     filters: {
-      personTitles: ['owner', 'general manager', 'events manager', 'catering manager'],
-      personSeniorities: ['owner', 'founder', 'c_suite', 'director', 'manager'],
       organizationLocations: ['Saint Croix, United States Virgin Islands', 'US Virgin Islands'],
-      organizationIndustries: ['hospitality', 'restaurants', 'food & beverages', 'events services'],
-      organizationNumEmployeesRanges: ['1,10', '11,50'],
-      qKeywords: 'restaurant boardwalk bar catering'
+      qOrganizationKeywordTags: ['hospitality', 'restaurants', 'bars', 'catering', 'events'],
+      organizationNumEmployeesRanges: ['1,10', '11,50']
     }
   },
   {
     label: 'USVI wedding + event planners',
     filters: {
-      personTitles: ['wedding planner', 'event planner', 'event coordinator', 'wedding coordinator'],
-      personSeniorities: ['owner', 'founder', 'director', 'manager'],
       organizationLocations: ['US Virgin Islands', 'Saint Croix', 'Saint Thomas', 'Saint John'],
-      organizationIndustries: ['events services', 'hospitality'],
+      qOrganizationKeywordTags: ['wedding planning', 'event planning', 'destination weddings'],
       organizationNumEmployeesRanges: ['1,10', '11,50']
     }
   },
   {
     label: 'Caribbean charter / yacht operators',
     filters: {
-      personTitles: ['captain', 'charter manager', 'fleet manager', 'operations manager'],
-      personSeniorities: ['owner', 'founder', 'director', 'manager'],
       organizationLocations: ['US Virgin Islands', 'British Virgin Islands', 'Puerto Rico'],
-      organizationIndustries: ['recreational facilities and services', 'maritime', 'leisure travel & tourism'],
+      qOrganizationKeywordTags: ['yacht charter', 'boat charter', 'marine', 'sailing'],
       organizationNumEmployeesRanges: ['1,10', '11,50']
     }
   },
   {
     label: 'Hotels + corporate retreat venues (St. Croix focus)',
     filters: {
-      personTitles: ['group sales', 'events coordinator', 'sales manager', 'general manager'],
-      personSeniorities: ['director', 'manager', 'head'],
       organizationLocations: ['Saint Croix, United States Virgin Islands', 'US Virgin Islands'],
-      organizationIndustries: ['hospitality', 'hotels & motels', 'travel & tourism'],
+      qOrganizationKeywordTags: ['hotels', 'resorts', 'corporate retreats', 'venues'],
       organizationNumEmployeesRanges: ['11,50', '51,200', '201,500']
     }
   },
   {
-    label: 'Marketing decision-makers at small SaaS (AV client ICP)',
+    label: 'Marketing agencies / SaaS (AV client ICP)',
     filters: {
-      personTitles: ['marketing director', 'head of marketing', 'vp marketing', 'cmo', 'demand generation'],
-      personSeniorities: ['c_suite', 'vp', 'head', 'director'],
       organizationLocations: ['United States'],
-      organizationIndustries: ['computer software', 'information technology and services', 'internet'],
+      qOrganizationKeywordTags: ['marketing agency', 'digital marketing', 'saas', 'software'],
       organizationNumEmployeesRanges: ['11,50', '51,200', '201,500']
     }
   }
@@ -123,26 +98,21 @@ export function DiscoverForm() {
   const [summary, setSummary] = useState<DiscoverBatchSummary | null>(null);
   const [showResult, setShowResult] = useState(false);
 
-  // Form fields stored as comma-separated strings; parsed before POST
-  const [personTitles, setPersonTitles] = useState('');
-  const [personLocations, setPersonLocations] = useState('');
+  const [qOrganizationName, setQOrganizationName] = useState('');
   const [organizationLocations, setOrganizationLocations] = useState('');
+  const [organizationNotLocations, setOrganizationNotLocations] = useState('');
   const [qOrganizationDomainsList, setQOrganizationDomainsList] = useState('');
-  const [organizationIndustries, setOrganizationIndustries] = useState('');
+  const [qOrganizationKeywordTags, setQOrganizationKeywordTags] = useState('');
   const [selectedRanges, setSelectedRanges] = useState<string[]>([]);
-  const [selectedSeniorities, setSelectedSeniorities] = useState<string[]>([]);
-  const [qKeywords, setQKeywords] = useState('');
   const [perPage, setPerPage] = useState(25);
 
   function applyPreset(preset: IcpPreset) {
-    setPersonTitles((preset.filters.personTitles || []).join(', '));
-    setPersonLocations((preset.filters.personLocations || []).join(', '));
+    setQOrganizationName(preset.filters.qOrganizationName || '');
     setOrganizationLocations((preset.filters.organizationLocations || []).join(', '));
+    setOrganizationNotLocations((preset.filters.organizationNotLocations || []).join(', '));
     setQOrganizationDomainsList((preset.filters.qOrganizationDomainsList || []).join(', '));
-    setOrganizationIndustries((preset.filters.organizationIndustries || []).join(', '));
+    setQOrganizationKeywordTags((preset.filters.qOrganizationKeywordTags || []).join(', '));
     setSelectedRanges(preset.filters.organizationNumEmployeesRanges || []);
-    setSelectedSeniorities(preset.filters.personSeniorities || []);
-    setQKeywords(preset.filters.qKeywords || '');
   }
 
   function csvToArray(s: string): string[] {
@@ -153,10 +123,6 @@ export function DiscoverForm() {
     setSelectedRanges((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
   }
 
-  function toggleSeniority(v: string) {
-    setSelectedSeniorities((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
-  }
-
   async function runSearch(e: React.FormEvent) {
     e.preventDefault();
     setRunning(true);
@@ -164,14 +130,12 @@ export function DiscoverForm() {
     setSummary(null);
     try {
       const body = {
-        personTitles: csvToArray(personTitles),
-        personSeniorities: selectedSeniorities,
-        personLocations: csvToArray(personLocations),
+        qOrganizationName: qOrganizationName.trim() || undefined,
         organizationLocations: csvToArray(organizationLocations),
+        organizationNotLocations: csvToArray(organizationNotLocations),
         qOrganizationDomainsList: csvToArray(qOrganizationDomainsList),
-        organizationIndustries: csvToArray(organizationIndustries),
+        qOrganizationKeywordTags: csvToArray(qOrganizationKeywordTags),
         organizationNumEmployeesRanges: selectedRanges,
-        qKeywords: qKeywords.trim() || undefined,
         page: 1,
         perPage
       };
@@ -195,10 +159,14 @@ export function DiscoverForm() {
     }
   }
 
+  const inputStyle = { backgroundColor: '#1a1f2e', color: '#f1f5f9' };
+
   return (
     <>
       <div className="bg-surface border border-border rounded-lg p-5 mb-6">
-        <div className="text-xs uppercase tracking-wider text-muted mb-2">ICP presets — click to fill the form</div>
+        <div className="text-xs uppercase tracking-wider text-muted mb-2">
+          ICP presets — click to fill the form (company-level search)
+        </div>
         <div className="flex flex-wrap gap-2">
           {ICP_PRESETS.map((preset) => (
             <button
@@ -211,97 +179,68 @@ export function DiscoverForm() {
             </button>
           ))}
         </div>
+        <div className="text-xs text-muted mt-3 leading-relaxed">
+          🔭 This is <strong>company</strong> discovery. Each match is inserted as a lead with company info
+          only — the daily Hunter cron then enriches each with a real person + email at that company.
+        </div>
       </div>
 
       <form onSubmit={runSearch} className="bg-surface border border-border rounded-lg p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <div className="text-xs uppercase tracking-wider text-muted mb-1">Person titles (comma-separated)</div>
+            <div className="text-xs uppercase tracking-wider text-muted mb-1">Company name (partial match)</div>
             <input
               type="text"
-              value={personTitles}
-              onChange={(e) => setPersonTitles(e.target.value)}
-              placeholder="owner, general manager, wedding planner"
+              value={qOrganizationName}
+              onChange={(e) => setQOrganizationName(e.target.value)}
+              placeholder="e.g. STX Weddings"
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
-              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+              style={inputStyle}
             />
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wider text-muted mb-1">Keywords (free text)</div>
+            <div className="text-xs uppercase tracking-wider text-muted mb-1">Keyword tags (industries / focus)</div>
             <input
               type="text"
-              value={qKeywords}
-              onChange={(e) => setQKeywords(e.target.value)}
-              placeholder="boardwalk, catering, beach venue"
+              value={qOrganizationKeywordTags}
+              onChange={(e) => setQOrganizationKeywordTags(e.target.value)}
+              placeholder="hospitality, restaurants, wedding planning"
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
-              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+              style={inputStyle}
             />
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wider text-muted mb-1">Person locations</div>
-            <input
-              type="text"
-              value={personLocations}
-              onChange={(e) => setPersonLocations(e.target.value)}
-              placeholder="Saint Croix, US Virgin Islands"
-              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
-              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
-            />
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wider text-muted mb-1">Organization locations</div>
+            <div className="text-xs uppercase tracking-wider text-muted mb-1">Locations (company HQ)</div>
             <input
               type="text"
               value={organizationLocations}
               onChange={(e) => setOrganizationLocations(e.target.value)}
-              placeholder="US Virgin Islands"
+              placeholder="Saint Croix, US Virgin Islands"
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
-              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+              style={inputStyle}
             />
           </div>
-          <div className="md:col-span-2">
-            <div className="text-xs uppercase tracking-wider text-muted mb-1">Organization industries</div>
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted mb-1">Exclude locations</div>
             <input
               type="text"
-              value={organizationIndustries}
-              onChange={(e) => setOrganizationIndustries(e.target.value)}
-              placeholder="hospitality, restaurants, event services"
+              value={organizationNotLocations}
+              onChange={(e) => setOrganizationNotLocations(e.target.value)}
+              placeholder="(optional) e.g. United Kingdom"
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
-              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+              style={inputStyle}
             />
           </div>
           <div className="md:col-span-2">
-            <div className="text-xs uppercase tracking-wider text-muted mb-1">Specific company domains (comma-separated)</div>
+            <div className="text-xs uppercase tracking-wider text-muted mb-1">Specific company domains</div>
             <input
               type="text"
               value={qOrganizationDomainsList}
               onChange={(e) => setQOrganizationDomainsList(e.target.value)}
-              placeholder="brewstx.com, esterastcroix.com"
+              placeholder="(optional) brewstx.com, esterastcroix.com"
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
-              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+              style={inputStyle}
             />
-            <div className="text-xs text-muted mt-1">Optional: limit search to specific company domains. Up to 1,000.</div>
-          </div>
-          <div className="md:col-span-2">
-            <div className="text-xs uppercase tracking-wider text-muted mb-2">Seniority levels</div>
-            <div className="flex flex-wrap gap-2">
-              {SENIORITIES.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  onClick={() => toggleSeniority(s.value)}
-                  className={[
-                    'text-xs px-3 py-1.5 border rounded-md',
-                    selectedSeniorities.includes(s.value)
-                      ? 'bg-brand text-white border-brand'
-                      : 'border-border text-ink hover:border-brand'
-                  ].join(' ')}
-                  style={selectedSeniorities.includes(s.value) ? undefined : { backgroundColor: '#1a1f2e' }}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
           </div>
           <div className="md:col-span-2">
             <div className="text-xs uppercase tracking-wider text-muted mb-2">Organization size (employees)</div>
@@ -332,9 +271,8 @@ export function DiscoverForm() {
               value={perPage}
               onChange={(e) => setPerPage(Math.max(1, Math.min(100, Number(e.target.value) || 25)))}
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
-              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+              style={inputStyle}
             />
-            <div className="text-xs text-muted mt-1">Each call counts as 1 Apollo search credit.</div>
           </div>
         </div>
 
@@ -350,7 +288,7 @@ export function DiscoverForm() {
                 Searching Apollo…
               </>
             ) : (
-              <>🔭 Run Apollo search</>
+              <>🔭 Find companies</>
             )}
           </button>
           {error && <span className="text-xs text-red-400">Error: {error}</span>}
@@ -379,7 +317,7 @@ function DiscoverResultModal({
         style={{ backgroundColor: '#0e1420' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold mb-1">Apollo search complete 🔭</h2>
+        <h2 className="text-lg font-semibold mb-1">Apollo company search complete 🔭</h2>
         <p className="text-sm text-muted mb-4">
           {summary.stoppedEarlyReason
             ? summary.stoppedEarlyReason
@@ -395,17 +333,17 @@ function DiscoverResultModal({
 
         {summary.results.filter((r) => r.outcome === 'inserted').length > 0 && (
           <div className="mb-4">
-            <div className="text-xs uppercase tracking-wider text-muted mb-2">Newly inserted ({summary.inserted})</div>
+            <div className="text-xs uppercase tracking-wider text-muted mb-2">Newly inserted companies ({summary.inserted})</div>
             <ul className="space-y-1.5 max-h-72 overflow-y-auto">
               {summary.results
                 .filter((r) => r.outcome === 'inserted')
                 .map((r) => (
-                  <li key={r.apolloPersonId} className="text-xs bg-bg border border-border rounded-md px-3 py-2">
+                  <li key={r.apolloOrganizationId} className="text-xs bg-bg border border-border rounded-md px-3 py-2">
                     <div className="font-medium text-ink">{r.details?.company}</div>
                     <div className="text-muted">
-                      {r.details?.name}
-                      {r.details?.title && <span> · {r.details.title}</span>}
-                      {r.details?.domain && <span> · {r.details.domain}</span>}
+                      {r.details?.domain && <span>{r.details.domain}</span>}
+                      {r.details?.industry && <span> · {r.details.industry}</span>}
+                      {typeof r.details?.employeeEstimate === 'number' && <span> · ~{r.details.employeeEstimate} emp</span>}
                     </div>
                   </li>
                 ))}
@@ -416,19 +354,9 @@ function DiscoverResultModal({
         {summary.duplicates > 0 && (
           <div className="bg-surface border border-border rounded-md px-3 py-2 mb-4 text-xs text-muted">
             {summary.duplicates} {summary.duplicates === 1 ? 'result was' : 'results were'} already in your DB
-            (deduped on apollo_person_id).
+            (deduped on Apollo organization ID).
           </div>
         )}
-
-        <div className="bg-bg border border-border rounded-md px-3 py-2 mb-4 text-xs">
-          <div className="text-muted">
-            Apollo searches this month:{' '}
-            <span className="text-ink font-medium">
-              {summary.searchesUsedThisMonth} / {summary.monthlyCeiling}
-            </span>{' '}
-            ({summary.searchesRemainingThisMonth} remaining)
-          </div>
-        </div>
 
         {summary.inserted > 0 && (
           <div
@@ -437,9 +365,9 @@ function DiscoverResultModal({
           >
             <div className="font-medium mb-1 text-ink">⏭ What happens next, automatically</div>
             <ul className="text-muted space-y-1 list-disc ml-4">
-              <li>Hunter cron (daily 6 AM UTC) will pick these up and fill in real emails</li>
-              <li>AI scoring will run on each new lead (coming in the next build)</li>
-              <li>You can find them in <code className="bg-bg px-1 rounded">/admin/av</code> filtered by source = api</li>
+              <li>Hunter cron (daily 6 AM UTC) finds real people + emails at these companies</li>
+              <li>Each enriched lead gets AI scored (coming in next build)</li>
+              <li>Find them in <code className="bg-bg px-1 rounded">/admin/av</code> filtered by source = api</li>
             </ul>
           </div>
         )}

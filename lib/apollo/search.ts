@@ -1,63 +1,50 @@
 /**
- * Apollo.io Search API client (mixed_people/api_search).
+ * Apollo.io Search API client — adapted for plans that DON'T include
+ * the people-search endpoint (mixed_people/api_search).
  *
- * Apollo's database: 275M+ contacts at 30M+ companies. Search by ICP
- * filters (titles, locations, seniorities, domains, industries,
- * company-size ranges) → returns people with company context. This is
- * the discovery layer for AV's lead-gen product.
+ * Path B architecture:
+ *   1. Call organizations/search to find COMPANIES matching ICP filters
+ *      (locations, industries, employee size, keywords, specific domains)
+ *   2. INSERT each company as a lead with company-level data only
+ *      (no contact_name, contact_title, or real email yet — those columns
+ *       stay NULL/placeholder)
+ *   3. Daily Hunter cron picks up these new leads and enriches:
+ *      domain → real person → real email → contact title
  *
- * Reads APOLLO_API_KEY from process.env (set on Netlify, never local).
+ * Plan compatibility (per Val's Apollo key permissions):
+ *   ✅ api/v1/organizations/search       ← what we use
+ *   ✅ api/v1/organizations/enrich       ← future: enrich a known company
+ *   ✅ api/v1/mixed_people/organization_top_people ← future: people lookup
+ *   🚫 api/v1/mixed_people/api_search    ← NOT on her plan (Professional+ only)
+ *   🚫 api/v1/people/match                ← NOT on her plan
  *
- * CRITICAL — endpoint version (Apollo distinguishes two):
- *   /mixed_people/search       ← in-app UI use only; returns 401 to API callers
- *   /mixed_people/api_search   ← API-facing version; what we use here
- * Using the wrong one is the #1 cause of "401 Invalid access credentials".
+ * Reads APOLLO_API_KEY from process.env (set on Netlify, master key scope).
  *
- * CRITICAL — Master API Key required:
- *   The api_search endpoint requires a key flagged as "Master API Key"
- *   in Apollo. When creating the key (Apollo → Settings → Integrations →
- *   API → Create new key), toggle "Set as master key" OR explicitly select
- *   all endpoints. A regular per-endpoint key WILL return 401.
- *
- * Credits: api_search DOES NOT consume credits per Apollo docs. Only
- * email/phone enrichment endpoints consume credits. So we log calls for
- * audit but don't gate on a monthly ceiling for search.
- *
- * Emails: api_search returns name + title + LinkedIn URL + company, but
- * NOT email. Emails are obtained via people-enrichment (paid credits).
- * Our pipeline inserts placeholder emails and lets Hunter.io enrich them
- * on the daily cron — same outcome, much cheaper.
- *
- * Docs: https://docs.apollo.io/reference/people-api-search
- * Auth: https://docs.apollo.io/docs/create-api-key
+ * Docs: https://docs.apollo.io/reference/organization-search
+ *       (Note: docs page describes mixed_companies/search which is the
+ *        modern/richer name. organizations/search is the legacy endpoint
+ *        Val's plan allows; same request shape, simpler filter set.)
  */
 
 const APOLLO_BASE = 'https://api.apollo.io/api/v1';
 
-export interface ApolloPerson {
+export interface ApolloOrganization {
   id: string;
-  first_name: string | null;
-  last_name: string | null;
   name: string | null;
-  title: string | null;
-  headline: string | null;
-  linkedin_url: string | null;
+  website_url: string | null;
+  primary_phone: { number: string | null } | null;
+  industry: string | null;
+  estimated_num_employees: number | null;
+  primary_domain: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
-  organization: {
-    id: string;
-    name: string | null;
-    website_url: string | null;
-    linkedin_url: string | null;
-    primary_phone: { number: string | null } | null;
-    industry: string | null;
-    estimated_num_employees: number | null;
-  } | null;
+  linkedin_url: string | null;
+  short_description: string | null;
 }
 
-export interface ApolloSearchResult {
-  people: ApolloPerson[];
+export interface ApolloOrganizationSearchResult {
+  organizations: ApolloOrganization[];
   pagination: {
     page: number;
     per_page: number;
@@ -66,40 +53,19 @@ export interface ApolloSearchResult {
   };
 }
 
-/**
- * Apollo's documented seniority enum values. Use these strings exactly.
- * https://docs.apollo.io/reference/people-api-search
- */
-export type ApolloSeniority =
-  | 'owner'
-  | 'founder'
-  | 'c_suite'
-  | 'partner'
-  | 'vp'
-  | 'head'
-  | 'director'
-  | 'manager'
-  | 'senior'
-  | 'entry'
-  | 'intern';
-
-export interface ApolloSearchFilters {
-  /** Job titles to search for, e.g. ['wedding planner', 'event coordinator'] */
-  personTitles?: string[];
-  /** Apollo seniority enum (owner, founder, c_suite, vp, etc.) */
-  personSeniorities?: ApolloSeniority[];
-  /** Locations for the PERSON, e.g. ['United States Virgin Islands', 'Saint Croix'] */
-  personLocations?: string[];
-  /** Locations for the COMPANY HQ (often more reliable than personLocations) */
+export interface ApolloOrgSearchFilters {
+  /** Exact-ish company name search */
+  qOrganizationName?: string;
+  /** Locations of company HQ */
   organizationLocations?: string[];
-  /** Specific company domains to search, e.g. ['brewstx.com', 'esterastcroix.com'] */
+  /** Locations to EXCLUDE (Apollo's organization_not_locations) */
+  organizationNotLocations?: string[];
+  /** Specific company domains to search */
   qOrganizationDomainsList?: string[];
-  /** Industry strings (Apollo's taxonomy), e.g. ['hospitality', 'restaurants'] */
-  organizationIndustries?: string[];
-  /** Company size ranges as "min,max" strings, e.g. ['1,10', '11,50'] */
+  /** Industry keyword tags (Apollo's taxonomy) */
+  qOrganizationKeywordTags?: string[];
+  /** Company size ranges as "min,max" strings, e.g. ['1,10','11,50'] */
   organizationNumEmployeesRanges?: string[];
-  /** Comma-separated keyword search across name/title/company */
-  qKeywords?: string;
   /** Page number, 1-indexed */
   page?: number;
   /** Results per page (Apollo max = 100) */
@@ -125,12 +91,9 @@ export class ApolloApiError extends Error {
 }
 
 /**
- * Call Apollo's mixed_people/search endpoint.
- *
- * @throws ApolloApiKeyMissingError if APOLLO_API_KEY isn't set
- * @throws ApolloApiError on non-2xx response
+ * Call Apollo's organizations/search endpoint to find companies by ICP.
  */
-export async function apolloSearchPeople(filters: ApolloSearchFilters): Promise<ApolloSearchResult> {
+export async function apolloSearchOrganizations(filters: ApolloOrgSearchFilters): Promise<ApolloOrganizationSearchResult> {
   const apiKey = process.env.APOLLO_API_KEY;
   if (!apiKey) throw new ApolloApiKeyMissingError();
 
@@ -139,34 +102,26 @@ export async function apolloSearchPeople(filters: ApolloSearchFilters): Promise<
     per_page: Math.min(100, Math.max(1, filters.perPage ?? 25))
   };
 
-  if (filters.personTitles && filters.personTitles.length > 0) {
-    body.person_titles = filters.personTitles;
-  }
-  if (filters.personSeniorities && filters.personSeniorities.length > 0) {
-    body.person_seniorities = filters.personSeniorities;
-  }
-  if (filters.personLocations && filters.personLocations.length > 0) {
-    body.person_locations = filters.personLocations;
+  if (filters.qOrganizationName) {
+    body.q_organization_name = filters.qOrganizationName;
   }
   if (filters.organizationLocations && filters.organizationLocations.length > 0) {
     body.organization_locations = filters.organizationLocations;
   }
+  if (filters.organizationNotLocations && filters.organizationNotLocations.length > 0) {
+    body.organization_not_locations = filters.organizationNotLocations;
+  }
   if (filters.qOrganizationDomainsList && filters.qOrganizationDomainsList.length > 0) {
     body.q_organization_domains_list = filters.qOrganizationDomainsList;
   }
-  if (filters.organizationIndustries && filters.organizationIndustries.length > 0) {
-    body.organization_industries = filters.organizationIndustries;
+  if (filters.qOrganizationKeywordTags && filters.qOrganizationKeywordTags.length > 0) {
+    body.q_organization_keyword_tags = filters.qOrganizationKeywordTags;
   }
   if (filters.organizationNumEmployeesRanges && filters.organizationNumEmployeesRanges.length > 0) {
     body.organization_num_employees_ranges = filters.organizationNumEmployeesRanges;
   }
-  if (filters.qKeywords) {
-    body.q_keywords = filters.qKeywords;
-  }
 
-  // CORRECT endpoint for API usage. /mixed_people/search (without _api_search)
-  // is the in-app UI version and returns 401 to API callers.
-  const url = `${APOLLO_BASE}/mixed_people/api_search`;
+  const url = `${APOLLO_BASE}/organizations/search`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -184,12 +139,12 @@ export async function apolloSearchPeople(filters: ApolloSearchFilters): Promise<
   }
 
   const json = (await res.json()) as {
-    people?: ApolloPerson[];
-    pagination?: ApolloSearchResult['pagination'];
+    organizations?: ApolloOrganization[];
+    pagination?: ApolloOrganizationSearchResult['pagination'];
   };
 
   return {
-    people: json.people || [],
+    organizations: json.organizations || [],
     pagination: json.pagination || { page: 1, per_page: 0, total_entries: 0, total_pages: 0 }
   };
 }

@@ -1,56 +1,53 @@
 /**
- * Apollo discovery — run a Search API call, dedup, INSERT new leads.
+ * Apollo discovery — find COMPANIES matching ICP, insert as leads.
  *
- * Used by:
- *   - app/api/admin/av/discover/route.ts (manual trigger from /admin/av/discover)
- *
- * Pipeline:
- *   1. Read ICP filters from the UI form
- *   2. Call Apollo mixed_people/search
- *   3. For each result: check apollo_person_id exists already → skip if so
- *   4. INSERT new leads with source_type='api', source_payload = raw apollo
- *      person, contact_name = "First Last", contact_title = title,
- *      website = company's website_url, etc.
- *   5. Email left as placeholder (`apollo+<apollo_id>@eventsbywater.com`)
- *      so the next Hunter enrichment run fills in the real email.
- *   6. Log the call to apollo_search_log for credit tracking.
- *   7. Optionally log a 'created' lead_event per new lead.
- *
- * NO AI scoring happens here — that's a separate Netlify scheduled
- * function that picks up unscored leads (next-session work).
+ * Architecture (Path B — Val's plan doesn't include people search):
+ *   1. organizations/search → list of matching companies
+ *   2. Dedup by apollo_person_id (we reuse this column to store
+ *      apollo_organization_id since the constraint is UNIQUE and one lead
+ *      per Apollo entity is what we want regardless of person vs company)
+ *   3. INSERT each new company as a lead with company-level data only:
+ *      - company = Apollo org name
+ *      - website = Apollo website_url
+ *      - phone = Apollo primary_phone
+ *      - industry = normalized industry
+ *      - contact_name = NULL (Hunter will fill)
+ *      - email = placeholder (Hunter will overwrite)
+ *      - source_type = 'api'
+ *      - source_payload = full Apollo org JSON for forensic audit
+ *   4. Log to apollo_search_log
+ *   5. Daily Hunter cron picks up these leads and enriches them with
+ *      real people + emails on the next pass.
  */
 
 import { getAvDb } from '@/lib/db/av';
 import {
-  apolloSearchPeople,
+  apolloSearchOrganizations,
   extractApolloDomain,
   normalizeIndustry,
   ApolloApiKeyMissingError,
   ApolloApiError,
-  type ApolloPerson,
-  type ApolloSearchFilters
+  type ApolloOrganization,
+  type ApolloOrgSearchFilters
 } from '@/lib/apollo/search';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { randomUUID } from 'crypto';
 
-// Default monthly Apollo SEARCH-call ceiling. Per Apollo's docs the
-// /mixed_people/api_search endpoint does NOT consume credits — only
-// enrichment endpoints do. So the only reason to cap searches is to
-// catch a runaway bug (loop, accidental cron-storm). Set high.
-// Override per-call with monthlyCeiling.
+// api_search and organizations/search both consume credits on some tiers
+// but don't gate hard on either. Use a high runaway-guard ceiling.
 const DEFAULT_MONTHLY_SEARCH_CEILING = 10_000;
 
 export type DiscoverTriggerSource = 'manual' | 'cron' | 'test';
 
 export interface DiscoverResult {
-  apolloPersonId: string;
+  apolloOrganizationId: string;
   outcome: 'inserted' | 'duplicate' | 'insert_failed';
   leadId?: number;
   details?: {
-    name?: string;
-    title?: string;
     company?: string;
     domain?: string;
+    industry?: string;
+    employeeEstimate?: number | null;
     error?: string;
   };
 }
@@ -86,7 +83,7 @@ async function getMonthlySearchUsage(): Promise<number> {
 }
 
 async function logSearch(opts: {
-  filterPayload: ApolloSearchFilters;
+  filterPayload: ApolloOrgSearchFilters;
   resultsCount: number;
   insertedCount: number;
   outcome: 'success' | 'no_results' | 'error' | 'rate_limited' | 'quota_exceeded';
@@ -99,7 +96,7 @@ async function logSearch(opts: {
     `INSERT INTO apollo_search_log
        (endpoint, filter_payload, results_count, inserted_count,
         credits_charged, trigger_source, outcome, actor_user_id, error_message)
-     VALUES ('mixed_people/search', ?, ?, ?, 1, ?, ?, ?, ?)`,
+     VALUES ('organizations/search', ?, ?, ?, 1, ?, ?, ?, ?)`,
     [
       JSON.stringify(opts.filterPayload),
       opts.resultsCount,
@@ -113,82 +110,73 @@ async function logSearch(opts: {
 }
 
 /**
- * Insert one Apollo person as a new lead. Dedups by apollo_person_id.
+ * Insert one Apollo organization as a new lead.
+ * Dedups on apollo_person_id (used here to store Apollo's organization id).
  */
-async function insertApolloLead(person: ApolloPerson): Promise<DiscoverResult> {
-  const apolloPersonId = person.id;
-  const name = person.name || [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unknown';
-  const title = person.title || person.headline || null;
-  const orgName = person.organization?.name || null;
-  const company = orgName || name || 'Unknown';
-  const domain = extractApolloDomain(person.organization?.website_url);
-  const website = person.organization?.website_url || null;
-  const phone = person.organization?.primary_phone?.number || null;
-  const industry = normalizeIndustry(person.organization?.industry);
-  const linkedinUrl = person.linkedin_url || null;
-  const placeholderEmail = `apollo+${apolloPersonId}@eventsbywater.com`;
+async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverResult> {
+  const apolloOrgId = org.id;
+  const company = org.name || 'Unknown company';
+  const domain = extractApolloDomain(org.website_url || org.primary_domain);
+  const website = org.website_url || (org.primary_domain ? `https://${org.primary_domain}` : null);
+  const phone = org.primary_phone?.number || null;
+  const industry = normalizeIndustry(org.industry);
+  const placeholderEmail = `apollo+org-${apolloOrgId}@eventsbywater.com`;
   const auditId = randomUUID();
 
   const db = getAvDb();
 
-  // Check dedup first
+  // Dedup
   const [existing] = await db.execute<(RowDataPacket & { id: number })[]>(
     `SELECT id FROM leads WHERE apollo_person_id = ? LIMIT 1`,
-    [apolloPersonId]
+    [apolloOrgId]
   );
   if (existing.length > 0) {
     return {
-      apolloPersonId,
+      apolloOrganizationId: apolloOrgId,
       outcome: 'duplicate',
       leadId: existing[0].id,
-      details: { name, title: title ?? undefined, company, domain: domain ?? undefined }
+      details: { company, domain: domain ?? undefined, industry: industry ?? undefined, employeeEstimate: org.estimated_num_employees }
     };
   }
 
-  // Build the source_payload JSON for forensic audit + future re-enrich
   const sourcePayload = {
-    source: 'apollo.io/mixed_people_search',
-    apollo_person_id: apolloPersonId,
-    linkedin_url: linkedinUrl,
-    apollo_organization_id: person.organization?.id ?? null,
-    apollo_industry: person.organization?.industry ?? null,
-    person_location: [person.city, person.state, person.country].filter(Boolean).join(', '),
-    employee_count_estimate: person.organization?.estimated_num_employees ?? null
+    source: 'apollo.io/organizations_search',
+    apollo_organization_id: apolloOrgId,
+    apollo_industry: org.industry,
+    apollo_linkedin_url: org.linkedin_url,
+    apollo_short_description: org.short_description,
+    apollo_estimated_num_employees: org.estimated_num_employees,
+    apollo_location: [org.city, org.state, org.country].filter(Boolean).join(', ')
   };
 
   try {
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
-         audit_id, company, contact_name, contact_title, email, phone, website,
+         audit_id, company, email, phone, website,
          industry, lead_status, source_type, source_payload, apollo_person_id,
          last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, NOW())`,
-      [auditId, company, name, title, placeholderEmail, phone, website, industry, JSON.stringify(sourcePayload), apolloPersonId]
+       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, NOW())`,
+      [auditId, company, placeholderEmail, phone, website, industry, JSON.stringify(sourcePayload), apolloOrgId]
     );
 
     return {
-      apolloPersonId,
+      apolloOrganizationId: apolloOrgId,
       outcome: 'inserted',
       leadId: result.insertId,
-      details: { name, title: title ?? undefined, company, domain: domain ?? undefined }
+      details: { company, domain: domain ?? undefined, industry: industry ?? undefined, employeeEstimate: org.estimated_num_employees }
     };
   } catch (err) {
     return {
-      apolloPersonId,
+      apolloOrganizationId: apolloOrgId,
       outcome: 'insert_failed',
-      details: {
-        name,
-        title: title ?? undefined,
-        company,
-        error: (err as Error).message
-      }
+      details: { company, error: (err as Error).message }
     };
   }
 }
 
 export async function runDiscoveryBatch(opts: {
-  filters: ApolloSearchFilters;
+  filters: ApolloOrgSearchFilters;
   triggerSource: DiscoverTriggerSource;
   actorUserId?: number | null;
   monthlyCeiling?: number;
@@ -231,7 +219,7 @@ export async function runDiscoveryBatch(opts: {
 
   let apolloResult;
   try {
-    apolloResult = await apolloSearchPeople(opts.filters);
+    apolloResult = await apolloSearchOrganizations(opts.filters);
   } catch (err) {
     const isApiKey = err instanceof ApolloApiKeyMissingError;
     const isApi = err instanceof ApolloApiError;
@@ -264,14 +252,14 @@ export async function runDiscoveryBatch(opts: {
     };
   }
 
-  const people = apolloResult.people;
+  const orgs = apolloResult.organizations;
   const results: DiscoverResult[] = [];
   let inserted = 0;
   let duplicates = 0;
   let insertFailed = 0;
 
-  for (const person of people) {
-    const r = await insertApolloLead(person);
+  for (const org of orgs) {
+    const r = await insertApolloOrgAsLead(org);
     results.push(r);
     if (r.outcome === 'inserted') inserted++;
     else if (r.outcome === 'duplicate') duplicates++;
@@ -280,9 +268,9 @@ export async function runDiscoveryBatch(opts: {
 
   await logSearch({
     filterPayload: opts.filters,
-    resultsCount: people.length,
+    resultsCount: orgs.length,
     insertedCount: inserted,
-    outcome: people.length === 0 ? 'no_results' : 'success',
+    outcome: orgs.length === 0 ? 'no_results' : 'success',
     triggerSource,
     actorUserId,
     errorMessage: null
@@ -290,11 +278,11 @@ export async function runDiscoveryBatch(opts: {
 
   return {
     triggerSource,
-    attempted: people.length,
+    attempted: orgs.length,
     inserted,
     duplicates,
     insertFailed,
-    apolloResultsReturned: people.length,
+    apolloResultsReturned: orgs.length,
     apolloTotalEntries: apolloResult.pagination.total_entries,
     apolloPage: apolloResult.pagination.page,
     apolloPerPage: apolloResult.pagination.per_page,

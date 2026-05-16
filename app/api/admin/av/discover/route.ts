@@ -1,16 +1,19 @@
 /**
  * POST /api/admin/av/discover
  *
- * Manual-trigger Apollo discovery. Called by the form on /admin/av/discover.
+ * Apollo company-discovery endpoint. Calls organizations/search to find
+ * companies matching the operator's ICP, inserts each as a lead with
+ * company-level data only. Daily Hunter cron then enriches with real
+ * contact info.
  *
- * Body shape (all fields optional except at least one filter must be set):
+ * Body (all optional except at least one filter required):
  *   {
- *     personTitles: string[],
- *     personLocations: string[],
+ *     qOrganizationName: string,
  *     organizationLocations: string[],
- *     organizationIndustries: string[],
+ *     organizationNotLocations: string[],
+ *     qOrganizationDomainsList: string[],
+ *     qOrganizationKeywordTags: string[],
  *     organizationNumEmployeesRanges: string[],
- *     qKeywords: string,
  *     page: number,
  *     perPage: number
  *   }
@@ -19,7 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { runDiscoveryBatch } from '@/lib/apollo/discoverer';
-import type { ApolloSearchFilters } from '@/lib/apollo/search';
+import type { ApolloOrgSearchFilters } from '@/lib/apollo/search';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -50,40 +53,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
 
-  const VALID_SENIORITIES = new Set([
-    'owner', 'founder', 'c_suite', 'partner', 'vp',
-    'head', 'director', 'manager', 'senior', 'entry', 'intern'
-  ]);
-  const senioritiesRaw = parseStringArray(payload.personSeniorities);
-  const personSeniorities = senioritiesRaw
-    ? senioritiesRaw.filter((s) => VALID_SENIORITIES.has(s)) as ApolloSearchFilters['personSeniorities']
-    : undefined;
-
-  const filters: ApolloSearchFilters = {
-    personTitles: parseStringArray(payload.personTitles),
-    personSeniorities,
-    personLocations: parseStringArray(payload.personLocations),
+  const filters: ApolloOrgSearchFilters = {
+    qOrganizationName: typeof payload.qOrganizationName === 'string' && payload.qOrganizationName.trim()
+      ? payload.qOrganizationName.trim()
+      : undefined,
     organizationLocations: parseStringArray(payload.organizationLocations),
+    organizationNotLocations: parseStringArray(payload.organizationNotLocations),
     qOrganizationDomainsList: parseStringArray(payload.qOrganizationDomainsList),
-    organizationIndustries: parseStringArray(payload.organizationIndustries),
+    qOrganizationKeywordTags: parseStringArray(payload.qOrganizationKeywordTags),
     organizationNumEmployeesRanges: parseStringArray(payload.organizationNumEmployeesRanges),
-    qKeywords: typeof payload.qKeywords === 'string' && payload.qKeywords.trim() ? payload.qKeywords.trim() : undefined,
     page: typeof payload.page === 'number' && Number.isFinite(payload.page) ? Math.max(1, Math.floor(payload.page)) : 1,
     perPage: typeof payload.perPage === 'number' && Number.isFinite(payload.perPage)
       ? Math.max(1, Math.min(100, Math.floor(payload.perPage)))
       : 25
   };
 
-  // Require at least one filter (no "search the world" calls)
   const hasAnyFilter =
-    !!filters.personTitles ||
-    (!!filters.personSeniorities && filters.personSeniorities.length > 0) ||
-    !!filters.personLocations ||
+    !!filters.qOrganizationName ||
     !!filters.organizationLocations ||
     !!filters.qOrganizationDomainsList ||
-    !!filters.organizationIndustries ||
-    !!filters.organizationNumEmployeesRanges ||
-    !!filters.qKeywords;
+    !!filters.qOrganizationKeywordTags ||
+    !!filters.organizationNumEmployeesRanges;
 
   if (!hasAnyFilter) {
     return NextResponse.json(
