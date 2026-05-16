@@ -25,10 +25,11 @@ import {
 } from '@/lib/enrichment/hunter';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-// Default monthly Hunter credit ceiling. Hunter free tier = 25/month; we
-// guard at 20 to leave a buffer for manual retries. Override per-run via
-// the second argument to runEnrichmentBatch().
-const DEFAULT_MONTHLY_CREDIT_CEILING = 20;
+// Default monthly Hunter credit ceiling. Hunter free tier was bumped to
+// 50/month (as of mid-2026); we guard at 45 to leave a buffer for manual
+// retries. Override per-run via runEnrichmentBatch({ monthlyCeiling }).
+// Paid tiers: Starter $34/mo = 500 credits; Growth = 5000; Pro = 50000.
+const DEFAULT_MONTHLY_CREDIT_CEILING = 45;
 const PLACEHOLDER_EMAIL_PATTERNS = [
   /^prospect\+/i,
   /^test@/i,
