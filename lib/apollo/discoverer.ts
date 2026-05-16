@@ -33,10 +33,12 @@ import {
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { randomUUID } from 'crypto';
 
-// Default monthly Apollo SEARCH-call ceiling. Apollo Basic plan typically
-// gives 100-200 search calls/month. We guard at 80 by default. Override
-// per-call with monthlyCeiling.
-const DEFAULT_MONTHLY_SEARCH_CEILING = 80;
+// Default monthly Apollo SEARCH-call ceiling. Per Apollo's docs the
+// /mixed_people/api_search endpoint does NOT consume credits — only
+// enrichment endpoints do. So the only reason to cap searches is to
+// catch a runaway bug (loop, accidental cron-storm). Set high.
+// Override per-call with monthlyCeiling.
+const DEFAULT_MONTHLY_SEARCH_CEILING = 10_000;
 
 export type DiscoverTriggerSource = 'manual' | 'cron' | 'test';
 

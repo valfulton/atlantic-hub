@@ -50,10 +50,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
 
+  const VALID_SENIORITIES = new Set([
+    'owner', 'founder', 'c_suite', 'partner', 'vp',
+    'head', 'director', 'manager', 'senior', 'entry', 'intern'
+  ]);
+  const senioritiesRaw = parseStringArray(payload.personSeniorities);
+  const personSeniorities = senioritiesRaw
+    ? senioritiesRaw.filter((s) => VALID_SENIORITIES.has(s)) as ApolloSearchFilters['personSeniorities']
+    : undefined;
+
   const filters: ApolloSearchFilters = {
     personTitles: parseStringArray(payload.personTitles),
+    personSeniorities,
     personLocations: parseStringArray(payload.personLocations),
     organizationLocations: parseStringArray(payload.organizationLocations),
+    qOrganizationDomainsList: parseStringArray(payload.qOrganizationDomainsList),
     organizationIndustries: parseStringArray(payload.organizationIndustries),
     organizationNumEmployeesRanges: parseStringArray(payload.organizationNumEmployeesRanges),
     qKeywords: typeof payload.qKeywords === 'string' && payload.qKeywords.trim() ? payload.qKeywords.trim() : undefined,
@@ -66,8 +77,10 @@ export async function POST(req: NextRequest) {
   // Require at least one filter (no "search the world" calls)
   const hasAnyFilter =
     !!filters.personTitles ||
+    (!!filters.personSeniorities && filters.personSeniorities.length > 0) ||
     !!filters.personLocations ||
     !!filters.organizationLocations ||
+    !!filters.qOrganizationDomainsList ||
     !!filters.organizationIndustries ||
     !!filters.organizationNumEmployeesRanges ||
     !!filters.qKeywords;

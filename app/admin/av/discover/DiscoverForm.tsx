@@ -36,14 +36,29 @@ const EMPLOYEE_RANGES = [
   { label: '5,001+', value: '5001,1000000' }
 ];
 
+const SENIORITIES = [
+  { label: 'Owner', value: 'owner' },
+  { label: 'Founder', value: 'founder' },
+  { label: 'C-suite', value: 'c_suite' },
+  { label: 'Partner', value: 'partner' },
+  { label: 'VP', value: 'vp' },
+  { label: 'Head', value: 'head' },
+  { label: 'Director', value: 'director' },
+  { label: 'Manager', value: 'manager' },
+  { label: 'Senior', value: 'senior' }
+];
+
 interface IcpPreset {
   label: string;
   filters: {
     personTitles?: string[];
+    personSeniorities?: string[];
     personLocations?: string[];
     organizationLocations?: string[];
+    qOrganizationDomainsList?: string[];
     organizationIndustries?: string[];
     organizationNumEmployeesRanges?: string[];
+    qKeywords?: string;
   };
 }
 
@@ -51,24 +66,52 @@ const ICP_PRESETS: IcpPreset[] = [
   {
     label: 'St. Croix hospitality (your EBW prospects)',
     filters: {
-      personTitles: ['owner', 'general manager', 'events manager', 'wedding planner'],
+      personTitles: ['owner', 'general manager', 'events manager', 'catering manager'],
+      personSeniorities: ['owner', 'founder', 'c_suite', 'director', 'manager'],
       organizationLocations: ['Saint Croix, United States Virgin Islands', 'US Virgin Islands'],
+      organizationIndustries: ['hospitality', 'restaurants', 'food & beverages', 'events services'],
+      organizationNumEmployeesRanges: ['1,10', '11,50'],
+      qKeywords: 'restaurant boardwalk bar catering'
+    }
+  },
+  {
+    label: 'USVI wedding + event planners',
+    filters: {
+      personTitles: ['wedding planner', 'event planner', 'event coordinator', 'wedding coordinator'],
+      personSeniorities: ['owner', 'founder', 'director', 'manager'],
+      organizationLocations: ['US Virgin Islands', 'Saint Croix', 'Saint Thomas', 'Saint John'],
+      organizationIndustries: ['events services', 'hospitality'],
       organizationNumEmployeesRanges: ['1,10', '11,50']
     }
   },
   {
-    label: 'USVI wedding planners',
+    label: 'Caribbean charter / yacht operators',
     filters: {
-      personTitles: ['wedding planner', 'event planner', 'event coordinator'],
-      organizationLocations: ['US Virgin Islands', 'Saint Croix', 'Saint Thomas']
+      personTitles: ['captain', 'charter manager', 'fleet manager', 'operations manager'],
+      personSeniorities: ['owner', 'founder', 'director', 'manager'],
+      organizationLocations: ['US Virgin Islands', 'British Virgin Islands', 'Puerto Rico'],
+      organizationIndustries: ['recreational facilities and services', 'maritime', 'leisure travel & tourism'],
+      organizationNumEmployeesRanges: ['1,10', '11,50']
+    }
+  },
+  {
+    label: 'Hotels + corporate retreat venues (St. Croix focus)',
+    filters: {
+      personTitles: ['group sales', 'events coordinator', 'sales manager', 'general manager'],
+      personSeniorities: ['director', 'manager', 'head'],
+      organizationLocations: ['Saint Croix, United States Virgin Islands', 'US Virgin Islands'],
+      organizationIndustries: ['hospitality', 'hotels & motels', 'travel & tourism'],
+      organizationNumEmployeesRanges: ['11,50', '51,200', '201,500']
     }
   },
   {
     label: 'Marketing decision-makers at small SaaS (AV client ICP)',
     filters: {
-      personTitles: ['marketing director', 'head of marketing', 'vp marketing', 'cmo'],
-      organizationNumEmployeesRanges: ['11,50', '51,200'],
-      organizationIndustries: ['software', 'computer software']
+      personTitles: ['marketing director', 'head of marketing', 'vp marketing', 'cmo', 'demand generation'],
+      personSeniorities: ['c_suite', 'vp', 'head', 'director'],
+      organizationLocations: ['United States'],
+      organizationIndustries: ['computer software', 'information technology and services', 'internet'],
+      organizationNumEmployeesRanges: ['11,50', '51,200', '201,500']
     }
   }
 ];
@@ -84,8 +127,10 @@ export function DiscoverForm() {
   const [personTitles, setPersonTitles] = useState('');
   const [personLocations, setPersonLocations] = useState('');
   const [organizationLocations, setOrganizationLocations] = useState('');
+  const [qOrganizationDomainsList, setQOrganizationDomainsList] = useState('');
   const [organizationIndustries, setOrganizationIndustries] = useState('');
   const [selectedRanges, setSelectedRanges] = useState<string[]>([]);
+  const [selectedSeniorities, setSelectedSeniorities] = useState<string[]>([]);
   const [qKeywords, setQKeywords] = useState('');
   const [perPage, setPerPage] = useState(25);
 
@@ -93,8 +138,11 @@ export function DiscoverForm() {
     setPersonTitles((preset.filters.personTitles || []).join(', '));
     setPersonLocations((preset.filters.personLocations || []).join(', '));
     setOrganizationLocations((preset.filters.organizationLocations || []).join(', '));
+    setQOrganizationDomainsList((preset.filters.qOrganizationDomainsList || []).join(', '));
     setOrganizationIndustries((preset.filters.organizationIndustries || []).join(', '));
     setSelectedRanges(preset.filters.organizationNumEmployeesRanges || []);
+    setSelectedSeniorities(preset.filters.personSeniorities || []);
+    setQKeywords(preset.filters.qKeywords || '');
   }
 
   function csvToArray(s: string): string[] {
@@ -105,6 +153,10 @@ export function DiscoverForm() {
     setSelectedRanges((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
   }
 
+  function toggleSeniority(v: string) {
+    setSelectedSeniorities((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+  }
+
   async function runSearch(e: React.FormEvent) {
     e.preventDefault();
     setRunning(true);
@@ -113,8 +165,10 @@ export function DiscoverForm() {
     try {
       const body = {
         personTitles: csvToArray(personTitles),
+        personSeniorities: selectedSeniorities,
         personLocations: csvToArray(personLocations),
         organizationLocations: csvToArray(organizationLocations),
+        qOrganizationDomainsList: csvToArray(qOrganizationDomainsList),
         organizationIndustries: csvToArray(organizationIndustries),
         organizationNumEmployeesRanges: selectedRanges,
         qKeywords: qKeywords.trim() || undefined,
@@ -215,6 +269,39 @@ export function DiscoverForm() {
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
               style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
             />
+          </div>
+          <div className="md:col-span-2">
+            <div className="text-xs uppercase tracking-wider text-muted mb-1">Specific company domains (comma-separated)</div>
+            <input
+              type="text"
+              value={qOrganizationDomainsList}
+              onChange={(e) => setQOrganizationDomainsList(e.target.value)}
+              placeholder="brewstx.com, esterastcroix.com"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+            />
+            <div className="text-xs text-muted mt-1">Optional: limit search to specific company domains. Up to 1,000.</div>
+          </div>
+          <div className="md:col-span-2">
+            <div className="text-xs uppercase tracking-wider text-muted mb-2">Seniority levels</div>
+            <div className="flex flex-wrap gap-2">
+              {SENIORITIES.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => toggleSeniority(s.value)}
+                  className={[
+                    'text-xs px-3 py-1.5 border rounded-md',
+                    selectedSeniorities.includes(s.value)
+                      ? 'bg-brand text-white border-brand'
+                      : 'border-border text-ink hover:border-brand'
+                  ].join(' ')}
+                  style={selectedSeniorities.includes(s.value) ? undefined : { backgroundColor: '#1a1f2e' }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="md:col-span-2">
             <div className="text-xs uppercase tracking-wider text-muted mb-2">Organization size (employees)</div>

@@ -1,21 +1,35 @@
 /**
- * Apollo.io Search API client (mixed_people/search).
+ * Apollo.io Search API client (mixed_people/api_search).
  *
  * Apollo's database: 275M+ contacts at 30M+ companies. Search by ICP
- * filters (titles, locations, industries, company-size ranges) → returns
- * people with company context. This is the discovery layer for AV's
- * lead-gen product.
+ * filters (titles, locations, seniorities, domains, industries,
+ * company-size ranges) → returns people with company context. This is
+ * the discovery layer for AV's lead-gen product.
  *
  * Reads APOLLO_API_KEY from process.env (set on Netlify, never local).
  *
- * Note on emails: mixed_people/search returns name + title + LinkedIn URL
- * + company, but NOT email by default. Emails are "locked" until you spend
- * an additional credit via the people/match endpoint (or via Apollo's UI
- * "reveal" action). We INSERT leads with a placeholder email and let
- * Hunter.io enrichment fill in the real email on its next pass — that's
- * cheaper than buying Apollo's email reveal credits.
+ * CRITICAL — endpoint version (Apollo distinguishes two):
+ *   /mixed_people/search       ← in-app UI use only; returns 401 to API callers
+ *   /mixed_people/api_search   ← API-facing version; what we use here
+ * Using the wrong one is the #1 cause of "401 Invalid access credentials".
  *
- * Docs: https://docs.apollo.io/reference/people-search
+ * CRITICAL — Master API Key required:
+ *   The api_search endpoint requires a key flagged as "Master API Key"
+ *   in Apollo. When creating the key (Apollo → Settings → Integrations →
+ *   API → Create new key), toggle "Set as master key" OR explicitly select
+ *   all endpoints. A regular per-endpoint key WILL return 401.
+ *
+ * Credits: api_search DOES NOT consume credits per Apollo docs. Only
+ * email/phone enrichment endpoints consume credits. So we log calls for
+ * audit but don't gate on a monthly ceiling for search.
+ *
+ * Emails: api_search returns name + title + LinkedIn URL + company, but
+ * NOT email. Emails are obtained via people-enrichment (paid credits).
+ * Our pipeline inserts placeholder emails and lets Hunter.io enrich them
+ * on the daily cron — same outcome, much cheaper.
+ *
+ * Docs: https://docs.apollo.io/reference/people-api-search
+ * Auth: https://docs.apollo.io/docs/create-api-key
  */
 
 const APOLLO_BASE = 'https://api.apollo.io/api/v1';
@@ -52,13 +66,34 @@ export interface ApolloSearchResult {
   };
 }
 
+/**
+ * Apollo's documented seniority enum values. Use these strings exactly.
+ * https://docs.apollo.io/reference/people-api-search
+ */
+export type ApolloSeniority =
+  | 'owner'
+  | 'founder'
+  | 'c_suite'
+  | 'partner'
+  | 'vp'
+  | 'head'
+  | 'director'
+  | 'manager'
+  | 'senior'
+  | 'entry'
+  | 'intern';
+
 export interface ApolloSearchFilters {
   /** Job titles to search for, e.g. ['wedding planner', 'event coordinator'] */
   personTitles?: string[];
+  /** Apollo seniority enum (owner, founder, c_suite, vp, etc.) */
+  personSeniorities?: ApolloSeniority[];
   /** Locations for the PERSON, e.g. ['United States Virgin Islands', 'Saint Croix'] */
   personLocations?: string[];
-  /** Locations for the COMPANY (often more reliable than personLocations) */
+  /** Locations for the COMPANY HQ (often more reliable than personLocations) */
   organizationLocations?: string[];
+  /** Specific company domains to search, e.g. ['brewstx.com', 'esterastcroix.com'] */
+  qOrganizationDomainsList?: string[];
   /** Industry strings (Apollo's taxonomy), e.g. ['hospitality', 'restaurants'] */
   organizationIndustries?: string[];
   /** Company size ranges as "min,max" strings, e.g. ['1,10', '11,50'] */
@@ -107,11 +142,17 @@ export async function apolloSearchPeople(filters: ApolloSearchFilters): Promise<
   if (filters.personTitles && filters.personTitles.length > 0) {
     body.person_titles = filters.personTitles;
   }
+  if (filters.personSeniorities && filters.personSeniorities.length > 0) {
+    body.person_seniorities = filters.personSeniorities;
+  }
   if (filters.personLocations && filters.personLocations.length > 0) {
     body.person_locations = filters.personLocations;
   }
   if (filters.organizationLocations && filters.organizationLocations.length > 0) {
     body.organization_locations = filters.organizationLocations;
+  }
+  if (filters.qOrganizationDomainsList && filters.qOrganizationDomainsList.length > 0) {
+    body.q_organization_domains_list = filters.qOrganizationDomainsList;
   }
   if (filters.organizationIndustries && filters.organizationIndustries.length > 0) {
     body.organization_industries = filters.organizationIndustries;
@@ -123,7 +164,9 @@ export async function apolloSearchPeople(filters: ApolloSearchFilters): Promise<
     body.q_keywords = filters.qKeywords;
   }
 
-  const url = `${APOLLO_BASE}/mixed_people/search`;
+  // CORRECT endpoint for API usage. /mixed_people/search (without _api_search)
+  // is the in-app UI version and returns 401 to API callers.
+  const url = `${APOLLO_BASE}/mixed_people/api_search`;
 
   const res = await fetch(url, {
     method: 'POST',
