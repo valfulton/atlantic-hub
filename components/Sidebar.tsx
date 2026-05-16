@@ -15,7 +15,17 @@ const AV_NAV = [
   { href: '/admin/av', label: 'Atlantic & Vine', section: 'tenant' as const }
 ];
 
-export function Sidebar({ showAv = false }: { showAv?: boolean }) {
+const EBW_NAV = [
+  { href: '/admin/ebw', label: 'Events by Water', section: 'tenant' as const },
+  { href: '/admin/ebw/inquiries', label: 'Inquiries', section: 'sub' as const },
+  { href: '/admin/ebw/bookings', label: 'Bookings', section: 'sub' as const },
+  { href: '/admin/ebw/revenue', label: 'Revenue', section: 'sub' as const },
+  { href: '/admin/ebw/partners', label: 'Vessel + captain partners', section: 'sub' as const },
+  { href: '/admin/ebw/investors', label: 'Investors', section: 'sub' as const },
+  { href: '/admin/ebw/activity', label: 'Marketing activity', section: 'sub' as const }
+];
+
+export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean; showEbw?: boolean }) {
   const pathname = usePathname();
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -56,7 +66,7 @@ export function Sidebar({ showAv = false }: { showAv?: boolean }) {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 text-sm">
-        {[...HH_NAV, ...(showAv ? AV_NAV : [])].map((n) => {
+        {[...HH_NAV, ...(showAv ? AV_NAV : []), ...(showEbw ? EBW_NAV : [])].map((n) => {
           const active = pathname === n.href;
           const isSub = n.section === 'sub';
           const isTenantHeader = n.section === 'tenant';
