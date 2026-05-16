@@ -168,7 +168,8 @@ export function DiscoverForm() {
               value={personTitles}
               onChange={(e) => setPersonTitles(e.target.value)}
               placeholder="owner, general manager, wedding planner"
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-surface text-ink placeholder:text-muted/50"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
             />
           </div>
           <div>
@@ -178,7 +179,8 @@ export function DiscoverForm() {
               value={qKeywords}
               onChange={(e) => setQKeywords(e.target.value)}
               placeholder="boardwalk, catering, beach venue"
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-surface text-ink placeholder:text-muted/50"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
             />
           </div>
           <div>
@@ -188,7 +190,8 @@ export function DiscoverForm() {
               value={personLocations}
               onChange={(e) => setPersonLocations(e.target.value)}
               placeholder="Saint Croix, US Virgin Islands"
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-surface text-ink placeholder:text-muted/50"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
             />
           </div>
           <div>
@@ -198,7 +201,8 @@ export function DiscoverForm() {
               value={organizationLocations}
               onChange={(e) => setOrganizationLocations(e.target.value)}
               placeholder="US Virgin Islands"
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-surface text-ink placeholder:text-muted/50"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
             />
           </div>
           <div className="md:col-span-2">
@@ -208,7 +212,8 @@ export function DiscoverForm() {
               value={organizationIndustries}
               onChange={(e) => setOrganizationIndustries(e.target.value)}
               placeholder="hospitality, restaurants, event services"
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-surface text-ink placeholder:text-muted/50"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
             />
           </div>
           <div className="md:col-span-2">
@@ -239,7 +244,8 @@ export function DiscoverForm() {
               max={100}
               value={perPage}
               onChange={(e) => setPerPage(Math.max(1, Math.min(100, Number(e.target.value) || 25)))}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-surface text-ink placeholder:text-muted/50"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
             />
             <div className="text-xs text-muted mt-1">Each call counts as 1 Apollo search credit.</div>
           </div>
