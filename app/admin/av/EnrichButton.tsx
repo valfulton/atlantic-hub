@@ -107,11 +107,12 @@ function ResultModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-surface border border-border rounded-xl max-w-lg w-full p-6 shadow-2xl"
+        className="border border-border rounded-xl max-w-lg w-full p-6 shadow-2xl"
+        style={{ backgroundColor: '#0e1420' }}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold mb-1">Enrichment complete ✨</h2>

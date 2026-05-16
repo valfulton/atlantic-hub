@@ -23,6 +23,9 @@ interface LeadDetailRow extends RowDataPacket {
   phone: string | null;
   website: string | null;
   industry: string | null;
+  contact_title: string | null;
+  enrichment_status: string | null;
+  enriched_at: string | null;
   challenge: string | null;
   audit_content: string | null;
   audit_generated: string | null;
@@ -76,7 +79,8 @@ export async function GET(
   try {
     const db = getAvDb();
     const [rows] = await db.execute<LeadDetailRow[]>(
-      `SELECT id, audit_id, company, contact_name, email, phone, website, industry,
+      `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
+              enrichment_status, enriched_at,
               challenge, audit_content, audit_generated, is_approved, approval_date,
               approved_by, submission_date, lead_status, follow_up_date, notes,
               ai_score, ai_score_band, ai_score_reason, ai_score_breakdown, ai_audit,
@@ -100,6 +104,9 @@ export async function GET(
         auditId: r.audit_id,
         company: r.company,
         contactName: r.contact_name,
+        contactTitle: r.contact_title,
+        enrichmentStatus: r.enrichment_status,
+        enrichedAt: r.enriched_at,
         email: r.email,
         phone: r.phone,
         website: r.website,

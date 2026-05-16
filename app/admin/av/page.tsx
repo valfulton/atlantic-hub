@@ -13,11 +13,19 @@ interface Stats {
 
 const STAGES = ['new', 'contacted', 'qualified', 'converted', 'lost'] as const;
 const SOURCES = ['audit_form', 'csv', 'scrape', 'manual', 'api'] as const;
+const ENRICHMENT_FILTERS = ['enriched', 'failed_no_domain', 'failed_no_results', 'failed_permanent', 'pending'] as const;
+const SORT_KEYS = ['company', 'contact', 'email', 'industry', 'status', 'score', 'band', 'submitted', 'enriched'] as const;
 
 export default async function AvPage({
   searchParams
 }: {
-  searchParams?: { stage?: string; source_type?: string };
+  searchParams?: {
+    stage?: string;
+    source_type?: string;
+    enrichment?: string;
+    sort?: string;
+    direction?: string;
+  };
 }) {
   const stageParam = STAGES.includes(searchParams?.stage as (typeof STAGES)[number])
     ? (searchParams!.stage as string)
@@ -25,23 +33,27 @@ export default async function AvPage({
   const sourceParam = SOURCES.includes(searchParams?.source_type as (typeof SOURCES)[number])
     ? (searchParams!.source_type as string)
     : '';
+  const enrichmentParam = ENRICHMENT_FILTERS.includes(
+    searchParams?.enrichment as (typeof ENRICHMENT_FILTERS)[number]
+  )
+    ? (searchParams!.enrichment as string)
+    : '';
+  const sortParam = SORT_KEYS.includes(searchParams?.sort as (typeof SORT_KEYS)[number])
+    ? (searchParams!.sort as string)
+    : 'submitted';
+  const directionParam = searchParams?.direction === 'asc' ? 'asc' : 'desc';
+
+  const queryParts: [string, string][] = [];
+  if (stageParam) queryParts.push(['stage', stageParam]);
+  if (sourceParam) queryParts.push(['source_type', sourceParam]);
+  if (enrichmentParam) queryParts.push(['enrichment', enrichmentParam]);
+  queryParts.push(['sort', sortParam]);
+  queryParts.push(['direction', directionParam]);
+  const leadsQs = '?' + new URLSearchParams(queryParts).toString();
 
   const [statsRes, leadsRes] = await Promise.all([
     serverFetch('/api/admin/av/stats'),
-    serverFetch(
-      '/api/admin/av/leads' +
-        (stageParam || sourceParam
-          ? '?' +
-            new URLSearchParams(
-              Object.fromEntries(
-                [
-                  stageParam ? ['stage', stageParam] : null,
-                  sourceParam ? ['source_type', sourceParam] : null
-                ].filter(Boolean) as [string, string][]
-              )
-            ).toString()
-          : '')
-    )
+    serverFetch('/api/admin/av/leads' + leadsQs)
   ]);
 
   const { stats }: { stats: Stats } = statsRes.ok
@@ -99,15 +111,30 @@ export default async function AvPage({
             </option>
           ))}
         </select>
+        <select
+          name="enrichment"
+          defaultValue={enrichmentParam}
+          className="text-sm bg-surface border border-border rounded-md px-3 py-1.5 text-ink"
+        >
+          <option value="">All enrichment states</option>
+          <option value="enriched">✨ Enriched</option>
+          <option value="pending">Pending (never tried)</option>
+          <option value="failed_no_domain">No website on file</option>
+          <option value="failed_no_results">Hunter found nothing</option>
+          <option value="failed_permanent">Stopped (manual)</option>
+        </select>
+        {/* Preserve current sort when filtering */}
+        <input type="hidden" name="sort" value={sortParam} />
+        <input type="hidden" name="direction" value={directionParam} />
         <button
           type="submit"
           className="text-sm px-3 py-1.5 bg-surface border border-border rounded-md hover:border-brand text-ink transition-colors"
         >
           Filter
         </button>
-        {(stageParam || sourceParam) && (
+        {(stageParam || sourceParam || enrichmentParam) && (
           <Link href="/admin/av" className="text-xs text-muted hover:text-ink">
-            Clear
+            Clear filters
           </Link>
         )}
       </form>
@@ -119,7 +146,7 @@ export default async function AvPage({
           </h2>
           <EnrichButton defaultLimit={5} />
         </div>
-        <AvLeadsTable leads={leads} />
+        <AvLeadsTable leads={leads} sortKey={sortParam} sortDirection={directionParam as 'asc' | 'desc'} />
       </div>
     </div>
   );

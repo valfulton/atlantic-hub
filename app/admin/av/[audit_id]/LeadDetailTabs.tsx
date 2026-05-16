@@ -10,6 +10,9 @@ interface Lead {
   auditId: string;
   company: string;
   contactName: string | null;
+  contactTitle: string | null;
+  enrichmentStatus: string | null;
+  enrichedAt: string | null;
   email: string;
   phone: string | null;
   website: string | null;
@@ -197,10 +200,60 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <Field label="Company" value={lead.company} />
           <Field label="Contact name" value={lead.contactName} />
+          <Field label="Contact title" value={lead.contactTitle} />
           <Field label="Email" value={lead.email} />
           <Field label="Phone" value={lead.phone} />
           <Field label="Website" value={lead.website} />
           <Field label="Industry" value={lead.industry} />
+
+          <div className="md:col-span-2 border-t border-border pt-4">
+            <div className="field-label mb-2">Enrichment</div>
+            {lead.enrichmentStatus === 'enriched' ? (
+              <div className="bg-surface border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+                    <span className="text-amber-400">✨</span> Enriched via Hunter.io
+                  </span>
+                  {lead.enrichedAt && (
+                    <span className="text-xs text-muted">
+                      {new Date(lead.enrichedAt).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-muted leading-relaxed">
+                  Hunter found{' '}
+                  <span className="text-ink">{lead.contactName || 'a contact'}</span>
+                  {lead.contactTitle && (
+                    <>
+                      {' '}as <span className="text-ink">{lead.contactTitle}</span>
+                    </>
+                  )}{' '}
+                  at this company. The email and contact name above were populated by the enrichment
+                  run; the source/timestamp is in the Events tab.
+                </div>
+              </div>
+            ) : lead.enrichmentStatus === 'failed_no_domain' ? (
+              <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
+                <span className="text-amber-300">⚠</span> Not enriched — no website on file. Add a website to this lead and the next enrichment run will pick it up.
+              </div>
+            ) : lead.enrichmentStatus === 'failed_no_results' ? (
+              <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
+                <span className="text-muted">○</span> Hunter searched the website domain and found no contacts. The script will not retry this lead automatically. To override: clear <code className="bg-bg px-1 rounded">enrichment_status</code> in phpMyAdmin.
+              </div>
+            ) : lead.enrichmentStatus === 'in_progress' ? (
+              <div className="bg-surface border border-border rounded-lg p-4 text-sm">
+                <span className="text-amber-300">⟳</span> Enrichment is in progress on this lead right now.
+              </div>
+            ) : lead.enrichmentStatus === 'failed_permanent' ? (
+              <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
+                <span className="text-red-400">●</span> Manually stopped from being re-enriched.
+              </div>
+            ) : (
+              <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
+                Not yet enriched. Will run on the next manual or cron enrichment batch if a website is on file.
+              </div>
+            )}
+          </div>
 
           <div>
             <div className="field-label">Stage</div>
