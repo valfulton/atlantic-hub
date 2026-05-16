@@ -12,7 +12,8 @@ const HH_NAV = [
 ];
 
 const AV_NAV = [
-  { href: '/admin/av', label: 'Atlantic & Vine', section: 'tenant' as const }
+  { href: '/admin/av', label: 'Atlantic & Vine', section: 'tenant' as const },
+  { href: '/admin/av/discover', label: 'Discover (Apollo)', section: 'sub' as const }
 ];
 
 const EBW_NAV = [
