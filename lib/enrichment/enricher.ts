@@ -90,13 +90,15 @@ interface LeadRow extends RowDataPacket {
  */
 async function getMonthlyCreditUsage(): Promise<number> {
   const db = getAvDb();
-  const [rows] = await db.execute<(RowDataPacket & { n: number })[]>(
+  const [rows] = await db.execute<(RowDataPacket & { n: number | string })[]>(
     `SELECT COALESCE(SUM(credits_charged), 0) AS n
        FROM hunter_credit_log
       WHERE YEAR(called_at) = YEAR(UTC_TIMESTAMP())
         AND MONTH(called_at) = MONTH(UTC_TIMESTAMP())`
   );
-  return rows[0]?.n ?? 0;
+  // mysql2 returns SUM(TINYINT) as a string (DECIMAL). Coerce explicitly so
+  // arithmetic upstream (`usedThisMonth + creditsUsedThisRun`) doesn't string-concat.
+  return Number(rows[0]?.n ?? 0);
 }
 
 /**
