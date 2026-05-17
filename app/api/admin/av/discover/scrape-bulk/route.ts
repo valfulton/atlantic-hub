@@ -180,15 +180,45 @@ export async function POST(req: NextRequest) {
       filledPhone = true;
     }
     const socialsCount = Object.keys(scraped.socials).length;
-    if (socialsCount > 0) {
-      updates.push("tags = JSON_SET(COALESCE(tags, JSON_OBJECT()), '$.socials', CAST(? AS JSON))");
-      values.push(JSON.stringify(scraped.socials));
-    }
 
     if (updates.length > 0 && !dryRun) {
       updates.push('last_activity_at = NOW()');
-      await db.execute(`UPDATE leads SET ${updates.join(', ')} WHERE id = ?`, [...values, lead.id]);
-      filledCount++;
+      try {
+        await db.execute(`UPDATE leads SET ${updates.join(', ')} WHERE id = ?`, [...values, lead.id]);
+        filledCount++;
+      } catch (err) {
+        // One bad row shouldn't kill the batch — record the reason and keep going.
+        results.push({
+          leadId: lead.id,
+          auditId: lead.audit_id,
+          company: lead.company,
+          website: lead.website,
+          filledEmail: false,
+          filledPhone: false,
+          foundSocials: socialsCount,
+          emailFound: scraped.email,
+          phoneFound: scraped.phone,
+          pagesFetched: scraped.pagesFetched.length,
+          pagesFailed: scraped.pagesFailed.length,
+          skipped: true,
+          reason: `update-failed: ${(err as Error).message.slice(0, 100)}`
+        });
+        continue;
+      }
+      // Socials → tags. Done as a SECOND statement because some MariaDB versions
+      // need `tags` to already be valid JSON for JSON_SET. If this fails (eg
+      // tags is TEXT not JSON in your schema), the email/phone update above
+      // still landed; we just lose the socials this round.
+      if (socialsCount > 0) {
+        try {
+          await db.execute(
+            `UPDATE leads SET tags = JSON_SET(COALESCE(tags, JSON_OBJECT()), '$.socials', CAST(? AS JSON)) WHERE id = ?`,
+            [JSON.stringify(scraped.socials), lead.id]
+          );
+        } catch {
+          // Tags column may not support JSON_SET — silently skip, primary fields already saved.
+        }
+      }
     }
 
     results.push({

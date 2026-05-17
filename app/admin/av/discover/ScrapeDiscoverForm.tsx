@@ -88,15 +88,27 @@ export function ScrapeDiscoverForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ limit: bulkLimit, dryRun })
       });
-      const json: BulkResult & { error?: string } = await res.json();
-      if (!res.ok) {
-        setBulkError(json.error || `HTTP ${res.status}`);
+      // Read as text first so we can show non-JSON error pages instead of
+      // throwing a cryptic "string did not match expected pattern".
+      const rawText = await res.text();
+      let json: BulkResult & { error?: string } | null = null;
+      try {
+        json = JSON.parse(rawText) as BulkResult & { error?: string };
+      } catch {
+        setBulkError(
+          `Server returned a non-JSON response (HTTP ${res.status}). ` +
+            `First 200 chars: ${rawText.slice(0, 200)}`
+        );
+        return;
+      }
+      if (!res.ok || !json) {
+        setBulkError(json?.error || `HTTP ${res.status}`);
         return;
       }
       setBulkResult(json);
       if (!dryRun) router.refresh();
     } catch (err) {
-      setBulkError((err as Error).message);
+      setBulkError(`Network error: ${(err as Error).message}`);
     } finally {
       setBulkLoading(false);
     }

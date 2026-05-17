@@ -24,6 +24,7 @@ import {
 } from '@/lib/apify/instagram';
 import { inferTargetBusinessFromRaw, type TargetBusiness } from '@/lib/leads/target_business';
 import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/leads/dedup';
+import { scrapeContactPage } from '@/lib/scraper/contact_page';
 
 export type InstagramDiscoverOutcome =
   | 'inserted'
@@ -62,9 +63,33 @@ const IG_PREFIX = 'ig:';
 async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<InstagramDiscoverResult> {
   const company = prof.fullName || prof.username;
   const bioContact = extractContactFromBio(prof.biography);
-  const email = prof.businessEmail || bioContact.email || `noemail+ig-${prof.username}@eventsbywater.com`;
-  const phone = prof.businessPhoneNumber || bioContact.phone || null;
+
+  // Start with whatever Apify gives us directly + what we can parse from bio text.
+  let email = prof.businessEmail || bioContact.email;
+  let phone = prof.businessPhoneNumber || bioContact.phone;
   const website = prof.externalUrl || bioContact.bookingUrl || null;
+
+  // If we have a link-in-bio URL but still no real email/phone, scrape that
+  // page inline. Most boutique IG businesses link to a website (linktr.ee,
+  // their own site, Squarespace booking page) — this pulls the email/phone
+  // out of THAT page so the lead lands fully enriched in one shot, rather
+  // than waiting for the bulk-fill follow-up.
+  //
+  // Cost: one extra HTTP fetch per profile (~1-3s). Bounded by the scraper's
+  // own 8s/page timeout + 5-page cap.
+  let inlineScrapeUsed = false;
+  if (website && (!email || !phone)) {
+    try {
+      const scraped = await scrapeContactPage(website);
+      if (!email && scraped.email) email = scraped.email;
+      if (!phone && scraped.phone) phone = scraped.phone;
+      inlineScrapeUsed = true;
+    } catch {
+      // Silent fail — the lead will still insert, bulk-fill can retry later.
+    }
+  }
+
+  if (!email) email = `noemail+ig-${prof.username}@eventsbywater.com`;
   const domain = normalizeDomain(website);
   const industry = instagramCategoryToIndustry(prof.businessCategoryName);
   const targetBusiness: TargetBusiness = inferTargetBusinessFromRaw(prof.businessCategoryName);
@@ -132,7 +157,8 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<Insta
     ig_posts: prof.postsCount,
     ig_is_business: prof.isBusinessAccount,
     ig_is_verified: prof.isVerified,
-    parsed_from_bio: { email: bioContact.email, phone: bioContact.phone, url: bioContact.bookingUrl }
+    parsed_from_bio: { email: bioContact.email, phone: bioContact.phone, url: bioContact.bookingUrl },
+    inline_link_scrape_used: inlineScrapeUsed
   };
 
   try {
