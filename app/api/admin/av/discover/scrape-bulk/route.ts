@@ -83,12 +83,16 @@ export async function POST(req: NextRequest) {
 
   const db = getAvDb();
   // Pick candidates: have a website, missing real email OR phone.
+  // LIMIT inlined because mysql2 + HostGator MariaDB throws
+  // ER_WRONG_ARGUMENTS on prepared `LIMIT ?`. The value is already validated
+  // as an integer 1..20 so concat is safe.
   const targetClause = targetFilter
     ? targetFilter === 'both'
       ? "AND target_business = 'both'"
       : `AND target_business IN ('${targetFilter}', 'both')`
     : '';
-  const [candidates] = await db.execute<CandidateRow[]>(
+  const safeLimit = Math.min(20, Math.max(1, Math.floor(limit)));
+  const [candidates] = await db.query<CandidateRow[]>(
     `SELECT id, audit_id, company, website, email, phone, contact_name
      FROM leads
      WHERE archived_at IS NULL
@@ -102,8 +106,7 @@ export async function POST(req: NextRequest) {
        )
        ${targetClause}
      ORDER BY id DESC
-     LIMIT ?`,
-    [limit]
+     LIMIT ${safeLimit}`
   );
 
   if (candidates.length === 0) {
