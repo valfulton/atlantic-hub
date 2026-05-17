@@ -32,6 +32,7 @@ import {
   type ApolloOrgSearchFilters,
   type ApolloPersonAtOrg
 } from '@/lib/apollo/search';
+import { inferTargetBusiness } from '@/lib/leads/target_business';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { randomUUID } from 'crypto';
 
@@ -164,14 +165,15 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
   };
 
   try {
+    const targetBusiness = inferTargetBusiness(industry);
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
          audit_id, company, email, phone, website,
-         industry, lead_status, source_type, source_payload, apollo_person_id,
+         industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
          last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, NOW())`,
-      [auditId, company, placeholderEmail, phone, website, industry, JSON.stringify(sourcePayload), apolloOrgId]
+       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, NOW())`,
+      [auditId, company, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), apolloOrgId]
     );
 
     return {
@@ -239,14 +241,15 @@ async function insertApolloPersonAsLead(
   };
 
   try {
+    const targetBusiness = inferTargetBusiness(industry);
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
          audit_id, company, contact_name, contact_title, email, phone, website,
-         industry, lead_status, source_type, source_payload, apollo_person_id,
+         industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
          last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, NOW())`,
-      [auditId, company, name, title, placeholderEmail, phone, website, industry, JSON.stringify(sourcePayload), apolloPersonId]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, NOW())`,
+      [auditId, company, name, title, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), apolloPersonId]
     );
 
     return {

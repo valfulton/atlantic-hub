@@ -50,6 +50,8 @@ interface LeadDetailRow extends RowDataPacket {
   client_id: number | null;
   pipeline_stage_id: number | null;
   source_type: string;
+  target_business: 'av' | 'ebw' | 'both';
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -86,6 +88,7 @@ export async function GET(
               ai_score, ai_score_band, ai_score_reason, ai_score_breakdown, ai_audit,
               ai_email_subject, ai_email_body, ai_last_scored_at, ai_model_version,
               tags, last_activity_at, client_id, pipeline_stage_id, source_type,
+              target_business, archived_at,
               created_at, updated_at
        FROM leads
        WHERE audit_id = ?
@@ -135,6 +138,8 @@ export async function GET(
         clientId: r.client_id,
         pipelineStageId: r.pipeline_stage_id,
         sourceType: r.source_type,
+        targetBusiness: r.target_business,
+        archivedAt: r.archived_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at
       }
@@ -149,13 +154,15 @@ export async function GET(
  *
  * Updates allowed editable fields on a lead and writes a lead_events row
  * for each meaningful change in the same transaction. Whitelist of fields:
- *   leadStatus, pipelineStageId, followUpDate, notes, tags
+ *   leadStatus, pipelineStageId, followUpDate, notes, tags, targetBusiness,
+ *   archived (boolean — soft delete)
  *
  * Requests with no recognised fields return 400. Empty-string and null
  * are accepted for nullable text columns to allow clearing.
  */
 
 const VALID_LEAD_STATUS = new Set(['new', 'contacted', 'qualified', 'converted', 'lost']);
+const VALID_TARGET_BUSINESS = new Set(['av', 'ebw', 'both']);
 
 export async function PATCH(
   req: NextRequest,
@@ -235,6 +242,29 @@ export async function PATCH(
       return NextResponse.json({ error: 'tags must be object or null' }, { status: 400 });
     }
     eventPayload.tagsChanged = true;
+  }
+
+  // Manual override of which pipeline this lead belongs to. Defaults set at
+  // insert time using the inferTargetBusiness heuristic; this lets you reclassify.
+  if (typeof payload.targetBusiness === 'string') {
+    if (!VALID_TARGET_BUSINESS.has(payload.targetBusiness)) {
+      return NextResponse.json({ error: 'targetBusiness must be av|ebw|both' }, { status: 400 });
+    }
+    updates.push('target_business = ?');
+    values.push(payload.targetBusiness);
+    eventPayload.targetBusiness = payload.targetBusiness;
+  }
+
+  // Soft delete / undelete. archived=true → archived_at = NOW().
+  // archived=false → archived_at = NULL (restore). Filtered out of the
+  // leads list by the WHERE archived_at IS NULL clause on GET.
+  if (typeof payload.archived === 'boolean') {
+    if (payload.archived) {
+      updates.push('archived_at = NOW()');
+    } else {
+      updates.push('archived_at = NULL');
+    }
+    eventPayload.archived = payload.archived;
   }
 
   if (!updates.length) {

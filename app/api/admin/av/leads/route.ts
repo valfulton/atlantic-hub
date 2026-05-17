@@ -13,12 +13,15 @@ interface LeadRow extends RowDataPacket {
   contact_name: string | null;
   contact_title: string | null;
   email: string;
+  phone: string | null;
+  website: string | null;
   industry: string | null;
   lead_status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
   ai_score: number | null;
   ai_score_band: 'hot' | 'warm' | 'cool' | null;
   submission_date: string;
   source_type: string;
+  target_business: 'av' | 'ebw' | 'both';
   client_id: number | null;
   enrichment_status: string | null;
   enriched_at: string | null;
@@ -27,6 +30,23 @@ interface LeadRow extends RowDataPacket {
 const VALID_STAGES = new Set(['new', 'contacted', 'qualified', 'converted', 'lost']);
 const VALID_SOURCES = new Set(['audit_form', 'csv', 'scrape', 'manual', 'api']);
 const VALID_ENRICHMENT = new Set(['enriched', 'failed_no_domain', 'failed_no_results', 'failed_permanent', 'pending']);
+const VALID_TARGETS = new Set(['av', 'ebw', 'both']);
+
+// Data-completeness filters — combine with AND. Each pushes a SQL condition.
+const VALID_DATA_FILTERS = new Set(['has_real_email', 'has_phone', 'has_website', 'has_contact_name']);
+
+/**
+ * "Real email" = anything that doesn't match our placeholder patterns.
+ * Patterns: prospect+ebw-NNN@..., apollo+org-..., apollo+person-..., noemail+...,
+ * info@eventsbywater.com (catch-all).
+ */
+const REAL_EMAIL_SQL = `(
+  email IS NOT NULL AND email != ''
+  AND email NOT LIKE 'prospect+%@eventsbywater.com'
+  AND email NOT LIKE 'apollo+%@eventsbywater.com'
+  AND email NOT LIKE 'noemail+%@eventsbywater.com'
+  AND email != 'info@eventsbywater.com'
+)`;
 
 // URL sort key → SQL column (whitelist; never inject user input into ORDER BY)
 const SORT_COLUMN: Record<string, string> = {
@@ -57,15 +77,26 @@ export async function GET(req: NextRequest) {
   }
 
   const url = new URL(req.url);
+  // Multiple data-completeness filters can be sent comma-separated:
+  //   ?data=has_real_email,has_phone
+  const dataFiltersRaw = (url.searchParams.get('data') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => VALID_DATA_FILTERS.has(s));
   const stageRaw = url.searchParams.get('stage') ?? '';
   const sourceRaw = url.searchParams.get('source_type') ?? '';
   const enrichmentRaw = url.searchParams.get('enrichment') ?? '';
+  const targetRaw = url.searchParams.get('target') ?? '';
   const sortRaw = (url.searchParams.get('sort') ?? '').toLowerCase();
   const directionRaw = (url.searchParams.get('direction') ?? 'desc').toLowerCase();
 
   const stageFilter = VALID_STAGES.has(stageRaw) ? stageRaw : null;
   const sourceFilter = VALID_SOURCES.has(sourceRaw) ? sourceRaw : null;
   const enrichmentFilter = VALID_ENRICHMENT.has(enrichmentRaw) ? enrichmentRaw : null;
+  // target=ebw means "show me leads for the EBW pipeline" — that's
+  // target_business IN ('ebw','both'). Same idea for av. 'both' as a filter
+  // value means exact match on 'both' (rare but useful for triage).
+  const targetFilter = VALID_TARGETS.has(targetRaw) ? targetRaw : null;
 
   const sortColumn = SORT_COLUMN[sortRaw] ?? 'submission_date';
   const direction = directionRaw === 'asc' ? 'ASC' : 'DESC';
@@ -91,15 +122,33 @@ export async function GET(req: NextRequest) {
         params.push(enrichmentFilter);
       }
     }
+    if (targetFilter) {
+      // 'av' filter shows av + both; 'ebw' filter shows ebw + both; 'both'
+      // shows only the multi-pipeline ones.
+      if (targetFilter === 'both') {
+        conditions.push("target_business = 'both'");
+      } else {
+        conditions.push("target_business IN (?, 'both')");
+        params.push(targetFilter);
+      }
+    }
+
+    // Data-completeness filters (AND across multiple)
+    for (const f of dataFiltersRaw) {
+      if (f === 'has_real_email') conditions.push(REAL_EMAIL_SQL);
+      if (f === 'has_phone') conditions.push("phone IS NOT NULL AND phone != ''");
+      if (f === 'has_website') conditions.push("website IS NOT NULL AND website != ''");
+      if (f === 'has_contact_name') conditions.push("contact_name IS NOT NULL AND contact_name != '' AND contact_name NOT LIKE '(%'");
+    }
 
     // NULLs sort last in either direction (handle gracefully for ai_score etc.)
     const nullsHandling = direction === 'ASC' ? 'IS NULL ASC' : 'IS NULL ASC';
     const orderBy = `${sortColumn} ${nullsHandling}, ${sortColumn} ${direction}, id DESC`;
 
     const [rows] = await db.execute<LeadRow[]>(
-      `SELECT id, audit_id, company, contact_name, contact_title, email, industry,
-              lead_status, ai_score, ai_score_band, submission_date, source_type, client_id,
-              enrichment_status, enriched_at
+      `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
+              lead_status, ai_score, ai_score_band, submission_date, source_type, target_business,
+              client_id, enrichment_status, enriched_at
        FROM leads
        WHERE ${conditions.join(' AND ')}
        ORDER BY ${orderBy}
@@ -107,23 +156,54 @@ export async function GET(req: NextRequest) {
       params
     );
 
-    const leads = rows.map((r) => ({
-      id: r.id,
-      auditId: r.audit_id,
-      company: r.company,
-      contactName: r.contact_name,
-      contactTitle: r.contact_title,
-      email: r.email,
-      industry: r.industry,
-      leadStatus: r.lead_status,
-      aiScore: r.ai_score === null ? null : Number(r.ai_score),
-      aiScoreBand: r.ai_score_band,
-      submissionDate: r.submission_date,
-      sourceType: r.source_type,
-      clientId: r.client_id,
-      enrichmentStatus: r.enrichment_status,
-      enrichedAt: r.enriched_at
-    }));
+    // Pre-compute placeholder-email regex once (JS side, since SQL already filtered if requested)
+    const placeholderPatterns: RegExp[] = [
+      /^prospect\+.*@eventsbywater\.com$/i,
+      /^apollo\+.*@eventsbywater\.com$/i,
+      /^noemail\+.*@eventsbywater\.com$/i,
+      /^info@eventsbywater\.com$/i
+    ];
+    function isRealEmail(e: string | null): boolean {
+      if (!e || !e.trim()) return false;
+      return !placeholderPatterns.some((re) => re.test(e.trim()));
+    }
+    function isRealContactName(n: string | null): boolean {
+      if (!n || !n.trim()) return false;
+      return !n.trim().startsWith('(');
+    }
+
+    const leads = rows.map((r) => {
+      const hasRealEmail = isRealEmail(r.email);
+      const hasPhone = !!(r.phone && r.phone.trim());
+      const hasWebsite = !!(r.website && r.website.trim());
+      const hasContactName = isRealContactName(r.contact_name);
+      const completeness = (hasRealEmail ? 1 : 0) + (hasPhone ? 1 : 0) + (hasWebsite ? 1 : 0) + (hasContactName ? 1 : 0);
+      return {
+        id: r.id,
+        auditId: r.audit_id,
+        company: r.company,
+        contactName: r.contact_name,
+        contactTitle: r.contact_title,
+        email: r.email,
+        phone: r.phone,
+        website: r.website,
+        industry: r.industry,
+        leadStatus: r.lead_status,
+        aiScore: r.ai_score === null ? null : Number(r.ai_score),
+        aiScoreBand: r.ai_score_band,
+        submissionDate: r.submission_date,
+        sourceType: r.source_type,
+        targetBusiness: r.target_business,
+        clientId: r.client_id,
+        enrichmentStatus: r.enrichment_status,
+        enrichedAt: r.enriched_at,
+        hasRealEmail,
+        hasPhone,
+        hasWebsite,
+        hasContactName,
+        completeness
+      };
+    });
 
     return NextResponse.json({
       leads,

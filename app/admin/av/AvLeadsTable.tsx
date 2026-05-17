@@ -11,15 +11,124 @@ export interface AvLead {
   contactName: string | null;
   contactTitle: string | null;
   email: string;
+  phone: string | null;
+  website: string | null;
   industry: string | null;
   leadStatus: string;
   aiScore: number | null;
   aiScoreBand: string | null;
   submissionDate: string;
   sourceType: string;
+  targetBusiness: 'av' | 'ebw' | 'both';
   clientId: number | null;
   enrichmentStatus: string | null;
   enrichedAt: string | null;
+  hasRealEmail: boolean;
+  hasPhone: boolean;
+  hasWebsite: boolean;
+  hasContactName: boolean;
+  completeness: number;
+}
+
+/**
+ * Pipeline badge — which business this lead belongs to.
+ * AV (agency only), EBW (charter only), AV+EBW (both pipelines, notes shared).
+ */
+function TargetBadge({ target }: { target: 'av' | 'ebw' | 'both' }) {
+  if (target === 'both') {
+    return (
+      <span
+        title="Visible in /admin/av AND /admin/ebw. Notes shared across both views."
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30"
+      >
+        AV+EBW
+      </span>
+    );
+  }
+  if (target === 'ebw') {
+    return (
+      <span
+        title="Events by Water pipeline"
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
+      >
+        EBW
+      </span>
+    );
+  }
+  return (
+    <span
+      title="Atlantic & Vine pipeline"
+      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-slate-500/15 text-slate-300 border border-slate-500/30"
+    >
+      AV
+    </span>
+  );
+}
+
+/**
+ * Per-row archive button. Soft delete — sets archived_at = NOW(). The lead
+ * disappears from the list (which filters WHERE archived_at IS NULL) but
+ * stays in the DB; restore from the lead detail page.
+ */
+function ArchiveButton({ auditId, company }: { auditId: string; company: string }) {
+  const router = useRouter();
+  async function handleClick() {
+    const ok = window.confirm(
+      `Archive "${company}"?\n\nIt will be hidden from the leads list. You can restore it from the lead's detail page.`
+    );
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/admin/av/leads/${auditId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: true })
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        alert(`Archive failed (${res.status})\n${body.slice(0, 300)}`);
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      alert(`Archive failed: ${(err as Error).message}`);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      title={`Archive ${company}`}
+      className="text-muted hover:text-red-400 transition-colors text-base leading-none px-1"
+      aria-label={`Archive ${company}`}
+    >
+      ×
+    </button>
+  );
+}
+
+function CompletenessBadge({ lead }: { lead: AvLead }) {
+  const score = lead.completeness;
+  const color = score === 4 ? 'text-green-400' : score >= 2 ? 'text-amber-400' : 'text-muted';
+  const indicators = [
+    { label: 'name', ok: lead.hasContactName },
+    { label: 'email', ok: lead.hasRealEmail },
+    { label: 'phone', ok: lead.hasPhone },
+    { label: 'web', ok: lead.hasWebsite }
+  ];
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={`text-xs font-medium ${color}`}>{score}/4</span>
+      <div className="flex gap-0.5">
+        {indicators.map((i) => (
+          <span
+            key={i.label}
+            title={i.label}
+            className={`inline-block w-1.5 h-1.5 rounded-full ${i.ok ? 'bg-green-500' : 'bg-border'}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function formatRelative(iso: string | null): string {
@@ -118,6 +227,18 @@ export function AvLeadsTable({
       )
     },
     {
+      key: 'target',
+      header: (
+        <span
+          className="text-xs uppercase tracking-wider text-muted"
+          title="Which pipeline this lead belongs to. AV+EBW means notes are shared between both views."
+        >
+          For
+        </span>
+      ),
+      render: (r) => <TargetBadge target={r.targetBusiness} />
+    },
+    {
       key: 'contact',
       header: <SortableHeader label="Contact" sortKey="contact" currentSort={sortKey} currentDirection={sortDirection} />,
       render: (r) => (
@@ -161,6 +282,18 @@ export function AvLeadsTable({
       render: (r) => <EnrichmentCell lead={r} />
     },
     {
+      key: 'completeness',
+      header: (
+        <span
+          className="text-xs uppercase tracking-wider text-muted"
+          title="Data completeness — name, real email, phone, website. Green = present."
+        >
+          Data
+        </span>
+      ),
+      render: (r) => <CompletenessBadge lead={r} />
+    },
+    {
       key: 'date',
       header: <SortableHeader label="Submitted" sortKey="submitted" currentSort={sortKey} currentDirection={sortDirection} />,
       render: (r) =>
@@ -169,6 +302,11 @@ export function AvLeadsTable({
           day: 'numeric',
           year: 'numeric'
         })
+    },
+    {
+      key: 'archive',
+      header: <span className="sr-only">Archive</span>,
+      render: (r) => <ArchiveButton auditId={r.auditId} company={r.company} />
     }
   ];
 
