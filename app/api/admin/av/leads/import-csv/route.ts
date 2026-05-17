@@ -25,6 +25,8 @@ import { getAvDb } from '@/lib/db/av';
 import { parseCsv, mapHeaders, type HeaderMap } from '@/lib/csv/parser';
 import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/leads/dedup';
 import { inferTargetBusiness, isTargetBusiness, type TargetBusiness } from '@/lib/leads/target_business';
+import { logEvent } from '@/lib/events/log';
+import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
 import type { ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -230,9 +232,26 @@ async function processRow(
     ]
   );
 
+  const newLeadId = result.insertId;
+  await logEvent({
+    eventType: 'lead.created',
+    leadId: newLeadId,
+    source: 'csv',
+    status: 'success',
+    payload: {
+      company: company || domain,
+      domain,
+      industry: industry || null,
+      target_business: targetBusiness,
+      source_label: ctx.sourceLabel,
+      has_real_email: isLikelyRealEmail
+    }
+  });
+  scoreAndAuditLeadBackground(newLeadId);
+
   return {
     outcome: 'inserted',
-    leadId: result.insertId,
+    leadId: newLeadId,
     company,
     email: isLikelyRealEmail ? emailRaw : undefined,
     domain: domain ?? undefined

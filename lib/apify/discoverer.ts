@@ -25,6 +25,8 @@ import {
 import { inferTargetBusinessFromRaw, type TargetBusiness } from '@/lib/leads/target_business';
 import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/leads/dedup';
 import { scrapeContactPage } from '@/lib/scraper/contact_page';
+import { logEvent } from '@/lib/events/log';
+import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
 
 export type InstagramDiscoverOutcome =
   | 'inserted'
@@ -182,13 +184,37 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<Insta
         dedupKey
       ]
     );
+    const newLeadId = result.insertId;
+    await logEvent({
+      eventType: 'lead.created',
+      leadId: newLeadId,
+      source: 'instagram',
+      status: 'success',
+      payload: {
+        company,
+        ig_username: prof.username,
+        is_business: prof.isBusinessAccount,
+        followers: prof.followersCount,
+        industry,
+        target_business: targetBusiness,
+        inline_link_scrape_used: inlineScrapeUsed
+      }
+    });
+    scoreAndAuditLeadBackground(newLeadId);
     return {
       username: prof.username,
       outcome: 'inserted',
-      leadId: result.insertId,
+      leadId: newLeadId,
       details: { company, email, phone, website, industry, isBusinessAccount: prof.isBusinessAccount, followersCount: prof.followersCount }
     };
   } catch (err) {
+    await logEvent({
+      eventType: 'workflow.failed',
+      source: 'instagram',
+      status: 'failure',
+      payload: { stage: 'insertOneProfile', company, ig_username: prof.username },
+      errorMessage: (err as Error).message.slice(0, 500)
+    });
     return {
       username: prof.username,
       outcome: 'insert_failed',

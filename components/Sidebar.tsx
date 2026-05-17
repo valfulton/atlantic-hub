@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 
 const HH_NAV = [
   { href: '/admin', label: 'Home', section: 'top' as const },
+  { href: '/admin/events', label: 'System events', section: 'top' as const },
   { href: '/admin/hh', label: 'HunterHoney', section: 'tenant' as const },
   { href: '/admin/hh/subscribers', label: 'Subscribers', section: 'sub' as const },
   { href: '/admin/hh/fap-applications', label: 'FAP Applications', section: 'sub' as const },

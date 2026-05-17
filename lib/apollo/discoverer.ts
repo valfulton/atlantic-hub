@@ -33,6 +33,8 @@ import {
   type ApolloPersonAtOrg
 } from '@/lib/apollo/search';
 import { inferTargetBusiness } from '@/lib/leads/target_business';
+import { logEvent } from '@/lib/events/log';
+import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { randomUUID } from 'crypto';
 
@@ -176,13 +178,37 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
       [auditId, company, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), apolloOrgId]
     );
 
+    const newLeadId = result.insertId;
+    await logEvent({
+      eventType: 'lead.created',
+      leadId: newLeadId,
+      source: 'apollo',
+      status: 'success',
+      payload: {
+        sub_source: 'apollo_org_shell',
+        company,
+        domain,
+        industry,
+        target_business: targetBusiness,
+        apollo_organization_id: apolloOrgId
+      }
+    });
+    scoreAndAuditLeadBackground(newLeadId);
+
     return {
       apolloOrganizationId: apolloOrgId,
       outcome: 'inserted_company_shell',
-      leadId: result.insertId,
+      leadId: newLeadId,
       details: { company, domain: domain ?? undefined, industry: industry ?? undefined, employeeEstimate: org.estimated_num_employees }
     };
   } catch (err) {
+    await logEvent({
+      eventType: 'workflow.failed',
+      source: 'apollo',
+      status: 'failure',
+      payload: { stage: 'insertApolloOrgAsLead', company, apollo_organization_id: apolloOrgId },
+      errorMessage: (err as Error).message.slice(0, 500)
+    });
     return {
       apolloOrganizationId: apolloOrgId,
       outcome: 'insert_failed',
@@ -252,11 +278,31 @@ async function insertApolloPersonAsLead(
       [auditId, company, name, title, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), apolloPersonId]
     );
 
+    const newLeadId = result.insertId;
+    await logEvent({
+      eventType: 'lead.created',
+      leadId: newLeadId,
+      source: 'apollo',
+      status: 'success',
+      payload: {
+        sub_source: 'apollo_person',
+        company,
+        contact_name: name,
+        contact_title: title,
+        domain,
+        industry,
+        target_business: targetBusiness,
+        apollo_person_id: apolloPersonId,
+        apollo_organization_id: apolloOrgId
+      }
+    });
+    scoreAndAuditLeadBackground(newLeadId);
+
     return {
       apolloOrganizationId: apolloOrgId,
       apolloPersonId,
       outcome: 'inserted_person',
-      leadId: result.insertId,
+      leadId: newLeadId,
       details: {
         company,
         contactName: name,
@@ -268,6 +314,18 @@ async function insertApolloPersonAsLead(
       }
     };
   } catch (err) {
+    await logEvent({
+      eventType: 'workflow.failed',
+      source: 'apollo',
+      status: 'failure',
+      payload: {
+        stage: 'insertApolloPersonAsLead',
+        company,
+        contact_name: name,
+        apollo_person_id: apolloPersonId
+      },
+      errorMessage: (err as Error).message.slice(0, 500)
+    });
     return {
       apolloOrganizationId: apolloOrgId,
       apolloPersonId,
@@ -367,6 +425,15 @@ export async function runDiscoveryBatch(opts: {
       triggerSource,
       actorUserId,
       errorMessage: msg
+    });
+    const status = isApi ? (err as ApolloApiError).status : null;
+    await logEvent({
+      eventType: status === 429 ? 'api.rate_limited' : 'api.apollo_error',
+      userId: actorUserId,
+      source: 'apollo',
+      status: 'failure',
+      payload: { status_code: status, trigger_source: triggerSource },
+      errorMessage: msg.slice(0, 500)
     });
     return {
       triggerSource,

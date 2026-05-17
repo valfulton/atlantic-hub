@@ -32,6 +32,7 @@ import {
   OpenAIKeyMissingError,
   OpenAIApiError
 } from '@/lib/openai/client';
+import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       ? buildAboutIndustryPrompt(lead, count)
       : buildForProspectPrompt(lead, count);
 
+  const startMs = Date.now();
   try {
     const completion = await openaiChatCompletion(
       [
@@ -109,6 +111,16 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
 
     const parsed = parseOpenAIJson<AiSocialPayload>(completion.text);
     if (!parsed || !Array.isArray(parsed.linkedin)) {
+      await logEvent({
+        eventType: 'ai.social_content_generated',
+        leadId: lead.id,
+        userId: guard.actor.userId,
+        source: 'openai',
+        status: 'failure',
+        payload: { company: lead.company, variant, count, raw_first_300: completion.text.slice(0, 300) },
+        errorMessage: 'malformed JSON from openai',
+        executionTimeMs: Date.now() - startMs
+      });
       return NextResponse.json(
         {
           error: 'AI returned malformed JSON — try again',
@@ -117,6 +129,25 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
         { status: 502 }
       );
     }
+
+    await logEvent({
+      eventType: 'ai.social_content_generated',
+      leadId: lead.id,
+      userId: guard.actor.userId,
+      source: 'openai',
+      status: 'success',
+      payload: {
+        company: lead.company,
+        variant,
+        count,
+        linkedin_n: parsed.linkedin?.length ?? 0,
+        twitter_n: parsed.twitter?.length ?? 0,
+        instagram_n: parsed.instagram?.length ?? 0,
+        tokens_used: completion.usage.totalTokens,
+        model: completion.model
+      },
+      executionTimeMs: Date.now() - startMs
+    });
 
     return NextResponse.json({
       ok: true,
@@ -133,18 +164,46 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
     });
   } catch (err) {
     if (err instanceof OpenAIKeyMissingError) {
+      await logEvent({
+        eventType: 'api.openai_error',
+        leadId: lead.id,
+        userId: guard.actor.userId,
+        source: 'openai',
+        status: 'failure',
+        payload: { route: 'social-content', variant },
+        errorMessage: 'OPENAI_API_KEY missing'
+      });
       return NextResponse.json(
         { error: 'OPENAI_API_KEY not configured in Netlify env vars' },
         { status: 503 }
       );
     }
     if (err instanceof OpenAIApiError) {
+      await logEvent({
+        eventType: err.status === 429 ? 'api.rate_limited' : 'api.openai_error',
+        leadId: lead.id,
+        userId: guard.actor.userId,
+        source: 'openai',
+        status: 'failure',
+        payload: { route: 'social-content', status_code: err.status },
+        errorMessage: err.body.slice(0, 500),
+        executionTimeMs: Date.now() - startMs
+      });
       return NextResponse.json(
         { error: 'openai api error', detail: err.body.slice(0, 500), status: err.status },
         { status: 502 }
       );
     }
     console.error('[av:social-content]', (err as Error).message);
+    await logEvent({
+      eventType: 'workflow.failed',
+      leadId: lead.id,
+      userId: guard.actor.userId,
+      source: 'openai',
+      status: 'failure',
+      payload: { route: 'social-content' },
+      errorMessage: (err as Error).message.slice(0, 500)
+    });
     return NextResponse.json(
       { error: 'server error', errorClass: (err as Error).name },
       { status: 500 }

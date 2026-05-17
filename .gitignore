@@ -35,6 +35,10 @@ yarn-error.log*
 # IDE
 .vscode/
 .idea/
+.claude/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
 
 # Secrets / credentials — NEVER commit
 secrets.*

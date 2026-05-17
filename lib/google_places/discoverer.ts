@@ -19,6 +19,8 @@ import {
 } from '@/lib/google_places/search';
 import { inferTargetBusinessFromRaw, type TargetBusiness } from '@/lib/leads/target_business';
 import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/leads/dedup';
+import { logEvent } from '@/lib/events/log';
+import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
 
 export type PlacesDiscoverOutcome =
   | 'inserted'
@@ -147,13 +149,38 @@ async function insertOnePlace(db: Pool, det: PlaceDetails): Promise<PlacesDiscov
         dedupKey
       ]
     );
+    const newLeadId = result.insertId;
+    await logEvent({
+      eventType: 'lead.created',
+      leadId: newLeadId,
+      source: 'google_places',
+      status: 'success',
+      payload: {
+        company,
+        domain,
+        industry,
+        primary_type: det.primaryType,
+        target_business: targetBusiness,
+        place_id: det.id,
+        rating: det.rating,
+        user_rating_count: det.userRatingCount
+      }
+    });
+    scoreAndAuditLeadBackground(newLeadId);
     return {
       placeId: det.id,
       outcome: 'inserted',
-      leadId: result.insertId,
+      leadId: newLeadId,
       details: { company, domain: domain ?? undefined, industry, primaryType: det.primaryType, rating: det.rating, userRatingCount: det.userRatingCount }
     };
   } catch (err) {
+    await logEvent({
+      eventType: 'workflow.failed',
+      source: 'google_places',
+      status: 'failure',
+      payload: { stage: 'insertOnePlace', company, place_id: det.id },
+      errorMessage: (err as Error).message.slice(0, 500)
+    });
     return {
       placeId: det.id,
       outcome: 'insert_failed',

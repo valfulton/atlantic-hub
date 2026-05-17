@@ -23,6 +23,7 @@ import {
   HunterApiKeyMissingError,
   HunterApiError
 } from '@/lib/enrichment/hunter';
+import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 // Default monthly Hunter credit ceiling. Hunter free tier was bumped to
@@ -207,10 +208,19 @@ async function enrichOne(
   lead: LeadRow & { client_id?: number | null },
   triggerSource: EnrichmentTriggerSource
 ): Promise<EnrichmentResult> {
+  const startMs = Date.now();
   const domain = extractDomain(lead.website);
 
   if (!domain) {
     await markLeadStatus(lead.id, 'failed_no_domain');
+    await logEvent({
+      eventType: 'lead.enrichment_failed',
+      leadId: lead.id,
+      source: 'hunter',
+      status: 'failure',
+      payload: { company: lead.company, reason: 'no_domain', trigger_source: triggerSource },
+      errorMessage: 'no domain extractable from website'
+    });
     return { leadId: lead.id, company: lead.company, outcome: 'no_domain' };
   }
 
@@ -233,6 +243,15 @@ async function enrichOne(
     });
     // Unset the in_progress lock — try again later
     await markLeadStatus(lead.id, lead.enrichment_status ?? '');
+    await logEvent({
+      eventType: 'lead.enrichment_failed',
+      leadId: lead.id,
+      source: 'hunter',
+      status: 'failure',
+      payload: { company: lead.company, domain, reason: 'api_error', trigger_source: triggerSource },
+      errorMessage: msg.slice(0, 500),
+      executionTimeMs: Date.now() - startMs
+    });
     return {
       leadId: lead.id,
       company: lead.company,
@@ -253,6 +272,14 @@ async function enrichOne(
     });
     await markLeadStatus(lead.id, 'failed_no_results');
     await logLeadEvent(lead.id, lead.client_id ?? null, 'enrichment_no_results', { domain });
+    await logEvent({
+      eventType: 'lead.enrichment_failed',
+      leadId: lead.id,
+      source: 'hunter',
+      status: 'partial',
+      payload: { company: lead.company, domain, reason: 'no_hunter_results', trigger_source: triggerSource },
+      executionTimeMs: Date.now() - startMs
+    });
     return { leadId: lead.id, company: lead.company, outcome: 'no_results', details: { domain } };
   }
 
@@ -309,6 +336,23 @@ async function enrichOne(
     phone: newPhone,
     confidence: best.confidence,
     source: 'hunter.io'
+  });
+
+  await logEvent({
+    eventType: 'lead.enriched',
+    leadId: lead.id,
+    source: 'hunter',
+    status: 'success',
+    payload: {
+      company: lead.company,
+      domain,
+      new_email: newEmail,
+      new_name: newName,
+      new_title: newTitle,
+      confidence: best.confidence,
+      trigger_source: triggerSource
+    },
+    executionTimeMs: Date.now() - startMs
   });
 
   return {

@@ -20,6 +20,7 @@ import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
 import { scrapeContactPage } from '@/lib/scraper/contact_page';
 import { isTargetBusiness, type TargetBusiness } from '@/lib/leads/target_business';
+import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -238,6 +239,24 @@ export async function POST(req: NextRequest) {
       pagesFailed: scraped.pagesFailed.length,
       skipped: updates.length === 0,
       reason: updates.length === 0 ? 'nothing-useful-found' : undefined
+    });
+
+    await logEvent({
+      eventType: 'lead.bulk_enrichment_attempted',
+      leadId: lead.id,
+      userId: guard.actor.userId,
+      source: 'scraper',
+      status: updates.length === 0 ? 'partial' : 'success',
+      payload: {
+        company: lead.company,
+        website: lead.website,
+        filled_email: filledEmail,
+        filled_phone: filledPhone,
+        socials_found: socialsCount,
+        dry_run: dryRun,
+        pages_fetched: scraped.pagesFetched.length,
+        pages_failed: scraped.pagesFailed.length
+      }
     });
   }
 

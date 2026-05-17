@@ -21,6 +21,8 @@ import { getAvDb } from '@/lib/db/av';
 import { scrapeContactPage } from '@/lib/scraper/contact_page';
 import { findExistingLead, normalizeDomain, mergeTargetBusiness, normalizePhone } from '@/lib/leads/dedup';
 import { inferTargetBusiness, isTargetBusiness, type TargetBusiness } from '@/lib/leads/target_business';
+import { logEvent } from '@/lib/events/log';
+import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -191,11 +193,28 @@ async function handleNewMode(payload: Record<string, unknown>) {
     ]
   );
 
+  const newLeadId = result.insertId;
+  await logEvent({
+    eventType: 'lead.created',
+    leadId: newLeadId,
+    source: 'scrape',
+    status: 'success',
+    payload: {
+      company,
+      domain,
+      industry: industryRaw,
+      target_business: targetBusiness,
+      input_url: websiteUrl,
+      pages_fetched: scraped.pagesFetched?.length ?? 0
+    }
+  });
+  scoreAndAuditLeadBackground(newLeadId);
+
   return NextResponse.json({
     ok: true,
     mode: 'new',
     inserted: true,
-    leadId: result.insertId,
+    leadId: newLeadId,
     auditId,
     company,
     scraped,
