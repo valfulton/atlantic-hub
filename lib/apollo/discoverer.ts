@@ -23,15 +23,23 @@
 import { getAvDb } from '@/lib/db/av';
 import {
   apolloSearchOrganizations,
+  apolloOrganizationTopPeople,
   extractApolloDomain,
   normalizeIndustry,
   ApolloApiKeyMissingError,
   ApolloApiError,
   type ApolloOrganization,
-  type ApolloOrgSearchFilters
+  type ApolloOrgSearchFilters,
+  type ApolloPersonAtOrg
 } from '@/lib/apollo/search';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { randomUUID } from 'crypto';
+
+// How many top people to pull per company. Apollo's organization_top_people
+// ranks by seniority — taking the top 1-2 typically gets you the owner/CEO.
+// More = more leads + more LinkedIn URLs to outreach to, but also more rows
+// in the dashboard. Start small.
+const TOP_PEOPLE_PER_ORG = 2;
 
 // api_search and organizations/search both consume credits on some tiers
 // but don't gate hard on either. Use a high runaway-guard ceiling.
@@ -41,10 +49,14 @@ export type DiscoverTriggerSource = 'manual' | 'cron' | 'test';
 
 export interface DiscoverResult {
   apolloOrganizationId: string;
-  outcome: 'inserted' | 'duplicate' | 'insert_failed';
+  apolloPersonId?: string;
+  outcome: 'inserted_person' | 'inserted_company_shell' | 'duplicate' | 'insert_failed';
   leadId?: number;
   details?: {
     company?: string;
+    contactName?: string;
+    contactTitle?: string;
+    linkedinUrl?: string | null;
     domain?: string;
     industry?: string;
     employeeEstimate?: number | null;
@@ -56,6 +68,8 @@ export interface DiscoverBatchSummary {
   triggerSource: DiscoverTriggerSource;
   attempted: number;
   inserted: number;
+  insertedPeople: number;
+  insertedCompanyShells: number;
   duplicates: number;
   insertFailed: number;
   apolloResultsReturned: number;
@@ -110,8 +124,9 @@ async function logSearch(opts: {
 }
 
 /**
- * Insert one Apollo organization as a new lead.
- * Dedups on apollo_person_id (used here to store Apollo's organization id).
+ * Insert one Apollo organization as a COMPANY-SHELL lead (used as fallback
+ * when organization_top_people returns no contacts for that org).
+ * Dedups on apollo_person_id (storing Apollo's organization id there).
  */
 async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverResult> {
   const apolloOrgId = org.id;
@@ -125,7 +140,6 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
 
   const db = getAvDb();
 
-  // Dedup
   const [existing] = await db.execute<(RowDataPacket & { id: number })[]>(
     `SELECT id FROM leads WHERE apollo_person_id = ? LIMIT 1`,
     [apolloOrgId]
@@ -162,7 +176,7 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
 
     return {
       apolloOrganizationId: apolloOrgId,
-      outcome: 'inserted',
+      outcome: 'inserted_company_shell',
       leadId: result.insertId,
       details: { company, domain: domain ?? undefined, industry: industry ?? undefined, employeeEstimate: org.estimated_num_employees }
     };
@@ -173,6 +187,122 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
       details: { company, error: (err as Error).message }
     };
   }
+}
+
+/**
+ * Insert one Apollo PERSON (returned from organization_top_people) as a
+ * named lead. Dedups on apollo_person_id (the real Apollo person id, not
+ * the org id). Stores full company context on the row.
+ */
+async function insertApolloPersonAsLead(
+  person: ApolloPersonAtOrg,
+  org: ApolloOrganization
+): Promise<DiscoverResult> {
+  const apolloPersonId = person.id;
+  const apolloOrgId = org.id;
+  const company = org.name || 'Unknown company';
+  const name = person.name || [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unknown';
+  const title = person.title || person.headline || null;
+  const domain = extractApolloDomain(org.website_url || org.primary_domain);
+  const website = org.website_url || (org.primary_domain ? `https://${org.primary_domain}` : null);
+  const phone = org.primary_phone?.number || null;
+  const industry = normalizeIndustry(org.industry);
+  const linkedinUrl = person.linkedin_url || null;
+  const placeholderEmail = `apollo+person-${apolloPersonId}@eventsbywater.com`;
+  const auditId = randomUUID();
+
+  const db = getAvDb();
+
+  const [existing] = await db.execute<(RowDataPacket & { id: number })[]>(
+    `SELECT id FROM leads WHERE apollo_person_id = ? LIMIT 1`,
+    [apolloPersonId]
+  );
+  if (existing.length > 0) {
+    return {
+      apolloOrganizationId: apolloOrgId,
+      apolloPersonId,
+      outcome: 'duplicate',
+      leadId: existing[0].id,
+      details: { company, contactName: name, contactTitle: title ?? undefined }
+    };
+  }
+
+  const sourcePayload = {
+    source: 'apollo.io/organization_top_people',
+    apollo_person_id: apolloPersonId,
+    apollo_organization_id: apolloOrgId,
+    apollo_industry: org.industry,
+    apollo_person_seniority: person.seniority,
+    apollo_person_linkedin_url: linkedinUrl,
+    apollo_person_location: [person.city, person.state, person.country].filter(Boolean).join(', '),
+    apollo_org_estimated_num_employees: org.estimated_num_employees
+  };
+
+  try {
+    const [result] = await db.execute<ResultSetHeader>(
+      `INSERT INTO leads (
+         audit_id, company, contact_name, contact_title, email, phone, website,
+         industry, lead_status, source_type, source_payload, apollo_person_id,
+         last_activity_at
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, NOW())`,
+      [auditId, company, name, title, placeholderEmail, phone, website, industry, JSON.stringify(sourcePayload), apolloPersonId]
+    );
+
+    return {
+      apolloOrganizationId: apolloOrgId,
+      apolloPersonId,
+      outcome: 'inserted_person',
+      leadId: result.insertId,
+      details: {
+        company,
+        contactName: name,
+        contactTitle: title ?? undefined,
+        linkedinUrl,
+        domain: domain ?? undefined,
+        industry: industry ?? undefined,
+        employeeEstimate: org.estimated_num_employees
+      }
+    };
+  } catch (err) {
+    return {
+      apolloOrganizationId: apolloOrgId,
+      apolloPersonId,
+      outcome: 'insert_failed',
+      details: { company, contactName: name, error: (err as Error).message }
+    };
+  }
+}
+
+/**
+ * For one organization: call organization_top_people, insert the top N
+ * people as named leads. If Apollo has no people on file for that org,
+ * fall back to inserting a company shell.
+ */
+async function discoverPeopleForOrg(org: ApolloOrganization): Promise<DiscoverResult[]> {
+  let topPeopleResult;
+  try {
+    topPeopleResult = await apolloOrganizationTopPeople(org.id, { perPage: TOP_PEOPLE_PER_ORG });
+  } catch (err) {
+    // top_people errored — fall back to company shell so the lead still lands.
+    // Common reasons: rate limit, transient API issue, missing data for this org.
+    console.error('[discoverer:top_people]', org.name, (err as Error).message);
+    return [await insertApolloOrgAsLead(org)];
+  }
+
+  const people = topPeopleResult.people.slice(0, TOP_PEOPLE_PER_ORG);
+
+  if (people.length === 0) {
+    // Apollo doesn't have anyone listed at this company — insert company shell;
+    // Hunter cron can still try the domain.
+    return [await insertApolloOrgAsLead(org)];
+  }
+
+  const results: DiscoverResult[] = [];
+  for (const person of people) {
+    results.push(await insertApolloPersonAsLead(person, org));
+  }
+  return results;
 }
 
 export async function runDiscoveryBatch(opts: {
@@ -202,6 +332,8 @@ export async function runDiscoveryBatch(opts: {
       triggerSource,
       attempted: 0,
       inserted: 0,
+      insertedPeople: 0,
+      insertedCompanyShells: 0,
       duplicates: 0,
       insertFailed: 0,
       apolloResultsReturned: 0,
@@ -237,6 +369,8 @@ export async function runDiscoveryBatch(opts: {
       triggerSource,
       attempted: 0,
       inserted: 0,
+      insertedPeople: 0,
+      insertedCompanyShells: 0,
       duplicates: 0,
       insertFailed: 0,
       apolloResultsReturned: 0,
@@ -254,17 +388,22 @@ export async function runDiscoveryBatch(opts: {
 
   const orgs = apolloResult.organizations;
   const results: DiscoverResult[] = [];
-  let inserted = 0;
+  let insertedPeople = 0;
+  let insertedCompanyShells = 0;
   let duplicates = 0;
   let insertFailed = 0;
 
   for (const org of orgs) {
-    const r = await insertApolloOrgAsLead(org);
-    results.push(r);
-    if (r.outcome === 'inserted') inserted++;
-    else if (r.outcome === 'duplicate') duplicates++;
-    else insertFailed++;
+    const orgResults = await discoverPeopleForOrg(org);
+    for (const r of orgResults) {
+      results.push(r);
+      if (r.outcome === 'inserted_person') insertedPeople++;
+      else if (r.outcome === 'inserted_company_shell') insertedCompanyShells++;
+      else if (r.outcome === 'duplicate') duplicates++;
+      else insertFailed++;
+    }
   }
+  const inserted = insertedPeople + insertedCompanyShells;
 
   await logSearch({
     filterPayload: opts.filters,
@@ -280,6 +419,8 @@ export async function runDiscoveryBatch(opts: {
     triggerSource,
     attempted: orgs.length,
     inserted,
+    insertedPeople,
+    insertedCompanyShells,
     duplicates,
     insertFailed,
     apolloResultsReturned: orgs.length,

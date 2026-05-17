@@ -150,6 +150,89 @@ export async function apolloSearchOrganizations(filters: ApolloOrgSearchFilters)
 }
 
 /**
+ * Top people at a specific Apollo organization. Returns the ranked
+ * decision-makers (owners, executives, directors) Apollo has on file for
+ * that company. Use this AFTER organizations/search to turn each company
+ * hit into one or more named person-leads.
+ *
+ * Endpoint: POST /api/v1/mixed_people/organization_top_people
+ * Body:     { organization_id: "<apollo org id>", page?, per_page? }
+ *
+ * Available on Val's plan (verified in API key permissions).
+ */
+export interface ApolloPersonAtOrg {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  name: string | null;
+  title: string | null;
+  headline: string | null;
+  linkedin_url: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  seniority: string | null;
+  organization?: {
+    id: string;
+    name: string | null;
+    website_url: string | null;
+    primary_phone: { number: string | null } | null;
+    industry: string | null;
+  } | null;
+}
+
+export interface ApolloTopPeopleResult {
+  people: ApolloPersonAtOrg[];
+  pagination: {
+    page: number;
+    per_page: number;
+    total_entries: number;
+    total_pages: number;
+  };
+}
+
+export async function apolloOrganizationTopPeople(
+  organizationId: string,
+  options: { page?: number; perPage?: number } = {}
+): Promise<ApolloTopPeopleResult> {
+  const apiKey = process.env.APOLLO_API_KEY;
+  if (!apiKey) throw new ApolloApiKeyMissingError();
+
+  const body = {
+    organization_id: organizationId,
+    page: options.page ?? 1,
+    per_page: Math.min(25, Math.max(1, options.perPage ?? 5))
+  };
+
+  const url = `${APOLLO_BASE}/mixed_people/organization_top_people`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Cache-Control': 'no-cache',
+      'Content-Type': 'application/json',
+      'X-Api-Key': apiKey
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new ApolloApiError(res.status, errBody);
+  }
+
+  const json = (await res.json()) as {
+    people?: ApolloPersonAtOrg[];
+    pagination?: ApolloTopPeopleResult['pagination'];
+  };
+
+  return {
+    people: json.people || [],
+    pagination: json.pagination || { page: 1, per_page: 0, total_entries: 0, total_pages: 0 }
+  };
+}
+
+/**
  * Pull a clean website hostname out of Apollo's website_url field.
  */
 export function extractApolloDomain(websiteUrl: string | null | undefined): string | null {

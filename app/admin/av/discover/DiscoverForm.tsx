@@ -4,14 +4,26 @@ import { useRouter } from 'next/navigation';
 
 interface DiscoverResult {
   apolloOrganizationId: string;
-  outcome: 'inserted' | 'duplicate' | 'insert_failed';
+  apolloPersonId?: string;
+  outcome: 'inserted_person' | 'inserted_company_shell' | 'duplicate' | 'insert_failed';
   leadId?: number;
-  details?: { company?: string; domain?: string; industry?: string; employeeEstimate?: number | null; error?: string };
+  details?: {
+    company?: string;
+    contactName?: string;
+    contactTitle?: string;
+    linkedinUrl?: string | null;
+    domain?: string;
+    industry?: string;
+    employeeEstimate?: number | null;
+    error?: string;
+  };
 }
 
 interface DiscoverBatchSummary {
   attempted: number;
   inserted: number;
+  insertedPeople: number;
+  insertedCompanyShells: number;
   duplicates: number;
   insertFailed: number;
   apolloResultsReturned: number;
@@ -325,18 +337,50 @@ function DiscoverResultModal({
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mb-4">
-          <Stat label="Inserted" value={summary.inserted} tone="success" />
+          <Stat label="People inserted" value={summary.insertedPeople} tone="success" />
+          <Stat label="Company shells" value={summary.insertedCompanyShells} />
           <Stat label="Duplicates" value={summary.duplicates} />
-          <Stat label="Insert failed" value={summary.insertFailed} />
           <Stat label="Total returned" value={summary.apolloResultsReturned} />
         </div>
 
-        {summary.results.filter((r) => r.outcome === 'inserted').length > 0 && (
+        {summary.results.filter((r) => r.outcome === 'inserted_person').length > 0 && (
           <div className="mb-4">
-            <div className="text-xs uppercase tracking-wider text-muted mb-2">Newly inserted companies ({summary.inserted})</div>
-            <ul className="space-y-1.5 max-h-72 overflow-y-auto">
+            <div className="text-xs uppercase tracking-wider text-muted mb-2">
+              ✨ Decision-makers from Apollo ({summary.insertedPeople})
+            </div>
+            <ul className="space-y-1.5 max-h-60 overflow-y-auto">
               {summary.results
-                .filter((r) => r.outcome === 'inserted')
+                .filter((r) => r.outcome === 'inserted_person')
+                .map((r) => (
+                  <li key={r.apolloPersonId} className="text-xs bg-bg border border-border rounded-md px-3 py-2">
+                    <div className="font-medium text-ink">
+                      {r.details?.contactName}
+                      {r.details?.contactTitle && <span className="text-muted"> · {r.details.contactTitle}</span>}
+                    </div>
+                    <div className="text-muted">
+                      <span>@ {r.details?.company}</span>
+                      {r.details?.domain && <span> · {r.details.domain}</span>}
+                      {r.details?.linkedinUrl && (
+                        <span> · <a href={r.details.linkedinUrl} target="_blank" rel="noopener" className="text-blue-400 hover:underline">LinkedIn ↗</a></span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
+
+        {summary.results.filter((r) => r.outcome === 'inserted_company_shell').length > 0 && (
+          <div className="mb-4">
+            <div className="text-xs uppercase tracking-wider text-muted mb-2">
+              🏢 Companies without Apollo contacts ({summary.insertedCompanyShells})
+            </div>
+            <div className="text-xs text-muted mb-2">
+              Apollo found these companies but had no people on file. Hunter cron will try to find contacts at their domains tomorrow.
+            </div>
+            <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+              {summary.results
+                .filter((r) => r.outcome === 'inserted_company_shell')
                 .map((r) => (
                   <li key={r.apolloOrganizationId} className="text-xs bg-bg border border-border rounded-md px-3 py-2">
                     <div className="font-medium text-ink">{r.details?.company}</div>
@@ -365,7 +409,12 @@ function DiscoverResultModal({
           >
             <div className="font-medium mb-1 text-ink">⏭ What happens next, automatically</div>
             <ul className="text-muted space-y-1 list-disc ml-4">
-              <li>Hunter cron (daily 6 AM UTC) finds real people + emails at these companies</li>
+              {summary.insertedPeople > 0 && (
+                <li>People-leads have real names + titles from Apollo; Hunter cron fills in their work email next</li>
+              )}
+              {summary.insertedCompanyShells > 0 && (
+                <li>Company shells need Hunter to find a contact; if Hunter strikes out, do an Apollo top_people lookup manually</li>
+              )}
               <li>Each enriched lead gets AI scored (coming in next build)</li>
               <li>Find them in <code className="bg-bg px-1 rounded">/admin/av</code> filtered by source = api</li>
             </ul>
