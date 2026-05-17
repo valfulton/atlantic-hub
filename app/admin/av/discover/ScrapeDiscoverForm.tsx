@@ -41,6 +41,29 @@ const TARGET_OPTIONS = [
   { value: 'both', label: 'Both pipelines' }
 ];
 
+interface BulkResult {
+  ok: boolean;
+  dryRun?: boolean;
+  checked: number;
+  filled: number;
+  message?: string;
+  results?: Array<{
+    leadId: number;
+    auditId: string;
+    company: string;
+    website: string;
+    filledEmail: boolean;
+    filledPhone: boolean;
+    foundSocials: number;
+    emailFound: string | null;
+    phoneFound: string | null;
+    pagesFetched: number;
+    pagesFailed: number;
+    skipped: boolean;
+    reason?: string;
+  }>;
+}
+
 export function ScrapeDiscoverForm() {
   const router = useRouter();
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -49,6 +72,35 @@ export function ScrapeDiscoverForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScrapeResponse | null>(null);
+  // Bulk-fill state — runs scraper against existing leads with websites + missing data
+  const [bulkLimit, setBulkLimit] = useState(10);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  async function handleBulkFill(dryRun: boolean) {
+    setBulkError(null);
+    setBulkResult(null);
+    setBulkLoading(true);
+    try {
+      const res = await fetch('/api/admin/av/discover/scrape-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: bulkLimit, dryRun })
+      });
+      const json: BulkResult & { error?: string } = await res.json();
+      if (!res.ok) {
+        setBulkError(json.error || `HTTP ${res.status}`);
+        return;
+      }
+      setBulkResult(json);
+      if (!dryRun) router.refresh();
+    } catch (err) {
+      setBulkError((err as Error).message);
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -87,7 +139,7 @@ export function ScrapeDiscoverForm() {
   const inputStyle: React.CSSProperties = { backgroundColor: '#1a1f2e', color: '#f1f5f9' };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
         <p className="text-sm text-muted mb-3">
           Scrape a website&apos;s home + contact + about pages for email/phone/socials, insert as
@@ -99,6 +151,117 @@ export function ScrapeDiscoverForm() {
           (WordPress, Squarespace, plain HTML). Most full-SPA contact pages will return
           nothing — try Google Places or IG for those.
         </p>
+      </div>
+
+      {/* ------------------------------------------------------------------
+          BULK FILL: scrape existing leads with websites + missing data.
+          For Val's 23+ St. Croix leads where Hunter struck out.
+      ------------------------------------------------------------------ */}
+      <div className="rounded-md border border-brand/30 p-4" style={{ backgroundColor: '#0e1420' }}>
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div>
+            <h3 className="text-sm font-medium text-ink">Fill from existing websites</h3>
+            <p className="text-xs text-muted">
+              Loops through leads that have a website on file but are missing a real email or phone,
+              and scrapes their contact pages. Won&apos;t overwrite real data.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-end gap-3 mt-3">
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-muted mb-1">Leads per run</label>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={bulkLimit}
+              onChange={(e) => setBulkLimit(Math.min(20, Math.max(1, Number(e.target.value) || 10)))}
+              className="w-20 px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none"
+              style={inputStyle}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => handleBulkFill(true)}
+            disabled={bulkLoading}
+            className="px-3 py-2 rounded-md bg-surface border border-border text-muted hover:text-ink hover:border-brand transition-colors text-sm disabled:opacity-50"
+          >
+            {bulkLoading ? 'Working…' : 'Dry run (preview)'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleBulkFill(false)}
+            disabled={bulkLoading}
+            className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {bulkLoading ? 'Scraping…' : `Scrape next ${bulkLimit} & fill`}
+          </button>
+        </div>
+
+        {bulkError && (
+          <div className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+            {bulkError}
+          </div>
+        )}
+
+        {bulkResult && (
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap gap-4 text-sm">
+              <Stat label="Checked" value={bulkResult.checked} />
+              <Stat label="Filled" value={bulkResult.filled} tone="green" />
+              {bulkResult.dryRun && (
+                <span className="text-xs uppercase tracking-wider text-amber-300 self-center">DRY RUN — no DB changes</span>
+              )}
+            </div>
+            {bulkResult.message && <div className="text-sm text-muted">{bulkResult.message}</div>}
+            {bulkResult.results && bulkResult.results.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="text-muted border-b border-border">
+                    <tr>
+                      <th className="text-left py-1 pr-3">Lead</th>
+                      <th className="text-left py-1 pr-3">Email found</th>
+                      <th className="text-left py-1 pr-3">Phone found</th>
+                      <th className="text-left py-1 pr-3">Socials</th>
+                      <th className="text-left py-1 pr-3">Pages</th>
+                      <th className="text-left py-1 pr-3">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkResult.results.map((r) => (
+                      <tr key={r.leadId} className="border-b border-border/40">
+                        <td className="py-1 pr-3 text-ink">{r.company}</td>
+                        <td className="py-1 pr-3 text-muted">
+                          {r.emailFound ? (
+                            <span className={r.filledEmail ? 'text-green-300' : 'text-muted'}>{r.emailFound}</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-1 pr-3 text-muted">
+                          {r.phoneFound ? (
+                            <span className={r.filledPhone ? 'text-green-300' : 'text-muted'}>{r.phoneFound}</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-1 pr-3 text-muted">{r.foundSocials || '—'}</td>
+                        <td className="py-1 pr-3 text-muted">
+                          {r.pagesFetched}/{r.pagesFetched + r.pagesFailed}
+                        </td>
+                        <td className="py-1 pr-3 text-muted/70 text-[10px]">{r.reason ?? (r.skipped ? 'no-changes' : 'filled')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <h3 className="text-sm font-medium text-ink mb-2">Or: add a brand-new lead by URL</h3>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -220,6 +383,16 @@ function ScrapeResultPanel({ result }: { result: ScrapeResponse }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone?: 'green' | 'amber' }) {
+  const color = tone === 'green' ? 'text-green-400' : tone === 'amber' ? 'text-amber-400' : 'text-ink';
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+      <div className={`text-lg font-semibold ${color}`}>{value}</div>
     </div>
   );
 }
