@@ -71,6 +71,25 @@ in Netlify, the new features will return a clear error instead of crashing.
 
 ---
 
+## CLIENT PORTAL (added 2026-05-17c)
+
+Both optional. Sensible defaults are baked in, so the portal works without
+either of them being set; you only need them if you want to override.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| MAGIC_LINK_BASE_URL | Origin used in the magic-link URLs we log to Netlify function output. Set this to the public origin of atlantic-hub so the link Val pastes to clients is fully qualified. | "" (empty = relative path) |
+| PORTAL_ALLOWED_ORIGINS | Comma-separated origin allowlist for the cross-origin `/api/client/intake` endpoint. | https://atlanticandvine.netlify.app,https://atlanticandvine.com,https://www.atlanticandvine.com |
+
+Recommended Netlify values:
+- MAGIC_LINK_BASE_URL = https://atlantic-hub.netlify.app
+- PORTAL_ALLOWED_ORIGINS = (leave unset to use the default allowlist)
+
+No new secrets. The portal reuses the existing JWT_SECRET and JWT_ISSUER
+for its session cookies.
+
+---
+
 ## SYSTEM VARIABLES (Netlify sets these automatically)
 
 You don't touch these. Listed here so future-you knows what they are.
