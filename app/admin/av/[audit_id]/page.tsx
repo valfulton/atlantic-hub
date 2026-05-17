@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { serverFetch } from '@/lib/server-fetch';
 import { StatusBadge } from '@/components/StatusBadge';
 import { LeadDetailTabs } from './LeadDetailTabs';
+import { SocialContentButton } from './SocialContentButton';
 
 export default async function AvLeadDetailPage({
   params
@@ -39,7 +40,8 @@ export default async function AvLeadDetailPage({
             })}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <SocialContentButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
           {lead.aiScoreBand && <StatusBadge value={lead.aiScoreBand} />}
         </div>
