@@ -16,11 +16,14 @@ LLC, operated by Val Fulton. Be confident, terse, ASCII-only in shell commands
 and commit messages (no em-dashes, no smart quotes, no curly punctuation).
 
 Read these docs FIRST:
-1. `docs/SESSION_COORDINATION.md`
-2. `docs/PROJECT_STATUS_2026-05-17.md`
-3. `docs/COSMETIC_BASELINE.md` (this is your bible for this session - WCAG AA standards locked there)
-4. `docs/SYSTEM_ARCHITECTURE.md`
-5. This file
+1. `docs/PROJECT_BRIEFING_2026-05-18.md` -- THE master briefing
+2. `docs/CLIENT_FACING_GUARDRAILS.md` -- the no-cost-leakage rule applies to every accessibility audit you do on client surfaces
+3. `docs/SESSION_COORDINATION.md`
+4. `docs/PROJECT_STATUS_2026-05-17.md` + `PROJECT_STATUS_2026-05-17c.md`
+5. `docs/COSMETIC_BASELINE.md` (this is your bible for this session - WCAG AA standards locked there)
+6. `docs/SYSTEM_ARCHITECTURE.md`
+7. `docs/PRODUCT_VISION.md`
+8. This file
 
 All under `/Users/atlanticandvine/Library/CloudStorage/OneDrive-atlanticandvine.com/HunterHoney/_organized/atlantic-hub/`.
 

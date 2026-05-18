@@ -14,12 +14,14 @@ LLC, operated by Val Fulton. Be confident, terse, ASCII-only in shell commands
 and commit messages (no em-dashes, no smart quotes, no curly punctuation).
 
 Read these docs FIRST in this order:
-1. `docs/SESSION_COORDINATION.md`
-2. `docs/PROJECT_STATUS_2026-05-17.md`
-3. `docs/SYSTEM_ARCHITECTURE.md`
-4. `docs/PRODUCT_VISION.md`
-5. `docs/COSMETIC_BASELINE.md` (read this before adding UI - the gamification components are already built, reuse them)
-6. This file
+1. `docs/PROJECT_BRIEFING_2026-05-18.md` -- THE master briefing, updated state of the whole platform
+2. `docs/CLIENT_FACING_GUARDRAILS.md` -- non-negotiable: NEVER show per-unit API cost on client surfaces (including outbound email templates sent to clients)
+3. `docs/SESSION_COORDINATION.md` -- schema registry + file-ownership protocol (Email Automation reserves schema 014)
+4. `docs/PROJECT_STATUS_2026-05-17.md` + `PROJECT_STATUS_2026-05-17c.md`
+5. `docs/SYSTEM_ARCHITECTURE.md`
+6. `docs/PRODUCT_VISION.md` -- locked tier names sprint/momentum/scale at $1,995/$3,995/$7,995
+7. `docs/COSMETIC_BASELINE.md` (read this before adding UI - the gamification components are already built, reuse them)
+8. This file
 
 All under `/Users/atlanticandvine/Library/CloudStorage/OneDrive-atlanticandvine.com/HunterHoney/_organized/atlantic-hub/`.
 

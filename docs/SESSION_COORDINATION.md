@@ -24,7 +24,7 @@ Check this table before writing a migration. Update this table when you ship.
 | 011 | grok_imagine_assets + grok_imagine_log | shipped 2026-05-18 | Grok Imagine session (per-lead commercials) |
 | 012 | clay_enrichment_log | reserved | Clay Webhook session |
 | 013 | phantombuster_runs_log | reserved | PhantomBuster Webhook session |
-| 014 | unreserved | available | request from conductor |
+| 014 | outreach_campaigns + outreach_messages + outreach_replies | reserved | Email Outreach Automation session (top of queue) |
 | 015 | client_users.tier rename (starter/growth -> sprint/momentum) | shipped 2026-05-18 | Grok Imagine session (pricing alignment) |
 | 016 | lead_visual_briefs (Option C creative direction layer) | shipped 2026-05-18 | Grok Imagine session (visual brief) |
 | 017 | social_connections + social_posts + social_publish_log | reserved | Social Posting Connectors session |

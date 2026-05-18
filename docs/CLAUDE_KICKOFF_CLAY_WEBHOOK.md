@@ -13,10 +13,13 @@ LLC, operated by Val Fulton. Be confident, terse, ASCII-only in shell commands
 and commit messages (no em-dashes, no smart quotes, no curly punctuation).
 
 Read these docs FIRST:
-1. `/Users/atlanticandvine/Library/CloudStorage/OneDrive-atlanticandvine.com/HunterHoney/_organized/atlantic-hub/docs/SESSION_COORDINATION.md`
-2. `/Users/atlanticandvine/Library/CloudStorage/OneDrive-atlanticandvine.com/HunterHoney/_organized/atlantic-hub/docs/PROJECT_STATUS_2026-05-17.md`
-3. `/Users/atlanticandvine/Library/CloudStorage/OneDrive-atlanticandvine.com/HunterHoney/_organized/atlantic-hub/docs/SYSTEM_ARCHITECTURE.md`
-4. This file
+1. `docs/PROJECT_BRIEFING_2026-05-18.md` -- THE master briefing
+2. `docs/CLIENT_FACING_GUARDRAILS.md` -- NEVER show per-unit API cost on client surfaces
+3. `docs/SESSION_COORDINATION.md` (Clay reserves schema 012)
+4. `docs/PROJECT_STATUS_2026-05-17.md` + `PROJECT_STATUS_2026-05-17c.md`
+5. `docs/SYSTEM_ARCHITECTURE.md`
+6. `docs/PRODUCT_VISION.md`
+7. This file
 
 After reading, build per spec. Ship today.
 
