@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI Commercials by Atlantic and Vine - Make it Pop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #FBF5EC;
+    --cream-soft: #FFF7EC;
+    --ink: #0F1F33;
+    --ink-soft: #2E3D52;
+    --plum: #4A1942;
+    --coral: #FF5A6E;
+    --peach: #FF9C5B;
+    --gold: #FFC73D;
+    --vine: #56B870;
+    --rose: #FFE2DE;
+    --shadow: 0 24px 60px -20px rgba(15,31,51,0.22);
+    --shadow-soft: 0 12px 32px -16px rgba(15,31,51,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--cream); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { overflow-x: hidden; }
+  a { color: inherit; }
+
+  /* Marquee */
+  .marquee {
+    background: var(--ink);
+    color: var(--cream);
+    padding: 12px 0;
+    overflow: hidden;
+    border-bottom: 2px solid var(--gold);
+  }
+  .marquee-track {
+    display: inline-flex;
+    gap: 40px;
+    white-space: nowrap;
+    animation: scroll 38s linear infinite;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+  }
+  .marquee-track span { display: inline-flex; align-items: center; gap: 16px; }
+  .marquee-track i { color: var(--gold); font-style: normal; }
+  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  /* Launch countdown bar */
+  .launch-bar {
+    background: linear-gradient(120deg, var(--coral), var(--peach));
+    color: white;
+    padding: 14px 24px;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .launch-bar strong {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-style: italic;
+    margin: 0 4px;
+  }
+  .countdown {
+    display: inline-flex;
+    gap: 8px;
+    margin-left: 12px;
+    padding: 4px 10px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Nav */
+  nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 22px 48px; max-width: 1280px; margin: 0 auto;
+  }
+  .brand {
+    font-family: 'Fraunces', serif; font-weight: 800; font-size: 22px;
+    letter-spacing: -0.01em;
+  }
+  .brand-dot { color: var(--coral); }
+  .nav-cta {
+    background: var(--ink); color: var(--cream); padding: 10px 20px;
+    border-radius: 999px; font-weight: 600; font-size: 14px; text-decoration: none;
+    transition: transform 0.2s ease;
+  }
+  .nav-cta:hover { transform: translateY(-2px); }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    padding: 60px 48px 100px;
+    max-width: 1280px; margin: 0 auto;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--rose); color: var(--plum);
+    padding: 8px 18px; border-radius: 999px;
+    font-weight: 600; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .hero-eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--coral); }
+  h1 {
+    font-family: 'Fraunces', serif; font-weight: 800;
+    font-size: clamp(44px, 7vw, 88px);
+    line-height: 0.95; letter-spacing: -0.025em;
+    margin-bottom: 24px;
+  }
+  h1 .pop {
+    background: linear-gradient(120deg, var(--coral) 0%, var(--peach) 45%, var(--gold) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-style: italic; font-weight: 900;
+    display: inline-block;
+    transform: rotate(-2deg);
+  }
+  .hero-sub {
+    font-size: clamp(17px, 1.6vw, 21px);
+    color: var(--ink-soft);
+    max-width: 640px; margin: 0 auto 36px;
+    line-height: 1.5;
+  }
+  .hero-ctas { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    background: linear-gradient(120deg, var(--coral), var(--peach));
+    color: white; padding: 16px 32px; border-radius: 999px;
+    font-weight: 700; font-size: 16px; text-decoration: none;
+    box-shadow: 0 12px 28px -8px rgba(255,90,110,0.45);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: none; cursor: pointer;
+  }
+  .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 18px 36px -8px rgba(255,90,110,0.55); }
+  .btn-secondary {
+    background: var(--cream-soft); color: var(--ink); padding: 16px 32px;
+    border-radius: 999px; font-weight: 600; font-size: 16px;
+    text-decoration: none; border: 2px solid var(--ink);
+    transition: transform 0.2s ease;
+  }
+  .btn-secondary:hover { transform: translateY(-3px); }
+
+  .blob { position: absolute; border-radius: 50%; filter: blur(50px); opacity: 0.45; z-index: -1; }
+  .blob-1 { width: 360px; height: 360px; background: var(--coral); top: -80px; left: -120px; }
+  .blob-2 { width: 280px; height: 280px; background: var(--gold); top: 40px; right: -60px; }
+  .blob-3 { width: 220px; height: 220px; background: var(--peach); bottom: 0; left: 40%; }
+
+  /* How it works */
+  .how {
+    background: var(--ink); color: var(--cream);
+    padding: 96px 48px;
+    border-radius: 36px 36px 0 0;
+    margin-top: -40px;
+    position: relative;
+  }
+  .how-inner { max-width: 1180px; margin: 0 auto; }
+  .section-label {
+    font-family: 'Fraunces', serif; font-style: italic;
+    color: var(--gold); font-size: 18px; font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-family: 'Fraunces', serif; font-weight: 800;
+    font-size: clamp(34px, 4.5vw, 54px);
+    letter-spacing: -0.02em; line-height: 1.05;
+    margin-bottom: 48px;
+    max-width: 760px;
+  }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .step {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,199,61,0.18);
+    border-radius: 22px;
+    padding: 32px 28px;
+    transition: transform 0.3s ease, border-color 0.3s ease;
+  }
+  .step:hover { transform: translateY(-6px); border-color: var(--gold); }
+  .step-num {
+    font-family: 'Fraunces', serif; font-weight: 900;
+    font-size: 64px; line-height: 1; color: var(--gold);
+    margin-bottom: 16px; display: block;
+  }
+  .step h3 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 24px; margin-bottom: 10px; }
+  .step p { color: rgba(251,245,236,0.78); font-size: 15px; line-height: 1.55; }
+
+  /* Pricing */
+  .pricing {
+    padding: 100px 48px;
+    max-width: 1280px; margin: 0 auto;
+    text-align: center;
+  }
+  .pricing-header { margin-bottom: 56px; }
+  .pricing-header .section-title { margin: 0 auto 16px; }
+  .pricing-header p { color: var(--ink-soft); font-size: 18px; max-width: 620px; margin: 0 auto; }
+
+  /* Free first commercial callout */
+  .demo-card {
+    background: linear-gradient(120deg, var(--rose) 0%, #FFF1E2 100%);
+    border-radius: 28px;
+    padding: 36px 44px;
+    margin-bottom: 36px;
+    display: flex; align-items: center; gap: 36px;
+    text-align: left;
+    box-shadow: var(--shadow-soft);
+    position: relative; overflow: hidden;
+  }
+  .demo-card::before {
+    content: "FREE";
+    position: absolute;
+    top: 24px; right: -42px;
+    background: var(--ink); color: var(--gold);
+    padding: 8px 56px; transform: rotate(35deg);
+    font-family: 'Fraunces', serif; font-weight: 900; letter-spacing: 0.1em;
+    font-size: 14px;
+  }
+  .demo-card .demo-icon {
+    font-family: 'Fraunces', serif; font-weight: 900;
+    font-size: 72px; color: var(--plum); line-height: 1;
+    flex-shrink: 0;
+  }
+  .demo-card h3 {
+    font-family: 'Fraunces', serif; font-weight: 800; font-size: 32px;
+    color: var(--plum); margin-bottom: 8px; letter-spacing: -0.01em;
+  }
+  .demo-card p { color: var(--ink-soft); font-size: 16px; line-height: 1.5; max-width: 560px; }
+  .demo-card strong { color: var(--ink); }
+
+  /* Tier grid */
+  .tiers {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    text-align: left;
+  }
+  .tier {
+    background: white; border-radius: 26px;
+    padding: 40px 32px 36px;
+    box-shadow: var(--shadow-soft);
+    border: 2px solid transparent;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .tier:hover { transform: translateY(-10px); box-shadow: var(--shadow); }
+  .tier.featured {
+    background: linear-gradient(160deg, #FFFCF6 0%, #FFE9DA 100%);
+    border-color: var(--coral);
+    transform: scale(1.04);
+  }
+  .tier.featured:hover { transform: scale(1.04) translateY(-10px); }
+  .tier .badge {
+    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: var(--gold);
+    padding: 6px 16px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .tier-name {
+    font-family: 'Fraunces', serif; font-weight: 800; font-size: 28px;
+    letter-spacing: -0.01em; margin-bottom: 4px;
+  }
+  .tier-subname {
+    font-size: 12px; color: var(--ink-soft); text-transform: uppercase;
+    letter-spacing: 0.1em; margin-bottom: 4px; font-weight: 600;
+  }
+  .tier-tagline {
+    font-style: italic; color: var(--coral); font-weight: 500;
+    margin-bottom: 24px; font-size: 15px;
+    font-family: 'Fraunces', serif;
+  }
+  .tier-price-stack { margin-bottom: 8px; }
+  .tier-price-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .tier-price-row .dollar { font-family: 'Fraunces', serif; font-weight: 600; font-size: 22px; color: var(--ink-soft); }
+  .tier-price-row .num { font-family: 'Fraunces', serif; font-weight: 900; font-size: 56px; line-height: 1; letter-spacing: -0.03em; }
+  .tier-price-row .per { color: var(--ink-soft); font-size: 15px; }
+  .tier-price-row .strike {
+    text-decoration: line-through;
+    color: var(--ink-soft);
+    opacity: 0.6;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 22px;
+  }
+  .tier-launch-pill {
+    display: inline-block; margin-top: 6px;
+    background: var(--coral); color: white;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .tier-annual {
+    font-size: 13px; color: var(--ink-soft); margin-top: 4px;
+  }
+  .tier-cadence { color: var(--ink-soft); font-size: 14px; margin: 16px 0 24px; }
+
+  .tier-counts {
+    background: rgba(15,31,51,0.04);
+    border-radius: 14px; padding: 18px 20px;
+    margin-bottom: 24px;
+    display: flex; gap: 24px;
+  }
+  .count-block { flex: 1; }
+  .count-block .count-num {
+    font-family: 'Fraunces', serif; font-weight: 800; font-size: 36px;
+    line-height: 1; color: var(--ink); display: block;
+  }
+  .count-block .count-label {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--ink-soft); margin-top: 4px; font-weight: 600;
+  }
+  .count-divider { width: 1px; background: rgba(15,31,51,0.12); }
+
+  .tier ul { list-style: none; margin-bottom: 32px; flex-grow: 1; }
+  .tier li {
+    padding: 8px 0; padding-left: 28px; position: relative;
+    font-size: 14.5px; color: var(--ink-soft); line-height: 1.45;
+  }
+  .tier li::before {
+    content: ""; position: absolute; left: 0; top: 12px;
+    width: 16px; height: 16px;
+    background: var(--vine);
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3 8l3.5 3.5L13 5' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center / contain;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3 8l3.5 3.5L13 5' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center / contain;
+  }
+  .tier .btn-tier {
+    display: block; text-align: center;
+    background: var(--ink); color: var(--cream);
+    padding: 14px 24px; border-radius: 999px;
+    font-weight: 700; font-size: 15px; text-decoration: none;
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+  .tier .btn-tier:hover { background: var(--plum); transform: translateY(-2px); }
+  .tier.featured .btn-tier {
+    background: linear-gradient(120deg, var(--coral), var(--peach));
+    box-shadow: 0 12px 24px -8px rgba(255,90,110,0.4);
+  }
+
+  /* A la carte */
+  .alacarte {
+    margin-top: 56px;
+    background: var(--cream-soft);
+    border-radius: 22px;
+    padding: 36px 40px;
+    text-align: left;
+    box-shadow: var(--shadow-soft);
+  }
+  .alacarte h3 {
+    font-family: 'Fraunces', serif; font-weight: 800; font-size: 26px;
+    margin-bottom: 6px;
+  }
+  .alacarte p.note { color: var(--ink-soft); font-size: 15px; margin-bottom: 22px; }
+  .alacarte-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .alacarte-item {
+    background: white; border-radius: 14px;
+    padding: 20px 22px;
+    display: flex; align-items: center; gap: 16px;
+    border: 1px solid rgba(15,31,51,0.08);
+  }
+  .alacarte-item .ai-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--peach), var(--coral));
+    color: white; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fraunces', serif; font-weight: 900; font-size: 22px;
+  }
+  .alacarte-item h4 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 17px; }
+  .alacarte-item p { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .alacarte-item .price {
+    margin-left: auto;
+    font-family: 'Fraunces', serif; font-weight: 800; font-size: 22px;
+    color: var(--ink);
+  }
+
+  .pricing-note {
+    margin-top: 28px;
+    font-size: 13.5px; color: var(--ink-soft);
+  }
+
+  /* Paywall mockup */
+  .paywall-section {
+    padding: 80px 48px;
+    background: linear-gradient(160deg, #FFE9DA 0%, var(--cream) 100%);
+  }
+  .paywall-inner {
+    max-width: 1100px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+  }
+  .paywall-copy h2 {
+    font-family: 'Fraunces', serif; font-weight: 800;
+    font-size: clamp(32px, 4vw, 48px);
+    letter-spacing: -0.02em; line-height: 1.05;
+    margin-bottom: 20px;
+  }
+  .paywall-copy p { color: var(--ink-soft); font-size: 17px; line-height: 1.6; margin-bottom: 14px; }
+  .paywall-mockup {
+    background: white; border-radius: 24px;
+    padding: 36px; box-shadow: var(--shadow);
+    position: relative;
+    transform: rotate(1.5deg);
+  }
+  .paywall-mockup .pill {
+    display: inline-block;
+    background: var(--rose); color: var(--plum);
+    padding: 4px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .paywall-mockup h4 {
+    font-family: 'Fraunces', serif; font-weight: 800;
+    font-size: 26px; line-height: 1.1;
+    margin-bottom: 10px;
+  }
+  .paywall-mockup p { font-size: 14.5px; color: var(--ink-soft); margin-bottom: 22px; line-height: 1.5; }
+  .mini-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .mini-tier {
+    background: rgba(15,31,51,0.04); border-radius: 12px;
+    padding: 12px 10px; text-align: center;
+    border: 2px solid transparent;
+    transition: border 0.2s;
+  }
+  .mini-tier:hover { border-color: var(--coral); }
+  .mini-tier .mt-name { font-family: 'Fraunces', serif; font-weight: 700; font-size: 14px; }
+  .mini-tier .mt-price { font-family: 'Fraunces', serif; font-weight: 800; font-size: 18px; color: var(--ink); }
+  .mini-tier .mt-tag { font-size: 10px; color: var(--ink-soft); letter-spacing: 0.05em; text-transform: uppercase; margin-top: 2px; }
+  .paywall-mockup .mock-cta {
+    display: block; text-align: center;
+    background: linear-gradient(120deg, var(--coral), var(--peach));
+    color: white; padding: 12px; border-radius: 999px;
+    font-weight: 700; font-size: 14px;
+  }
+
+  /* FAQ */
+  .faq { padding: 100px 48px; max-width: 880px; margin: 0 auto; }
+  .faq .section-title { text-align: center; margin: 0 auto 48px; }
+  .faq-item {
+    background: white; border-radius: 18px;
+    padding: 24px 28px; margin-bottom: 14px;
+    box-shadow: 0 4px 14px -8px rgba(15,31,51,0.1);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  .faq-item:hover { transform: translateX(4px); }
+  .faq-item summary {
+    font-family: 'Fraunces', serif; font-weight: 700;
+    font-size: 19px; list-style: none;
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--ink);
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: "+"; font-size: 28px; color: var(--coral);
+    font-weight: 400; transition: transform 0.2s ease;
+    line-height: 1;
+  }
+  .faq-item[open] summary::after { transform: rotate(45deg); }
+  .faq-item p {
+    margin-top: 16px; color: var(--ink-soft);
+    font-size: 15.5px; line-height: 1.6;
+  }
+
+  /* Final CTA */
+  .final {
+    background: var(--ink); color: var(--cream);
+    padding: 120px 48px;
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .final::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 30%, rgba(255,90,110,0.25) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 70%, rgba(255,199,61,0.18) 0%, transparent 60%);
+    z-index: 0;
+  }
+  .final-inner { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; }
+  .final h2 {
+    font-family: 'Fraunces', serif; font-weight: 800;
+    font-size: clamp(40px, 5.5vw, 68px); letter-spacing: -0.025em; line-height: 1;
+    margin-bottom: 20px;
+  }
+  .final h2 em { color: var(--gold); font-style: italic; }
+  .final p { font-size: 19px; color: rgba(251,245,236,0.78); margin-bottom: 36px; line-height: 1.5; }
+  .final .btn-primary { font-size: 18px; padding: 18px 40px; }
+
+  footer {
+    background: var(--ink);
+    color: rgba(251,245,236,0.6);
+    padding: 32px 48px;
+    text-align: center;
+    border-top: 1px solid rgba(255,199,61,0.15);
+    font-size: 13.5px;
+  }
+  footer span { color: var(--gold); }
+
+  /* Mobile */
+  @media (max-width: 900px) {
+    nav { padding: 18px 24px; }
+    .hero { padding: 40px 24px 80px; }
+    .how, .pricing, .paywall-section, .faq, .final { padding-left: 24px; padding-right: 24px; }
+    .steps, .tiers { grid-template-columns: 1fr; }
+    .alacarte-grid { grid-template-columns: 1fr; }
+    .tier.featured { transform: none; }
+    .tier.featured:hover { transform: translateY(-10px); }
+    .demo-card { flex-direction: column; text-align: center; gap: 16px; padding: 32px 24px; }
+    .paywall-inner { grid-template-columns: 1fr; gap: 36px; }
+    .paywall-mockup { transform: none; }
+    .launch-bar { font-size: 13px; padding: 12px 18px; }
+    .countdown { margin-left: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Launch promo bar with live countdown to 2026-06-15 -->
+<div class="launch-bar" id="launch-bar">
+  <strong>Launch Week</strong> · 20% off any Client Surge tier with code <strong>LAUNCH20</strong>
+  <span class="countdown" id="countdown">--d --h --m --s</span>
+</div>
+
+<!-- Marquee -->
+<div class="marquee">
+  <div class="marquee-track">
+    <span>Your business deserves a commercial <i>*</i></span>
+    <span>AI Commercials inside every Client Surge tier <i>*</i></span>
+    <span>First one is on us <i>*</i></span>
+    <span>Made in seconds, made to pop <i>*</i></span>
+    <span>Your business deserves a commercial <i>*</i></span>
+    <span>AI Commercials inside every Client Surge tier <i>*</i></span>
+    <span>First one is on us <i>*</i></span>
+    <span>Made in seconds, made to pop <i>*</i></span>
+  </div>
+</div>
+
+<nav>
+  <div class="brand">Atlantic <span class="brand-dot">&amp;</span> Vine</div>
+  <a href="#pricing" class="nav-cta">See plans</a>
+</nav>
+
+<section class="hero">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <div class="hero-eyebrow">AI commercials. Same-day. No film crew.</div>
+  <h1>Your business<br/>deserves to <span class="pop">pop.</span></h1>
+  <p class="hero-sub">Take a three-minute audit and we will make your first commercial - free. After that, every Client Surge tier comes with a built-in commercial allotment - weekly, three-a-week, or daily - generated, on-brand, and ready to post.</p>
+  <div class="hero-ctas">
+    <a href="#pricing" class="btn-primary">Take the audit, get my free commercial</a>
+    <a href="#how" class="btn-secondary">How it works</a>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="how-inner">
+    <div class="section-label">behind the curtain</div>
+    <h2 class="section-title">From audit to airwaves in three small steps.</h2>
+    <div class="steps">
+      <div class="step">
+        <span class="step-num">01</span>
+        <h3>You take the audit</h3>
+        <p>Three minutes. We learn about your business, your tone, your dream customer. Nothing technical, no logins, no homework.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <h3>Our AI writes the script</h3>
+        <p>Your audit becomes a creative brief. We generate the prompt, choose the look, and feed it to a state-of-the-art video model. You stay in your day.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <h3>You download and post</h3>
+        <p>Watch the preview, download the file, post it where you want. Or let us schedule it for you. The first one is on the house.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="pricing" id="pricing">
+  <div class="pricing-header">
+    <div class="section-label" style="color: var(--coral);">client surge</div>
+    <h2 class="section-title">Pick your stage.</h2>
+    <p>Every tier includes AI lead generation, scoring, audits, social-content drafting, and a built-in monthly commercial allotment. Same prices you already know - now with on-brand commercials baked in.</p>
+  </div>
+
+  <!-- Free first commercial -->
+  <div class="demo-card">
+    <div class="demo-icon">01.</div>
+    <div>
+      <h3>Your first commercial is on us.</h3>
+      <p><strong>Take a three-minute audit and we will generate one free commercial of your choice</strong> - a 6-second video or a premium hero image. No card, no commitment, no catch. The point is for you to see the magic before you decide anything.</p>
+    </div>
+  </div>
+
+  <!-- Tier cards -->
+  <div class="tiers">
+
+    <!-- Sprint -->
+    <div class="tier">
+      <div class="tier-subname">Client Surge -</div>
+      <div class="tier-name">Sprint</div>
+      <div class="tier-tagline">Drop your first single.</div>
+      <div class="tier-price-stack">
+        <div class="tier-price-row">
+          <span class="strike" data-strike="1995">$1,995</span>
+          <span class="dollar">$</span><span class="num" data-launch="1596">1,596</span><span class="per">/mo</span>
+        </div>
+        <div class="tier-launch-pill">launch week 20% off</div>
+        <div class="tier-annual">or <strong>$1,277</strong>/mo billed annually during launch week (36% off)</div>
+      </div>
+      <div class="tier-cadence">Weekly cadence. Perfect for the small biz finding its rhythm.</div>
+
+      <div class="tier-counts">
+        <div class="count-block">
+          <span class="count-num">4</span>
+          <span class="count-label">Video<br/>commercials</span>
+        </div>
+        <div class="count-divider"></div>
+        <div class="count-block">
+          <span class="count-num">8</span>
+          <span class="count-label">Hero<br/>images</span>
+        </div>
+      </div>
+
+      <ul>
+        <li>6-second video commercials, ready-to-post</li>
+        <li>1K resolution, all aspect ratios</li>
+        <li>AI lead discovery + Hot/Warm/Cool scoring</li>
+        <li>Weekly social media blasts</li>
+        <li>Monthly creative brief from your AI assistant</li>
+      </ul>
+      <a href="https://atlanticandvine.com/#pricing" class="btn-tier">Start with Sprint</a>
+    </div>
+
+    <!-- Momentum - featured -->
+    <div class="tier featured">
+      <div class="badge">Most loved</div>
+      <div class="tier-subname">Client Surge -</div>
+      <div class="tier-name">Momentum</div>
+      <div class="tier-tagline">Build the catalog.</div>
+      <div class="tier-price-stack">
+        <div class="tier-price-row">
+          <span class="strike" data-strike="3995">$3,995</span>
+          <span class="dollar">$</span><span class="num" data-launch="3196">3,196</span><span class="per">/mo</span>
+        </div>
+        <div class="tier-launch-pill">launch week 20% off</div>
+        <div class="tier-annual">or <strong>$2,556</strong>/mo billed annually during launch week (36% off)</div>
+      </div>
+      <div class="tier-cadence">Three commercials a week. The sweet spot for an active feed.</div>
+
+      <div class="tier-counts">
+        <div class="count-block">
+          <span class="count-num">12</span>
+          <span class="count-label">Video<br/>commercials</span>
+        </div>
+        <div class="count-divider"></div>
+        <div class="count-block">
+          <span class="count-num">24</span>
+          <span class="count-label">Hero<br/>images</span>
+        </div>
+      </div>
+
+      <ul>
+        <li>6-second video commercials, premium model</li>
+        <li>2K resolution available</li>
+        <li>Everything in Sprint, plus daily social blasts</li>
+        <li>AI social-content generation (LinkedIn / X / IG)</li>
+        <li>Email outreach automation with reply tracking</li>
+        <li>1-click auto-post (as connectors ship)</li>
+      </ul>
+      <a href="https://atlanticandvine.com/#pricing" class="btn-tier">Take the Momentum tier</a>
+    </div>
+
+    <!-- Scale -->
+    <div class="tier">
+      <div class="tier-subname">Client Surge -</div>
+      <div class="tier-name">Scale</div>
+      <div class="tier-tagline">You are on tour now.</div>
+      <div class="tier-price-stack">
+        <div class="tier-price-row">
+          <span class="strike" data-strike="7995">$7,995</span>
+          <span class="dollar">$</span><span class="num" data-launch="6396">6,396</span><span class="per">/mo</span>
+        </div>
+        <div class="tier-launch-pill">launch week 20% off</div>
+        <div class="tier-annual">or <strong>$5,117</strong>/mo billed annually during launch week (36% off)</div>
+      </div>
+      <div class="tier-cadence">Daily commercial drop. Brands that show up every day.</div>
+
+      <div class="tier-counts">
+        <div class="count-block">
+          <span class="count-num">30</span>
+          <span class="count-label">Video<br/>commercials</span>
+        </div>
+        <div class="count-divider"></div>
+        <div class="count-block">
+          <span class="count-num">60</span>
+          <span class="count-label">Hero<br/>images</span>
+        </div>
+      </div>
+
+      <ul>
+        <li>6-second video commercials, premium model</li>
+        <li>2K everything, all aspect ratios</li>
+        <li>Everything in Momentum, plus calendar/booking AI</li>
+        <li>Daily commercial cadence + human creative review</li>
+        <li>White-label deployment for your agency</li>
+        <li>Dedicated strategist + priority support</li>
+      </ul>
+      <a href="https://atlanticandvine.com/#pricing" class="btn-tier">Go Scale</a>
+    </div>
+
+  </div>
+
+  <!-- A la carte -->
+  <div class="alacarte">
+    <h3>Need more in a busy month?</h3>
+    <p class="note">Top up any Client Surge tier without changing your plan.</p>
+    <div class="alacarte-grid">
+      <div class="alacarte-item">
+        <div class="ai-icon">+10</div>
+        <div>
+          <h4>Extra Videos -- 10-Pack</h4>
+          <p>10 additional AI commercial videos at $39 each.</p>
+        </div>
+        <span class="price">$390</span>
+      </div>
+      <div class="alacarte-item">
+        <div class="ai-icon">+20</div>
+        <div>
+          <h4>Extra Images -- 20-Pack</h4>
+          <p>20 additional AI hero images at $9 each.</p>
+        </div>
+        <span class="price">$180</span>
+      </div>
+    </div>
+    <p class="pricing-note">
+      All Client Surge plans are month-to-month. Annual commitments save another 20% (stacks with the launch promo for 36% off the headline price). 3 and 6 month commitments are available at 0% and 10% off respectively. Cancel or change tiers anytime. Unused commercial credits roll over for 30 days.
+    </p>
+  </div>
+</section>
+
+<!-- Paywall mockup -->
+<section class="paywall-section">
+  <div class="paywall-inner">
+    <div class="paywall-copy">
+      <div class="section-label" style="color: var(--coral);">after the free one</div>
+      <h2>The moment they see what it can do, they will want more.</h2>
+      <p>Right after a client downloads their first free commercial, a gentle prompt appears in their portal. No friction, no salesy noise -- just the next step, framed as the next chapter of their story.</p>
+      <p>This is the screen they see:</p>
+    </div>
+
+    <div class="paywall-mockup">
+      <div class="pill">Your first one is downloading...</div>
+      <h4>Loved it? Let us make the rest of your year.</h4>
+      <p>Pick a Client Surge plan to keep generating commercials, lock in posting schedules, and unlock premium models.</p>
+      <div class="mini-tiers">
+        <div class="mini-tier">
+          <div class="mt-name">Sprint</div>
+          <div class="mt-price">$1,995</div>
+          <div class="mt-tag">per mo</div>
+        </div>
+        <div class="mini-tier" style="border-color: var(--coral); background: var(--rose);">
+          <div class="mt-name">Momentum</div>
+          <div class="mt-price">$3,995</div>
+          <div class="mt-tag">most loved</div>
+        </div>
+        <div class="mini-tier">
+          <div class="mt-name">Scale</div>
+          <div class="mt-price">$7,995</div>
+          <div class="mt-tag">per mo</div>
+        </div>
+      </div>
+      <div class="mock-cta">Pick my plan</div>
+    </div>
+  </div>
+</section>
+
+<section class="faq">
+  <div class="section-label" style="color: var(--coral); text-align: center;">good questions</div>
+  <h2 class="section-title">The fine print, but make it human.</h2>
+
+  <details class="faq-item">
+    <summary>What is a commercial, exactly?</summary>
+    <p>For us, a commercial is either a short AI-generated video (6 seconds) or a high-end hero image of your business. Think product shot, lifestyle moment, mood reel, or a story-style clip -- anything you can post on social, drop in an email, or run as an ad.</p>
+  </details>
+
+  <details class="faq-item">
+    <summary>Do I really get the first one free?</summary>
+    <p>Yes. Take the three-minute audit, we make one commercial of your choice, you download it. No card on file. If it makes you smile, the Client Surge plans are right there.</p>
+  </details>
+
+  <details class="faq-item">
+    <summary>Why is it bundled into Client Surge tiers instead of sold separately?</summary>
+    <p>Because the commercial is most valuable when it shows up alongside lead generation, scoring, and outreach. Anyone can make an image -- we make the right image for the right prospect at the right moment, plugged into a system that finds and qualifies the lead in the first place.</p>
+  </details>
+
+  <details class="faq-item">
+    <summary>What if I run out of credits in a busy month?</summary>
+    <p>Top up a la carte: $39 per extra video (10-pack), $9 per extra hero image (20-pack). Or roll up a tier. Unused credits also roll over for 30 days.</p>
+  </details>
+
+  <details class="faq-item">
+    <summary>Will the commercials look like my brand?</summary>
+    <p>Yes. The audit pulls your colors, your tone, your customer, and your industry into every prompt. The longer you stay on a plan, the smarter your creative profile becomes.</p>
+  </details>
+
+  <details class="faq-item">
+    <summary>Can I cancel?</summary>
+    <p>Any time, from your portal, no phone call required. We will keep your finished commercials available to download for 90 days after you go.</p>
+  </details>
+</section>
+
+<section class="final">
+  <div class="final-inner">
+    <h2>Ready to <em>pop?</em></h2>
+    <p>Take the three-minute audit. Watch your free commercial come to life. Then decide.</p>
+    <a href="https://atlanticandvine.com/client-intake" class="btn-primary">Start my audit</a>
+  </div>
+</section>
+
+<footer>
+  Made with care by Atlantic <span>&amp;</span> Vine LLC &middot; Val Fulton &middot; All rights reserved
+</footer>
+
+<script>
+  // Launch promo countdown to 2026-06-15. Set LAUNCH_END to whatever date Val wants.
+  (function () {
+    var LAUNCH_END = new Date('2026-06-15T23:59:59-04:00');
+    var el = document.getElementById('countdown');
+    var bar = document.getElementById('launch-bar');
+    function tick() {
+      var diff = LAUNCH_END.getTime() - Date.now();
+      if (diff <= 0) {
+        if (bar) bar.style.display = 'none';
+        return;
+      }
+      var d = Math.floor(diff / 86400000);
+      var h = Math.floor((diff % 86400000) / 3600000);
+      var m = Math.floor((diff % 3600000) / 60000);
+      var s = Math.floor((diff % 60000) / 1000);
+      if (el) el.textContent = d + 'd ' + h + 'h ' + m + 'm ' + s + 's';
+      setTimeout(tick, 1000);
+    }
+    tick();
+  })();
+</script>
+
+</body>
+</html>

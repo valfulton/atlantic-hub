@@ -17,10 +17,12 @@ Check this table before writing a migration. Update this table when you ship.
 | 008 | target_business + normalized_domain + archive index | shipped | 2026-05-17 |
 | 009 | client_users (portal auth) | shipped 2026-05-17 | Client Portal session, commit 50bc550 |
 | 010 | system_events (unified event log) | shipped 2026-05-17 | Auto-Scoring + Events session, commit e8ee628 |
-| 011 | grok_imagine_assets + grok_imagine_log | reserved | Grok Imagine session |
+| 011 | grok_imagine_assets + grok_imagine_log | shipped 2026-05-18 | Grok Imagine session (per-lead commercials) |
 | 012 | clay_enrichment_log | reserved | Clay Webhook session |
 | 013 | phantombuster_runs_log | reserved | PhantomBuster Webhook session |
-| 014+ | unreserved | available | request from conductor |
+| 014 | unreserved | available | request from conductor |
+| 015 | client_users.tier rename (starter/growth -> sprint/momentum) | shipped 2026-05-18 | Grok Imagine session (pricing alignment) |
+| 016+ | unreserved | available | request from conductor |
 
 ---
 

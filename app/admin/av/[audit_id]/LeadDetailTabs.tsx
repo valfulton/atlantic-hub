@@ -2,8 +2,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ScoreRadarChart } from '@/components/ScoreRadarChart';
+import { CommercialPanel } from './CommercialPanel';
 
-const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Notes', 'Events'] as const;
+const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Commercials', 'Notes', 'Events'] as const;
 type Tab = (typeof TABS)[number];
 
 interface Lead {
@@ -411,6 +412,10 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             <Empty message="AI scoring has not run yet. Phase 2 will wire the scoring pipeline against shhdbite_AV." />
           )}
         </div>
+      )}
+
+      {active === 'Commercials' && (
+        <CommercialPanel auditId={lead.auditId} />
       )}
 
       {active === 'Notes' && (
