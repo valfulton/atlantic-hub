@@ -31,14 +31,14 @@ Conductor updates this table when sessions begin and end.
 
 ### Currently in flight (2026-05-17)
 
-**Session: Cosmetic + Gamification Polish** (Cowork Claude is shipping this directly)
-- Owns: `components/AnimatedScoreReveal.tsx`, `components/ScoreRadarChart.tsx`, `components/LeadOfTheDay.tsx`, `components/HotLeadConfetti.tsx`, `lib/ui/once_per_day.ts`
-- Modified: `app/admin/av/page.tsx`, `app/admin/av/[audit_id]/page.tsx`, `app/admin/av/[audit_id]/LeadDetailTabs.tsx`, `app/admin/events/EventsTable.tsx`, `app/admin/av/[audit_id]/RescoreButton.tsx`
-- Schema: none
-- Will NOT touch: any /api/* routes, /client/*, lib/openai/*, lib/grok/*, discovery routes, schema files
-- Upstream dependencies (now satisfied): Client Portal + Auto-Scoring + Events both shipped
+(none — three sessions queued up: Grok Imagine, Clay Webhook, PhantomBuster Webhook, all parallel-safe with each other)
 
 ### Shipped 2026-05-17
+
+**Session: Cosmetic + Gamification Polish** -- 6 moves landed plus radar built in raw SVG (recharts was not actually installed; saved a dependency)
+- Shipped: `components/AnimatedScoreReveal.tsx`, `components/ScoreRadarChart.tsx`, `components/LeadOfTheDay.tsx`, `components/HotLeadConfetti.tsx`, `lib/ui/once_per_day.ts`
+- Modified: `app/admin/av/page.tsx`, `app/admin/av/[audit_id]/page.tsx`, `app/admin/av/[audit_id]/LeadDetailTabs.tsx`, `app/admin/events/EventsTable.tsx`, `app/admin/av/[audit_id]/RescoreButton.tsx`
+- Bonus moves NOT yet shipped (held for next polish pass): band-badge tooltips, sidebar "new hot leads" dot, score history sparkline
 
 **Session: Client Portal** -- commit 50bc550 "client portal: schema 009 plus magic-link auth plus dashboard"
 - Shipped: `app/api/client/*`, `app/client/*`, `lib/auth/client-*.ts`, `lib/client-portal/*`, middleware.ts client-route additions, schema/009_client_portal.sql
