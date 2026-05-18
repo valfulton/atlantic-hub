@@ -4,6 +4,8 @@ import { serverFetch } from '@/lib/server-fetch';
 import { AvLeadsTable } from './AvLeadsTable';
 import type { AvLead } from './AvLeadsTable';
 import { EnrichButton } from './EnrichButton';
+import { LeadOfTheDay } from '@/components/LeadOfTheDay';
+import { HotLeadConfetti } from '@/components/HotLeadConfetti';
 
 interface Stats {
   total: number;
@@ -128,10 +130,26 @@ export default async function AvPage({
 
   const activeInPipeline = stats.byStage.contacted + stats.byStage.qualified;
 
+  // Pick today's hot-lead candidates for the once-per-day celebration.
+  // Server filters to "arrived in the last 24h AND ai_score > 85" so the
+  // client component only needs to gate on the once-per-day flag.
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - ONE_DAY_MS;
+  const confettiCandidates = leads
+    .filter((l) => {
+      if (l.aiScore === null || l.aiScore < 86) return false;
+      const ts = new Date(l.submissionDate).getTime();
+      return !Number.isNaN(ts) && ts >= cutoff;
+    })
+    .map((l) => ({ auditId: l.auditId, company: l.company, aiScore: l.aiScore as number }));
+
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-1">Atlantic &amp; Vine</h1>
       <p className="text-sm text-muted mb-6">Lead pipeline · read-only in v1</p>
+
+      <HotLeadConfetti candidates={confettiCandidates} />
+      <LeadOfTheDay />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <MetricCard label="Total leads" value={String(stats.total)} />

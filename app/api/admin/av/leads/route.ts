@@ -19,6 +19,8 @@ interface LeadRow extends RowDataPacket {
   lead_status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
   ai_score: number | null;
   ai_score_band: 'hot' | 'warm' | 'cool' | null;
+  ai_score_reason: string | null;
+  ai_score_breakdown: string | object | null;
   submission_date: string;
   source_type: string;
   target_business: 'av' | 'ebw' | 'both';
@@ -147,7 +149,8 @@ export async function GET(req: NextRequest) {
 
     const [rows] = await db.execute<LeadRow[]>(
       `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
-              lead_status, ai_score, ai_score_band, submission_date, source_type, target_business,
+              lead_status, ai_score, ai_score_band, ai_score_reason, ai_score_breakdown,
+              submission_date, source_type, target_business,
               client_id, enrichment_status, enriched_at
        FROM leads
        WHERE ${conditions.join(' AND ')}
@@ -172,6 +175,12 @@ export async function GET(req: NextRequest) {
       return !n.trim().startsWith('(');
     }
 
+    function parseBreakdown(v: string | object | null): object | null {
+      if (v === null) return null;
+      if (typeof v === 'object') return v;
+      try { return JSON.parse(v); } catch { return null; }
+    }
+
     const leads = rows.map((r) => {
       const hasRealEmail = isRealEmail(r.email);
       const hasPhone = !!(r.phone && r.phone.trim());
@@ -191,6 +200,8 @@ export async function GET(req: NextRequest) {
         leadStatus: r.lead_status,
         aiScore: r.ai_score === null ? null : Number(r.ai_score),
         aiScoreBand: r.ai_score_band,
+        aiScoreReason: r.ai_score_reason,
+        aiScoreBreakdown: parseBreakdown(r.ai_score_breakdown),
         submissionDate: r.submission_date,
         sourceType: r.source_type,
         targetBusiness: r.target_business,

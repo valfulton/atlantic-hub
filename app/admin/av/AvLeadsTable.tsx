@@ -17,6 +17,13 @@ export interface AvLead {
   leadStatus: string;
   aiScore: number | null;
   aiScoreBand: string | null;
+  aiScoreReason?: string | null;
+  aiScoreBreakdown?: {
+    fit: number;
+    intent: number;
+    reachability: number;
+    icp_match: number;
+  } | null;
   submissionDate: string;
   sourceType: string;
   targetBusiness: 'av' | 'ebw' | 'both';

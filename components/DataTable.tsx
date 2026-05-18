@@ -9,11 +9,14 @@ export interface Column<T> {
 export function DataTable<T extends object>({
   columns,
   rows,
-  emptyMessage = 'No records yet.'
+  emptyMessage = 'No records yet.',
+  rowClassName
 }: {
   columns: Column<T>[];
   rows: T[];
   emptyMessage?: string;
+  /** Optional per-row className. Receives row + index, returns a class string appended to the <tr>. Used for highlight effects like live-mode "just arrived" fades. */
+  rowClassName?: (row: T, index: number) => string;
 }) {
   if (rows.length === 0) {
     return (
@@ -35,15 +38,18 @@ export function DataTable<T extends object>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, idx) => (
-            <tr key={idx} className="border-t border-border">
-              {columns.map((c) => (
-                <td key={c.key} className="px-4 py-3 align-top">
-                  {c.render(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, idx) => {
+            const extra = rowClassName ? rowClassName(row, idx) : '';
+            return (
+              <tr key={idx} className={`border-t border-border ${extra}`.trim()}>
+                {columns.map((c) => (
+                  <td key={c.key} className="px-4 py-3 align-top">
+                    {c.render(row)}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

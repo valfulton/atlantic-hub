@@ -103,6 +103,36 @@ OpenAI + Google Places + Instantly when added). Gross margin per Starter
 client is ~90%. Tier pricing is designed so client revenue covers platform
 OpEx by client #2.
 
+### Scored-lead gating per tier (locked 2026-05-17)
+
+The client portal surfaces scored leads as the visible value of the platform.
+Free and trial users see real scored leads in their dashboard with the rest
+greyed out behind an upgrade CTA. Lock these caps when wiring the
+`/client/dashboard` greyed-out cards in the Client Portal session:
+
+| Tier | Scored leads visible | Why |
+|------|----------------------|-----|
+| Free audit (no signup) | 5 | Enough to feel the AI quality. Costs ~$0.05 in OpenAI per signup. The greyed-out 6th+ cards are the upgrade pitch. |
+| 7-day trial (magic-link, no card) | 25 | Felt-volume of a real pipeline before they pay $1,995/mo. Goes read-only after day 7 if not converted. |
+| Sprint ($1,995/mo) | 50 / month | Sized so one converted lead at any reasonable LTV covers the tier. |
+| Momentum ($1,497/mo legacy or $2,500 new) | 200 / month | Multi-channel discovery, deeper pipeline. |
+| Scale ($3,997/mo) | 1,000 / month | Multi-region or multi-line clients. |
+| Enterprise / White-label | Unlimited | Per-tenant pricing, no cap. |
+
+Caps reset on the first of each calendar month. The free-audit count is
+lifetime (5 total, ever), not monthly — that's the wedge, not a recurring
+service.
+
+Reasoning recorded for future sessions:
+- $0.01 OpenAI cost per scoring call * 5 leads = $0.05 per free signup. At
+  even 1 in 100 free signups converting to Sprint at $1,995/mo, ROI is
+  ~40,000x cost.
+- 5 is the minimum number where a human brain registers "wow, these are
+  real and specific" instead of "this is a demo."
+- The 7-day trial without credit card is intentional friction reduction --
+  SMB buyers need to feel volume before paying $1,995/mo. Magic-link signup
+  uses the same auth flow the client portal already uses for audit access.
+
 ---
 
 ## ROADMAP (capabilities, not features)

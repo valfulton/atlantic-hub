@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ScoreRadarChart } from '@/components/ScoreRadarChart';
 
 const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Notes', 'Events'] as const;
 type Tab = (typeof TABS)[number];
@@ -30,6 +31,12 @@ interface Lead {
   aiScore: number | null;
   aiScoreBand: string | null;
   aiScoreReason: string | null;
+  aiScoreBreakdown: {
+    fit: number;
+    intent: number;
+    reachability: number;
+    icp_match: number;
+  } | null;
   aiEmailSubject: string | null;
   aiEmailBody: string | null;
   aiLastScoredAt: string | null;
@@ -362,16 +369,26 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
         <div>
           {lead.aiScore !== null ? (
             <div className="space-y-5">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <ScoreCard label="Score" value={String(lead.aiScore)} />
-                <ScoreCard label="Band" value={lead.aiScoreBand ?? '—'} />
-                <ScoreCard label="Model" value={lead.aiModelVersion ?? '—'} />
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <ScoreCard label="Score" value={String(lead.aiScore)} />
+                    <ScoreCard label="Band" value={lead.aiScoreBand ?? '—'} />
+                    <ScoreCard label="Model" value={lead.aiModelVersion ?? '—'} />
+                  </div>
+                  {lead.aiScoreReason && (
+                    <Section label="Score reason">
+                      <p className="text-sm">{lead.aiScoreReason}</p>
+                    </Section>
+                  )}
+                </div>
+                {lead.aiScoreBreakdown && (
+                  <div className="bg-surface border border-border rounded-lg p-4">
+                    <div className="field-label mb-2">Breakdown</div>
+                    <ScoreRadarChart breakdown={lead.aiScoreBreakdown} />
+                  </div>
+                )}
               </div>
-              {lead.aiScoreReason && (
-                <Section label="Score reason">
-                  <p className="text-sm">{lead.aiScoreReason}</p>
-                </Section>
-              )}
               {lead.aiEmailSubject && (
                 <Section label="Draft subject line">
                   <p className="text-sm font-medium">{lead.aiEmailSubject}</p>

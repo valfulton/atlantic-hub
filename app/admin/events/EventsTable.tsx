@@ -1,7 +1,11 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DataTable, Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/StatusBadge';
+
+const LIVE_MODE_KEY = 'ah_events_live_mode';
+const LIVE_REFRESH_MS = 5_000;
+const HIGHLIGHT_FADE_MS = 2_000;
 
 export interface SystemEvent {
   id: number;
@@ -103,6 +107,11 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
   const [eventType, setEventType] = useState<string>(initialFilters.eventType ?? '');
   const [status, setStatus] = useState<string>(initialFilters.status ?? '');
   const [source, setSource] = useState<string>(initialFilters.source ?? '');
+  // Live mode auto-polls the API every 5s and highlights freshly-arrived rows.
+  // Preference persisted to localStorage so each operator's pick sticks.
+  const [liveMode, setLiveMode] = useState(false);
+  const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
+  const previousIdsRef = useRef<Set<number>>(new Set(initialEvents.map((e) => e.id)));
 
   const eventTypeOptions = useMemo(() => {
     const set = new Set<string>();
@@ -147,8 +156,13 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
     void refresh({});
   }
 
-  async function refresh(opts: { eventType?: string; status?: string; source?: string }) {
-    setLoading(true);
+  async function refresh(opts: {
+    eventType?: string;
+    status?: string;
+    source?: string;
+    silent?: boolean;
+  }) {
+    if (!opts.silent) setLoading(true);
     setError(null);
     try {
       const q = new URLSearchParams();
@@ -161,13 +175,64 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
         setError(data.error || `HTTP ${res.status}`);
         return;
       }
-      setEvents(data.events as SystemEvent[]);
+      const incoming = data.events as SystemEvent[];
+      // Detect newly-arrived ids vs prior snapshot. Mark them for the
+      // highlight fade so the eye catches what just landed.
+      const priorIds = previousIdsRef.current;
+      const nowIds = new Set(incoming.map((e) => e.id));
+      const fresh = new Set<number>();
+      for (const id of nowIds) if (!priorIds.has(id)) fresh.add(id);
+      previousIdsRef.current = nowIds;
+      setEvents(incoming);
+      if (fresh.size > 0 && opts.silent) {
+        // Only flash on silent (live-mode) refreshes -- manual Apply
+        // shouldn't pulse half the table.
+        setNewEventIds(fresh);
+        window.setTimeout(() => {
+          setNewEventIds((prev) => {
+            if (prev === fresh) return new Set();
+            const next = new Set(prev);
+            for (const id of fresh) next.delete(id);
+            return next;
+          });
+        }, HIGHLIGHT_FADE_MS);
+      }
     } catch (err) {
       setError(`Network error: ${(err as Error).message}`);
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }
+
+  // Restore live-mode pref from localStorage on first mount.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(LIVE_MODE_KEY);
+      if (stored === '1') setLiveMode(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist live-mode pref + manage the polling interval.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LIVE_MODE_KEY, liveMode ? '1' : '0');
+    } catch {
+      // ignore
+    }
+    if (!liveMode) return;
+    const id = window.setInterval(() => {
+      void refresh({
+        eventType: eventType || undefined,
+        status: status || undefined,
+        source: source || undefined,
+        silent: true
+      });
+    }, LIVE_REFRESH_MS);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveMode, eventType, status, source]);
 
   // Re-fetch on first mount so the page shows live data even if the SSR
   // pass missed a recent event.
@@ -246,7 +311,35 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
         >
           Clear
         </button>
-        <div className="ml-auto text-xs text-muted self-center">{events.length} events</div>
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setLiveMode((v) => !v)}
+            aria-pressed={liveMode}
+            title={liveMode ? 'Live mode on -- polling every 5s' : 'Click to auto-refresh every 5s'}
+            className={[
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors',
+              liveMode
+                ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-200'
+                : 'bg-surface border-border text-muted hover:text-ink hover:border-brand'
+            ].join(' ')}
+          >
+            <span
+              aria-hidden="true"
+              className={liveMode ? 'ah-live-dot' : ''}
+              style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: liveMode ? '#10b981' : 'var(--muted)'
+              }}
+            />
+            <span>Live</span>
+            <span className="opacity-80">{liveMode ? 'on' : 'off'}</span>
+          </button>
+          <div className="text-xs text-muted">{events.length} events</div>
+        </div>
       </div>
 
       {error && (
@@ -256,8 +349,27 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
       <DataTable
         columns={COLUMNS}
         rows={events}
+        rowClassName={(row) => (newEventIds.has(row.id) ? 'ah-event-row-fresh' : '')}
         emptyMessage="No events match these filters yet. Run a Discover Places search to populate the log."
       />
+
+      <style jsx global>{`
+        .ah-event-row-fresh {
+          animation: ah-event-fresh ${HIGHLIGHT_FADE_MS}ms ease-out both;
+        }
+        @keyframes ah-event-fresh {
+          0%   { background-color: rgba(16, 185, 129, 0.22); }
+          100% { background-color: transparent; }
+        }
+        .ah-live-dot {
+          animation: ah-live-pulse 1.6s ease-in-out infinite;
+          box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+        }
+        @keyframes ah-live-pulse {
+          0%, 100% { transform: scale(1);   opacity: 1; }
+          50%      { transform: scale(1.4); opacity: 0.6; }
+        }
+      `}</style>
     </div>
   );
 }

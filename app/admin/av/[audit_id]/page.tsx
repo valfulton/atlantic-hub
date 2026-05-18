@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { LeadDetailTabs } from './LeadDetailTabs';
 import { SocialContentButton } from './SocialContentButton';
 import { RescoreButton } from './RescoreButton';
+import { AnimatedScoreReveal } from '@/components/AnimatedScoreReveal';
 
 export default async function AvLeadDetailPage({
   params
@@ -45,7 +46,14 @@ export default async function AvLeadDetailPage({
           <RescoreButton auditId={lead.auditId} />
           <SocialContentButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
-          {lead.aiScoreBand && <StatusBadge value={lead.aiScoreBand} />}
+          <AnimatedScoreReveal
+            score={lead.aiScore}
+            band={lead.aiScoreBand as 'hot' | 'warm' | 'cool' | null}
+            breakdown={lead.aiScoreBreakdown as
+              | { fit: number; intent: number; reachability: number; icp_match: number }
+              | null
+              | undefined}
+          />
         </div>
       </div>
 
