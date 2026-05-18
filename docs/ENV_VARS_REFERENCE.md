@@ -63,6 +63,7 @@ in Netlify, the new features will return a clear error instead of crashing.
 | GOOGLE_PLACES_API_KEY | Google Cloud API key with Places API (New) enabled | /admin/av/discover (Google Places tab) |
 | APIFY_API_TOKEN | apify.com API token | /admin/av/discover (Instagram tab) |
 | OPENAI_API_KEY | platform.openai.com API key | Generate Social Content button on every lead, future AI outreach |
+| XAI_API_KEY | console.x.ai API key for Grok Imagine | Commercials tab on every lead (per-lead AI image + video generation, schema 011) |
 
 **Per Val 2026-05-17:**
 - GOOGLE_PLACES_API_KEY: she already set this in Netlify

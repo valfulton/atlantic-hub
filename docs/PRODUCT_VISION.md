@@ -86,37 +86,44 @@ Three things every customer gets:
 
 ## PRICING ARCHITECTURE
 
-Four tiers. All include the full platform. Differences are volume + velocity
-+ how much we do for them vs. with them.
+Four tiers under the Client Surge brand. All include the full platform plus
+a built-in monthly AI commercial allotment (schema/011 grok_imagine). Tier
+IDs (sprint / momentum / scale) match the live Stripe products in
+`AV_livewebsite/js/packages.js` and `js/stripe-products.json`; renaming
+them breaks billing.
 
-| Tier | Monthly | Best for |
-|------|---------|----------|
-| Starter | $497 | Founder-led businesses running their own outreach |
-| Growth | $1,497 | Small businesses ready to scale outreach |
-| Scale | $3,997 | Established businesses with multiple revenue lines or agencies |
-| Enterprise / Agency White-Label | Custom | Agencies serving 5-25 clients under their brand |
+| Tier ID | Display name | Monthly | Best for |
+|---------|--------------|---------|----------|
+| sprint | Client Surge -- Sprint | $1,995 | Founder-led businesses running their own outreach. 4 video commercials + 8 hero images per month. |
+| momentum | Client Surge -- Momentum (most loved) | $3,995 | Small businesses ready to scale outreach. 12 video commercials + 24 hero images per month, premium model. |
+| scale | Client Surge -- Scale | $7,995 | Established businesses with multiple revenue lines or agencies. 30 video commercials + 60 hero images per month, daily cadence, human creative review. |
+| Enterprise / Agency White-Label | Custom | Custom | Agencies serving 5-25 clients under their brand |
 
-Full tier feature matrix in atlanticandvine.netlify.app/#pricing.
+Discounts: 3-month commit 0% off, 6-month commit 10% off, 12-month commit
+20% off. Launch promo (`LAUNCH20`, ends 2026-06-15 unless extended) adds
+20% off any tier and stacks with annual commitment for 36% combined off.
+
+Full tier feature matrix in atlanticandvine.netlify.app/#pricing and the
+new commercials landing page at atlantic-hub/marketing/commercials-pricing.html.
 
 Platform cost per active client is ~$60 at scale (Hunter + Apollo + Apify +
-OpenAI + Google Places + Instantly when added). Gross margin per Starter
-client is ~90%. Tier pricing is designed so client revenue covers platform
-OpEx by client #2.
+OpenAI + Google Places + Grok Imagine + Instantly when added). Gross margin
+per Sprint client at full price is ~95%. Even at the launch + annual
+combined 36% discount, gross margin stays above 92%.
 
-### Scored-lead gating per tier (locked 2026-05-17)
+### Scored-lead gating per tier (updated 2026-05-18)
 
 The client portal surfaces scored leads as the visible value of the platform.
 Free and trial users see real scored leads in their dashboard with the rest
-greyed out behind an upgrade CTA. Lock these caps when wiring the
-`/client/dashboard` greyed-out cards in the Client Portal session:
+greyed out behind an upgrade CTA.
 
 | Tier | Scored leads visible | Why |
 |------|----------------------|-----|
-| Free audit (no signup) | 5 | Enough to feel the AI quality. Costs ~$0.05 in OpenAI per signup. The greyed-out 6th+ cards are the upgrade pitch. |
+| Free audit (no signup) | 5 | Enough to feel the AI quality. Costs ~$0.05 in OpenAI + ~$0.30 in Grok per free commercial. The greyed-out 6th+ cards are the upgrade pitch. |
 | 7-day trial (magic-link, no card) | 25 | Felt-volume of a real pipeline before they pay $1,995/mo. Goes read-only after day 7 if not converted. |
-| Sprint ($1,995/mo) | 50 / month | Sized so one converted lead at any reasonable LTV covers the tier. |
-| Momentum ($1,497/mo legacy or $2,500 new) | 200 / month | Multi-channel discovery, deeper pipeline. |
-| Scale ($3,997/mo) | 1,000 / month | Multi-region or multi-line clients. |
+| Sprint ($1,995/mo) | 50 / month | Sized so one converted lead at any reasonable LTV covers the tier. Includes 4 videos + 8 images of commercial generation. |
+| Momentum ($3,995/mo) | 200 / month | Multi-channel discovery, deeper pipeline. 12 videos + 24 images. |
+| Scale ($7,995/mo) | 1,000 / month | Multi-region or multi-line clients. 30 videos + 60 images, daily cadence. |
 | Enterprise / White-label | Unlimited | Per-tenant pricing, no cap. |
 
 Caps reset on the first of each calendar month. The free-audit count is

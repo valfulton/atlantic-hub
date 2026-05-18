@@ -7,7 +7,7 @@
 import type { RowDataPacket } from 'mysql2';
 import { getAvDb } from '@/lib/db/av';
 
-export type ClientUserTier = 'audit_only' | 'starter' | 'growth' | 'scale';
+export type ClientUserTier = 'audit_only' | 'sprint' | 'momentum' | 'scale';
 
 export interface ClientUserRow extends RowDataPacket {
   client_user_id: number;

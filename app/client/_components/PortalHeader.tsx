@@ -4,14 +4,14 @@ import { useState } from 'react';
 interface PortalHeaderProps {
   displayName: string | null;
   email: string;
-  tier: 'audit_only' | 'starter' | 'growth' | 'scale';
+  tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
   active: 'dashboard' | 'audit';
 }
 
 const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
   audit_only: 'Audit',
-  starter: 'Starter',
-  growth: 'Growth',
+  sprint: 'Sprint',
+  momentum: 'Momentum',
   scale: 'Scale'
 };
 

@@ -21,6 +21,7 @@ import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { writeAuditRow, extractClientIp } from '@/lib/audit';
+import { TIER_FEATURES } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -37,64 +38,6 @@ interface AuditRow extends RowDataPacket {
 interface CountRow extends RowDataPacket {
   c: number;
 }
-
-const TIER_FEATURES: Record<
-  'audit_only' | 'starter' | 'growth' | 'scale',
-  { included: string[]; locked: { name: string; tier: string }[] }
-> = {
-  audit_only: {
-    included: [
-      'AI-generated Strategic Marketing Audit',
-      'Portal access with your audit always available'
-    ],
-    locked: [
-      { name: 'Multi-source lead discovery (Apollo + Places + Instagram)', tier: 'Starter' },
-      { name: 'AI lead scoring + Hot/Warm/Cool bands', tier: 'Starter' },
-      { name: 'Automated email enrichment via Hunter.io', tier: 'Starter' },
-      { name: 'AI social-content generation (LinkedIn + X + Instagram)', tier: 'Growth' },
-      { name: 'Email outreach automation with reply tracking', tier: 'Growth' },
-      { name: 'AI commercial generation (scripts, images, video)', tier: 'Scale' },
-      { name: 'White-label deployment for your agency', tier: 'Scale' }
-    ]
-  },
-  starter: {
-    included: [
-      'AI-generated Strategic Marketing Audit',
-      'Multi-source lead discovery (Apollo + Places + Instagram)',
-      'AI lead scoring with Hot/Warm/Cool bands',
-      'Automated email enrichment via Hunter.io',
-      'CSV import + bulk pipeline management',
-      'Portal access with your audit + leads always available'
-    ],
-    locked: [
-      { name: 'AI social-content generation (LinkedIn + X + Instagram)', tier: 'Growth' },
-      { name: 'Email outreach automation with reply tracking', tier: 'Growth' },
-      { name: 'AI commercial generation (scripts, images, video)', tier: 'Scale' },
-      { name: 'White-label deployment for your agency', tier: 'Scale' }
-    ]
-  },
-  growth: {
-    included: [
-      'Everything in Starter',
-      'AI social-content generation (LinkedIn + X + Instagram)',
-      'Email outreach automation with reply tracking',
-      'Advanced pipeline analytics'
-    ],
-    locked: [
-      { name: 'AI commercial generation (scripts, images, video)', tier: 'Scale' },
-      { name: 'White-label deployment for your agency', tier: 'Scale' }
-    ]
-  },
-  scale: {
-    included: [
-      'Everything in Growth',
-      'AI commercial generation (scripts, images, video)',
-      'White-label deployment for your agency',
-      'Dedicated strategist + priority support'
-    ],
-    locked: []
-  }
-};
 
 export async function GET(req: NextRequest) {
   const ip = extractClientIp(req.headers);

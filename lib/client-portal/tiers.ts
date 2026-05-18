@@ -5,14 +5,18 @@
  * an upgrade". Used by both /api/client/me (JSON for ad-hoc clients) and
  * the server-rendered /client/dashboard page.
  *
+ * Tier names match AV_livewebsite/js/packages.js (Client Surge --
+ * Sprint / Momentum / Scale). These IDs are tied to live Stripe products
+ * and must not be renamed without coordinated billing changes.
+ *
  * Edit here, both surfaces update. Pricing copy is duplicated from
- * atlanticandvine.netlify.app/#pricing - keep in sync when prices change.
+ * atlanticandvine.netlify.app/#pricing -- keep in sync when prices change.
  */
-export type ClientTier = 'audit_only' | 'starter' | 'growth' | 'scale';
+export type ClientTier = 'audit_only' | 'sprint' | 'momentum' | 'scale';
 
 export interface TierLockedFeature {
   name: string;
-  tier: 'Starter' | 'Growth' | 'Scale';
+  tier: 'Sprint' | 'Momentum' | 'Scale';
 }
 
 export interface TierFeatures {
@@ -22,67 +26,78 @@ export interface TierFeatures {
 
 export const TIER_LABEL: Record<ClientTier, string> = {
   audit_only: 'Free Audit',
-  starter: 'Starter',
-  growth: 'Growth',
+  sprint: 'Sprint',
+  momentum: 'Momentum',
   scale: 'Scale'
 };
 
 export const TIER_PRICE_HINT: Record<ClientTier, string> = {
   audit_only: 'Free',
-  starter: '$497/mo',
-  growth: '$1,497/mo',
-  scale: '$3,997/mo'
+  sprint: '$1,995/mo',
+  momentum: '$3,995/mo',
+  scale: '$7,995/mo'
 };
 
 export const TIER_FEATURES: Record<ClientTier, TierFeatures> = {
   audit_only: {
     included: [
       'AI-generated Strategic Marketing Audit',
-      'Portal access with your audit always available'
+      'Portal access with your audit always available',
+      '1 free AI commercial after your audit (image or 6-second video)'
     ],
     locked: [
-      { name: 'Multi-source lead discovery (Apollo + Places + Instagram)', tier: 'Starter' },
-      { name: 'AI lead scoring with Hot/Warm/Cool bands', tier: 'Starter' },
-      { name: 'Automated email enrichment via Hunter.io', tier: 'Starter' },
-      { name: 'CSV import + bulk pipeline management', tier: 'Starter' },
-      { name: 'AI social-content generation (LinkedIn + X + Instagram)', tier: 'Growth' },
-      { name: 'Email outreach automation with reply tracking', tier: 'Growth' },
-      { name: 'AI commercial generation (scripts, images, video)', tier: 'Scale' },
+      { name: 'Multi-source lead discovery (Apollo + Places + Instagram)', tier: 'Sprint' },
+      { name: 'AI lead scoring with Hot/Warm/Cool bands', tier: 'Sprint' },
+      { name: 'Automated email enrichment via Hunter.io', tier: 'Sprint' },
+      { name: 'CSV import + bulk pipeline management', tier: 'Sprint' },
+      { name: '4 AI Commercial Videos + 8 Hero Images per month', tier: 'Sprint' },
+      { name: '12 AI Commercial Videos + 24 Hero Images per month (premium model)', tier: 'Momentum' },
+      { name: 'AI social-content generation (LinkedIn + X + Instagram)', tier: 'Momentum' },
+      { name: 'Email outreach automation with reply tracking', tier: 'Momentum' },
+      { name: '30 AI Commercial Videos + 60 Hero Images per month + human creative review', tier: 'Scale' },
       { name: 'White-label deployment for your agency', tier: 'Scale' }
     ]
   },
-  starter: {
+  sprint: {
     included: [
       'AI-generated Strategic Marketing Audit',
       'Multi-source lead discovery (Apollo + Places + Instagram)',
       'AI lead scoring with Hot/Warm/Cool bands',
       'Automated email enrichment via Hunter.io',
       'CSV import + bulk pipeline management',
+      '4 AI Commercial Videos per month (6-sec, ready-to-post)',
+      '8 AI Hero Images per month (1K, all aspect ratios)',
       'Portal access with your audit + leads always available'
     ],
     locked: [
-      { name: 'AI social-content generation (LinkedIn + X + Instagram)', tier: 'Growth' },
-      { name: 'Email outreach automation with reply tracking', tier: 'Growth' },
-      { name: 'AI commercial generation (scripts, images, video)', tier: 'Scale' },
+      { name: '12 AI Commercial Videos + 24 Hero Images per month (premium model)', tier: 'Momentum' },
+      { name: 'AI social-content generation (LinkedIn + X + Instagram)', tier: 'Momentum' },
+      { name: 'Email outreach automation with reply tracking', tier: 'Momentum' },
+      { name: '30 AI Commercial Videos + 60 Hero Images per month + human creative review', tier: 'Scale' },
       { name: 'White-label deployment for your agency', tier: 'Scale' }
     ]
   },
-  growth: {
+  momentum: {
     included: [
-      'Everything in Starter',
+      'Everything in Sprint',
+      '12 AI Commercial Videos per month (6-sec, premium model)',
+      '24 AI Hero Images per month (2K, all aspect ratios)',
       'AI social-content generation (LinkedIn + X + Instagram)',
       'Email outreach automation with reply tracking',
-      'Advanced pipeline analytics'
+      'Advanced pipeline analytics',
+      '1-click auto-post to LinkedIn / Instagram / X (as connectors ship)'
     ],
     locked: [
-      { name: 'AI commercial generation (scripts, images, video)', tier: 'Scale' },
+      { name: '30 AI Commercial Videos + 60 Hero Images per month + human creative review', tier: 'Scale' },
       { name: 'White-label deployment for your agency', tier: 'Scale' }
     ]
   },
   scale: {
     included: [
-      'Everything in Growth',
-      'AI commercial generation (scripts, images, video)',
+      'Everything in Momentum',
+      '30 AI Commercial Videos per month (6-sec, daily cadence)',
+      '60 AI Hero Images per month (2K)',
+      'Human creative review on every commercial drop',
       'White-label deployment for your agency',
       'Dedicated strategist + priority support'
     ],
