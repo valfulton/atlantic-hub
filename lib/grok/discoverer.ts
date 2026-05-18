@@ -34,6 +34,12 @@ import {
   type GrokResolutionTier,
   type GrokAspectRatio
 } from '@/lib/grok/imagine';
+import {
+  getActiveBriefForLead,
+  generateVisualBriefForLead,
+  visualBriefToPromptFragment,
+  type VisualBriefRecord
+} from '@/lib/ai/visual_brief';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export type AssetType = 'image' | 'video';
@@ -118,10 +124,31 @@ function truncate(s: string, max: number): string {
   return s.slice(0, max).replace(/\s+\S*$/, '') + '...';
 }
 
-function buildImagePrompt(lead: LeadContextRow): string {
+/**
+ * Build the image generation prompt.
+ *
+ * Priority order:
+ *   1. If an active VisualBrief exists for the lead, use it (Option C path).
+ *   2. Otherwise fall back to company + industry + audit excerpt (legacy).
+ *
+ * The brief always wins because it was engineered specifically as visual
+ * direction (hero shot, palette, motifs, persona, do-nots), whereas the
+ * audit was engineered for sales strategy and gives generic prompts.
+ */
+function buildImagePrompt(lead: LeadContextRow, brief: VisualBriefRecord | null): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
-  const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 600) : '';
+  const briefFragment = visualBriefToPromptFragment(brief);
 
+  if (briefFragment) {
+    return [
+      `Premium commercial hero image for ${lead.company}, a ${industry} business.`,
+      briefFragment,
+      `No text, no logos, no watermarks. Composition should leave negative space for caption overlay.`
+    ].join(' ');
+  }
+
+  // Legacy fallback path (no visual brief yet)
+  const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 600) : '';
   return [
     `Premium commercial hero image for ${lead.company}, a ${industry} business.`,
     `Cinematic lighting, sharp focus, professional commercial advertising style, on-brand for a high-end ${industry} company.`,
@@ -133,10 +160,21 @@ function buildImagePrompt(lead: LeadContextRow): string {
     .join(' ');
 }
 
-function buildVideoPrompt(lead: LeadContextRow, durationSeconds: number): string {
+function buildVideoPrompt(lead: LeadContextRow, durationSeconds: number, brief: VisualBriefRecord | null): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
-  const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 500) : '';
+  const briefFragment = visualBriefToPromptFragment(brief);
 
+  if (briefFragment) {
+    return [
+      `${durationSeconds}-second commercial-style advertising video for ${lead.company}, a ${industry} business.`,
+      briefFragment,
+      `Fluid camera movement, social-media ready framing.`,
+      `No text overlays, no logos, no watermarks. Real-world authentic feel, not stock-footage feel.`
+    ].join(' ');
+  }
+
+  // Legacy fallback path
+  const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 500) : '';
   return [
     `${durationSeconds}-second commercial-style advertising video for ${lead.company}, a ${industry} business.`,
     `Cinematic, fluid camera movement, premium product/lifestyle shots, golden-hour or studio lighting, vertical or 16:9 social-media ready framing.`,
@@ -343,7 +381,22 @@ async function generateImageCommercial(args: {
 }): Promise<GeneratedCommercial> {
   const { lead, options, actorUserId, resolution, aspectRatio } = args;
   const model: GrokImageModel = options.imageModel ?? 'grok-imagine-image-quality';
-  const builtPrompt = buildImagePrompt(lead);
+
+  // Pull or auto-generate the visual brief unless caller supplied a custom prompt.
+  let brief: VisualBriefRecord | null = null;
+  if (!options.customPrompt) {
+    brief = await getActiveBriefForLead(lead.id);
+    if (!brief && lead.audit_content) {
+      // First commercial on this lead and we have audit material -> build a brief now.
+      try {
+        brief = await generateVisualBriefForLead(lead.id, { actorUserId });
+      } catch {
+        brief = null; // fall through to legacy prompt
+      }
+    }
+  }
+
+  const builtPrompt = buildImagePrompt(lead, brief);
   const effectivePrompt = options.customPrompt?.trim() || builtPrompt;
 
   const startMs = Date.now();
@@ -486,7 +539,20 @@ async function generateVideoCommercial(args: {
   const { lead, options, actorUserId, resolution, aspectRatio } = args;
   const model: GrokVideoModel = options.videoModel ?? 'grok-imagine-video';
   const duration = Math.max(1, Math.min(15, Math.round(options.durationSeconds ?? 6)));
-  const builtPrompt = buildVideoPrompt(lead, duration);
+
+  let brief: VisualBriefRecord | null = null;
+  if (!options.customPrompt) {
+    brief = await getActiveBriefForLead(lead.id);
+    if (!brief && lead.audit_content) {
+      try {
+        brief = await generateVisualBriefForLead(lead.id, { actorUserId });
+      } catch {
+        brief = null;
+      }
+    }
+  }
+
+  const builtPrompt = buildVideoPrompt(lead, duration, brief);
   const effectivePrompt = options.customPrompt?.trim() || builtPrompt;
   const pollTimeoutMs = options.pollTimeoutMs ?? 50_000;
 

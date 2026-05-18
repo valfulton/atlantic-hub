@@ -4,6 +4,10 @@
 on each other if everyone follows this protocol. Conductor = Cowork Claude.
 Players = each Claude Code session.
 
+**Every session must read `docs/PROJECT_BRIEFING_2026-05-18.md` FIRST.** That
+file is the single source of truth for what is shipped, what is queued, and
+the non-negotiable rules that apply to every change.
+
 ---
 
 ## SCHEMA MIGRATION REGISTRY
@@ -22,7 +26,9 @@ Check this table before writing a migration. Update this table when you ship.
 | 013 | phantombuster_runs_log | reserved | PhantomBuster Webhook session |
 | 014 | unreserved | available | request from conductor |
 | 015 | client_users.tier rename (starter/growth -> sprint/momentum) | shipped 2026-05-18 | Grok Imagine session (pricing alignment) |
-| 016+ | unreserved | available | request from conductor |
+| 016 | lead_visual_briefs (Option C creative direction layer) | shipped 2026-05-18 | Grok Imagine session (visual brief) |
+| 017 | social_connections + social_posts + social_publish_log | reserved | Social Posting Connectors session |
+| 018+ | unreserved | available | request from conductor |
 
 ---
 

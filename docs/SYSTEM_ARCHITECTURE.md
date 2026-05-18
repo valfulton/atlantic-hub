@@ -244,3 +244,4 @@ revisit n8n adoption. For now Netlify scheduled functions are sufficient.
 - No SaaS subscriptions until a paying client justifies the cost (cost-passthrough model).
 - ASCII-only in shell commands and commit messages.
 - No founder name on customer-facing copy. Brand voice plural.
+- **NEVER show per-unit API / inference cost on client-facing surfaces.** See `CLIENT_FACING_GUARDRAILS.md` -- mandatory read for every kickoff doc.
