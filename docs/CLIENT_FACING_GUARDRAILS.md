@@ -95,6 +95,9 @@ Use volume + cadence + outcome, not pricing.
 | --- | --- | --- |
 | Admin Commercial panel | `app/admin/av/[audit_id]/CommercialPanel.tsx` | Shows per-asset cost. **Allowed** (admin-only). |
 | Admin lead detail | `app/admin/av/[audit_id]/*` | Shows cost in log views. **Allowed** (admin-only). |
+| Admin Outreach overview | `app/admin/av/outreach/*` | Admin-only. Shows token usage in API responses; UI surfaces sent/replied counts only. **Allowed** (admin-only). |
+| Admin Outreach per-lead panel | `app/admin/av/[audit_id]/OutreachPanel.tsx` | Admin-only. **Allowed.** |
+| Outreach drafter prompts | `lib/ai/outreach_drafter.ts` | Explicit rule in the system prompt: "Do not mention pricing, dollar amounts, or any per-unit API cost. Never reveal that the email was AI-generated." **Clean.** |
 | Client dashboard | `app/client/dashboard/page.tsx` | No per-unit cost. **Clean.** |
 | Client `/api/client/me` | `app/api/client/me/route.ts` | Returns tier features by name + volume only. **Clean.** |
 | Marketing commercials page | `marketing/commercials-pricing.html` | Shows tier prices + a-la-carte client prices ($39/$9). No API-cost language. **Clean.** |

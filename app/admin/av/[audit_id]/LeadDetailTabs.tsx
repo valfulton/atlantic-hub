@@ -3,8 +3,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ScoreRadarChart } from '@/components/ScoreRadarChart';
 import { CommercialPanel } from './CommercialPanel';
+import { OutreachPanel } from './OutreachPanel';
 
-const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Commercials', 'Notes', 'Events'] as const;
+const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Commercials', 'Outreach', 'Notes', 'Events'] as const;
 type Tab = (typeof TABS)[number];
 
 interface Lead {
@@ -416,6 +417,10 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
 
       {active === 'Commercials' && (
         <CommercialPanel auditId={lead.auditId} />
+      )}
+
+      {active === 'Outreach' && (
+        <OutreachPanel auditId={lead.auditId} leadCompany={lead.company} />
       )}
 
       {active === 'Notes' && (
