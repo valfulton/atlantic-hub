@@ -52,14 +52,40 @@ First time per day a lead lands at score 86 or above, fire a `canvas-confetti` b
 Component: `components/HotLeadConfetti.tsx` (shipped 2026-05-17).
 
 ### Sparkle pattern
-Hover states on AI-powered actions (Re-score, Generate Social Content, Generate Commercial, Auto-Audit) include twinkle CSS pseudo-elements that animate twin sparkles. Loading state replaces standard spinner with the same sparkle motion.
+Hover states on AI-powered actions (Re-score, Generate Social Content, Generate Commercial, Generate Outreach, Auto-Audit) use the SHARED `.ah-action-sparkle` class defined in `app/globals.css`. Twin sparkle pseudo-elements twinkle on hover or keyboard focus; the loading state (`data-loading="true"` attribute on the button) spins the icon and pulses the sparkles. The class honors `prefers-reduced-motion` automatically -- no per-component work needed.
 
-Pattern is in `components/RescoreButton.tsx` (shipped 2026-05-17). Mirror it for any new AI action button.
+Reference implementation: `app/admin/av/[audit_id]/RescoreButton.tsx`.
+
+Do NOT copy the styled-jsx block from RescoreButton into a new component. Use the shared class. If you find an existing component still inlining the sparkle CSS (early sessions did this before the class was promoted), migrate it to `.ah-action-sparkle` when you next touch the file.
+
+Markup template:
+
+```tsx
+<button
+  className="ah-action-sparkle ..."
+  data-loading={busy ? 'true' : 'false'}
+  aria-label="Generate <action>"
+>
+  <span className="ah-sparkle-icon">{/* svg icon */}</span>
+  <span>{busy ? 'Generating' : 'Generate'}</span>
+  <span className="ah-sparkle-pair" aria-hidden="true">
+    <span>✦</span><span>✧</span>
+  </span>
+</button>
+```
 
 ### Lead-of-the-day pattern
-On any operator landing page, surface the single most actionable record at the top above the table. Click → straight to detail. Render nothing on quiet days. Silence > empty state.
+On any operator landing page, surface the single most actionable record at the top above the table. Click goes straight to detail.
 
-Component: `components/LeadOfTheDay.tsx` (shipped 2026-05-17).
+Eligibility uses a three-tier fallback so the brand banner stays visible most days:
+
+1. `today` -- new hot/warm lead from the last 24 hours
+2. `this_week` -- new hot/warm lead from the last 7 days
+3. `top_overall` -- any unactioned lead with score >= 60
+
+Only renders null when the pipeline is genuinely empty (no scored leads above 60 anywhere). The copy adapts per tier so the card never lies about how fresh the lead is.
+
+Component: `components/LeadOfTheDay.tsx` (shipped 2026-05-17, widened 2026-05-19).
 
 ### Score radar chart
 Sub-score breakdowns (fit / intent / reachability / icp_match) render as a radar chart, not numbers. Pure SVG, no recharts dependency. Brand colors. Spring scale-in animation on first render.

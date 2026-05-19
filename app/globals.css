@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── DESIGN TOKEN CONTRACT -- do not modify without conductor approval ───
+   The :root variables below are the single source of truth for color,
+   surfaces, text, and brand glow. Multiple Claude Code sessions reference
+   them via var(--brand) / var(--surface) / etc. Changing a value here
+   ripples across every page including ones you have not read.
+
+   NEVER:
+   - Add new :root variables without proposing in docs/COSMETIC_BASELINE.md
+   - Override these inside component-scoped styled-jsx blocks
+   - Hardcode the literal hex values inside component files
+
+   ALWAYS:
+   - Reference via var(--brand), var(--surface), var(--ink), etc.
+   - For status colors (rose / amber / emerald / sky) use Tailwind classes
+     directly -- those are documented in COSMETIC_BASELINE.md and should
+     not be aliased into vars (they vary per-status, not per-tenant).
+
+   Source-of-truth reference: docs/COSMETIC_BASELINE.md
+*/
+
 :root {
   /* ──── Brand ──── */
   --brand: #f59e0b;
@@ -112,4 +132,94 @@ body {
 /* Honeycomb hex glow used on hover for tenant cards */
 .tenant-glow:hover {
   box-shadow: 0 0 0 1px var(--tenant-accent), 0 12px 32px -12px var(--tenant-glow);
+}
+
+/* ─── Shared sparkle pattern for AI-powered action buttons ───
+   First shipped on RescoreButton (2026-05-17). Promoted here so every
+   AI action across the app (Re-score, Generate outreach, Generate
+   commercial, Generate social posts, future Connect-social, etc.) uses
+   one source of truth instead of each session copy-pasting the same
+   styled-jsx block.
+
+   Usage on any <button>:
+
+     <button className="ah-action-sparkle ..." data-loading={busy}>
+       <span className="ah-sparkle-icon">...</span>
+       <span>Re-score</span>
+       <span className="ah-sparkle-pair" aria-hidden="true">
+         <span>✦</span><span>✧</span>
+       </span>
+     </button>
+
+   data-loading="true" makes the icon spin and the sparkles pulse faster.
+   Sparkles appear on hover OR keyboard focus.
+   Honors prefers-reduced-motion automatically.
+*/
+
+.ah-action-sparkle {
+  position: relative;
+  overflow: visible;
+}
+.ah-action-sparkle .ah-sparkle-icon {
+  display: inline-flex;
+  color: var(--brand);
+  opacity: 0.85;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.ah-action-sparkle:hover .ah-sparkle-icon,
+.ah-action-sparkle:focus-visible .ah-sparkle-icon {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.ah-action-sparkle[data-loading="true"] .ah-sparkle-icon {
+  animation: ah-spin 1.1s linear infinite;
+  opacity: 1;
+}
+
+.ah-action-sparkle .ah-sparkle-pair {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ah-action-sparkle .ah-sparkle-pair > span {
+  position: absolute;
+  font-size: 9px;
+  color: var(--brand);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  text-shadow: 0 0 6px var(--brand-glow);
+}
+.ah-action-sparkle .ah-sparkle-pair > span:nth-child(1) {
+  top: -4px;
+  right: -2px;
+  animation: ah-twinkle 1.8s ease-in-out infinite;
+}
+.ah-action-sparkle .ah-sparkle-pair > span:nth-child(2) {
+  bottom: -2px;
+  right: 14px;
+  animation: ah-twinkle 1.8s ease-in-out infinite 0.5s;
+}
+.ah-action-sparkle:hover .ah-sparkle-pair > span,
+.ah-action-sparkle:focus-visible .ah-sparkle-pair > span,
+.ah-action-sparkle[data-loading="true"] .ah-sparkle-pair > span {
+  opacity: 1;
+}
+
+@keyframes ah-twinkle {
+  0%, 100% { transform: scale(0.6) rotate(0deg);  opacity: 0.3; }
+  50%      { transform: scale(1.2) rotate(20deg); opacity: 1;   }
+}
+@keyframes ah-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Reduced-motion users: disable sparkle animations across the app. */
+@media (prefers-reduced-motion: reduce) {
+  .ah-action-sparkle .ah-sparkle-pair > span,
+  .ah-action-sparkle .ah-sparkle-icon {
+    animation: none !important;
+    transition: none !important;
+  }
 }
