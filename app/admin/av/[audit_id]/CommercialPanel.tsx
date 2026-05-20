@@ -55,6 +55,34 @@ interface ErrorDetail {
   hint?: string;
 }
 
+interface SocialDraft {
+  id: number;
+  platform: 'linkedin' | 'twitter' | 'instagram' | 'facebook' | 'threads' | 'tiktok' | 'other';
+  variant: string | null;
+  body: string;
+  charCount: number | null;
+  status: 'active' | 'used_for_commercial' | 'published' | 'archived';
+  commercialAssetId: number | null;
+  createdAt: string;
+}
+
+const PLATFORM_LABEL: Record<SocialDraft['platform'], string> = {
+  linkedin: 'LinkedIn',
+  twitter: 'X / Twitter',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  threads: 'Threads',
+  tiktok: 'TikTok',
+  other: 'Other'
+};
+
+/** Map a draft platform to the best-fit aspect ratio for the commercial. */
+function aspectForPlatform(p: SocialDraft['platform']): AspectRatio {
+  if (p === 'linkedin') return '16:9';
+  if (p === 'instagram' || p === 'tiktok' || p === 'threads') return '9:16';
+  return '16:9';
+}
+
 const IMAGE_MODEL_OPTIONS: { value: ImageModel; label: string; sub: string }[] = [
   { value: 'grok-imagine-image-quality', label: 'Quality', sub: 'Recommended for hero shots' },
   { value: 'grok-imagine-image', label: 'Fast', sub: 'Quicker drafts, lower fidelity' },
@@ -173,6 +201,13 @@ export function CommercialPanel({
   const [generateError, setGenerateError] = useState<ErrorDetail | null>(null);
   const [justSparkled, setJustSparkled] = useState(false);
 
+  // Saved social-post drafts -- pulled from lead_social_drafts. Used by the
+  // "Use a recent social post" dropdown so Val can inject a previously
+  // generated post into the prompt with zero LLM cost.
+  const [drafts, setDrafts] = useState<SocialDraft[]>([]);
+  const [draftsLoaded, setDraftsLoaded] = useState(false);
+  const [selectedDraftId, setSelectedDraftId] = useState<number | ''>('');
+
   const fetchAssets = useCallback(async () => {
     setLoadError(null);
     try {
@@ -193,6 +228,37 @@ export function CommercialPanel({
   useEffect(() => {
     void fetchAssets();
   }, [fetchAssets]);
+
+  const fetchDrafts = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/av/leads/${auditId}/social-drafts?limit=30`);
+      if (!res.ok) {
+        setDrafts([]);
+        return;
+      }
+      const j = (await res.json()) as { drafts: SocialDraft[] };
+      setDrafts(j.drafts ?? []);
+    } catch {
+      setDrafts([]);
+    } finally {
+      setDraftsLoaded(true);
+    }
+  }, [auditId]);
+
+  useEffect(() => {
+    void fetchDrafts();
+  }, [fetchDrafts]);
+
+  function injectDraft(draftId: number) {
+    const draft = drafts.find((d) => d.id === draftId);
+    if (!draft) return;
+    setCustomPrompt(draft.body);
+    setPromptSource('manual');
+    // Nudge the aspect ratio toward the platform's natural fit.
+    const suggested = aspectForPlatform(draft.platform);
+    setAspectRatio(suggested);
+    setSelectedDraftId(draftId);
+  }
 
   useEffect(() => {
     const running = assets.some(
@@ -459,6 +525,47 @@ export function CommercialPanel({
           </div>
         </div>
 
+        {/* Use a recent social post as the prompt -- zero LLM cost */}
+        {draftsLoaded && drafts.length > 0 && (
+          <div className="relative mt-4 rounded-xl border border-border bg-bg/40 p-3">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <label className="block text-[11px] uppercase tracking-[0.12em] text-muted">
+                ⚡ Use a recent social post as your prompt
+              </label>
+              <span className="text-[10px] uppercase tracking-[0.1em] px-2 py-0.5 rounded-full border border-border text-muted">
+                {drafts.length} saved · no extra API call
+              </span>
+            </div>
+            <select
+              value={selectedDraftId === '' ? '' : String(selectedDraftId)}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) {
+                  setSelectedDraftId('');
+                  return;
+                }
+                injectDraft(Number(v));
+              }}
+              className={SELECT_CLASS}
+            >
+              <option value="">Pick a generated post...</option>
+              {drafts.map((d) => {
+                const when = new Date(d.createdAt).toLocaleString();
+                const preview = d.body.replace(/\s+/g, ' ').slice(0, 80);
+                const tag = d.status === 'used_for_commercial' ? ' ✓ used' : '';
+                return (
+                  <option key={d.id} value={d.id}>
+                    {PLATFORM_LABEL[d.platform]} · {when}{tag} -- {preview}{d.body.length > 80 ? '...' : ''}
+                  </option>
+                );
+              })}
+            </select>
+            <p className="text-[11px] text-muted mt-1">
+              Picking a post drops it straight into the prompt below and snaps the aspect ratio to that channel&apos;s best fit. Edit anything before you generate.
+            </p>
+          </div>
+        )}
+
         {/* Prompt area -- now visible + editable by default */}
         <div className="relative mt-4">
           <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
@@ -686,7 +793,20 @@ function AssetCard({ asset, onDelete }: { asset: Asset; onDelete: () => void }) 
           <span>{new Date(asset.createdAt).toLocaleString()}</span>
         </div>
 
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {asset.url ? (
+            <a
+              href={`/admin/social?asset_id=${asset.assetId}&intent=publish`}
+              className="px-3 py-1.5 rounded-full text-xs font-medium text-white inline-flex items-center gap-1.5 transition-all"
+              style={{
+                background: 'linear-gradient(120deg, #FF5A6E, #FF9C5B)',
+                boxShadow: '0 4px 12px -4px rgba(255,90,110,0.4)'
+              }}
+              title="Push this commercial to LinkedIn, X, Instagram, Facebook, or TikTok"
+            >
+              <span aria-hidden>📣</span> Push to social
+            </a>
+          ) : null}
           {asset.url ? (
             <a
               href={asset.url}

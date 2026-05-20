@@ -28,8 +28,13 @@ Check this table before writing a migration. Update this table when you ship.
 | 015 | client_users.tier rename (starter/growth -> sprint/momentum) | shipped 2026-05-18 | Grok Imagine session (pricing alignment) |
 | 016 | lead_visual_briefs (Option C creative direction layer) | shipped 2026-05-18 | Grok Imagine session (visual brief) |
 | 017 | social_connections + social_posts + social_publish_log | reserved | Social Posting Connectors session |
-| 018 | living_score (ai_engagement_score + ai_combined_score + score_history) | in flight 2026-05-19 | Cowork Claude (VP of Sales rollout, ship 1 of 5) |
-| 019+ | unreserved | available | request from conductor |
+| 018 | living_score (ai_engagement_score + ai_combined_score + score_history) | shipped 2026-05-19 | Cowork Claude (VP of Sales rollout, ship 1), commit 31db417 |
+| 019 | sales team mega-ship: pain_point_profile + assigned_to_user_id + handed_to_owner_at + wake_at_date + parked_reason + lead_status enum extension + call_log table | in flight 2026-05-19 | Cowork Claude (VP of Sales rollout, ships 2-5 bundled) |
+| 020 | unreserved | available | request from conductor |
+| 021 | lead_social_drafts (cache AI Social Content for re-use without LLM calls) | shipped 2026-05-19 | Grok Imagine session (Phase 2: social bridge) |
+| 022 | grok_imagine_assets.parent_asset_id (per-channel aspect variants) | reserved | Social Posting Connectors session |
+| 023 | lead_brand_kits + commercial_branded_renders | reserved | Logo Overlay session |
+| 024+ | unreserved | available | request from conductor |
 
 ---
 

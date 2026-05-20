@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SocialIntegrationsBoard } from './SocialIntegrationsBoard';
@@ -50,7 +51,9 @@ export default function SocialIntegrationsPage() {
         no leaving the dashboard. Pick a brand, connect once, post forever.
       </p>
 
-      <SocialIntegrationsBoard />
+      <Suspense fallback={<div className="text-sm text-muted">Loading...</div>}>
+        <SocialIntegrationsBoard />
+      </Suspense>
     </div>
   );
 }

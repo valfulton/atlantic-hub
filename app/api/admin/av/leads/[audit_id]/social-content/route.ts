@@ -33,7 +33,7 @@ import {
   OpenAIApiError
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
-import type { RowDataPacket } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -147,6 +147,23 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
         model: completion.model
       },
       executionTimeMs: Date.now() - startMs
+    });
+
+    // Persist every generated draft into lead_social_drafts so other surfaces
+    // (Commercials tab "Use a recent social post" dropdown, future scheduled
+    // publishing) can pull these EXACT posts without another LLM call.
+    // Errors here are swallowed -- the operator still gets the response.
+    void persistDrafts({
+      leadId: lead.id,
+      variant,
+      model: completion.model,
+      tokensTotal: completion.usage.totalTokens,
+      actorUserId: guard.actor.userId,
+      drafts: [
+        ...(parsed.linkedin ?? []).map((body) => ({ platform: 'linkedin' as const, body })),
+        ...(parsed.twitter ?? []).map((body) => ({ platform: 'twitter' as const, body })),
+        ...(parsed.instagram ?? []).map((body) => ({ platform: 'instagram' as const, body }))
+      ]
     });
 
     return NextResponse.json({
@@ -270,4 +287,52 @@ Return JSON only, with exactly ${count} posts per array.`;
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max).replace(/\s+\S*$/, '') + '…';
+}
+
+/**
+ * Best-effort persistence of generated social drafts. Never throws --
+ * the operator's response shouldn't fail just because we couldn't save.
+ * Spreads the run's tokens proportionally across drafts for an admin-only
+ * cost trail.
+ */
+async function persistDrafts(args: {
+  leadId: number;
+  variant: string;
+  model: string;
+  tokensTotal: number;
+  actorUserId: number | null;
+  drafts: { platform: 'linkedin' | 'twitter' | 'instagram'; body: string }[];
+}): Promise<void> {
+  if (args.drafts.length === 0) return;
+  const tokensPer = Math.max(1, Math.round(args.tokensTotal / args.drafts.length));
+  try {
+    const db = getAvDb();
+    for (const d of args.drafts) {
+      if (!d.body || d.body.length > 8000) continue;
+      try {
+        await db.execute<ResultSetHeader>(
+          `INSERT INTO lead_social_drafts
+             (lead_id, platform, variant, body_text, char_count, status, model, tokens_used, created_by_user_id)
+           VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
+          [
+            args.leadId,
+            d.platform,
+            args.variant,
+            d.body,
+            d.body.length,
+            args.model,
+            tokensPer,
+            args.actorUserId
+          ]
+        );
+      } catch (innerErr) {
+        // If the table doesn't exist yet (schema 018 not applied), bail
+        // quietly for the rest of this batch rather than spamming logs.
+        console.error('[social-drafts:persist]', (innerErr as Error).message);
+        return;
+      }
+    }
+  } catch (err) {
+    console.error('[social-drafts:persist]', (err as Error).message);
+  }
 }

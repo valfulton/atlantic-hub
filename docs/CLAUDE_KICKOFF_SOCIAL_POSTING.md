@@ -287,11 +287,94 @@ Per `docs/CLIENT_FACING_GUARDRAILS.md`:
 
 ---
 
+## ADDITIONAL REQUIREMENTS (added 2026-05-19 by Val)
+
+These shape v1 -- do not defer them.
+
+### 1. Multi-channel composer, one asset, multiple destinations
+
+The "Push to social" button on every Commercial asset card already exists.
+It links to `/admin/social?asset_id=<id>&intent=publish`. The stub page
+shows a "Commercial #X is waiting to publish" banner. **Replace that
+banner with the real composer.**
+
+The composer must:
+- Pick **one asset** as the media.
+- Let the operator select **multiple destinations** (multi-select checkbox
+  list of every connected `social_connections` row across providers).
+- Per destination, show an **editable caption box** pre-filled with:
+  1. The matching `lead_social_drafts` row for that platform if one exists.
+  2. Else the matching social-content draft from the AI Social Content
+     modal (which now persists into `lead_social_drafts` from the
+     existing route -- 2026-05-19 change).
+  3. Else an empty caption field.
+- Per destination, show an **aspect-ratio chip** with the platform's
+  default (LinkedIn 16:9, X 16:9, Instagram Feed 1:1, Instagram Reels
+  9:16, TikTok 9:16, Facebook 16:9). The operator can override.
+- If the chosen aspect ratio does not match the source asset's, offer a
+  one-click **"Generate this aspect for ${platform}"** action that runs
+  the AI engine with the same prompt + the new aspect and stores the
+  variant as a child asset (see "Per-channel variant" below).
+- "Post now" or "Schedule" with the smart-timing engine.
+
+### 2. Per-channel aspect-ratio variant generation
+
+Add `parent_asset_id BIGINT UNSIGNED NULL` to `grok_imagine_assets` (do
+this as schema 022 -- reserved in the registry -- since 017 is yours,
+018-019 are the conductor's living_score / sales mega-ship, and 021
+is the shipped social_drafts). Variant assets reference the original;
+the UI shows them grouped under the parent on the Commercials tab.
+
+The variant generator reuses `generateCommercialForLead` with the same
+prompt + a new aspectRatio, and persists `parent_asset_id`. Idempotent
+on a per-(parent,aspect) basis -- if a 9:16 variant already exists,
+"Generate this aspect" links to it instead of making a duplicate.
+
+### 3. Source of caption text: `lead_social_drafts` (schema 021, shipped)
+
+The AI Social Content route now persists every generated post into
+`lead_social_drafts`. Read from that table to pre-fill captions in the
+composer. **Do not re-call the AI Social Content endpoint** unless the
+operator explicitly clicks "Regenerate caption for this platform."
+
+When a draft is published, set its `status` to `'published'` (the
+publisher dispatcher already knows the draft id from the composer's
+form data).
+
+### 4. Per-platform caption variants
+
+LinkedIn captions can be long (1300-3000 chars). X must be <=280.
+Instagram benefits from hashtag stacks at the end. The composer should:
+- On load, slice the picked draft to fit each platform automatically.
+- Surface a warning chip if the caption is over the limit.
+- Provide a one-click "Trim to limit" button.
+
+### 5. Energy of the pop journey
+
+Per Val: "Make pushing to social really fun." Match the pop-journey
+aesthetic that lives in `marketing/commercials-pricing.html` and on the
+Commercials tab today -- sunset gradient, sparkle accents, confident
+italic-gradient headlines, animated success states when a post ships.
+The composer is a moment, not a form.
+
+### 6. Creative brief as the approval surface
+
+Show a small "creative brief" summary at the top of the composer:
+- Lead name + industry chip
+- Hot/Warm/Cool band
+- The visual brief's hero shot phrase + mood
+- The picked asset preview
+
+So the operator approves a confident creative direction, not a row of
+abstract knobs.
+
+---
+
 ## ON FINISH
 
 1. Update `docs/PROJECT_STATUS_<date>.md` with what shipped.
 2. Append to `docs/CHANGELOG.md`.
-3. Mark schema 017 shipped in `docs/SESSION_COORDINATION.md`.
+3. Mark schema 017 (and 022 if you shipped parent_asset_id) shipped in `docs/SESSION_COORDINATION.md`.
 4. Move "Social Posting Connectors" from section 4 (queued) to section 3
    (shipped) in `docs/PROJECT_BRIEFING_2026-05-18.md`.
 5. Hand back a one-paragraph summary to Val.

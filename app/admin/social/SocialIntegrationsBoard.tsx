@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 /**
  * Multi-tenant social integrations board. v0 stub.
@@ -107,14 +108,46 @@ const FRICTION_LABEL: Record<Friction, string> = {
 export function SocialIntegrationsBoard() {
   const [tenant, setTenant] = useState<Tenant>(TENANTS[0]);
   const [toast, setToast] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const queuedAssetId = searchParams?.get('asset_id') ?? null;
+  const intent = searchParams?.get('intent') ?? null;
 
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3500);
   }
 
+  useEffect(() => {
+    if (queuedAssetId && intent === 'publish') {
+      showToast(
+        `Commercial #${queuedAssetId} queued for publish. Connect a platform below; the OAuth + publish flow lands in the next session.`
+      );
+    }
+  }, [queuedAssetId, intent]);
+
   return (
     <div className="space-y-6">
+      {/* Asset handoff banner */}
+      {queuedAssetId && intent === 'publish' && (
+        <div
+          className="rounded-2xl p-4 border flex items-start gap-3"
+          style={{
+            background: 'linear-gradient(120deg, rgba(255,90,110,0.14), rgba(255,199,61,0.08))',
+            borderColor: 'rgba(255,156,91,0.4)'
+          }}
+        >
+          <span className="text-2xl" aria-hidden>📣</span>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-ink">
+              Commercial #{queuedAssetId} is waiting to publish
+            </div>
+            <p className="text-xs text-muted mt-1 max-w-xl leading-relaxed">
+              Once the OAuth flow lands (next session), this banner becomes a composer where you pick which connected accounts post this asset, edit the caption per platform, schedule with smart timing, and ship. For now the asset is staged -- connect at least one platform below to be ready.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Tenant selector */}
       <div className="bg-surface border border-border rounded-2xl p-4">
         <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-2">
