@@ -33,8 +33,9 @@ Check this table before writing a migration. Update this table when you ship.
 | 020 | unreserved | available | request from conductor |
 | 021 | lead_social_drafts (cache AI Social Content for re-use without LLM calls) | shipped 2026-05-19 | Grok Imagine session (Phase 2: social bridge) |
 | 022 | grok_imagine_assets.parent_asset_id (per-channel aspect variants) | reserved | Social Posting Connectors session |
-| 023 | lead_brand_kits + commercial_branded_renders | reserved | Logo Overlay session |
-| 024+ | unreserved | available | request from conductor |
+| 023 | lead_brand_kits + commercial_branded_renders | shipped 2026-05-19 | Logo Overlay session (Grok Imagine chat) |
+| 024 | operator_logo_library (reusable logos across leads) | shipped 2026-05-20 | Logo Overlay Phase 1.5 (Grok Imagine chat) |
+| 025+ | unreserved | available | request from conductor |
 
 ---
 

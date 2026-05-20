@@ -34,6 +34,22 @@ interface BrandKit {
   updatedAt: string;
 }
 
+interface LibraryItem {
+  id: number;
+  displayName: string;
+  tenantHint: string | null;
+  logoMimeType: string;
+  logoFilename: string | null;
+  logoDataUrl: string;
+  defaultPosition: LogoPosition;
+  defaultOpacity: number;
+  defaultScale: number;
+  defaultPadding: number;
+  useCount: number;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
 const POSITION_OPTIONS: { value: LogoPosition; label: string }[] = [
   { value: 'top-left', label: 'Top-left' },
   { value: 'top-right', label: 'Top-right' },
@@ -60,6 +76,15 @@ export function BrandKitPanel({
   const [expanded, setExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Reusable logo library across all leads. Sorted most-recently-used
+  // first so the brand the operator uses constantly is at the front.
+  const [library, setLibrary] = useState<LibraryItem[]>([]);
+  const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [applyingLibraryId, setApplyingLibraryId] = useState<number | null>(null);
+  // When uploading, optionally also save the file to the library for re-use.
+  const [alsoSaveToLibrary, setAlsoSaveToLibrary] = useState(true);
+  const [newLibraryName, setNewLibraryName] = useState('');
+
   const fetchKit = useCallback(async () => {
     setError(null);
     try {
@@ -82,6 +107,59 @@ export function BrandKitPanel({
     void fetchKit();
   }, [fetchKit]);
 
+  const fetchLibrary = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/brand-kit/library?limit=24`);
+      if (!res.ok) {
+        setLibrary([]);
+        return;
+      }
+      const j = (await res.json()) as { items: LibraryItem[] };
+      setLibrary(j.items ?? []);
+    } catch {
+      setLibrary([]);
+    } finally {
+      setLibraryLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchLibrary();
+  }, [fetchLibrary]);
+
+  async function applyLibraryItem(itemId: number) {
+    setApplyingLibraryId(itemId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/av/leads/${auditId}/brand-kit/apply-library`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ libraryItemId: itemId })
+      });
+      const j = (await res.json()) as { ok?: boolean; kit?: BrandKit; error?: string };
+      if (!res.ok || !j.ok || !j.kit) throw new Error(j.error || `HTTP ${res.status}`);
+      setKit(j.kit);
+      onKitChange?.(j.kit);
+      // Refresh library so the just-used item floats to the top next time.
+      void fetchLibrary();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setApplyingLibraryId(null);
+    }
+  }
+
+  async function uploadToLibrary(file: File, displayName: string) {
+    const form = new FormData();
+    form.append('logo', file);
+    form.append('displayName', displayName);
+    const res = await fetch(`/api/admin/brand-kit/library`, { method: 'POST', body: form });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(j.error || `HTTP ${res.status}`);
+    }
+  }
+
   async function handleUpload(file: File) {
     setUploading(true);
     setError(null);
@@ -97,6 +175,19 @@ export function BrandKitPanel({
       setKit(j.kit);
       setExpanded(true);
       onKitChange?.(j.kit);
+
+      // Optionally mirror the just-uploaded logo into the reusable library.
+      if (alsoSaveToLibrary) {
+        try {
+          const displayName = (newLibraryName.trim() || file.name.replace(/\.[^.]+$/, '') || 'Untitled logo').slice(0, 255);
+          await uploadToLibrary(file, displayName);
+          setNewLibraryName('');
+          void fetchLibrary();
+        } catch (libErr) {
+          // Non-fatal -- the lead's kit succeeded.
+          console.error('library save failed:', (libErr as Error).message);
+        }
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -185,6 +276,55 @@ export function BrandKitPanel({
         </div>
       )}
 
+      {/* Logo library -- reusable across every lead. Most-recently-used first. */}
+      {libraryLoaded && library.length > 0 && (
+        <div className="relative mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-muted flex items-center gap-2">
+              <span aria-hidden>📚</span> Logos you&apos;ve used before
+              <span className="text-[10px] normal-case tracking-normal text-muted/70">
+                · one click to apply
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {library.map((item) => {
+              const isCurrent = kit?.hasLogo && kit.logoDataUrl === item.logoDataUrl;
+              const isApplying = applyingLibraryId === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => void applyLibraryItem(item.id)}
+                  disabled={isApplying || isCurrent}
+                  className={`shrink-0 w-24 rounded-xl border-2 p-2 text-center transition-all ${
+                    isCurrent
+                      ? 'border-emerald-400/60 bg-emerald-500/10'
+                      : 'border-border bg-bg/40 hover:border-pink-400 hover:-translate-y-0.5'
+                  } disabled:opacity-60 disabled:cursor-not-allowed`}
+                  title={item.displayName + (isCurrent ? ' (currently applied)' : '')}
+                >
+                  <div className="aspect-square rounded-md bg-white/5 flex items-center justify-center overflow-hidden mb-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.logoDataUrl}
+                      alt={item.displayName}
+                      className="max-w-full max-h-full object-contain p-1"
+                    />
+                  </div>
+                  <div className="text-[10.5px] text-ink leading-tight truncate font-medium">
+                    {item.displayName}
+                  </div>
+                  <div className="text-[9px] text-muted/80 mt-0.5">
+                    {isApplying ? 'Applying...' : isCurrent ? '✓ in use' : `used ${item.useCount}×`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Upload area / current logo */}
       <div className="relative mt-4 grid grid-cols-1 md:grid-cols-[160px_1fr] gap-4 items-center">
         <div
@@ -251,10 +391,33 @@ export function BrandKitPanel({
               </div>
             </>
           ) : (
-            <p className="text-muted leading-relaxed">
-              No logo on file. Drop the client&apos;s logo (transparent PNG is best) into the square on the left.
-              Once it&apos;s here, every new image commercial gets it composited automatically.
-            </p>
+            <div className="space-y-2">
+              <p className="text-muted leading-relaxed">
+                No logo on file. Drop the client&apos;s logo (transparent PNG is best) into the square on the left.
+                Once it&apos;s here, every new image commercial gets it composited automatically.
+              </p>
+              <div className="rounded-lg border border-border bg-bg/40 p-2.5 mt-2">
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={alsoSaveToLibrary}
+                    onChange={(e) => setAlsoSaveToLibrary(e.target.checked)}
+                    className="w-3.5 h-3.5"
+                  />
+                  <span className="text-[12px] text-ink">Also save this logo to my library for re-use</span>
+                </label>
+                {alsoSaveToLibrary && (
+                  <input
+                    type="text"
+                    value={newLibraryName}
+                    onChange={(e) => setNewLibraryName(e.target.value)}
+                    placeholder="Friendly name (e.g. Atlantic & Vine wordmark)"
+                    maxLength={120}
+                    className="mt-2 w-full text-[12px] px-2 py-1.5 rounded border border-border bg-white text-slate-900 placeholder:text-slate-400"
+                  />
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>

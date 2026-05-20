@@ -208,6 +208,7 @@ export function CommercialPanel({
   const [drafts, setDrafts] = useState<SocialDraft[]>([]);
   const [draftsLoaded, setDraftsLoaded] = useState(false);
   const [selectedDraftId, setSelectedDraftId] = useState<number | ''>('');
+  const [pullingSocial, setPullingSocial] = useState(false);
 
   // Whether this lead has an active brand kit logo. Drives the Branded
   // toggle on each asset card. We don't need the full kit shape here --
@@ -264,6 +265,36 @@ export function CommercialPanel({
     const suggested = aspectForPlatform(draft.platform);
     setAspectRatio(suggested);
     setSelectedDraftId(draftId);
+  }
+
+  /**
+   * Generates a fresh batch of AI social-content drafts for this lead
+   * (LinkedIn / X / Instagram) and refreshes the drafts dropdown. Useful
+   * when the dropdown is empty -- one click and the operator has 3 platform
+   * captions to choose from as prompts. Spends one gpt-4o-mini call.
+   */
+  async function handlePullSocialContent() {
+    setPullingSocial(true);
+    setGenerateError(null);
+    try {
+      const res = await fetch(`/api/admin/av/leads/${auditId}/social-content`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant: 'for_prospect', count: 1 })
+      });
+      const j = (await res.json()) as { ok?: boolean; error?: string; detail?: string };
+      if (!res.ok || !j.ok) {
+        const parts = [j.error, j.detail].filter(Boolean) as string[];
+        throw new Error(parts.join(' -- ') || `HTTP ${res.status}`);
+      }
+      // Persist hook in the social-content route writes to lead_social_drafts;
+      // refetch the dropdown so the new drafts appear.
+      await fetchDrafts();
+    } catch (err) {
+      setGenerateError(explainError((err as Error).message));
+    } finally {
+      setPullingSocial(false);
+    }
   }
 
   useEffect(() => {
@@ -589,6 +620,21 @@ export function CommercialPanel({
                 <span className="text-[10px] uppercase tracking-[0.1em] px-2 py-0.5 rounded-full border border-border text-muted">
                   Source: {promptSource.replace('_', ' ')}
                 </span>
+              )}
+              {draftsLoaded && drafts.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => void handlePullSocialContent()}
+                  disabled={pullingSocial}
+                  className="text-[11px] px-3 py-1 rounded-full text-white font-medium disabled:opacity-60"
+                  style={{
+                    background: 'linear-gradient(120deg, #1F5F9D, #56B870)',
+                    boxShadow: '0 4px 12px -4px rgba(86,184,112,0.4)'
+                  }}
+                  title="Generates LinkedIn / X / Instagram captions for this lead and adds them to the recent-posts dropdown"
+                >
+                  {pullingSocial ? 'Pulling...' : '📥 Pull social content'}
+                </button>
               )}
               <button
                 type="button"

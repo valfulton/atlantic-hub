@@ -1,14 +1,9 @@
 -- =====================================================================
 -- Atlantic Hub -- Social drafts cache per lead
--- File:    schema/021_social_drafts.sql
+-- File:    schema/018_social_drafts.sql
 -- Target:  shhdbite_AV
 -- Run in:  HostGator phpMyAdmin -> click shhdbite_AV in sidebar
 --          -> SQL tab -> paste -> Go
--- =====================================================================
--- Note: renumbered from 018 -> 021 on 2026-05-19 because the conductor's
--- parallel session reserved schemas 018-019 for the Living Score +
--- Sales mega-ship rollout. Registry in docs/SESSION_COORDINATION.md is
--- the canonical source of truth.
 -- =====================================================================
 --
 -- IDEMPOTENT: CREATE TABLE IF NOT EXISTS only. Re-running is a no-op.
