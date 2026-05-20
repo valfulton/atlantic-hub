@@ -148,7 +148,14 @@ CREATE TABLE IF NOT EXISTS social_connections (
   KEY idx_provider_status (provider, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS social_posts (
+-- COLLISION NOTE: this new table is named social_outbox (NOT social_posts).
+-- The legacy social_posts table from schema 004 v4 is empty and untouched
+-- but a CREATE TABLE IF NOT EXISTS social_posts would silently skip and
+-- new code would write to the wrong-shape legacy table. Use social_outbox
+-- throughout this session: lib/social/publisher.ts, scheduler.ts, the
+-- cron, the queue UI. URL paths (/api/admin/social/posts/...) stay --
+-- table name is internal only.
+CREATE TABLE IF NOT EXISTS social_outbox (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id VARCHAR(64) NOT NULL,
   connection_id BIGINT UNSIGNED NOT NULL,        -- FK conceptually
@@ -215,7 +222,7 @@ On the lead detail page Commercials tab (existing UI), each successfully
 generated asset card gets a **Push to social** button. ((Make it fun! Encourage my clients with the energy of the pop journey and the sea. Make pushing to social really fun. Make sure that a creative brief is used as a model for approval that is clear and fun to see make sure the messaging pops and is connected. ))Click -> dialog
 asks: which connections, what caption (pre-filled from the existing AI
 social content generator output if available), when (now / smart schedule
-/ pick datetime). Submit -> creates `social_posts` row(s).
+/ pick datetime). Submit -> creates `social_outbox` row(s).
 
 ### Per-asset on the lead
 
@@ -250,7 +257,7 @@ read post-engagement back from each platform and tune.
 ## CRON
 
 `netlify/functions/social-publish-cron.mts` runs every 5 minutes (Netlify
-scheduled function). Selects `social_posts WHERE status='scheduled' AND
+scheduled function). Selects `social_outbox WHERE status='scheduled' AND
 scheduled_for <= NOW()`, locks row by flipping to `publishing`, calls the
 appropriate provider, then patches to `published` or `failed`. On
 failure, increment retries; permanent_failure after 3.
