@@ -6,15 +6,20 @@ import { useCallback, useEffect, useState } from 'react';
  *
  * The "Commercials" tab on the lead detail page. Owner + staff only.
  *
- * Three things this UI does:
- *   1. Generate a new image / video commercial via Grok Imagine.
- *   2. List existing assets for the lead with download + delete.
- *   3. Show real upstream errors so 502s self-explain (no more digging
- *      through System Events to learn the API key is wrong).
+ * What this UI does:
+ *   1. Generate a new image / video commercial via the AI engine.
+ *   2. Let the operator preview + EDIT the auto-built prompt before
+ *      sending it (no more invisible-prompt surprises).
+ *   3. Offer a logo-space corner so the model leaves clean negative
+ *      space for a post-production logo overlay.
+ *   4. List existing assets with download + delete.
+ *   5. Show real upstream errors with a plain-English explanation +
+ *      a fix-it hint, so a misconfigured API key self-diagnoses.
  *
- * Image generation completes synchronously (~5-15s). Video generation
- * may return generationStatus='running'; the panel auto-polls every 5s
- * until the asset settles.
+ * Brand etiquette: per CLIENT_FACING_GUARDRAILS.md and Val's request,
+ * no third-party provider / model brand names appear in admin-facing
+ * copy. We use "Quality / Fast / Pro" labels rather than the raw
+ * model strings.
  */
 
 type GenerationStatus = 'queued' | 'running' | 'succeeded' | 'failed';
@@ -25,6 +30,7 @@ type ImageModel =
   | 'grok-imagine-image-quality'
   | 'grok-imagine-image-pro';
 type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3';
+type LogoSpace = 'none' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 interface Asset {
   assetId: number;
@@ -49,10 +55,10 @@ interface ErrorDetail {
   hint?: string;
 }
 
-const IMAGE_MODEL_OPTIONS: { value: ImageModel; label: string; cost: string }[] = [
-  { value: 'grok-imagine-image-quality', label: 'Quality (recommended)', cost: 'standard rate' },
-  { value: 'grok-imagine-image', label: 'Fast', cost: 'lower rate' },
-  { value: 'grok-imagine-image-pro', label: 'Pro (deprecated)', cost: 'premium rate' }
+const IMAGE_MODEL_OPTIONS: { value: ImageModel; label: string; sub: string }[] = [
+  { value: 'grok-imagine-image-quality', label: 'Quality', sub: 'Recommended for hero shots' },
+  { value: 'grok-imagine-image', label: 'Fast', sub: 'Quicker drafts, lower fidelity' },
+  { value: 'grok-imagine-image-pro', label: 'Pro', sub: 'Premium look (legacy)' }
 ];
 
 const ASPECT_RATIO_OPTIONS: { value: AspectRatio; label: string }[] = [
@@ -62,6 +68,23 @@ const ASPECT_RATIO_OPTIONS: { value: AspectRatio; label: string }[] = [
   { value: '4:3', label: '4:3' },
   { value: '3:4', label: '3:4 portrait' }
 ];
+
+const LOGO_SPACE_OPTIONS: { value: LogoSpace; label: string }[] = [
+  { value: 'none', label: 'No reserved space' },
+  { value: 'top-left', label: 'Top-left corner' },
+  { value: 'top-right', label: 'Top-right corner' },
+  { value: 'bottom-left', label: 'Bottom-left corner' },
+  { value: 'bottom-right', label: 'Bottom-right corner' }
+];
+
+/** Friendly label for a stored model string (no provider brand visible). */
+function friendlyModelLabel(model: string): string {
+  if (model.includes('quality')) return 'Quality';
+  if (model.includes('pro')) return 'Pro';
+  if (model.includes('image')) return 'Standard';
+  if (model.includes('video')) return 'Video';
+  return 'AI';
+}
 
 function statusGlow(s: GenerationStatus): string {
   switch (s) {
@@ -80,37 +103,34 @@ function shortPrompt(s: string, max = 140): string {
   return s.slice(0, max).replace(/\s+\S*$/, '') + '...';
 }
 
-/**
- * Translate a raw API error message into something humans understand,
- * with an optional hint for fixing it.
- */
+/** Translate raw upstream errors into operator-friendly messages + a hint. */
 function explainError(raw: string): ErrorDetail {
   const m = raw.toLowerCase();
-  if (m.includes('xai_api_key') && m.includes('not configured')) {
+  if (m.includes('api_key') && m.includes('not configured')) {
     return {
-      message: 'xAI API key is not set in Netlify.',
-      hint: 'Add XAI_API_KEY to https://app.netlify.com/sites/atlantic-hub/configuration/env then trigger a redeploy.'
+      message: 'AI engine API key is not set in Netlify.',
+      hint: 'Add XAI_API_KEY in https://app.netlify.com/sites/atlantic-hub/configuration/env then trigger a redeploy.'
     };
   }
   if (m.includes('incorrect api key') || m.includes('invalid api key')) {
     return {
-      message: 'xAI rejected the API key.',
-      hint: 'In Netlify env vars, confirm XAI_API_KEY starts with "xai-" (not "sk-" or "OJ"). Re-paste a fresh key from console.x.ai then trigger a redeploy.'
+      message: 'AI engine rejected the API key.',
+      hint: 'Re-paste a fresh API key into Netlify env var XAI_API_KEY, then trigger a redeploy.'
     };
   }
   if (m.includes('billing') || m.includes('quota') || m.includes('insufficient')) {
     return {
-      message: 'xAI billing or quota issue.',
-      hint: 'Add credit at https://console.x.ai/team/default/billing then retry.'
+      message: 'AI engine billing or quota issue.',
+      hint: 'Top up credits on the provider console then retry.'
     };
   }
   if (m.includes('rate limit') || m.includes('429')) {
     return {
-      message: 'xAI rate limit hit.',
-      hint: 'Wait 30 seconds and try again. Bump your xAI tier if this keeps happening.'
+      message: 'AI engine rate limit hit.',
+      hint: 'Wait 30 seconds and retry. Bump the AI engine tier if this keeps happening.'
     };
   }
-  if (m.includes('502') || m.includes('xai api error')) {
+  if (m.includes('502') || m.includes('api error')) {
     return {
       message: raw,
       hint: 'Open System Events for the full upstream payload.'
@@ -118,6 +138,12 @@ function explainError(raw: string): ErrorDetail {
   }
   return { message: raw };
 }
+
+// Shared class strings so inputs are visible on every theme.
+const INPUT_CLASS =
+  'w-full border border-border rounded-lg px-3 py-2 text-sm bg-white text-slate-900 placeholder:text-slate-400';
+const TEXTAREA_CLASS = `${INPUT_CLASS} leading-relaxed`;
+const SELECT_CLASS = INPUT_CLASS;
 
 export function CommercialPanel({
   auditId,
@@ -137,7 +163,12 @@ export function CommercialPanel({
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
   const [resolution, setResolution] = useState<ResolutionTier>('1k');
   const [durationSeconds, setDurationSeconds] = useState(6);
+  const [logoSpace, setLogoSpace] = useState<LogoSpace>('bottom-right');
   const [customPrompt, setCustomPrompt] = useState(initialPrompt);
+  const [promptSource, setPromptSource] = useState<'manual' | 'visual_brief' | 'audit' | 'fallback' | null>(
+    initialPrompt ? 'manual' : null
+  );
+  const [suggesting, setSuggesting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<ErrorDetail | null>(null);
   const [justSparkled, setJustSparkled] = useState(false);
@@ -163,7 +194,6 @@ export function CommercialPanel({
     void fetchAssets();
   }, [fetchAssets]);
 
-  // Auto-poll any 'running' assets every 5s until they settle.
   useEffect(() => {
     const running = assets.some(
       (a) => a.generationStatus === 'running' || a.generationStatus === 'queued'
@@ -175,11 +205,42 @@ export function CommercialPanel({
     return () => clearInterval(handle);
   }, [assets, fetchAssets]);
 
+  async function handleSuggestPrompt() {
+    setSuggesting(true);
+    setGenerateError(null);
+    try {
+      const qs = new URLSearchParams({ assetType });
+      if (assetType === 'video') qs.set('durationSeconds', String(durationSeconds));
+      if (logoSpace !== 'none') qs.set('logoSpace', logoSpace);
+      const res = await fetch(`/api/admin/av/leads/${auditId}/commercial/prompt-preview?${qs.toString()}`);
+      const j = (await res.json()) as {
+        ok?: boolean;
+        prompt?: string;
+        source?: 'visual_brief' | 'audit' | 'fallback';
+        error?: string;
+      };
+      if (!res.ok || !j.prompt) {
+        throw new Error(j.error || `HTTP ${res.status}`);
+      }
+      setCustomPrompt(j.prompt);
+      setPromptSource(j.source ?? 'fallback');
+    } catch (err) {
+      setGenerateError(explainError((err as Error).message));
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   async function handleGenerate() {
     setGenerating(true);
     setGenerateError(null);
     try {
-      const body: Record<string, unknown> = { assetType, resolution, aspectRatio };
+      const body: Record<string, unknown> = {
+        assetType,
+        resolution,
+        aspectRatio,
+        logoSpace
+      };
       if (customPrompt.trim().length > 0) body.customPrompt = customPrompt.trim();
       if (assetType === 'image') {
         body.imageModel = imageModel;
@@ -199,14 +260,12 @@ export function CommercialPanel({
         throw new Error(`Server returned non-JSON (HTTP ${res.status}). First 200 chars: ${rawText.slice(0, 200)}`);
       }
       if (!res.ok) {
-        // The route returns { error, detail?, code? } -- combine them so the human sees the upstream message.
         const parts: string[] = [];
         if (json.error) parts.push(String(json.error));
         if (json.detail) parts.push(String(json.detail));
         if (json.code) parts.push(`code=${String(json.code)}`);
         throw new Error(parts.join(' -- ') || `HTTP ${res.status}`);
       }
-      setCustomPrompt('');
       setJustSparkled(true);
       window.setTimeout(() => setJustSparkled(false), 2200);
       await fetchAssets();
@@ -237,13 +296,11 @@ export function CommercialPanel({
     <div className="space-y-6">
       {/* Generator card */}
       <div className="relative bg-surface border border-border rounded-2xl p-6 overflow-hidden">
-        {/* Decorative gradient flourish */}
         <div className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-20 blur-3xl"
              style={{ background: 'linear-gradient(135deg, #FF5A6E 0%, #FFC73D 100%)' }} />
         <div className="pointer-events-none absolute -bottom-20 -left-24 w-56 h-56 rounded-full opacity-15 blur-3xl"
              style={{ background: 'linear-gradient(135deg, #8338EC 0%, #FF9C5B 100%)' }} />
 
-        {/* Header */}
         <div className="relative flex items-baseline gap-3 mb-1">
           <span className="text-2xl" aria-hidden>🎬</span>
           <h3 className="text-xl font-semibold tracking-tight text-ink">
@@ -260,14 +317,12 @@ export function CommercialPanel({
               commercial
             </span>
             {justSparkled && (
-              <span className="inline-block ml-2 animate-bounce" aria-hidden>
-                ✨
-              </span>
+              <span className="inline-block ml-2 animate-bounce" aria-hidden>✨</span>
             )}
           </h3>
         </div>
         <p className="relative text-sm text-muted mb-5">
-          AI-generated, on-brand for this lead. Image lands in seconds; video usually 30s-2min.
+          On-brand for this lead. Preview the prompt below, tweak it if you want, then generate.
         </p>
 
         <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -304,16 +359,16 @@ export function CommercialPanel({
           {assetType === 'image' ? (
             <div>
               <label className="block text-[11px] uppercase tracking-[0.12em] text-muted mb-1.5">
-                Image model
+                Look
               </label>
               <select
                 value={imageModel}
                 onChange={(e) => setImageModel(e.target.value as ImageModel)}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white"
+                className={SELECT_CLASS}
               >
                 {IMAGE_MODEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {opt.label} -- {opt.sub}
                   </option>
                 ))}
               </select>
@@ -321,7 +376,7 @@ export function CommercialPanel({
           ) : (
             <div>
               <label className="block text-[11px] uppercase tracking-[0.12em] text-muted mb-1.5">
-                Duration (seconds)
+                Duration (seconds, 1-15)
               </label>
               <input
                 type="number"
@@ -331,7 +386,7 @@ export function CommercialPanel({
                 onChange={(e) =>
                   setDurationSeconds(Math.min(15, Math.max(1, Number(e.target.value) || 6)))
                 }
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white"
+                className={INPUT_CLASS}
               />
             </div>
           )}
@@ -343,7 +398,7 @@ export function CommercialPanel({
             <select
               value={aspectRatio}
               onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white"
+              className={SELECT_CLASS}
             >
               {ASPECT_RATIO_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -355,7 +410,7 @@ export function CommercialPanel({
 
           <div>
             <label className="block text-[11px] uppercase tracking-[0.12em] text-muted mb-1.5">
-              Resolution tier
+              Resolution
             </label>
             <div className="inline-flex rounded-full border border-border overflow-hidden p-0.5 bg-bg">
               <button
@@ -382,21 +437,85 @@ export function CommercialPanel({
               </button>
             </div>
           </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-[11px] uppercase tracking-[0.12em] text-muted mb-1.5">
+              Reserve space for a logo overlay (added in post)
+            </label>
+            <select
+              value={logoSpace}
+              onChange={(e) => setLogoSpace(e.target.value as LogoSpace)}
+              className={SELECT_CLASS}
+            >
+              {LOGO_SPACE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted mt-1">
+              Tip: AI engines render logos badly. Leave clean negative space here and drop the real logo on top in Canva, Figma, or your editor of choice.
+            </p>
+          </div>
         </div>
 
+        {/* Prompt area -- now visible + editable by default */}
         <div className="relative mt-4">
-          <label className="block text-[11px] uppercase tracking-[0.12em] text-muted mb-1.5">
-            Custom prompt (optional) -- leave blank to auto-build from this lead&apos;s visual brief
-          </label>
+          <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+            <label className="block text-[11px] uppercase tracking-[0.12em] text-muted">
+              Prompt sent to the AI engine
+            </label>
+            <div className="flex items-center gap-2">
+              {promptSource && (
+                <span className="text-[10px] uppercase tracking-[0.1em] px-2 py-0.5 rounded-full border border-border text-muted">
+                  Source: {promptSource.replace('_', ' ')}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleSuggestPrompt()}
+                disabled={suggesting}
+                className="text-[11px] px-3 py-1 rounded-full text-white font-medium disabled:opacity-60"
+                style={{
+                  background: 'linear-gradient(120deg, #4A1942, #8338EC)',
+                  boxShadow: '0 4px 12px -4px rgba(131,56,236,0.4)'
+                }}
+              >
+                {suggesting ? 'Drafting...' : '✨ Suggest prompt'}
+              </button>
+              {customPrompt && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomPrompt('');
+                    setPromptSource(null);
+                  }}
+                  className="text-[11px] px-2 py-1 rounded text-muted hover:text-ink"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
           <textarea
             value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder="e.g. Sun-drenched hero shot of an artisan coffee bar in soft morning light, steam rising, warm wood and brass accents..."
-            rows={3}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white"
+            onChange={(e) => {
+              setCustomPrompt(e.target.value);
+              setPromptSource('manual');
+            }}
+            placeholder="Click Suggest prompt to auto-build one from this lead's visual brief, or type your own. The text here is what the AI engine sees verbatim."
+            rows={6}
+            className={TEXTAREA_CLASS}
             maxLength={4000}
           />
-          <div className="text-[11px] text-muted mt-1">{customPrompt.length} / 4000</div>
+          <div className="text-[11px] text-muted mt-1 flex items-center justify-between">
+            <span>{customPrompt.length} / 4000</span>
+            {customPrompt.length === 0 && (
+              <span className="text-amber-300">
+                Empty prompt -- a default will be auto-built at generation time.
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="relative mt-4 flex items-center gap-3 flex-wrap">
@@ -422,7 +541,6 @@ export function CommercialPanel({
           </button>
         </div>
 
-        {/* Detailed error card -- shows upstream xAI message + a hint */}
         {generateError && (
           <div className="relative mt-4 rounded-xl border border-red-400/40 bg-red-500/10 p-4">
             <div className="flex items-start gap-3">
@@ -537,7 +655,7 @@ function AssetCard({ asset, onDelete }: { asset: Asset; onDelete: () => void }) 
             <div className="inline-block text-amber-300 text-3xl animate-pulse">◐</div>
             <p className="text-xs text-muted mt-3 max-w-xs">
               {asset.assetType === 'video'
-                ? 'Rendering on xAI -- 30s to a few minutes.'
+                ? 'Rendering -- 30s to a few minutes.'
                 : 'Generating...'}
             </p>
           </div>
@@ -562,7 +680,7 @@ function AssetCard({ asset, onDelete }: { asset: Asset; onDelete: () => void }) 
       <div className="p-3 flex-1 flex flex-col gap-2">
         <p className="text-xs text-ink leading-relaxed">{shortPrompt(asset.prompt)}</p>
         <div className="text-[10px] text-muted flex flex-wrap gap-x-3 gap-y-1">
-          <span>{asset.model}</span>
+          <span>{friendlyModelLabel(asset.model)}</span>
           <span>{asset.resolutionTier.toUpperCase()}</span>
           {asset.aspectRatio && <span>{asset.aspectRatio}</span>}
           <span>{new Date(asset.createdAt).toLocaleString()}</span>

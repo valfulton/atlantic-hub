@@ -284,9 +284,10 @@ function PostCard({
 }
 
 /**
- * Inline panel that lets the operator turn a social post into a Grok commercial
- * without leaving the social-content modal. Pre-fills the post text as the
- * custom prompt and exposes a minimal control set so the action is one click.
+ * Inline panel that lets the operator turn a social post into a commercial
+ * without leaving the social-content modal. The post body is pre-filled as
+ * the editable prompt; a "Suggest prompt" button blends in the lead's
+ * visual brief for higher-quality output.
  */
 function PostToCommercialBridge({
   auditId,
@@ -301,6 +302,12 @@ function PostToCommercialBridge({
 }) {
   const [assetType, setAssetType] = useState<CommercialAssetType>('image');
   const [aspect, setAspect] = useState<CommercialAspect>(suggestedAspect);
+  const [logoSpace, setLogoSpace] = useState<'none' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
+  // The prompt the AI engine will see. Default: the post body, since that's
+  // the visual brief in this bridge. Operator can edit before sending.
+  const [prompt, setPrompt] = useState<string>(postText);
+  const [promptSource, setPromptSource] = useState<'post' | 'manual' | 'visual_brief' | 'audit' | 'fallback'>('post');
+  const [suggesting, setSuggesting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<CommercialResult | null>(null);
   const [errorDetail, setErrorDetail] = useState<{ message: string; hint?: string } | null>(null);
@@ -308,20 +315,20 @@ function PostToCommercialBridge({
 
   function explain(raw: string): { message: string; hint?: string } {
     const m = raw.toLowerCase();
-    if (m.includes('xai_api_key') && m.includes('not configured')) {
+    if (m.includes('api_key') && m.includes('not configured')) {
       return {
-        message: 'xAI API key is not set in Netlify.',
+        message: 'AI engine API key is not set in Netlify.',
         hint: 'Add XAI_API_KEY in Netlify env vars, then trigger a redeploy.'
       };
     }
     if (m.includes('incorrect api key') || m.includes('invalid api key')) {
       return {
-        message: 'xAI rejected the API key.',
-        hint: 'Confirm the env var starts with "xai-" (not "sk-" or "OJ"). Re-paste from console.x.ai and trigger redeploy.'
+        message: 'AI engine rejected the API key.',
+        hint: 'Re-paste a fresh AI engine key into Netlify env var XAI_API_KEY, then trigger a redeploy.'
       };
     }
     if (m.includes('rate limit') || m.includes('429')) {
-      return { message: 'xAI rate limit hit -- wait 30s and retry.' };
+      return { message: 'AI engine rate limit hit -- wait 30s and retry.' };
     }
     return { message: raw };
   }
@@ -347,6 +354,34 @@ function PostToCommercialBridge({
     setPolling(false);
   }
 
+  async function suggestPrompt() {
+    setSuggesting(true);
+    setErrorDetail(null);
+    try {
+      const qs = new URLSearchParams({ assetType });
+      if (assetType === 'video') qs.set('durationSeconds', '6');
+      if (logoSpace !== 'none') qs.set('logoSpace', logoSpace);
+      const r = await fetch(`/api/admin/av/leads/${auditId}/commercial/prompt-preview?${qs.toString()}`);
+      const j = (await r.json()) as {
+        ok?: boolean;
+        prompt?: string;
+        source?: 'visual_brief' | 'audit' | 'fallback';
+        error?: string;
+      };
+      if (!r.ok || !j.prompt) throw new Error(j.error || `HTTP ${r.status}`);
+      // Blend: prepend the social post body so the commercial reflects the
+      // exact angle of the post, then append the system's auto-built brief
+      // for premium / brand-safe direction.
+      const blended = `Visual brief from the social post: ${postText.trim()}\n\n${j.prompt}`;
+      setPrompt(blended);
+      setPromptSource(j.source ?? 'fallback');
+    } catch (err) {
+      setErrorDetail(explain((err as Error).message));
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   async function generate() {
     setGenerating(true);
     setErrorDetail(null);
@@ -356,7 +391,8 @@ function PostToCommercialBridge({
         assetType,
         aspectRatio: aspect,
         resolution: '1k',
-        customPrompt: postText
+        logoSpace,
+        customPrompt: prompt
       };
       if (assetType === 'image') {
         body.imageModel = 'grok-imagine-image-quality';
@@ -427,8 +463,7 @@ function PostToCommercialBridge({
         <select
           value={aspect}
           onChange={(e) => setAspect(e.target.value as CommercialAspect)}
-          className="text-xs px-2 py-1 rounded border border-border"
-          style={{ backgroundColor: '#1a1f2e', color: '#f1f5f9' }}
+          className="text-xs px-2 py-1 rounded border border-border bg-white text-slate-900"
         >
           <option value="16:9">16:9</option>
           <option value="9:16">9:16</option>
@@ -437,10 +472,37 @@ function PostToCommercialBridge({
           <option value="3:4">3:4</option>
         </select>
 
+        <select
+          value={logoSpace}
+          onChange={(e) => setLogoSpace(e.target.value as typeof logoSpace)}
+          className="text-xs px-2 py-1 rounded border border-border bg-white text-slate-900"
+          title="Reserve a clean corner for a logo overlay added in post"
+        >
+          <option value="none">No logo space</option>
+          <option value="top-left">Logo space: top-left</option>
+          <option value="top-right">Logo space: top-right</option>
+          <option value="bottom-left">Logo space: bottom-left</option>
+          <option value="bottom-right">Logo space: bottom-right</option>
+        </select>
+
+        <button
+          type="button"
+          onClick={() => void suggestPrompt()}
+          disabled={suggesting}
+          className="text-xs px-3 py-1 rounded-full text-white font-medium disabled:opacity-60"
+          style={{
+            background: 'linear-gradient(120deg, #4A1942, #8338EC)',
+            boxShadow: '0 4px 12px -4px rgba(131,56,236,0.4)'
+          }}
+          title="Blend this post with the lead's visual brief"
+        >
+          {suggesting ? 'Drafting...' : '✨ Suggest prompt'}
+        </button>
+
         <button
           type="button"
           onClick={() => void generate()}
-          disabled={generating}
+          disabled={generating || prompt.trim().length === 0}
           className="text-xs px-3 py-1.5 rounded-full text-white font-medium disabled:opacity-60"
           style={{
             background: 'linear-gradient(120deg, #FF5A6E, #FF9C5B, #FFC73D)',
@@ -457,6 +519,30 @@ function PostToCommercialBridge({
         >
           Hide
         </button>
+      </div>
+
+      {/* The editable prompt -- visible by default, populated from the post text */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-[10px] uppercase tracking-[0.12em] text-muted">
+            Prompt sent to the AI engine
+          </label>
+          <span className="text-[10px] uppercase tracking-[0.1em] px-2 py-0.5 rounded-full border border-border text-muted">
+            Source: {promptSource.replace('_', ' ')}
+          </span>
+        </div>
+        <textarea
+          value={prompt}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            if (promptSource !== 'manual') setPromptSource('manual');
+          }}
+          rows={5}
+          maxLength={4000}
+          className="w-full text-xs leading-relaxed rounded border border-border px-2 py-2 bg-white text-slate-900 placeholder:text-slate-400"
+          placeholder="Edit before sending. Click Suggest prompt to blend the post with the lead's visual brief."
+        />
+        <div className="text-[10px] text-muted mt-0.5">{prompt.length} / 4000</div>
       </div>
 
       {errorDetail && (
@@ -483,7 +569,7 @@ function PostToCommercialBridge({
           ) : (
             <div className="p-4 text-xs text-muted text-center">
               {polling
-                ? 'Video rendering on xAI -- this card will fill in when it lands (usually under 2 minutes).'
+                ? 'Video rendering -- this card will fill in when it lands (usually under 2 minutes).'
                 : 'Queued.'}
             </div>
           )}

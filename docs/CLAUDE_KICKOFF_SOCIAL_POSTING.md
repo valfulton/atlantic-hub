@@ -212,7 +212,7 @@ new posts based on lead heat" + the timezones / preferred-windows config.
 ### Per-lead "Push to social"
 
 On the lead detail page Commercials tab (existing UI), each successfully
-generated asset card gets a **Push to social** button. Click -> dialog
+generated asset card gets a **Push to social** button. ((Make it fun! Encourage my clients with the energy of the pop journey and the sea. Make pushing to social really fun. Make sure that a creative brief is used as a model for approval that is clear and fun to see make sure the messaging pops and is connected. ))Click -> dialog
 asks: which connections, what caption (pre-filled from the existing AI
 social content generator output if available), when (now / smart schedule
 / pick datetime). Submit -> creates `social_posts` row(s).

@@ -34,6 +34,9 @@ import {
 } from '@/lib/auth/client-magic-token';
 import { upsertClientUserForIntake } from '@/lib/auth/client-user';
 import { corsHeadersFor } from '@/lib/auth/client-cors';
+import { sendEmail } from '@/lib/email/smtp';
+import { buildMagicLinkEmail } from '@/lib/email/magic-link-template';
+import { MAGIC_TOKEN_TTL_HOURS } from '@/lib/auth/client-magic-token';
 
 export const runtime = 'nodejs';
 
@@ -124,9 +127,25 @@ export async function POST(req: NextRequest) {
 
     const link = buildMagicLinkUrl(magicToken);
 
-    // CONSOLE-LOG the link so the operator can grab it from Netlify
-    // function logs and forward it manually. Distinctive prefix makes
-    // it easy to grep.
+    // Send the magic-link email via SMTP (HostGator outreach@ mailbox).
+    // If SMTP is not configured, we fall back to console-logging so
+    // the link is still recoverable from Netlify function logs.
+    const emailBody = buildMagicLinkEmail({
+      recipientName: row.display_name ?? displayName,
+      magicLinkUrl: link,
+      expiresInHours: MAGIC_TOKEN_TTL_HOURS,
+      isFirstTime: created || !row.password_hash
+    });
+    const emailResult = await sendEmail({
+      to: email,
+      subject: emailBody.subject,
+      text: emailBody.text,
+      html: emailBody.html
+    });
+
+    // Always log a structured trail. If email sent, we record the
+    // messageId; if not, we still log the link so it can be recovered
+    // manually.
     console.log(
       '[client-portal:magic-link]',
       JSON.stringify({
@@ -134,7 +153,10 @@ export async function POST(req: NextRequest) {
         clientUserId: row.client_user_id,
         link,
         expiresAt: expiresAt.toISOString(),
-        firstTime: created
+        firstTime: created,
+        emailSent: emailResult.sent,
+        emailReason: emailResult.reason ?? null,
+        messageId: emailResult.messageId ?? null
       })
     );
 
@@ -142,10 +164,13 @@ export async function POST(req: NextRequest) {
       actorUserId: row.client_user_id,
       actorRole: 'client_user',
       targetResource: '/api/client/intake',
-      action: created ? 'intake_created' : 'intake_returning',
+      action: emailResult.sent
+        ? (created ? 'intake_created_emailed' : 'intake_returning_emailed')
+        : (created ? 'intake_created' : 'intake_returning'),
       ip,
       userAgent: ua,
-      statusCode: 200
+      statusCode: 200,
+      errorClass: emailResult.sent ? null : (emailResult.reason ?? 'EmailNotSent')
     });
 
     return NextResponse.json(

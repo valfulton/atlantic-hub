@@ -45,6 +45,14 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 export type AssetType = 'image' | 'video';
 export type GenerationStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
+/** Where in the frame to leave clean negative space for a post-production logo overlay. */
+export type LogoSpace =
+  | 'none'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
+
 interface LeadContextRow extends RowDataPacket {
   id: number;
   audit_id: string;
@@ -97,6 +105,9 @@ export interface GenerateCommercialOptions {
   pollTimeoutMs?: number;
   /** Actor user id for the audit trail; ignored if null. */
   actorUserId?: number | null;
+  /** If set to a corner, the auto-built prompt asks the model to leave clean
+   *  negative space there for a post-production logo overlay. */
+  logoSpace?: LogoSpace;
 }
 
 export interface GeneratedCommercial {
@@ -125,6 +136,31 @@ function truncate(s: string, max: number): string {
 }
 
 /**
+ * Shared brand-safety clause appended to every commercial prompt.
+ *
+ * Tells the model: do not invent or include any brand, trademark, or
+ * competitor name. The only brand allowed is the lead's own company
+ * name (and even that is description-only -- the model must render no
+ * actual text or logo).
+ */
+const BRAND_SAFETY_CLAUSE =
+  'Do not render any text, logos, watermarks, brand names, trademarks, mascots, or competitor brand cues anywhere in the frame. ' +
+  'No fictional brand insignia. Treat all visible signage as blank, generic, or out of focus.';
+
+/** Translate a logo-space corner into a concrete negative-space instruction. */
+function logoSpaceClause(space?: LogoSpace): string | null {
+  if (!space || space === 'none') return null;
+  const human: Record<Exclude<LogoSpace, 'none'>, string> = {
+    'top-left': 'upper left',
+    'top-right': 'upper right',
+    'bottom-left': 'lower left',
+    'bottom-right': 'lower right'
+  };
+  const corner = human[space];
+  return `Reserve a clean, low-detail negative-space area in the ${corner} of the frame (soft, uncluttered background, no busy subject matter there) so a logo can be overlaid in post-production.`;
+}
+
+/**
  * Build the image generation prompt.
  *
  * Priority order:
@@ -135,55 +171,105 @@ function truncate(s: string, max: number): string {
  * direction (hero shot, palette, motifs, persona, do-nots), whereas the
  * audit was engineered for sales strategy and gives generic prompts.
  */
-function buildImagePrompt(lead: LeadContextRow, brief: VisualBriefRecord | null): string {
+function buildImagePrompt(
+  lead: LeadContextRow,
+  brief: VisualBriefRecord | null,
+  logoSpace?: LogoSpace
+): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
   const briefFragment = visualBriefToPromptFragment(brief);
+  const logoClause = logoSpaceClause(logoSpace);
 
   if (briefFragment) {
     return [
-      `Premium commercial hero image for ${lead.company}, a ${industry} business.`,
+      `Premium commercial hero image for ${lead.company}, an independent ${industry} business.`,
+      `Authentic, magazine-quality advertising photography. Editorial lighting. Sharp focus on a single confident subject. Real-world feel, not stock-photo cliche.`,
       briefFragment,
-      `No text, no logos, no watermarks. Composition should leave negative space for caption overlay.`
-    ].join(' ');
+      logoClause,
+      BRAND_SAFETY_CLAUSE
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   // Legacy fallback path (no visual brief yet)
   const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 600) : '';
   return [
-    `Premium commercial hero image for ${lead.company}, a ${industry} business.`,
-    `Cinematic lighting, sharp focus, professional commercial advertising style, on-brand for a high-end ${industry} company.`,
-    auditSnippet ? `Tone clues from their strategic audit: ${auditSnippet}` : null,
-    `No text, no logos, no watermarks. Composition should leave negative space for caption overlay.`,
-    `Mood: confident, inviting, premium. Color palette: warm and natural.`
+    `Premium commercial hero image for ${lead.company}, an independent ${industry} business.`,
+    `Cinematic editorial lighting, sharp focus, magazine-quality advertising composition with one clear hero subject.`,
+    auditSnippet ? `Tone cues from the brand audit: ${auditSnippet}` : null,
+    `Mood: confident, inviting, premium. Warm, natural color palette. Real-world authenticity over stock-photo polish.`,
+    logoClause,
+    BRAND_SAFETY_CLAUSE
   ]
     .filter(Boolean)
     .join(' ');
 }
 
-function buildVideoPrompt(lead: LeadContextRow, durationSeconds: number, brief: VisualBriefRecord | null): string {
+function buildVideoPrompt(
+  lead: LeadContextRow,
+  durationSeconds: number,
+  brief: VisualBriefRecord | null,
+  logoSpace?: LogoSpace
+): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
   const briefFragment = visualBriefToPromptFragment(brief);
+  const logoClause = logoSpaceClause(logoSpace);
 
   if (briefFragment) {
     return [
-      `${durationSeconds}-second commercial-style advertising video for ${lead.company}, a ${industry} business.`,
+      `${durationSeconds}-second premium commercial-style advertising video for ${lead.company}, an independent ${industry} business.`,
+      `One clear hero moment. Fluid camera movement (slow push-in or smooth handheld). Cinematic depth of field. Editorial-grade lighting.`,
       briefFragment,
-      `Fluid camera movement, social-media ready framing.`,
-      `No text overlays, no logos, no watermarks. Real-world authentic feel, not stock-footage feel.`
-    ].join(' ');
+      `Real-world authentic feel, not stock-footage. Social-media ready framing.`,
+      logoClause,
+      BRAND_SAFETY_CLAUSE
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   // Legacy fallback path
   const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 500) : '';
   return [
-    `${durationSeconds}-second commercial-style advertising video for ${lead.company}, a ${industry} business.`,
-    `Cinematic, fluid camera movement, premium product/lifestyle shots, golden-hour or studio lighting, vertical or 16:9 social-media ready framing.`,
-    auditSnippet ? `Brand tone clues from their strategic audit: ${auditSnippet}` : null,
-    `No text overlays, no logos, no watermarks. Real-world authentic feel, not stock-footage feel.`,
-    `Pacing should feel premium and confident, with one clear hero moment.`
+    `${durationSeconds}-second premium commercial-style advertising video for ${lead.company}, an independent ${industry} business.`,
+    `Cinematic, fluid camera movement, premium product/lifestyle shots, golden-hour or editorial studio lighting. One clear hero moment within the cut.`,
+    auditSnippet ? `Brand tone cues from the audit: ${auditSnippet}` : null,
+    `Pacing: confident, premium, never frantic. Real-world authentic feel over stock-footage gloss.`,
+    logoClause,
+    BRAND_SAFETY_CLAUSE
   ]
     .filter(Boolean)
     .join(' ');
+}
+
+/**
+ * Public helper so API routes can preview the prompt that WOULD be used
+ * for a given lead + asset type, without actually calling the model.
+ * Uses the current active visual brief if one exists; does not generate
+ * a brief on the fly.
+ */
+export async function buildPromptForLead(
+  leadId: number,
+  args: {
+    assetType: AssetType;
+    durationSeconds?: number;
+    logoSpace?: LogoSpace;
+  }
+): Promise<{ prompt: string; source: 'visual_brief' | 'audit' | 'fallback'; briefId: number | null } | null> {
+  const lead = await loadLeadContext(leadId);
+  if (!lead) return null;
+  const brief = await getActiveBriefForLead(lead.id);
+  const source: 'visual_brief' | 'audit' | 'fallback' = brief
+    ? 'visual_brief'
+    : lead.audit_content
+    ? 'audit'
+    : 'fallback';
+  const prompt =
+    args.assetType === 'image'
+      ? buildImagePrompt(lead, brief, args.logoSpace)
+      : buildVideoPrompt(lead, Math.max(1, Math.min(15, args.durationSeconds ?? 6)), brief, args.logoSpace);
+  return { prompt, source, briefId: brief?.id ?? null };
 }
 
 // ---------------------------------------------------------------------
@@ -396,7 +482,7 @@ async function generateImageCommercial(args: {
     }
   }
 
-  const builtPrompt = buildImagePrompt(lead, brief);
+  const builtPrompt = buildImagePrompt(lead, brief, options.logoSpace);
   const effectivePrompt = options.customPrompt?.trim() || builtPrompt;
 
   const startMs = Date.now();
@@ -552,7 +638,7 @@ async function generateVideoCommercial(args: {
     }
   }
 
-  const builtPrompt = buildVideoPrompt(lead, duration, brief);
+  const builtPrompt = buildVideoPrompt(lead, duration, brief, options.logoSpace);
   const effectivePrompt = options.customPrompt?.trim() || builtPrompt;
   const pollTimeoutMs = options.pollTimeoutMs ?? 50_000;
 

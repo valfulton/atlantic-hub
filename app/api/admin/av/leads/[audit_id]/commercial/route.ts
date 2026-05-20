@@ -40,7 +40,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
-import { generateCommercialForLead } from '@/lib/grok/discoverer';
+import { generateCommercialForLead, type LogoSpace } from '@/lib/grok/discoverer';
 import {
   GrokApiKeyMissingError,
   GrokApiError,
@@ -71,6 +71,13 @@ const VALID_ASPECT_RATIOS = new Set<GrokAspectRatio>([
   '3:2',
   '2:3'
 ]);
+const VALID_LOGO_SPACES: ReadonlySet<LogoSpace> = new Set([
+  'none',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right'
+] as const);
 
 export async function POST(req: NextRequest, { params }: { params: { audit_id: string } }) {
   const guard = await guardAdminRequest(req, {
@@ -142,6 +149,14 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
     customPrompt = payload.customPrompt.trim();
   }
 
+  let logoSpace: LogoSpace | undefined;
+  if (typeof payload.logoSpace === 'string') {
+    if (!VALID_LOGO_SPACES.has(payload.logoSpace as LogoSpace)) {
+      return NextResponse.json({ error: 'invalid logoSpace' }, { status: 400 });
+    }
+    logoSpace = payload.logoSpace as LogoSpace;
+  }
+
   // Resolve the audit_id -> internal lead id.
   const db = getAvDb();
   const [leadRows] = await db.execute<(RowDataPacket & { id: number })[]>(
@@ -161,6 +176,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       durationSeconds,
       resolution,
       aspectRatio,
+      logoSpace,
       actorUserId: guard.actor.userId
     });
 
