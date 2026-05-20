@@ -4,6 +4,7 @@ import { serverFetch } from '@/lib/server-fetch';
 import { AvLeadsTable } from './AvLeadsTable';
 import type { AvLead } from './AvLeadsTable';
 import { EnrichButton } from './EnrichButton';
+import { CoachCallsButton } from './CoachCallsButton';
 import { LeadOfTheDay } from '@/components/LeadOfTheDay';
 import { HotLeadConfetti } from '@/components/HotLeadConfetti';
 import { PipelineValueCard } from '@/components/PipelineValueCard';
@@ -344,7 +345,10 @@ export default async function AvPage({
           <h2 className="text-sm font-medium text-muted">
             Atlantic &amp; Vine — Audit-form leads (your business)
           </h2>
-          <EnrichButton defaultLimit={5} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <CoachCallsButton defaultLimit={25} />
+            <EnrichButton defaultLimit={5} />
+          </div>
         </div>
         <AvLeadsTable leads={leads} sortKey={sortParam} sortDirection={directionParam as 'asc' | 'desc'} />
       </div>
