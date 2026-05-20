@@ -122,11 +122,23 @@ export async function LeadOfTheDay() {
       <div className="flex items-center gap-4">
         <div className="shrink-0 flex flex-col items-center justify-center w-16">
           <div className="text-3xl font-bold tabular-nums text-ink">
-            {candidate.aiScore}
+            {candidate.aiCombinedScore ?? candidate.aiScore}
           </div>
           <div className="text-[9px] uppercase tracking-wider text-muted -mt-0.5">
             AI score
           </div>
+          {candidate.aiEngagementScore !== undefined && candidate.aiEngagementScore !== 0 && (
+            <div
+              className={
+                candidate.aiEngagementScore > 0
+                  ? 'text-[10px] tabular-nums text-emerald-300'
+                  : 'text-[10px] tabular-nums text-rose-300'
+              }
+              title={`Engagement ${candidate.aiEngagementScore > 0 ? '+' : ''}${candidate.aiEngagementScore}`}
+            >
+              {candidate.aiEngagementScore > 0 ? '+' : ''}{candidate.aiEngagementScore}
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">

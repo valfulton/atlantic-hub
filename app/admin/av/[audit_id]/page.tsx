@@ -47,7 +47,7 @@ export default async function AvLeadDetailPage({
           <SocialContentButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
           <AnimatedScoreReveal
-            score={lead.aiScore}
+            score={lead.aiCombinedScore ?? lead.aiScore}
             band={lead.aiScoreBand as 'hot' | 'warm' | 'cool' | null}
             breakdown={lead.aiScoreBreakdown as
               | { fit: number; intent: number; reachability: number; icp_match: number }

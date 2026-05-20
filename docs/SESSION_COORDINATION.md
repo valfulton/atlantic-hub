@@ -28,7 +28,8 @@ Check this table before writing a migration. Update this table when you ship.
 | 015 | client_users.tier rename (starter/growth -> sprint/momentum) | shipped 2026-05-18 | Grok Imagine session (pricing alignment) |
 | 016 | lead_visual_briefs (Option C creative direction layer) | shipped 2026-05-18 | Grok Imagine session (visual brief) |
 | 017 | social_connections + social_posts + social_publish_log | reserved | Social Posting Connectors session |
-| 018+ | unreserved | available | request from conductor |
+| 018 | living_score (ai_engagement_score + ai_combined_score + score_history) | in flight 2026-05-19 | Cowork Claude (VP of Sales rollout, ship 1 of 5) |
+| 019+ | unreserved | available | request from conductor |
 
 ---
 

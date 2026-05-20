@@ -45,6 +45,10 @@ interface LeadDetailRow extends RowDataPacket {
   ai_email_body: string | null;
   ai_last_scored_at: string | null;
   ai_model_version: string | null;
+  ai_engagement_score: number | null;
+  ai_combined_score: number | null;
+  engagement_score_updated_at: string | null;
+  score_history: string | object | null;
   tags: string | object | null;
   last_activity_at: string | null;
   client_id: number | null;
@@ -87,6 +91,7 @@ export async function GET(
               approved_by, submission_date, lead_status, follow_up_date, notes,
               ai_score, ai_score_band, ai_score_reason, ai_score_breakdown, ai_audit,
               ai_email_subject, ai_email_body, ai_last_scored_at, ai_model_version,
+              ai_engagement_score, ai_combined_score, engagement_score_updated_at, score_history,
               tags, last_activity_at, client_id, pipeline_stage_id, source_type,
               target_business, archived_at,
               created_at, updated_at
@@ -133,6 +138,10 @@ export async function GET(
         aiEmailBody: r.ai_email_body,
         aiLastScoredAt: r.ai_last_scored_at,
         aiModelVersion: r.ai_model_version,
+        aiEngagementScore: r.ai_engagement_score === null ? 0 : Number(r.ai_engagement_score),
+        aiCombinedScore: r.ai_combined_score === null ? null : Number(r.ai_combined_score),
+        engagementScoreUpdatedAt: r.engagement_score_updated_at,
+        scoreHistory: safeParse(r.score_history as string | object | null),
         tags: safeParse(r.tags as string | object | null),
         lastActivityAt: r.last_activity_at,
         clientId: r.client_id,

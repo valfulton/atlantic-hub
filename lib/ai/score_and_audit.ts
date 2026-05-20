@@ -23,6 +23,7 @@
  */
 
 import { getAvDb } from '@/lib/db/av';
+import { recomputeCombinedForLead } from '@/lib/ai/engagement_score';
 import {
   openaiChatCompletion,
   parseOpenAIJson,
@@ -328,6 +329,11 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
     });
     return null;
   }
+
+  // Living Score: ai_score (fit) just changed. Refresh ai_combined_score
+  // so the dashboard's visible number reflects the new fit immediately.
+  // Engagement delta is unchanged -- a Re-score is not an engagement event.
+  await recomputeCombinedForLead(lead.id);
 
   const elapsedMs = Date.now() - start;
 

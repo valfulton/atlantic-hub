@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ScoreRadarChart } from '@/components/ScoreRadarChart';
+import { ScoreSparkline } from '@/components/ScoreSparkline';
 import { CommercialPanel } from './CommercialPanel';
 import { OutreachPanel } from './OutreachPanel';
 
@@ -43,6 +44,18 @@ interface Lead {
   aiEmailBody: string | null;
   aiLastScoredAt: string | null;
   aiModelVersion: string | null;
+  aiEngagementScore?: number;
+  aiCombinedScore?: number | null;
+  engagementScoreUpdatedAt?: string | null;
+  scoreHistory?: Array<{
+    at: string;
+    event_type: string;
+    delta: number;
+    fit: number | null;
+    engagement: number;
+    combined: number;
+    note?: string;
+  }> | null;
   sourceType: string;
 }
 
@@ -373,16 +386,50 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             <div className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <ScoreCard label="Score" value={String(lead.aiScore)} />
-                    <ScoreCard label="Band" value={lead.aiScoreBand ?? '—'} />
-                    <ScoreCard label="Model" value={lead.aiModelVersion ?? '—'} />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <ScoreCard
+                      label="Combined"
+                      value={String(lead.aiCombinedScore ?? lead.aiScore ?? '-')}
+                      hint="What the dashboard shows"
+                    />
+                    <ScoreCard
+                      label="Fit"
+                      value={String(lead.aiScore ?? '-')}
+                      hint="Set by AI scorer"
+                    />
+                    <EngagementCard delta={lead.aiEngagementScore ?? 0} />
+                    <ScoreCard label="Band" value={lead.aiScoreBand ?? '-'} />
                   </div>
+                  {lead.scoreHistory && lead.scoreHistory.length >= 2 && (
+                    <div className="bg-surface border border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="field-label">Score history</div>
+                        <span className="text-[10px] text-muted">
+                          {lead.scoreHistory.length} signals
+                          {lead.engagementScoreUpdatedAt && (
+                            <> {`-- last moved ${new Date(lead.engagementScoreUpdatedAt).toLocaleString()}`}</>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <ScoreSparkline history={lead.scoreHistory} width={220} height={48} />
+                        <div className="text-xs text-muted">
+                          Most recent: <span className="text-ink">{lead.scoreHistory[0].event_type}</span>
+                          {lead.scoreHistory[0].delta !== 0 && (
+                            <span className={lead.scoreHistory[0].delta > 0 ? ' text-emerald-300' : ' text-rose-300'}>
+                              {' '}({lead.scoreHistory[0].delta > 0 ? '+' : ''}{lead.scoreHistory[0].delta})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {lead.aiScoreReason && (
                     <Section label="Score reason">
                       <p className="text-sm">{lead.aiScoreReason}</p>
                     </Section>
                   )}
+                  <ScoreCard label="Model" value={lead.aiModelVersion ?? '-'} />
                 </div>
                 {lead.aiScoreBreakdown && (
                   <div className="bg-surface border border-border rounded-lg p-4">
@@ -506,11 +553,37 @@ function Field({ label, value }: { label: string; value: string | null | undefin
   );
 }
 
-function ScoreCard({ label, value }: { label: string; value: string }) {
+function ScoreCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="bg-surface border border-border rounded-lg p-4">
       <div className="field-label">{label}</div>
-      <div className="text-2xl font-semibold mt-1">{value}</div>
+      <div className="text-2xl font-semibold mt-1 tabular-nums">{value}</div>
+      {hint && <div className="text-[10px] text-muted mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+function EngagementCard({ delta }: { delta: number }) {
+  const sign = delta > 0 ? '+' : '';
+  const color =
+    delta > 0
+      ? 'text-emerald-300'
+      : delta < 0
+      ? 'text-rose-300'
+      : 'text-ink';
+  return (
+    <div className="bg-surface border border-border rounded-lg p-4">
+      <div className="field-label">Engagement</div>
+      <div className={`text-2xl font-semibold mt-1 tabular-nums ${color}`}>
+        {delta === 0 ? '0' : `${sign}${delta}`}
+      </div>
+      <div className="text-[10px] text-muted mt-1">
+        {delta === 0
+          ? 'No signals yet'
+          : delta > 0
+          ? 'Lead is warming up'
+          : 'Lead is cooling off'}
+      </div>
     </div>
   );
 }

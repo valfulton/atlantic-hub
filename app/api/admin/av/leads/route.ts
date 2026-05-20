@@ -21,6 +21,9 @@ interface LeadRow extends RowDataPacket {
   ai_score_band: 'hot' | 'warm' | 'cool' | null;
   ai_score_reason: string | null;
   ai_score_breakdown: string | object | null;
+  ai_engagement_score: number | null;
+  ai_combined_score: number | null;
+  engagement_score_updated_at: string | null;
   submission_date: string;
   source_type: string;
   target_business: 'av' | 'ebw' | 'both';
@@ -50,14 +53,16 @@ const REAL_EMAIL_SQL = `(
   AND email != 'info@eventsbywater.com'
 )`;
 
-// URL sort key → SQL column (whitelist; never inject user input into ORDER BY)
+// URL sort key -> SQL column (whitelist; never inject user input into ORDER BY)
 const SORT_COLUMN: Record<string, string> = {
   company: 'company',
   contact: 'contact_name',
   email: 'email',
   industry: 'industry',
   status: 'lead_status',
-  score: 'ai_score',
+  score: 'ai_combined_score',     // Living Score: sort on the visible combined number
+  fit: 'ai_score',                // keep fit-only sort available for power users
+  engagement: 'ai_engagement_score',
   band: 'ai_score_band',
   submitted: 'submission_date',
   enriched: 'enriched_at'
@@ -150,6 +155,7 @@ export async function GET(req: NextRequest) {
     const [rows] = await db.execute<LeadRow[]>(
       `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
               lead_status, ai_score, ai_score_band, ai_score_reason, ai_score_breakdown,
+              ai_engagement_score, ai_combined_score, engagement_score_updated_at,
               submission_date, source_type, target_business,
               client_id, enrichment_status, enriched_at
        FROM leads
@@ -202,6 +208,9 @@ export async function GET(req: NextRequest) {
         aiScoreBand: r.ai_score_band,
         aiScoreReason: r.ai_score_reason,
         aiScoreBreakdown: parseBreakdown(r.ai_score_breakdown),
+        aiEngagementScore: r.ai_engagement_score === null ? 0 : Number(r.ai_engagement_score),
+        aiCombinedScore: r.ai_combined_score === null ? null : Number(r.ai_combined_score),
+        engagementScoreUpdatedAt: r.engagement_score_updated_at,
         submissionDate: r.submission_date,
         sourceType: r.source_type,
         targetBusiness: r.target_business,

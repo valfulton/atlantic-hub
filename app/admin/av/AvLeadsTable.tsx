@@ -24,6 +24,9 @@ export interface AvLead {
     reachability: number;
     icp_match: number;
   } | null;
+  aiEngagementScore?: number;
+  aiCombinedScore?: number | null;
+  engagementScoreUpdatedAt?: string | null;
   submissionDate: string;
   sourceType: string;
   targetBusiness: 'av' | 'ebw' | 'both';
@@ -273,15 +276,34 @@ export function AvLeadsTable({
     {
       key: 'ai',
       header: <SortableHeader label="AI Score" sortKey="score" currentSort={sortKey} currentDirection={sortDirection} />,
-      render: (r) =>
-        r.aiScoreBand ? (
+      render: (r) => {
+        if (!r.aiScoreBand) return <span className="text-muted text-xs">pending</span>;
+        // Living Score: visible number is ai_combined_score when present;
+        // ai_score is the static fit fallback. Engagement delta gets a small
+        // directional badge so the sales team can see the lead is moving.
+        const visible = r.aiCombinedScore ?? r.aiScore;
+        const delta = r.aiEngagementScore ?? 0;
+        return (
           <div className="flex items-center gap-1.5">
             <StatusBadge value={r.aiScoreBand} />
-            {r.aiScore !== null && <span className="text-xs text-muted">{r.aiScore}</span>}
+            {visible !== null && (
+              <span className="text-xs text-muted tabular-nums">{visible}</span>
+            )}
+            {delta !== 0 && (
+              <span
+                className={
+                  delta > 0
+                    ? 'text-[10px] tabular-nums text-emerald-300'
+                    : 'text-[10px] tabular-nums text-rose-300'
+                }
+                title={`Engagement ${delta > 0 ? '+' : ''}${delta} since last fit-score`}
+              >
+                {delta > 0 ? '+' : ''}{delta}
+              </span>
+            )}
           </div>
-        ) : (
-          <span className="text-muted text-xs">pending</span>
-        )
+        );
+      }
     },
     {
       key: 'enrichment',

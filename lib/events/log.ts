@@ -37,6 +37,7 @@
  */
 
 import { getAvDb } from '@/lib/db/av';
+import { applyEngagementSignalBackground } from '@/lib/ai/engagement_score';
 import type { ResultSetHeader } from 'mysql2';
 
 export type LogEventStatus = 'success' | 'failure' | 'partial' | 'pending';
@@ -84,5 +85,16 @@ export async function logEvent(args: LogEventArgs): Promise<void> {
   } catch (err) {
     // Never throw out of logEvent. Visible in Netlify function logs for triage.
     console.error('[events:log]', args.eventType, (err as Error).message);
+  }
+
+  // Living Score: fire engagement signal in the background if the event
+  // carries a leadId. The engagement scorer ignores unknown event types
+  // so this is safe to call for every event that has a lead attached.
+  // Success-status only -- failures should not move the score upward.
+  if (args.leadId && (args.status ?? 'success') === 'success') {
+    applyEngagementSignalBackground({
+      leadId: args.leadId,
+      eventType: args.eventType
+    });
   }
 }
