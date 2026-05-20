@@ -766,6 +766,17 @@ function AssetCard({
   // Video composite is Phase 2; never offer Branded toggle for videos in Phase 1.
   const brandedAvailable = hasBrandLogo && asset.assetType === 'image' && Boolean(asset.url);
   const [showBranded, setShowBranded] = useState<boolean>(brandedAvailable);
+  // If the lead's brand kit loads AFTER this card has mounted (common --
+  // BrandKitPanel fetches in a separate useEffect), flip every existing
+  // card to the branded view automatically. Only auto-flip TO branded;
+  // if the user manually clicked off, we respect that until they click
+  // again.
+  const [userTouched, setUserTouched] = useState(false);
+  useEffect(() => {
+    if (!userTouched && brandedAvailable && !showBranded) {
+      setShowBranded(true);
+    }
+  }, [brandedAvailable, userTouched, showBranded]);
 
   // The URL that download / preview should point to right now.
   const displayUrl = showBranded && brandedAvailable
@@ -821,7 +832,10 @@ function AssetCard({
         {brandedAvailable && (
           <button
             type="button"
-            onClick={() => setShowBranded((b) => !b)}
+            onClick={() => {
+              setUserTouched(true);
+              setShowBranded((b) => !b);
+            }}
             className="absolute bottom-2 left-2 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-[0.12em] font-semibold backdrop-blur transition-all"
             style={{
               background: showBranded
