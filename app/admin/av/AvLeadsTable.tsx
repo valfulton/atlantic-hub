@@ -27,6 +27,16 @@ export interface AvLead {
   aiEngagementScore?: number;
   aiCombinedScore?: number | null;
   engagementScoreUpdatedAt?: string | null;
+  painPointProfile?: {
+    primary_pain?: string;
+    urgency_signal?: 'high' | 'medium' | 'low' | 'unknown';
+    timing_signal?: 'now' | 'this_quarter' | 'later' | 'unknown';
+  } | null;
+  painExtractedAt?: string | null;
+  assignedToUserId?: number | null;
+  handedToOwnerAt?: string | null;
+  wakeAtDate?: string | null;
+  parkedReason?: string | null;
   submissionDate: string;
   sourceType: string;
   targetBusiness: 'av' | 'ebw' | 'both';

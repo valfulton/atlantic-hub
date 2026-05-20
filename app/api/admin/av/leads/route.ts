@@ -24,6 +24,12 @@ interface LeadRow extends RowDataPacket {
   ai_engagement_score: number | null;
   ai_combined_score: number | null;
   engagement_score_updated_at: string | null;
+  pain_point_profile: string | object | null;
+  pain_extracted_at: string | null;
+  assigned_to_user_id: number | null;
+  handed_to_owner_at: string | null;
+  wake_at_date: string | null;
+  parked_reason: string | null;
   submission_date: string;
   source_type: string;
   target_business: 'av' | 'ebw' | 'both';
@@ -32,7 +38,17 @@ interface LeadRow extends RowDataPacket {
   enriched_at: string | null;
 }
 
-const VALID_STAGES = new Set(['new', 'contacted', 'qualified', 'converted', 'lost']);
+const VALID_STAGES = new Set([
+  'new',
+  'contacted',
+  'qualified',
+  'converted',
+  'lost',
+  'nurture',
+  'not_now',
+  'referred',
+  'case_study'
+]);
 const VALID_SOURCES = new Set(['audit_form', 'csv', 'scrape', 'manual', 'api']);
 const VALID_ENRICHMENT = new Set(['enriched', 'failed_no_domain', 'failed_no_results', 'failed_permanent', 'pending']);
 const VALID_TARGETS = new Set(['av', 'ebw', 'both']);
@@ -96,6 +112,8 @@ export async function GET(req: NextRequest) {
   const targetRaw = url.searchParams.get('target') ?? '';
   const sortRaw = (url.searchParams.get('sort') ?? '').toLowerCase();
   const directionRaw = (url.searchParams.get('direction') ?? 'desc').toLowerCase();
+  const assignedToRaw = url.searchParams.get('assignedTo') ?? '';
+  const handedToOwnerRaw = url.searchParams.get('handedToOwner') ?? '';
 
   const stageFilter = VALID_STAGES.has(stageRaw) ? stageRaw : null;
   const sourceFilter = VALID_SOURCES.has(sourceRaw) ? sourceRaw : null;
@@ -148,6 +166,22 @@ export async function GET(req: NextRequest) {
       if (f === 'has_contact_name') conditions.push("contact_name IS NOT NULL AND contact_name != '' AND contact_name NOT LIKE '(%'");
     }
 
+    // Sales-team filters
+    if (assignedToRaw === 'me') {
+      conditions.push('assigned_to_user_id = ?');
+      params.push(String(guard.actor.userId));
+    } else if (assignedToRaw === 'unassigned') {
+      conditions.push('assigned_to_user_id IS NULL');
+    } else if (/^\d+$/.test(assignedToRaw)) {
+      conditions.push('assigned_to_user_id = ?');
+      params.push(assignedToRaw);
+    }
+    if (handedToOwnerRaw === 'true') {
+      conditions.push('handed_to_owner_at IS NOT NULL');
+    } else if (handedToOwnerRaw === 'false') {
+      conditions.push('handed_to_owner_at IS NULL');
+    }
+
     // NULLs sort last in either direction (handle gracefully for ai_score etc.)
     const nullsHandling = direction === 'ASC' ? 'IS NULL ASC' : 'IS NULL ASC';
     const orderBy = `${sortColumn} ${nullsHandling}, ${sortColumn} ${direction}, id DESC`;
@@ -156,6 +190,8 @@ export async function GET(req: NextRequest) {
       `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
               lead_status, ai_score, ai_score_band, ai_score_reason, ai_score_breakdown,
               ai_engagement_score, ai_combined_score, engagement_score_updated_at,
+              pain_point_profile, pain_extracted_at,
+              assigned_to_user_id, handed_to_owner_at, wake_at_date, parked_reason,
               submission_date, source_type, target_business,
               client_id, enrichment_status, enriched_at
        FROM leads
@@ -211,6 +247,12 @@ export async function GET(req: NextRequest) {
         aiEngagementScore: r.ai_engagement_score === null ? 0 : Number(r.ai_engagement_score),
         aiCombinedScore: r.ai_combined_score === null ? null : Number(r.ai_combined_score),
         engagementScoreUpdatedAt: r.engagement_score_updated_at,
+        painPointProfile: parseBreakdown(r.pain_point_profile),
+        painExtractedAt: r.pain_extracted_at,
+        assignedToUserId: r.assigned_to_user_id === null ? null : Number(r.assigned_to_user_id),
+        handedToOwnerAt: r.handed_to_owner_at,
+        wakeAtDate: r.wake_at_date,
+        parkedReason: r.parked_reason,
         submissionDate: r.submission_date,
         sourceType: r.source_type,
         targetBusiness: r.target_business,

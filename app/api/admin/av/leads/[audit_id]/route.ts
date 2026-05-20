@@ -49,6 +49,12 @@ interface LeadDetailRow extends RowDataPacket {
   ai_combined_score: number | null;
   engagement_score_updated_at: string | null;
   score_history: string | object | null;
+  pain_point_profile: string | object | null;
+  pain_extracted_at: string | null;
+  assigned_to_user_id: number | null;
+  handed_to_owner_at: string | null;
+  wake_at_date: string | null;
+  parked_reason: string | null;
   tags: string | object | null;
   last_activity_at: string | null;
   client_id: number | null;
@@ -92,6 +98,8 @@ export async function GET(
               ai_score, ai_score_band, ai_score_reason, ai_score_breakdown, ai_audit,
               ai_email_subject, ai_email_body, ai_last_scored_at, ai_model_version,
               ai_engagement_score, ai_combined_score, engagement_score_updated_at, score_history,
+              pain_point_profile, pain_extracted_at,
+              assigned_to_user_id, handed_to_owner_at, wake_at_date, parked_reason,
               tags, last_activity_at, client_id, pipeline_stage_id, source_type,
               target_business, archived_at,
               created_at, updated_at
@@ -142,6 +150,12 @@ export async function GET(
         aiCombinedScore: r.ai_combined_score === null ? null : Number(r.ai_combined_score),
         engagementScoreUpdatedAt: r.engagement_score_updated_at,
         scoreHistory: safeParse(r.score_history as string | object | null),
+        painPointProfile: safeParse(r.pain_point_profile as string | object | null),
+        painExtractedAt: r.pain_extracted_at,
+        assignedToUserId: r.assigned_to_user_id === null ? null : Number(r.assigned_to_user_id),
+        handedToOwnerAt: r.handed_to_owner_at,
+        wakeAtDate: r.wake_at_date,
+        parkedReason: r.parked_reason,
         tags: safeParse(r.tags as string | object | null),
         lastActivityAt: r.last_activity_at,
         clientId: r.client_id,
@@ -170,7 +184,17 @@ export async function GET(
  * are accepted for nullable text columns to allow clearing.
  */
 
-const VALID_LEAD_STATUS = new Set(['new', 'contacted', 'qualified', 'converted', 'lost']);
+const VALID_LEAD_STATUS = new Set([
+  'new',
+  'contacted',
+  'qualified',
+  'converted',
+  'lost',
+  'nurture',
+  'not_now',
+  'referred',
+  'case_study'
+]);
 const VALID_TARGET_BUSINESS = new Set(['av', 'ebw', 'both']);
 
 export async function PATCH(

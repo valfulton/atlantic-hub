@@ -3,10 +3,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ScoreRadarChart } from '@/components/ScoreRadarChart';
 import { ScoreSparkline } from '@/components/ScoreSparkline';
+import { PainPointCallout } from './PainPointCallout';
+import { CallLogPanel } from './CallLogPanel';
+import { LifecycleControls } from './LifecycleControls';
+import { celebrateConversion } from '@/components/ConversionConfetti';
 import { CommercialPanel } from './CommercialPanel';
 import { OutreachPanel } from './OutreachPanel';
 
-const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Commercials', 'Outreach', 'Notes', 'Events'] as const;
+const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Calls', 'Commercials', 'Outreach', 'Notes', 'Events'] as const;
 type Tab = (typeof TABS)[number];
 
 interface Lead {
@@ -47,6 +51,22 @@ interface Lead {
   aiEngagementScore?: number;
   aiCombinedScore?: number | null;
   engagementScoreUpdatedAt?: string | null;
+  painPointProfile?: {
+    primary_pain: string;
+    urgency_signal: 'high' | 'medium' | 'low' | 'unknown';
+    decision_maker_proximity: 'direct' | 'team_member' | 'unclear';
+    budget_signal: 'strong' | 'possible' | 'weak' | 'unknown';
+    timing_signal: 'now' | 'this_quarter' | 'later' | 'unknown';
+    last_objection_seen: string | null;
+    conversation_starters: string[];
+    do_not_say: string[];
+    extracted_at: string;
+  } | null;
+  painExtractedAt?: string | null;
+  assignedToUserId?: number | null;
+  handedToOwnerAt?: string | null;
+  wakeAtDate?: string | null;
+  parkedReason?: string | null;
   scoreHistory?: Array<{
     at: string;
     event_type: string;
@@ -201,6 +221,12 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
 
   return (
     <div>
+      {lead.painPointProfile && (
+        <PainPointCallout
+          profile={lead.painPointProfile}
+          extractedAt={lead.painExtractedAt ?? null}
+        />
+      )}
       <div className="flex gap-0 border-b border-border mb-6 overflow-x-auto">
         {TABS.map((tab) => (
           <button
@@ -277,17 +303,21 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             )}
           </div>
 
-          <div>
-            <div className="field-label">Stage</div>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 w-full border border-border rounded-md px-3 py-1.5 text-sm bg-surface"
-            >
-              {VALID_STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+          <div className="md:col-span-2">
+            <LifecycleControls
+              auditId={lead.auditId}
+              currentStatus={lead.leadStatus as 'new' | 'contacted' | 'qualified' | 'converted' | 'lost' | 'nurture' | 'not_now' | 'referred' | 'case_study'}
+              currentWakeAtDate={lead.wakeAtDate ?? null}
+              currentParkedReason={lead.parkedReason ?? null}
+              companyName={lead.company}
+              onConverted={(name) => celebrateConversion(name)}
+            />
+            {lead.wakeAtDate && (lead.leadStatus === 'nurture' || lead.leadStatus === 'not_now') && (
+              <div className="mt-2 text-xs text-muted">
+                Parked. Wakes {new Date(lead.wakeAtDate).toLocaleDateString()}
+                {lead.parkedReason ? ` -- ${lead.parkedReason}` : ''}
+              </div>
+            )}
           </div>
 
           <div>
@@ -460,6 +490,10 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             <Empty message="AI scoring has not run yet. Phase 2 will wire the scoring pipeline against shhdbite_AV." />
           )}
         </div>
+      )}
+
+      {active === 'Calls' && (
+        <CallLogPanel auditId={lead.auditId} />
       )}
 
       {active === 'Commercials' && (

@@ -65,7 +65,27 @@ const EVENT_WEIGHTS: Record<string, number> = {
   'lead.note_added': 1,
   'lead.stage_advanced': 6,           // ops bumped to qualified
   'lead.stage_converted': 30,         // ops marked converted -- locks score high
-  'lead.archived': -100               // operator killed it -- floor it
+  'lead.archived': -100,              // operator killed it -- floor it
+
+  // ── call activity (logged from the Calls tab in the lead detail) ──
+  'lead.call_logged': 1,              // generic call attempt
+  'lead.call_connected': 4,           // actually got the prospect on the phone
+  'lead.call_meeting_booked': 12,     // strongest in-pipeline signal
+  'lead.call_follow_up': 2,           // they want to talk again
+  'lead.call_not_interested': -3,
+
+  // ── lifecycle (mostly informational; the real movement is on the
+  //    parent .stage_advanced / .stage_converted events) ──
+  'lead.lifecycle.nurture': 0,
+  'lead.lifecycle.not_now': 0,
+  'lead.lifecycle.referred': 0,
+  'lead.lifecycle.case_study': 4,     // converted + reusable -- nudge up
+  'lead.lifecycle.woken_by_date': 2,  // date-based wake -- mild bump
+  'lead.lifecycle.woken_by_behavior': 5,
+
+  // ── sales workflow ──
+  'lead.handed_to_owner': 8,          // rep escalated to Val for warm-email close
+  'lead.assignment_changed': 0
 };
 
 const HISTORY_CAP = 50;

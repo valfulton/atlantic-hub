@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { serverFetch } from '@/lib/server-fetch';
 import { StatusBadge } from '@/components/StatusBadge';
 import { LeadDetailTabs } from './LeadDetailTabs';
 import { SocialContentButton } from './SocialContentButton';
 import { RescoreButton } from './RescoreButton';
+import { AssignmentControl } from './AssignmentControl';
 import { AnimatedScoreReveal } from '@/components/AnimatedScoreReveal';
 
 export default async function AvLeadDetailPage({
@@ -17,6 +19,10 @@ export default async function AvLeadDetailPage({
   if (!res.ok) notFound();
 
   const { lead } = await res.json();
+
+  // Current admin user (from middleware headers) -- used by AssignmentControl
+  // to show "Assign to me" and "Hand to <owner>" correctly.
+  const currentUserId = parseInt(headers().get('x-ah-user-id') ?? '0', 10) || 0;
 
   return (
     <div>
@@ -43,6 +49,12 @@ export default async function AvLeadDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <AssignmentControl
+            auditId={lead.auditId}
+            currentAssignedTo={lead.assignedToUserId ?? null}
+            currentHandedToOwnerAt={lead.handedToOwnerAt ?? null}
+            currentUserId={currentUserId}
+          />
           <RescoreButton auditId={lead.auditId} />
           <SocialContentButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />

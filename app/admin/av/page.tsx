@@ -6,6 +6,7 @@ import type { AvLead } from './AvLeadsTable';
 import { EnrichButton } from './EnrichButton';
 import { LeadOfTheDay } from '@/components/LeadOfTheDay';
 import { HotLeadConfetti } from '@/components/HotLeadConfetti';
+import { PipelineValueCard } from '@/components/PipelineValueCard';
 
 interface Stats {
   total: number;
@@ -46,6 +47,8 @@ export default async function AvPage({
     direction?: string;
     data?: string;
     target?: string;
+    assignedTo?: string;
+    handedToOwner?: string;
   };
 }) {
   const stageParam = STAGES.includes(searchParams?.stage as (typeof STAGES)[number])
@@ -75,12 +78,23 @@ export default async function AvPage({
     ? (searchParams!.target as TargetOption)
     : '';
 
+  const assignedToParam =
+    searchParams?.assignedTo === 'me' || searchParams?.assignedTo === 'unassigned'
+      ? searchParams!.assignedTo
+      : /^\d+$/.test(searchParams?.assignedTo ?? '')
+      ? (searchParams!.assignedTo as string)
+      : '';
+  const handedToOwnerParam =
+    searchParams?.handedToOwner === 'true' ? 'true' : '';
+
   const queryParts: [string, string][] = [];
   if (stageParam) queryParts.push(['stage', stageParam]);
   if (sourceParam) queryParts.push(['source_type', sourceParam]);
   if (enrichmentParam) queryParts.push(['enrichment', enrichmentParam]);
   if (targetParam) queryParts.push(['target', targetParam]);
   if (dataQs) queryParts.push(['data', dataQs]);
+  if (assignedToParam) queryParts.push(['assignedTo', assignedToParam]);
+  if (handedToOwnerParam) queryParts.push(['handedToOwner', handedToOwnerParam]);
   queryParts.push(['sort', sortParam]);
   queryParts.push(['direction', directionParam]);
   const leadsQs = '?' + new URLSearchParams(queryParts).toString();
@@ -149,6 +163,7 @@ export default async function AvPage({
       <p className="text-sm text-muted mb-6">Lead pipeline · read-only in v1</p>
 
       <HotLeadConfetti candidates={confettiCandidates} />
+      <PipelineValueCard />
       <LeadOfTheDay />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -243,6 +258,58 @@ export default async function AvPage({
             </Link>
           );
         })}
+      </div>
+
+      {/* Sales-team chips: My leads + Owner queue */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs uppercase tracking-wider text-muted mr-1">Sales:</span>
+        {(() => {
+          const baseQp = new URLSearchParams();
+          if (stageParam) baseQp.set('stage', stageParam);
+          if (sourceParam) baseQp.set('source_type', sourceParam);
+          if (enrichmentParam) baseQp.set('enrichment', enrichmentParam);
+          if (targetParam) baseQp.set('target', targetParam);
+          if (dataQs) baseQp.set('data', dataQs);
+          baseQp.set('sort', sortParam);
+          baseQp.set('direction', directionParam);
+
+          const meActive = assignedToParam === 'me';
+          const unassignedActive = assignedToParam === 'unassigned';
+          const ownerActive = handedToOwnerParam === 'true';
+
+          const meQp = new URLSearchParams(baseQp);
+          if (!meActive) meQp.set('assignedTo', 'me');
+          if (handedToOwnerParam) meQp.set('handedToOwner', handedToOwnerParam);
+
+          const unQp = new URLSearchParams(baseQp);
+          if (!unassignedActive) unQp.set('assignedTo', 'unassigned');
+          if (handedToOwnerParam) unQp.set('handedToOwner', handedToOwnerParam);
+
+          const ownerQp = new URLSearchParams(baseQp);
+          if (assignedToParam) ownerQp.set('assignedTo', assignedToParam);
+          if (!ownerActive) ownerQp.set('handedToOwner', 'true');
+
+          const chipClass = (active: boolean) =>
+            `text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              active
+                ? 'bg-brand/20 border-brand text-ink'
+                : 'bg-surface border-border text-muted hover:border-brand/50 hover:text-ink'
+            }`;
+
+          return (
+            <>
+              <Link href={`/admin/av?${meQp.toString()}`} className={chipClass(meActive)}>
+                {meActive ? 'on -- ' : ''}My leads
+              </Link>
+              <Link href={`/admin/av?${unQp.toString()}`} className={chipClass(unassignedActive)}>
+                {unassignedActive ? 'on -- ' : ''}Unassigned
+              </Link>
+              <Link href={`/admin/av?${ownerQp.toString()}`} className={chipClass(ownerActive)}>
+                {ownerActive ? 'on -- ' : ''}Owner queue
+              </Link>
+            </>
+          );
+        })()}
       </div>
 
       {/* Data-completeness chips — toggle one or many. Combined with AND on the server. */}
