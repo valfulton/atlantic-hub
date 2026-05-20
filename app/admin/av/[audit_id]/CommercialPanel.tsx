@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { BrandKitPanel } from './BrandKitPanel';
 
 /**
  * CommercialPanel
@@ -208,6 +209,11 @@ export function CommercialPanel({
   const [draftsLoaded, setDraftsLoaded] = useState(false);
   const [selectedDraftId, setSelectedDraftId] = useState<number | ''>('');
 
+  // Whether this lead has an active brand kit logo. Drives the Branded
+  // toggle on each asset card. We don't need the full kit shape here --
+  // just yes/no.
+  const [hasBrandLogo, setHasBrandLogo] = useState(false);
+
   const fetchAssets = useCallback(async () => {
     setLoadError(null);
     try {
@@ -360,6 +366,12 @@ export function CommercialPanel({
 
   return (
     <div className="space-y-6">
+      {/* Brand Kit -- upload a logo once, every commercial auto-composites it */}
+      <BrandKitPanel
+        auditId={auditId}
+        onKitChange={(kit) => setHasBrandLogo(Boolean(kit?.hasLogo))}
+      />
+
       {/* Generator card */}
       <div className="relative bg-surface border border-border rounded-2xl p-6 overflow-hidden">
         <div className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-20 blur-3xl"
@@ -723,7 +735,9 @@ export function CommercialPanel({
             {assets.map((asset) => (
               <AssetCard
                 key={asset.assetId}
+                auditId={auditId}
                 asset={asset}
+                hasBrandLogo={hasBrandLogo}
                 onDelete={() => handleDelete(asset.assetId)}
               />
             ))}
@@ -734,24 +748,44 @@ export function CommercialPanel({
   );
 }
 
-function AssetCard({ asset, onDelete }: { asset: Asset; onDelete: () => void }) {
+function AssetCard({
+  auditId,
+  asset,
+  hasBrandLogo,
+  onDelete
+}: {
+  auditId: string;
+  asset: Asset;
+  hasBrandLogo: boolean;
+  onDelete: () => void;
+}) {
   const isRunning =
     asset.generationStatus === 'running' || asset.generationStatus === 'queued';
+
+  // Branded vs raw view. Defaults ON when this lead has a logo + this is an image.
+  // Video composite is Phase 2; never offer Branded toggle for videos in Phase 1.
+  const brandedAvailable = hasBrandLogo && asset.assetType === 'image' && Boolean(asset.url);
+  const [showBranded, setShowBranded] = useState<boolean>(brandedAvailable);
+
+  // The URL that download / preview should point to right now.
+  const displayUrl = showBranded && brandedAvailable
+    ? `/api/admin/av/leads/${auditId}/commercial/${asset.assetId}/branded`
+    : asset.url;
 
   return (
     <div className="group bg-surface border border-border rounded-2xl overflow-hidden flex flex-col transition-all hover:border-pink-400/40 hover:shadow-xl hover:shadow-pink-500/5 hover:-translate-y-0.5">
       <div className="aspect-video bg-black flex items-center justify-center relative">
-        {asset.url ? (
+        {displayUrl ? (
           asset.assetType === 'image' ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={asset.url}
+              src={displayUrl}
               alt={shortPrompt(asset.prompt, 80)}
               className="w-full h-full object-cover"
             />
           ) : (
             <video
-              src={asset.url}
+              src={displayUrl}
               controls
               preload="metadata"
               className="w-full h-full object-contain bg-black"
@@ -782,6 +816,25 @@ function AssetCard({ asset, onDelete }: { asset: Asset; onDelete: () => void }) 
         <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full backdrop-blur text-[10px] uppercase tracking-[0.12em] border ${statusGlow(asset.generationStatus)}`}>
           {asset.generationStatus}
         </div>
+
+        {/* Branded toggle pill -- only shown when a brand kit exists and this is an image */}
+        {brandedAvailable && (
+          <button
+            type="button"
+            onClick={() => setShowBranded((b) => !b)}
+            className="absolute bottom-2 left-2 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-[0.12em] font-semibold backdrop-blur transition-all"
+            style={{
+              background: showBranded
+                ? 'linear-gradient(120deg, #56B870, #FFC73D)'
+                : 'rgba(0,0,0,0.6)',
+              color: showBranded ? '#0F1F33' : '#FFE2DE',
+              boxShadow: showBranded ? '0 4px 12px -4px rgba(86,184,112,0.4)' : 'none'
+            }}
+            title={showBranded ? 'Branded view -- click to see raw' : 'Click for branded view'}
+          >
+            {showBranded ? '🎨 branded' : 'raw'}
+          </button>
+        )}
       </div>
 
       <div className="p-3 flex-1 flex flex-col gap-2">
@@ -807,24 +860,28 @@ function AssetCard({ asset, onDelete }: { asset: Asset; onDelete: () => void }) 
               <span aria-hidden>📣</span> Push to social
             </a>
           ) : null}
-          {asset.url ? (
+          {displayUrl ? (
             <a
-              href={asset.url}
+              href={displayUrl}
               target="_blank"
               rel="noopener noreferrer"
               download
               className="px-3 py-1.5 rounded-full border border-border text-xs hover:border-pink-400 text-ink transition-colors"
+              title={showBranded && brandedAvailable ? 'Download branded composite' : 'Download raw asset'}
             >
-              Download
+              Download{showBranded && brandedAvailable ? ' (branded)' : ''}
             </a>
           ) : null}
           {asset.url ? (
             <button
               type="button"
               onClick={() => {
+                // Copy the RAW provider URL -- the branded route is an
+                // authenticated app endpoint, useless outside the admin.
                 void navigator.clipboard?.writeText(asset.url!);
               }}
               className="px-3 py-1.5 rounded-full border border-border text-xs text-muted hover:text-ink hover:border-pink-400 transition-colors"
+              title="Copy the raw upstream URL"
             >
               Copy URL
             </button>
