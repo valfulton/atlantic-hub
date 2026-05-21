@@ -138,7 +138,37 @@ export async function ingestClayRow(
   const normDomain = normalizeDomain(domainSource);
   const targetBusiness = inferTargetBusinessFromRaw(payload.industry ?? payload.company);
 
+  // Re-send dedup token. Clay can POST the same row more than once (manual
+  // re-run, table reprocess). Its token lives in the unique apollo_person_id
+  // column as clay:<row_id>, so a repeat is caught even when the row carries
+  // no domain and no phone to dedup on. Null when Clay sends no row id.
+  const clayToken = payload.clayRowId ? `clay:${payload.clayRowId}` : null;
+
   try {
+    if (clayToken) {
+      const [tokenRows] = await db.execute<(RowDataPacket & { id: number })[]>(
+        `SELECT id FROM leads WHERE apollo_person_id = ? LIMIT 1`,
+        [clayToken]
+      );
+      if (tokenRows.length > 0) {
+        const result = await fillExistingLead(tokenRows[0].id, payload);
+        await logClayRow({ outcome: result.outcome, leadId: tokenRows[0].id, payload, rawBody });
+        await logEvent({
+          eventType: 'lead.enriched_clay',
+          leadId: tokenRows[0].id,
+          source: 'clay',
+          status: 'success',
+          payload: {
+            matched_on: 'clay_token',
+            fields_filled: result.fieldsFilled ?? [],
+            clay_table_id: payload.clayTableId,
+            clay_row_id: payload.clayRowId
+          }
+        });
+        return result;
+      }
+    }
+
     const existing = await findExistingLead(db, {
       domain: domainSource,
       phone: payload.phone,
@@ -187,9 +217,9 @@ export async function ingestClayRow(
       `INSERT INTO leads (
          audit_id, company, contact_name, contact_title, email, phone, website,
          linkedin_url, industry, location, lead_status, source_type, target_business,
-         source_payload, last_activity_at
+         source_payload, apollo_person_id, last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, NOW())`,
       [
         auditId,
         company,
@@ -202,7 +232,8 @@ export async function ingestClayRow(
         payload.industry,
         payload.location,
         targetBusiness,
-        JSON.stringify(sourcePayload)
+        JSON.stringify(sourcePayload),
+        clayToken
       ]
     );
 
