@@ -22,7 +22,7 @@ Check this table before writing a migration. Update this table when you ship.
 | 009 | client_users (portal auth) | shipped 2026-05-17 | Client Portal session, commit 50bc550 |
 | 010 | system_events (unified event log) | shipped 2026-05-17 | Auto-Scoring + Events session, commit e8ee628 |
 | 011 | grok_imagine_assets + grok_imagine_log | shipped 2026-05-18 | Grok Imagine session (per-lead commercials) |
-| 012 | clay_enrichment_log | reserved | Clay Webhook session |
+| 012 | clay_enrichment_log | shipped 2026-05-21 | Clay Webhook session (webhook receiver + status page; pure additive) |
 | 013 | phantombuster_runs_log | reserved | PhantomBuster Webhook session |
 | 014 | outreach_mailboxes + outreach_campaigns + outreach_messages + outreach_replies + outreach_send_log | shipped 2026-05-18 | Email Outreach Automation session (HostGator SMTP + Microsoft Graph + Gmail drivers, AI drafter grounded in audit_content, approval queue, reply classifier, auto-stage advance) |
 | 015 | client_users.tier rename (starter/growth -> sprint/momentum) | shipped 2026-05-18 | Grok Imagine session (pricing alignment) |
@@ -47,6 +47,14 @@ Conductor updates this table when sessions begin and end.
 ### Currently in flight (2026-05-17)
 
 (none — three sessions queued up: Grok Imagine, Clay Webhook, PhantomBuster Webhook, all parallel-safe with each other)
+
+### Shipped 2026-05-21
+
+**Session: Clay Webhook** -- commit `<pending>` "clay: webhook receiver and status page, schema 012"
+- Shipped: `schema/012_clay_enrichment.sql`, `lib/clay/webhook.ts`, `lib/clay/discoverer.ts`, `app/api/admin/av/integrations/clay-webhook/route.ts`, `app/admin/av/integrations/clay/page.tsx`, `app/admin/av/integrations/clay/CopyButton.tsx`
+- Modified: `docs/ENV_VARS_REFERENCE.md` (CLAY_WEBHOOK_SECRET), `docs/CHANGELOG.md`, this file (012 -> shipped)
+- New doc: `docs/CLAUDE_KICKOFF_VINE_GAMIFICATION_FUTURE.md` (parked ideas, not built)
+- Pure additive: no existing app/lib files touched. Parallel-safe with everything.
 
 ### Shipped 2026-05-17
 

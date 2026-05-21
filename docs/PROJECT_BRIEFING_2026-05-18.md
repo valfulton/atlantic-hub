@@ -56,6 +56,7 @@ pipeline, and commercial library.
 | **Visual brief layer** | **gpt-4o-mini per-lead visual brief (heroShot / mood / palette / motifs / persona / donts / pacing) feeding the Grok prompts. First-class creative direction, replaces audit-as-prompt** | **schema 016, lib/ai/visual_brief.ts** |
 | Marketing pricing page | Sprint / Momentum / Scale at $1,995 / $3,995 / $7,995, launch promo countdown, a-la-carte 10-pack and 20-pack, free-first-commercial hook | marketing/commercials-pricing.html |
 | Cosmetic / gamification | AnimatedScoreReveal, ScoreRadarChart, LeadOfTheDay, HotLeadConfetti, lead-detail tabs polish | components/*, app/admin/av/* |
+| Clay enrichment webhook | shared-secret POST receiver, cross-source dedup + fill-missing-only, auto score on insert, owner+staff status page with copyable URL | schema 012, lib/clay/*, app/api/admin/av/integrations/clay-webhook/*, app/admin/av/integrations/clay/* |
 
 ---
 
@@ -67,7 +68,7 @@ pipeline, and commercial library.
 | 2 | Visual brief admin UI | not yet specced | A small panel on the lead detail to view + regenerate the brief |
 | 3 | "Make a commercial for this post" wiring | not yet specced | The existing SocialContentButton modal needs a 1-click bridge to the Commercial panel |
 | 4 | Pricing surface sync to AV_livewebsite/js/packages.js | **pending Val's manual edit + Stripe re-sync** | See section 5 of `docs/COMMERCIAL_GOLIVE_RUNBOOK.md` for the exact paste-in blocks |
-| 5 | Clay webhook | reserved schema 012 | lib/clay/*, lib/webhook/* |
+| 5 | Clay webhook | SHIPPED 2026-05-21 (schema 012) | lib/clay/*, app/api/admin/av/integrations/clay-webhook/*, app/admin/av/integrations/clay/* |
 | 6 | PhantomBuster webhook | reserved schema 013 | lib/phantombuster/* |
 | 7 | Email automation | partially specced in `docs/CLAUDE_KICKOFF_EMAIL_AUTOMATION.md` | lib/email/*, schema 014 (currently unreserved) |
 | 8 | Accessibility + PWA pass | specced in `docs/CLAUDE_KICKOFF_ACCESSIBILITY_AND_PWA.md` | Theming + manifest + a11y audit |
