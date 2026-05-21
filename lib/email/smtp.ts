@@ -3,7 +3,9 @@
  *
  * Uses HostGator-hosted SMTP (or any RFC-compliant SMTP). Configured via
  * Netlify env vars:
- *   SMTP_HOST  e.g. mail.api.atlanticandvine.com
+ *   SMTP_HOST  e.g. api.atlanticandvine.com  (the cPanel "Outgoing Server" host;
+ *              NOT mail.<domain> for a subdomain mailbox -- copy it verbatim from
+ *              cPanel > Email Accounts > Connect Devices > Mail Client Manual Settings)
  *   SMTP_PORT  e.g. 465 (SSL) or 587 (TLS)
  *   SMTP_USER  e.g. outreach@api.atlanticandvine.com
  *   SMTP_PASS  the mailbox password
@@ -64,7 +66,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   if (!t) {
     return { sent: false, reason: transporterError || 'smtp_not_configured' };
   }
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@atlanticandvine.com';
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@api.atlanticandvine.com';
   try {
     const info = await t.sendMail({
       from,
