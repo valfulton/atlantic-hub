@@ -100,27 +100,95 @@ const FRICTION_STYLE: Record<Friction, string> = {
 };
 
 const FRICTION_LABEL: Record<Friction, string> = {
-  easy: 'Ships next session',
+  easy: 'Ready to connect',
   medium: 'Pending Meta review',
   hard: 'Pending TikTok review'
+};
+
+// Providers whose OAuth connect flow is live in this build. The rest stay
+// as "pending review" placeholders until their app review clears.
+const LIVE_PROVIDERS: ReadonlySet<Provider['id']> = new Set(['linkedin', 'x']);
+
+type Connection = {
+  id: number;
+  provider: string;
+  providerAccountId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  status: string;
+  connectedAt: string;
+  lastUsedAt: string | null;
 };
 
 export function SocialIntegrationsBoard() {
   const [tenant, setTenant] = useState<Tenant>(TENANTS[0]);
   const [toast, setToast] = useState<string | null>(null);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [loadingConns, setLoadingConns] = useState(true);
   const searchParams = useSearchParams();
   const queuedAssetId = searchParams?.get('asset_id') ?? null;
   const intent = searchParams?.get('intent') ?? null;
+  const connected = searchParams?.get('connected') ?? null;
+  const oauthError = searchParams?.get('oauth_error') ?? null;
 
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3500);
   }
 
+  async function loadConnections(tenantId: string) {
+    setLoadingConns(true);
+    try {
+      const res = await fetch(`/api/admin/social/connections?tenant=${encodeURIComponent(tenantId)}`, {
+        cache: 'no-store'
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const data = await res.json();
+      setConnections(Array.isArray(data.connections) ? data.connections : []);
+    } catch {
+      setConnections([]);
+    } finally {
+      setLoadingConns(false);
+    }
+  }
+
+  async function disconnect(id: number) {
+    try {
+      const res = await fetch(`/api/admin/social/connections/${id}/disconnect`, { method: 'POST' });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      setConnections((prev) => prev.filter((c) => c.id !== id));
+      showToast('Account disconnected.');
+    } catch {
+      showToast('Could not disconnect that account. Try again.');
+    }
+  }
+
+  // Reload the connected-accounts list whenever the tenant changes.
+  useEffect(() => {
+    loadConnections(tenant.id);
+  }, [tenant.id]);
+
+  // Surface the OAuth round-trip result, then clean the URL.
+  useEffect(() => {
+    if (connected) {
+      showToast(`${connected} connected. It is now listed below for ${tenant.label}.`);
+      loadConnections(tenant.id);
+    } else if (oauthError) {
+      showToast(`Could not connect: ${oauthError.replace(/_/g, ' ')}.`);
+    }
+    if ((connected || oauthError) && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('connected');
+      url.searchParams.delete('oauth_error');
+      window.history.replaceState({}, '', url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, oauthError]);
+
   useEffect(() => {
     if (queuedAssetId && intent === 'publish') {
       showToast(
-        `Commercial #${queuedAssetId} queued for publish. Connect a platform below; the OAuth + publish flow lands in the next session.`
+        `Commercial #${queuedAssetId} queued for publish. Connect a platform below, then the publish flow ships in a later pass.`
       );
     }
   }, [queuedAssetId, intent]);
@@ -179,8 +247,8 @@ export function SocialIntegrationsBoard() {
           })}
         </div>
         <p className="text-[12px] text-muted mt-3 leading-relaxed">
-          Each tenant has its own social connections. When the OAuth flow ships, clicking <strong>Connect</strong> below
-          will open the chosen platform&apos;s sign-in and link that account to <strong>{tenant.label}</strong> only.
+          Each tenant has its own social connections. Clicking <strong>Connect</strong> below opens the
+          chosen platform&apos;s sign-in and links that account to <strong>{tenant.label}</strong> only.
           You will never need to type a handle -- the platform tells us who it is.
         </p>
       </div>
@@ -191,17 +259,57 @@ export function SocialIntegrationsBoard() {
           <h2 className="text-sm font-medium text-ink flex items-center gap-2">
             <span className="text-lg" aria-hidden>🔗</span>
             Connected accounts for {tenant.label}{' '}
-            <span className="text-muted font-normal">(0)</span>
+            <span className="text-muted font-normal">({connections.length})</span>
           </h2>
         </div>
-        <div className="bg-surface border border-border rounded-2xl px-6 py-10 text-center">
-          <div className="text-4xl mb-2 animate-pulse" aria-hidden>✨</div>
-          <p className="text-sm text-ink font-medium">No accounts connected yet.</p>
-          <p className="text-xs text-muted mt-1 max-w-md mx-auto">
-            Once the OAuth connectors land (next session), every account you connect from the cards
-            below will appear here with a status pill and a Disconnect button.
-          </p>
-        </div>
+        {loadingConns ? (
+          <div className="bg-surface border border-border rounded-2xl px-6 py-10 text-center">
+            <p className="text-sm text-muted">Loading connected accounts...</p>
+          </div>
+        ) : connections.length === 0 ? (
+          <div className="bg-surface border border-border rounded-2xl px-6 py-10 text-center">
+            <div className="text-4xl mb-2" aria-hidden>✨</div>
+            <p className="text-sm text-ink font-medium">No accounts connected yet.</p>
+            <p className="text-xs text-muted mt-1 max-w-md mx-auto">
+              Connect LinkedIn or X from the cards below. Each account you connect appears here with a
+              status pill and a Disconnect button.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {connections.map((c) => (
+              <div
+                key={c.id}
+                className="bg-surface border border-border rounded-2xl px-4 py-3 flex items-center gap-3"
+              >
+                {c.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-bg/60 flex items-center justify-center text-sm font-bold text-ink uppercase">
+                    {c.provider[0]}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-ink font-medium truncate">
+                    {c.displayName || c.providerAccountId}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-[0.08em] text-muted">{c.provider}</div>
+                </div>
+                <span className="text-[10px] uppercase tracking-[0.08em] px-2 py-0.5 rounded-full border text-emerald-300 bg-emerald-500/10 border-emerald-400/30">
+                  {c.status}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => disconnect(c.id)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-border text-muted hover:text-ink hover:border-rose-400/60 transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Provider cards */}
@@ -211,18 +319,26 @@ export function SocialIntegrationsBoard() {
           Available platforms
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {PROVIDERS.map((p) => (
-            <ProviderCard
-              key={p.id}
-              provider={p}
-              tenant={tenant}
-              onConnect={() =>
-                showToast(
-                  `${p.label} OAuth ships in the social-posting session. The Connect button is wired to the kickoff doc.`
-                )
-              }
-            />
-          ))}
+          {PROVIDERS.map((p) => {
+            const live = LIVE_PROVIDERS.has(p.id);
+            const startHref = live
+              ? `/api/admin/social/oauth/${p.id}/start?tenant=${encodeURIComponent(tenant.id)}`
+              : undefined;
+            return (
+              <ProviderCard
+                key={p.id}
+                provider={p}
+                tenant={tenant}
+                live={live}
+                startHref={startHref}
+                onConnect={() =>
+                  showToast(
+                    `${p.label} is still in its platform review queue. LinkedIn and X are live now.`
+                  )
+                }
+              />
+            );
+          })}
         </div>
       </section>
 
@@ -288,10 +404,14 @@ export function SocialIntegrationsBoard() {
 function ProviderCard({
   provider,
   tenant,
+  live,
+  startHref,
   onConnect
 }: {
   provider: Provider;
   tenant: Tenant;
+  live: boolean;
+  startHref?: string;
   onConnect: () => void;
 }) {
   return (
@@ -342,17 +462,26 @@ function ProviderCard({
         <strong className="text-ink/80">Status:</strong> {provider.frictionNote}
       </div>
 
-      <button
-        type="button"
-        onClick={onConnect}
-        className="relative w-full px-4 py-2 rounded-full text-white text-sm font-medium transition-all"
-        style={{
-          background: 'linear-gradient(120deg, #FF5A6E, #FF9C5B)',
-          boxShadow: '0 8px 20px -8px rgba(255,90,110,0.5)'
-        }}
-      >
-        Connect {provider.label}
-      </button>
+      {live && startHref ? (
+        <a
+          href={startHref}
+          className="relative block w-full text-center px-4 py-2 rounded-full text-white text-sm font-medium transition-all"
+          style={{
+            background: 'linear-gradient(120deg, #FF5A6E, #FF9C5B)',
+            boxShadow: '0 8px 20px -8px rgba(255,90,110,0.5)'
+          }}
+        >
+          Connect {provider.label}
+        </a>
+      ) : (
+        <button
+          type="button"
+          onClick={onConnect}
+          className="relative w-full px-4 py-2 rounded-full text-sm font-medium transition-all border border-border text-muted hover:text-ink cursor-not-allowed opacity-80"
+        >
+          {provider.label} pending review
+        </button>
+      )}
     </div>
   );
 }
