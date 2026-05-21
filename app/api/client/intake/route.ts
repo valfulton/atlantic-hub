@@ -173,11 +173,28 @@ export async function POST(req: NextRequest) {
       errorClass: emailResult.sent ? null : (emailResult.reason ?? 'EmailNotSent')
     });
 
+    // Smoke-test diagnostics: only echoed back when the request carries a
+    // matching X-Smoke-Test secret header. Lets scripts/smoke-intake.mjs read
+    // the real email send result without log-diving. Never exposed publicly:
+    // requires SMOKE_TEST_SECRET to be set AND the header to match exactly.
+    const smokeSecret = process.env.SMOKE_TEST_SECRET;
+    const smokeHeader = req.headers.get('x-smoke-test');
+    const smokeOk = Boolean(smokeSecret) && smokeHeader === smokeSecret;
+
     return NextResponse.json(
       {
         ok: true,
         message:
-          "Thanks - we've received your audit request. We'll be in touch with your secure access link shortly."
+          "Thanks - we've received your audit request. We'll be in touch with your secure access link shortly.",
+        ...(smokeOk
+          ? {
+              _smoke: {
+                emailSent: emailResult.sent,
+                emailReason: emailResult.reason ?? null,
+                messageId: emailResult.messageId ?? null
+              }
+            }
+          : {})
       },
       { status: 200, headers: cors }
     );
