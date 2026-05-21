@@ -47,9 +47,7 @@ interface LeadFieldsRow extends RowDataPacket {
   email: string | null;
   phone: string | null;
   website: string | null;
-  linkedin_url: string | null;
   industry: string | null;
-  location: string | null;
   normalized_domain: string | null;
 }
 
@@ -200,11 +198,15 @@ export async function ingestClayRow(
 
     // No existing lead -> insert.
     const auditId = randomUUID();
+    // linkedin_url and location are not dedicated columns on the leads table
+    // (LinkedIn lives in source_payload, matching the Apollo path), so we keep
+    // them here in the JSON forensic record rather than as INSERT columns.
     const sourcePayload = {
       source: 'clay.webhook',
       clay_table_id: payload.clayTableId,
       clay_row_id: payload.clayRowId,
       industry_raw: payload.industry,
+      linkedin_url: payload.linkedinUrl,
       location: payload.location,
       extra: payload.extra
     };
@@ -216,10 +218,10 @@ export async function ingestClayRow(
     const [insertResult] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
          audit_id, company, contact_name, contact_title, email, phone, website,
-         linkedin_url, industry, location, lead_status, source_type, target_business,
+         industry, lead_status, source_type, target_business,
          source_payload, apollo_person_id, last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, NOW())`,
       [
         auditId,
         company,
@@ -228,9 +230,7 @@ export async function ingestClayRow(
         placeholderEmail,
         payload.phone,
         website,
-        payload.linkedinUrl,
         payload.industry,
-        payload.location,
         targetBusiness,
         JSON.stringify(sourcePayload),
         clayToken
@@ -303,7 +303,7 @@ async function fillExistingLead(
   const db = getAvDb();
   const [rows] = await db.execute<LeadFieldsRow[]>(
     `SELECT id, company, contact_name, contact_title, email, phone, website,
-            linkedin_url, industry, location, normalized_domain
+            industry, normalized_domain
        FROM leads
       WHERE id = ?
       LIMIT 1`,
@@ -342,9 +342,7 @@ async function fillExistingLead(
   fillIfMissing('email',         lead.email,         payload.email, true);
   fillIfMissing('phone',         lead.phone,         payload.phone);
   fillIfMissing('website',       lead.website,       payload.website);
-  fillIfMissing('linkedin_url',  lead.linkedin_url,  payload.linkedinUrl);
   fillIfMissing('industry',      lead.industry,      payload.industry);
-  fillIfMissing('location',      lead.location,      payload.location);
 
   if (sets.length === 0) {
     return { outcome: 'duplicate', leadId, fieldsFilled: [] };
