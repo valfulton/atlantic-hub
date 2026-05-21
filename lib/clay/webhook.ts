@@ -51,10 +51,13 @@ export interface ClayPayload {
  *   - bytes differ
  */
 export function verifyClaySecret(req: NextRequest): boolean {
-  const expected = process.env.CLAY_WEBHOOK_SECRET;
+  // Trim both sides. A stray trailing newline or space (very easy to introduce
+  // when copying a secret out of a terminal or env-var UI) would otherwise
+  // cause a length mismatch and a confusing 401.
+  const expected = process.env.CLAY_WEBHOOK_SECRET?.trim();
   if (!expected) return false;
 
-  const provided = req.headers.get('x-webhook-secret');
+  const provided = req.headers.get('x-webhook-secret')?.trim();
   if (!provided) return false;
 
   const a = Buffer.from(provided);
@@ -65,6 +68,29 @@ export function verifyClaySecret(req: NextRequest): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Non-sensitive diagnostics for a failed secret check. Returns only booleans
+ * and string LENGTHS, never the secret values themselves, so it is safe to
+ * include in a 401 response body while wiring up a Clay table. Lets the
+ * operator see at a glance whether the header arrived and whether it is a
+ * length/whitespace mismatch vs. a wrong value.
+ */
+export function claySecretDebug(req: NextRequest): {
+  headerPresent: boolean;
+  providedLen: number;
+  expectedLen: number;
+  envSet: boolean;
+} {
+  const expectedRaw = process.env.CLAY_WEBHOOK_SECRET;
+  const providedRaw = req.headers.get('x-webhook-secret');
+  return {
+    headerPresent: providedRaw !== null,
+    providedLen: providedRaw ? providedRaw.trim().length : 0,
+    expectedLen: expectedRaw ? expectedRaw.trim().length : 0,
+    envSet: Boolean(expectedRaw)
+  };
 }
 
 /**

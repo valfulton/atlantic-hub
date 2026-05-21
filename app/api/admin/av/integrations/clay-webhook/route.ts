@@ -20,7 +20,7 @@
  *   500 { ok: false, error: 'server_error' }                (unexpected)
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyClaySecret, parseClayPayload, payloadIsUseful } from '@/lib/clay/webhook';
+import { verifyClaySecret, claySecretDebug, parseClayPayload, payloadIsUseful } from '@/lib/clay/webhook';
 import { ingestClayRow } from '@/lib/clay/discoverer';
 
 export const runtime = 'nodejs';
@@ -55,9 +55,15 @@ function checkRateLimit(tableId: string | null): boolean {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // 1. Secret check (constant time, header-based).
+  // 1. Secret check (constant time, header-based, whitespace-tolerant).
   if (!verifyClaySecret(req)) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+    // Safe diagnostics only: booleans + lengths, never the secret values.
+    // Lets the operator see whether the header arrived and whether it is a
+    // length mismatch vs. a wrong value while wiring up Clay.
+    return NextResponse.json(
+      { ok: false, error: 'unauthorized', debug: claySecretDebug(req) },
+      { status: 401 }
+    );
   }
 
   // 2. Parse body. Tolerate empty / malformed JSON -> 400.
