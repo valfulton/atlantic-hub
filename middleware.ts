@@ -40,6 +40,17 @@ import { jwtVerify } from 'jose';
 const ADMIN_SESSION_COOKIE = 'ah_session';
 const CLIENT_SESSION_COOKIE = 'ah_client_session';
 
+/**
+ * Public webhook receivers that live UNDER /api/admin/* for code-organization
+ * reasons but are called by external services (Clay, etc.) that have no
+ * operator session cookie. They authenticate themselves inside the route
+ * handler via a shared-secret header, so they must skip the admin session
+ * wall here. Add future inbound webhooks to this set.
+ */
+const PUBLIC_WEBHOOK_PATHS = new Set<string>([
+  '/api/admin/av/integrations/clay-webhook'
+]);
+
 export const config = {
   matcher: [
     // Operator surface
@@ -106,6 +117,13 @@ function unauthorizedClient(req: NextRequest): NextResponse {
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
+
+  // Inbound webhooks authenticate via their own shared-secret header inside
+  // the route handler. They have no operator session, so let them through the
+  // middleware untouched. The route still rejects anything without the secret.
+  if (PUBLIC_WEBHOOK_PATHS.has(pathname)) {
+    return NextResponse.next();
+  }
 
   if (isClientPath(pathname)) {
     // Client portal: only the client cookie counts here.
