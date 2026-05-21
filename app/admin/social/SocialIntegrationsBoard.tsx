@@ -163,6 +163,37 @@ export function SocialIntegrationsBoard() {
     }
   }
 
+  // Open the provider sign-in in a popup window. The client only ever types
+  // their password on the provider's own page -- we never see it, we only
+  // receive an encrypted token. If the popup is blocked, fall back to a
+  // full-page redirect so the flow still works.
+  function startConnect(providerId: Provider['id']) {
+    const href = `/api/admin/social/oauth/${providerId}/start?tenant=${encodeURIComponent(tenant.id)}`;
+    const w = window.open(href, 'social_oauth', 'width=600,height=760,menubar=no,toolbar=no');
+    if (!w) window.location.href = href;
+  }
+
+  // Listen for the popup's completion message and refresh the list.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.origin !== window.location.origin) return;
+      const data = e.data as { source?: string; query?: string } | null;
+      if (!data || data.source !== 'social-oauth') return;
+      const p = new URLSearchParams(data.query || '');
+      const connectedProvider = p.get('connected');
+      const err = p.get('oauth_error');
+      if (connectedProvider) {
+        showToast(`${connectedProvider} connected. Listed below for ${tenant.label}.`);
+        loadConnections(tenant.id);
+      } else if (err) {
+        showToast(`Could not connect: ${err.replace(/_/g, ' ')}.`);
+      }
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant.id, tenant.label]);
+
   // Reload the connected-accounts list whenever the tenant changes.
   useEffect(() => {
     loadConnections(tenant.id);
@@ -321,20 +352,18 @@ export function SocialIntegrationsBoard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {PROVIDERS.map((p) => {
             const live = LIVE_PROVIDERS.has(p.id);
-            const startHref = live
-              ? `/api/admin/social/oauth/${p.id}/start?tenant=${encodeURIComponent(tenant.id)}`
-              : undefined;
             return (
               <ProviderCard
                 key={p.id}
                 provider={p}
                 tenant={tenant}
                 live={live}
-                startHref={startHref}
                 onConnect={() =>
-                  showToast(
-                    `${p.label} is still in its platform review queue. LinkedIn and X are live now.`
-                  )
+                  live
+                    ? startConnect(p.id)
+                    : showToast(
+                        `${p.label} is still in its platform review queue. LinkedIn and X are live now.`
+                      )
                 }
               />
             );
@@ -405,13 +434,11 @@ function ProviderCard({
   provider,
   tenant,
   live,
-  startHref,
   onConnect
 }: {
   provider: Provider;
   tenant: Tenant;
   live: boolean;
-  startHref?: string;
   onConnect: () => void;
 }) {
   return (
@@ -462,17 +489,18 @@ function ProviderCard({
         <strong className="text-ink/80">Status:</strong> {provider.frictionNote}
       </div>
 
-      {live && startHref ? (
-        <a
-          href={startHref}
-          className="relative block w-full text-center px-4 py-2 rounded-full text-white text-sm font-medium transition-all"
+      {live ? (
+        <button
+          type="button"
+          onClick={onConnect}
+          className="relative w-full px-4 py-2 rounded-full text-white text-sm font-medium transition-all hover:brightness-110"
           style={{
             background: 'linear-gradient(120deg, #FF5A6E, #FF9C5B)',
             boxShadow: '0 8px 20px -8px rgba(255,90,110,0.5)'
           }}
         >
           Connect {provider.label}
-        </a>
+        </button>
       ) : (
         <button
           type="button"

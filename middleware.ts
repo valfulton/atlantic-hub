@@ -125,6 +125,20 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Social OAuth callbacks return from a third-party provider (LinkedIn / X)
+  // as a cross-site top-level navigation, so the SameSite=Strict operator
+  // session cookie is NOT sent and we would 401 here. The callback instead
+  // authenticates the actor from the short-lived httpOnly state cookie it set
+  // during /start (which WAS guarded by an operator session). Let ONLY the
+  // /callback paths through; /start, /connections, and everything else under
+  // /api/admin/social stay fully guarded below.
+  if (
+    pathname.startsWith('/api/admin/social/oauth/') &&
+    pathname.endsWith('/callback')
+  ) {
+    return NextResponse.next();
+  }
+
   if (isClientPath(pathname)) {
     // Client portal: only the client cookie counts here.
     const token = req.cookies.get(CLIENT_SESSION_COOKIE)?.value;
