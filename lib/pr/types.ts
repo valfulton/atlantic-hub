@@ -67,6 +67,24 @@ export type OpportunityOrigin =
 export type DiscoverySourceKind = 'internal' | 'email_inbox' | 'reddit' | 'rss';
 
 export type PrOpportunityStatus = 'new' | 'drafted' | 'submitted' | 'won' | 'passed';
+/**
+ * Voice/mode for a drafted pitch. CRITICAL: only `client_voice` writes content
+ * to publish in the business's own voice -- it is valid ONLY for actual clients
+ * (we are authorized to speak for them). For leads/prospects we are NOT them and
+ * must never make claims as them, so we write TO them in Atlantic & Vine's voice:
+ *   - advisory       : recommend a PR/content angle they could pursue
+ *   - congratulatory : acknowledge something noteworthy + open a conversation
+ */
+export type PitchMode = 'advisory' | 'congratulatory' | 'client_voice';
+
+export const PITCH_MODES: PitchMode[] = ['advisory', 'congratulatory', 'client_voice'];
+
+export const PITCH_MODE_LABELS: Record<PitchMode, string> = {
+  advisory: 'Advisory (to prospect)',
+  congratulatory: 'Congratulatory (to prospect)',
+  client_voice: 'Client voice (post for them)'
+};
+
 export type PrPitchStatus = 'draft' | 'approved' | 'sent' | 'declined';
 export type PressReleaseStatus = 'draft' | 'approved' | 'published';
 export type DistributionOutcome = 'queued' | 'submitted' | 'live' | 'failed';
@@ -219,6 +237,8 @@ export interface CandidateLead {
 }
 
 export interface DraftedPitchResult {
+  /** The voice/mode actually used (resolved from lead-vs-client if not forced). */
+  mode: PitchMode;
   bodyText: string;
   /** Refreshed/strengthened strategic guidance for this opportunity + client. */
   whyItMatters: string;
@@ -332,3 +352,111 @@ export interface TimelineItem {
   title: string;
   link: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Content artifacts (schema 029) -- the broader owned-content types the
+// pitch+release pair does not cover. A content_artifact is NOT free-typed: it
+// is built by the artifact drafter (lib/pr/artifacts.ts) by READING the shared
+// intelligence graph and UPSERTing what it learns back, exactly like the pitch
+// drafter. See schema/029_content_artifacts.sql and the Intelligence Loop in
+// docs/SYSTEM_CONSTITUTION.md (section 5).
+// ---------------------------------------------------------------------------
+
+export const ARTIFACT_TYPES = [
+  'blog_article',
+  'seo_article',
+  'own_brand_post',
+  'client_deliverable'
+] as const;
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+
+export function isArtifactType(v: unknown): v is ArtifactType {
+  return typeof v === 'string' && (ARTIFACT_TYPES as readonly string[]).includes(v);
+}
+
+/** Human labels for the UI artifact picker / one-click actions. */
+export const ARTIFACT_TYPE_LABELS: Record<ArtifactType, string> = {
+  blog_article: 'Blog post',
+  seo_article: 'SEO article',
+  own_brand_post: 'Own-brand post',
+  client_deliverable: 'Client deliverable'
+};
+
+/** The one-click action verb shown on each artifact button (no typing). */
+export const ARTIFACT_ACTION_LABELS: Record<ArtifactType, string> = {
+  blog_article: 'Write blog post',
+  seo_article: 'Write SEO article',
+  own_brand_post: 'Draft own-brand post',
+  client_deliverable: 'Make client deliverable'
+};
+
+/** Mirrors content_artifacts.status (schema 029 / SYSTEM_CONSTITUTION section 3). */
+export type ArtifactStatus = 'draft' | 'approved' | 'published' | 'passed';
+
+/**
+ * SEO / structured metadata stored in content_artifacts.meta_json. SEO keyword
+ * clusters live HERE (per schema 029), not as a new intelligence_objects type --
+ * the locked taxonomy is not extended. Reusable authority/narrative learnings
+ * still go back into intelligence_objects via the existing derivable types.
+ */
+export interface ArtifactMeta {
+  slug?: string | null;
+  meta_description?: string | null;
+  target_query?: string | null;
+  keyword_cluster?: string[];
+  suggested_headings?: string[];
+  hashtags?: string[];
+  suggested_channel?: string | null;
+  /** Free-form extras the drafter may add; kept permissive on purpose. */
+  [k: string]: unknown;
+}
+
+export interface ContentArtifact {
+  id: number;
+  tenantId: string;
+  artifactType: ArtifactType;
+  leadId: number | null;
+  opportunityId: number | null;
+  voiceMode: PitchMode;
+  title: string | null;
+  bodyText: string | null;
+  metaJson: ArtifactMeta | null;
+  model: string | null;
+  status: ArtifactStatus;
+  linkedOutboxId: number | null;
+  createdByUserId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** What the artifact drafter returns (to persist into content_artifacts). */
+export interface DraftedArtifactResult {
+  artifactType: ArtifactType;
+  /** The voice actually used (resolved from artifact type + lead-vs-client). */
+  voiceMode: PitchMode;
+  title: string;
+  bodyText: string;
+  metaJson: ArtifactMeta;
+  model: string;
+  tokensUsed: number;
+  /** Reusable intelligence objects derived while drafting (to upsert). */
+  derivedObjects: DerivedIntelligenceObject[];
+  /** True if the lead's audit_content / pain_point_profile grounded the draft. */
+  groundedOnIntelligence: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// content.* event types (emitted via lib/events/log.ts into system_events).
+// Namespace approved in SYSTEM_CONSTITUTION section 4; names match the schema
+// 029 header comment.
+// ---------------------------------------------------------------------------
+
+export const CONTENT_EVENTS = {
+  artifactDrafted: 'content.artifact.drafted',
+  artifactEdited: 'content.artifact.edited',
+  artifactApproved: 'content.artifact.approved',
+  artifactPublished: 'content.artifact.published',
+  artifactPassed: 'content.artifact.passed',
+  artifactQueued: 'content.artifact.queued',
+  artifactDraftFailed: 'content.artifact.draft_failed'
+} as const;

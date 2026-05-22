@@ -22,6 +22,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { decryptToken } from '@/lib/social/encrypt';
+import { linkedInUploadMedia, xUploadImage } from '@/lib/social/media';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export interface PublishResult {
@@ -92,8 +93,10 @@ export async function publishOutboxRow(outboxId: number): Promise<PublishResult>
     [outboxId]
   );
 
+  // For native LinkedIn media we post the raw caption (no appended link); for
+  // everything else we append the asset link so the commercial is reachable.
   const text = buildPostText(row.body_text, row.media_url);
-  if (!text.trim()) {
+  if (!text.trim() && !row.media_url) {
     const error = 'nothing to post (empty body)';
     await markFailed(outboxId, error);
     return { outboxId, ok: false, status: 'failed', provider: row.provider, providerPostId: null, providerUrl: null, error };
@@ -109,12 +112,57 @@ export async function publishOutboxRow(outboxId: number): Promise<PublishResult>
   }
 
   const started = Date.now();
+  const wantsMedia = !!row.media_url && (row.media_type === 'image' || row.media_type === 'video');
   let post: ProviderPostResult;
   try {
-    post =
-      row.provider === 'linkedin'
-        ? await postLinkedIn(token, row.provider_account_id, text)
-        : await postX(token, text, row.display_name);
+    if (row.provider === 'linkedin' && wantsMedia) {
+      // Try native upload (video/image plays in-feed). On ANY media failure,
+      // fall back to a text+link post so publishing never fully fails.
+      try {
+        const assetUrn = await linkedInUploadMedia({
+          token,
+          personId: row.provider_account_id,
+          assetType: row.media_type as 'image' | 'video',
+          mediaUrl: row.media_url as string
+        });
+        post = await postLinkedIn(token, row.provider_account_id, (row.body_text ?? '').trim(), {
+          assetUrn,
+          category: row.media_type === 'video' ? 'VIDEO' : 'IMAGE'
+        });
+      } catch (mediaErr) {
+        await logEvent({
+          eventType: 'social.media_fallback',
+          source: 'social_publisher',
+          status: 'partial',
+          errorMessage: (mediaErr as Error).message.slice(0, 480),
+          payload: { outbox_id: outboxId, provider: 'linkedin', media_type: row.media_type }
+        });
+        post = await postLinkedIn(token, row.provider_account_id, text);
+      }
+    } else if (row.provider === 'linkedin') {
+      post = await postLinkedIn(token, row.provider_account_id, text);
+    } else if (row.provider === 'x' && wantsMedia && row.media_type === 'image') {
+      // X native IMAGE upload (needs media.write on the token). On ANY media
+      // failure -- including a token issued before the scope was added -- fall
+      // back to a text+link post so publishing never fully fails.
+      try {
+        const mediaId = await xUploadImage({ token, mediaUrl: row.media_url as string });
+        post = await postX(token, (row.body_text ?? '').trim(), row.display_name, { mediaIds: [mediaId] });
+      } catch (mediaErr) {
+        await logEvent({
+          eventType: 'social.media_fallback',
+          source: 'social_publisher',
+          status: 'partial',
+          errorMessage: (mediaErr as Error).message.slice(0, 480),
+          payload: { outbox_id: outboxId, provider: 'x', media_type: row.media_type }
+        });
+        post = await postX(token, text, row.display_name);
+      }
+    } else {
+      // X without native image (video not supported yet, or no media): post text
+      // + linked commercial. X video native upload is a chunked v1.1 follow-up.
+      post = await postX(token, text, row.display_name);
+    }
   } catch (err) {
     const error = (err as Error).message.slice(0, 480);
     await writePublishLog(outboxId, 'permanent_failure', null, Date.now() - started, error);
@@ -162,11 +210,20 @@ interface ProviderPostResult {
   httpStatus: number;
 }
 
-async function postX(token: string, text: string, displayName: string | null): Promise<ProviderPostResult> {
+async function postX(
+  token: string,
+  text: string,
+  displayName: string | null,
+  media?: { mediaIds: string[] }
+): Promise<ProviderPostResult> {
+  const payload: Record<string, unknown> = { text: clampForX(text) };
+  if (media && media.mediaIds.length > 0) {
+    payload.media = { media_ids: media.mediaIds };
+  }
   const resp = await fetch('https://api.twitter.com/2/tweets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ text: clampForX(text) })
+    body: JSON.stringify(payload)
   });
   const body = await resp.text();
   if (!resp.ok) {
@@ -185,17 +242,24 @@ async function postX(token: string, text: string, displayName: string | null): P
   return { id, url, httpStatus: resp.status };
 }
 
-async function postLinkedIn(token: string, personId: string, text: string): Promise<ProviderPostResult> {
+async function postLinkedIn(
+  token: string,
+  personId: string,
+  text: string,
+  media?: { assetUrn: string; category: 'IMAGE' | 'VIDEO' }
+): Promise<ProviderPostResult> {
   const author = `urn:li:person:${personId}`;
+  const shareContent: Record<string, unknown> = {
+    shareCommentary: { text },
+    shareMediaCategory: media ? media.category : 'NONE'
+  };
+  if (media) {
+    shareContent.media = [{ status: 'READY', media: media.assetUrn }];
+  }
   const payload = {
     author,
     lifecycleState: 'PUBLISHED',
-    specificContent: {
-      'com.linkedin.ugc.ShareContent': {
-        shareCommentary: { text },
-        shareMediaCategory: 'NONE'
-      }
-    },
+    specificContent: { 'com.linkedin.ugc.ShareContent': shareContent },
     visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' }
   };
   const resp = await fetch('https://api.linkedin.com/v2/ugcPosts', {

@@ -48,7 +48,16 @@ const CLIENT_SESSION_COOKIE = 'ah_client_session';
  * wall here. Add future inbound webhooks to this set.
  */
 const PUBLIC_WEBHOOK_PATHS = new Set<string>([
-  '/api/admin/av/integrations/clay-webhook'
+  '/api/admin/av/integrations/clay-webhook',
+  // PR inbox inbound-parse webhook (PR@api.atlanticandvine.com). Authenticates
+  // via X-Webhook-Secret (PR_INBOUND_EMAIL_SECRET) inside the handler; no
+  // operator session. See app/api/admin/pr/inbound/email/route.ts.
+  '/api/admin/pr/inbound/email',
+  // Social publisher cron target. Called by netlify/functions/social-publish-cron.mts
+  // with no operator session; authenticates via X-Cron-Secret
+  // (SOCIAL_PUBLISH_CRON_SECRET) inside the handler. See
+  // app/api/admin/social/publish-due/route.ts.
+  '/api/admin/social/publish-due'
 ]);
 
 export const config = {

@@ -26,7 +26,7 @@ import { logEvent } from '@/lib/events/log';
 import { draftPitch, upsertIntelligenceObjects } from '@/lib/pr/drafter';
 import { generateCommercialForLead } from '@/lib/grok/discoverer';
 import { publishOutboxRow } from '@/lib/social/publish';
-import { DEFAULT_TENANT, PR_EVENTS, type PrOpportunity, type PrSource } from '@/lib/pr/types';
+import { DEFAULT_TENANT, PR_EVENTS, type PitchMode, type PrOpportunity, type PrSource } from '@/lib/pr/types';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export interface OrchestrateOptions {
@@ -37,6 +37,8 @@ export interface OrchestrateOptions {
   makeCommercial?: boolean;
   /** 'image' (fast, synchronous) or 'video'. Default 'image'. */
   assetType?: 'image' | 'video';
+  /** Pitch voice; if omitted the drafter resolves it from lead-vs-client. */
+  mode?: PitchMode;
   /** ISO datetime to schedule the queued post; null/undefined => draft. */
   scheduledFor?: string | null;
   /** Publish the queued post immediately via the social publisher. Default false. */
@@ -136,15 +138,33 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
     payload: { opportunity_id: opportunity.id, make_commercial: !!opts.makeCommercial, asset_type: opts.assetType ?? 'image' }
   });
 
-  // ---- 1. Draft the pitch ----
-  const drafted = await draftPitch({ opportunity, leadId });
-  const [pres] = await db.execute<ResultSetHeader>(
-    `INSERT INTO pr_pitches (opportunity_id, tenant_id, lead_id, body_text, model, status)
-     VALUES (?, ?, ?, ?, ?, 'draft')`,
-    [opportunity.id, tenantId, leadId, drafted.bodyText, drafted.model]
+  // ---- 1. Pitch: reuse the latest (possibly operator-edited) draft if one
+  //      exists, otherwise draft fresh. This makes Draft -> edit -> Save ->
+  //      queue/publish honor the operator's edits instead of re-drafting. ----
+  let pitchId: number;
+  let pitchBody: string;
+  let whyItMattersRefresh: string | null = null;
+  const [existingPitch] = await db.execute<(RowDataPacket & { id: number; body_text: string | null })[]>(
+    `SELECT id, body_text FROM pr_pitches
+      WHERE opportunity_id = ? AND status = 'draft'
+      ORDER BY id DESC LIMIT 1`,
+    [opportunity.id]
   );
-  const pitchId = pres.insertId;
-  await upsertIntelligenceObjects({ tenantId, leadId, objects: drafted.derivedObjects, source: 'pr_orchestrate' });
+  if (existingPitch[0] && (existingPitch[0].body_text ?? '').trim()) {
+    pitchId = existingPitch[0].id;
+    pitchBody = (existingPitch[0].body_text ?? '').trim();
+  } else {
+    const drafted = await draftPitch({ opportunity, leadId, mode: opts.mode });
+    const [pres] = await db.execute<ResultSetHeader>(
+      `INSERT INTO pr_pitches (opportunity_id, tenant_id, lead_id, body_text, model, status)
+       VALUES (?, ?, ?, ?, ?, 'draft')`,
+      [opportunity.id, tenantId, leadId, drafted.bodyText, drafted.model]
+    );
+    pitchId = pres.insertId;
+    pitchBody = drafted.bodyText;
+    whyItMattersRefresh = drafted.whyItMatters || null;
+    await upsertIntelligenceObjects({ tenantId, leadId, objects: drafted.derivedObjects, source: 'pr_orchestrate' });
+  }
 
   // ---- 2. Optional commercial (existing Grok engine) ----
   let commercial: OrchestrateResult['commercial'] = null;
@@ -208,7 +228,7 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
         connectionId,
         leadId,
         commercial?.assetId ?? null,
-        drafted.bodyText,
+        pitchBody,
         mediaUrl,
         mediaType,
         status,
@@ -248,13 +268,13 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
             status = CASE WHEN status = 'new' THEN 'drafted' ELSE status END,
             updated_at = NOW()
       WHERE id = ?`,
-    [pitchId, commercial?.assetId ?? null, social?.outboxId ?? null, drafted.whyItMatters || null, opportunity.id]
+    [pitchId, commercial?.assetId ?? null, social?.outboxId ?? null, whyItMattersRefresh, opportunity.id]
   );
 
   return {
     opportunityId: opportunity.id,
     pitchId,
-    bodyText: drafted.bodyText,
+    bodyText: pitchBody,
     commercial,
     social,
     published,

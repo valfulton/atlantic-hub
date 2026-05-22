@@ -70,7 +70,12 @@ export const PROVIDER_CONFIG: Record<SocialProvider, ProviderConfig> = {
     authorizeUrl: 'https://twitter.com/i/oauth2/authorize',
     tokenUrl: 'https://api.twitter.com/2/oauth2/token',
     profileUrl: 'https://api.twitter.com/2/users/me',
-    scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+    // media.write is required to upload native images/video to X. It was added
+    // 2026-05-22 for the publisher's X native-media path (lib/social/media.ts).
+    // FLAG: tokens issued BEFORE this change lack media.write -- the account
+    // must be RECONNECTED at /admin/social for X native media to work. Until
+    // reconnected, X posts fall back to text+link (publishOutboxRow).
+    scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access', 'media.write'],
     usesPkce: true
   }
 };

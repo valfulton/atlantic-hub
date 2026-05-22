@@ -74,13 +74,13 @@ export async function runInternalDiscoverySweep(args: {
     industryClusters++;
     const signalKey = `industry_pain:${cluster.industry}:${normalizeKey(cluster.theme)}`;
     const why =
-      `${cluster.count} of your ${cluster.industry} clients share the pain "${cluster.theme}". ` +
-      `A proactive thought-leadership angle on this positions us as the category expert and ` +
-      `earns authority before competitors react. Pitch it to industry/trade outlets or use it ` +
-      `as a podcast topic; it doubles as social and outreach content.`;
+      `${cluster.count} ${cluster.industry} businesses in your pipeline show the same pain: "${cluster.theme}". ` +
+      `That is a strong ADVISORY outreach hook -- reach out to those prospects with a specific angle on ` +
+      `solving it, and use the same theme for thought-leadership/social content. Note: these are leads, ` +
+      `not clients, so any draft speaks in our voice TO them, not as them.`;
     const queryText =
-      `Proactive media angle for ${cluster.industry}: address the recurring problem "${cluster.theme}" ` +
-      `that ${cluster.count} clients in this space are facing.`;
+      `Advisory outreach angle for ${cluster.industry} prospects: the recurring problem "${cluster.theme}" ` +
+      `that ${cluster.count} businesses in this space are facing.`;
     const oppId = await upsertSuggestedOpportunity({
       tenantId,
       origin: 'internal_signal',
@@ -115,25 +115,30 @@ export async function runInternalDiscoverySweep(args: {
     }
   }
 
-  // ---- Signal 2: client wins ----
-  const wins = await loadClientWins();
-  for (const win of wins) {
+  // ---- Signal 2: standout PROSPECTS ----
+  // These are LEADS, never clients (leads.client_id points to the client a lead
+  // belongs to; the lead is still a prospect). So every one of these is an
+  // OUTREACH idea in A&V's voice -- a congratulatory opener -- never a "client
+  // win" and never content written as them.
+  const standouts = await loadStandoutProspects();
+  for (const p of standouts) {
     if (created >= MAX_SUGGESTIONS_PER_SWEEP) break;
     clientWins++;
-    const signalKey = `client_win:${win.id}`;
+    const where = p.industry ? ` in ${p.industry}` : '';
+    const signalKey = `standout_prospect:${p.id}`;
     const why =
-      `${win.company} is a recent win${win.industry ? ` in ${win.industry}` : ''}. ` +
-      `Announcing it builds proof points and authority, gives the client a shareable moment, ` +
-      `and creates a press release that doubles as social + commercial content.`;
-    const queryText = `Client win to announce: ${win.company}${win.industry ? ` (${win.industry})` : ''}.`;
+      `${p.company} is a standout prospect${where} (high fit). Open with a CONGRATULATORY outreach angle ` +
+      `in our voice -- acknowledge what they appear to be doing well and offer a visibility idea. This is ` +
+      `outreach TO a prospect; do not write claims as them.`;
+    const queryText = `Congratulatory outreach to prospect: ${p.company}${p.industry ? ` (${p.industry})` : ''}.`;
     const oppId = await upsertSuggestedOpportunity({
       tenantId,
       origin: 'internal_signal',
       queryText,
-      topicTags: ['client-win', 'press-release', win.industry ? win.industry.toLowerCase().slice(0, 48) : 'announcement'],
+      topicTags: ['prospect', 'congratulatory', 'outreach', p.industry ? p.industry.toLowerCase().slice(0, 48) : 'lead'],
       whyItMatters: why,
-      relevanceScore: win.ai_score ? Math.min(100, win.ai_score) : 70,
-      matchedLeadId: win.id,
+      relevanceScore: p.ai_score ? Math.min(100, p.ai_score) : 70,
+      matchedLeadId: p.id,
       dedupeHash: sha256(`${tenantId}:${signalKey}`),
       actorUserId
     });
@@ -203,15 +208,16 @@ async function loadIndustryPainClusters(): Promise<IndustryCluster[]> {
     .sort((a, b) => b.count - a.count);
 }
 
-async function loadClientWins(): Promise<WinRow[]> {
+async function loadStandoutProspects(): Promise<WinRow[]> {
   const db = getAvDb();
-  // A "win" = a converted lead, or a hot lead tied to a real client account.
+  // Standout prospects = hot-scoring leads worth a congratulatory outreach.
+  // These are leads/prospects, never clients.
   const [rows] = await db.execute<WinRow[]>(
     `SELECT id, company, industry, lead_status, ai_score
        FROM leads
       WHERE archived_at IS NULL
-        AND (lead_status = 'converted' OR (ai_score_band = 'hot' AND client_id IS NOT NULL))
-      ORDER BY (lead_status = 'converted') DESC, ai_score DESC, id DESC
+        AND ai_score_band = 'hot'
+      ORDER BY ai_score DESC, id DESC
       LIMIT 20`
   );
   return rows;
