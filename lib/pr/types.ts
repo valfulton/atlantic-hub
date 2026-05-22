@@ -352,3 +352,111 @@ export interface TimelineItem {
   title: string;
   link: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Content artifacts (schema 029) -- the broader owned-content types the
+// pitch+release pair does not cover. A content_artifact is NOT free-typed: it
+// is built by the artifact drafter (lib/pr/artifacts.ts) by READING the shared
+// intelligence graph and UPSERTing what it learns back, exactly like the pitch
+// drafter. See schema/029_content_artifacts.sql and the Intelligence Loop in
+// docs/SYSTEM_CONSTITUTION.md (section 5).
+// ---------------------------------------------------------------------------
+
+export const ARTIFACT_TYPES = [
+  'blog_article',
+  'seo_article',
+  'own_brand_post',
+  'client_deliverable'
+] as const;
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+
+export function isArtifactType(v: unknown): v is ArtifactType {
+  return typeof v === 'string' && (ARTIFACT_TYPES as readonly string[]).includes(v);
+}
+
+/** Human labels for the UI artifact picker / one-click actions. */
+export const ARTIFACT_TYPE_LABELS: Record<ArtifactType, string> = {
+  blog_article: 'Blog post',
+  seo_article: 'SEO article',
+  own_brand_post: 'Own-brand post',
+  client_deliverable: 'Client deliverable'
+};
+
+/** The one-click action verb shown on each artifact button (no typing). */
+export const ARTIFACT_ACTION_LABELS: Record<ArtifactType, string> = {
+  blog_article: 'Write blog post',
+  seo_article: 'Write SEO article',
+  own_brand_post: 'Draft own-brand post',
+  client_deliverable: 'Make client deliverable'
+};
+
+/** Mirrors content_artifacts.status (schema 029 / SYSTEM_CONSTITUTION section 3). */
+export type ArtifactStatus = 'draft' | 'approved' | 'published' | 'passed';
+
+/**
+ * SEO / structured metadata stored in content_artifacts.meta_json. SEO keyword
+ * clusters live HERE (per schema 029), not as a new intelligence_objects type --
+ * the locked taxonomy is not extended. Reusable authority/narrative learnings
+ * still go back into intelligence_objects via the existing derivable types.
+ */
+export interface ArtifactMeta {
+  slug?: string | null;
+  meta_description?: string | null;
+  target_query?: string | null;
+  keyword_cluster?: string[];
+  suggested_headings?: string[];
+  hashtags?: string[];
+  suggested_channel?: string | null;
+  /** Free-form extras the drafter may add; kept permissive on purpose. */
+  [k: string]: unknown;
+}
+
+export interface ContentArtifact {
+  id: number;
+  tenantId: string;
+  artifactType: ArtifactType;
+  leadId: number | null;
+  opportunityId: number | null;
+  voiceMode: PitchMode;
+  title: string | null;
+  bodyText: string | null;
+  metaJson: ArtifactMeta | null;
+  model: string | null;
+  status: ArtifactStatus;
+  linkedOutboxId: number | null;
+  createdByUserId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** What the artifact drafter returns (to persist into content_artifacts). */
+export interface DraftedArtifactResult {
+  artifactType: ArtifactType;
+  /** The voice actually used (resolved from artifact type + lead-vs-client). */
+  voiceMode: PitchMode;
+  title: string;
+  bodyText: string;
+  metaJson: ArtifactMeta;
+  model: string;
+  tokensUsed: number;
+  /** Reusable intelligence objects derived while drafting (to upsert). */
+  derivedObjects: DerivedIntelligenceObject[];
+  /** True if the lead's audit_content / pain_point_profile grounded the draft. */
+  groundedOnIntelligence: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// content.* event types (emitted via lib/events/log.ts into system_events).
+// Namespace approved in SYSTEM_CONSTITUTION section 4; names match the schema
+// 029 header comment.
+// ---------------------------------------------------------------------------
+
+export const CONTENT_EVENTS = {
+  artifactDrafted: 'content.artifact.drafted',
+  artifactEdited: 'content.artifact.edited',
+  artifactApproved: 'content.artifact.approved',
+  artifactPublished: 'content.artifact.published',
+  artifactPassed: 'content.artifact.passed',
+  artifactQueued: 'content.artifact.queued',
+  artifactDraftFailed: 'content.artifact.draft_failed'
+} as const;

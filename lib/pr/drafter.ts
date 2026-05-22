@@ -83,7 +83,7 @@ export class PrDraftParseError extends Error {
 // DB row shapes (read-only)
 // ---------------------------------------------------------------------------
 
-interface LeadIntelRow extends RowDataPacket {
+export interface LeadIntelRow extends RowDataPacket {
   id: number;
   company: string;
   industry: string | null;
@@ -108,7 +108,7 @@ interface CandidateRow extends RowDataPacket {
   industry: string | null;
 }
 
-interface ClientIntelligence {
+export interface ClientIntelligence {
   lead: LeadIntelRow | null;
   /** Compact, prompt-ready summary of accumulated intelligence_objects. */
   objectSummaries: string[];
@@ -503,7 +503,7 @@ async function loadCandidateLeads(): Promise<CandidateLead[]> {
   return rows.map((r) => ({ id: r.id, company: r.company, industry: r.industry }));
 }
 
-async function loadClientIntelligence(
+export async function loadClientIntelligence(
   tenantId: string,
   leadId: number | null
 ): Promise<ClientIntelligence> {
@@ -729,7 +729,7 @@ function buildReleaseUserPrompt(args: { announcement: string; intel: ClientIntel
   return parts.join('\n');
 }
 
-function buildIntelligenceBlock(intel: ClientIntelligence): string {
+export function buildIntelligenceBlock(intel: ClientIntelligence): string {
   const parts: string[] = [];
   if (intel.lead) {
     parts.push(`CLIENT_INTELLIGENCE:`);
