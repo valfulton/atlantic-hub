@@ -480,13 +480,14 @@ async function loadCandidateLeads(): Promise<CandidateLead[]> {
   const db = getAvDb();
   // AV pipeline leads are the candidate clients. Prefer scored, recent leads.
   // (leads has no tenant_id column; AV leads are the single source of truth.)
+  // mysql2 + HostGator throws ER_WRONG_ARGUMENTS on a prepared `LIMIT ?`.
+  // MAX_CANDIDATE_LEADS is a fixed integer constant, so inlining it is safe.
   const [rows] = await db.execute<CandidateRow[]>(
     `SELECT id, company, industry
        FROM leads
       WHERE archived_at IS NULL
       ORDER BY (ai_score IS NULL), ai_score DESC, id DESC
-      LIMIT ?`,
-    [MAX_CANDIDATE_LEADS]
+      LIMIT ${MAX_CANDIDATE_LEADS}`
   );
   return rows.map((r) => ({ id: r.id, company: r.company, industry: r.industry }));
 }

@@ -73,13 +73,14 @@ export async function GET(req: NextRequest) {
     const vals: unknown[] = [];
     if (releaseId) { where.push('release_id = ?'); vals.push(releaseId); }
     if (pitchId) { where.push('pitch_id = ?'); vals.push(pitchId); }
-    vals.push(limit);
+    // mysql2 + HostGator throws ER_WRONG_ARGUMENTS on a prepared `LIMIT ?`.
+    // `limit` is clamped to an integer 1..200 above, so inlining it is safe.
     const [rows] = await db.execute<LogRow[]>(
       `SELECT id, release_id, pitch_id, tenant_id, channel, outcome, url, detail, attempted_at
          FROM press_distribution_log
         ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
         ORDER BY id DESC
-        LIMIT ?`,
+        LIMIT ${limit}`,
       vals
     );
     return NextResponse.json({ ok: true, items: rows.map(mapLog), channels: DISTRIBUTION_CHANNELS });

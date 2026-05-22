@@ -101,7 +101,8 @@ export async function GET(req: NextRequest) {
       where.push('status = ?');
       vals.push(status);
     }
-    vals.push(limit);
+    // mysql2 + HostGator throws ER_WRONG_ARGUMENTS on a prepared `LIMIT ?`.
+    // `limit` is clamped to an integer 1..200 above, so inlining it is safe.
     const [rows] = await db.execute<OppRow[]>(
       `SELECT o.id, o.tenant_id, o.source, o.outlet, o.journalist, o.query_text, o.topic_tags,
               o.why_it_matters, o.deadline, o.matched_lead_id, o.status, o.created_by_user_id,
@@ -117,7 +118,7 @@ export async function GET(req: NextRequest) {
          )
         WHERE ${where.map((w) => 'o.' + w).join(' AND ')}
         ORDER BY (o.status = 'new') DESC, COALESCE(o.deadline, '9999-12-31') ASC, o.id DESC
-        LIMIT ?`,
+        LIMIT ${limit}`,
       vals
     );
     return NextResponse.json({ ok: true, items: rows.map(mapOpp) });

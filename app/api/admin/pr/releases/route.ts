@@ -61,14 +61,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = getAvDb();
+    // mysql2 + HostGator throws ER_WRONG_ARGUMENTS on a prepared `LIMIT ?`.
+    // `limit` is clamped to an integer 1..200 above, so inlining it is safe.
     const [rows] = await db.execute<ReleaseRow[]>(
       `SELECT id, tenant_id, lead_id, title, body_text, status, created_by_user_id,
               created_at, updated_at
          FROM press_releases
         WHERE tenant_id = ?
         ORDER BY id DESC
-        LIMIT ?`,
-      [tenantId, limit]
+        LIMIT ${limit}`,
+      [tenantId]
     );
     return NextResponse.json({ ok: true, items: rows.map(mapRelease) });
   } catch (err) {
