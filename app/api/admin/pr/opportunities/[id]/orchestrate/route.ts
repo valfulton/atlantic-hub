@@ -51,6 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const assetType = body.assetType === 'video' ? 'video' : 'image';
   const makeCommercial = body.makeCommercial === true;
+  const publishNow = body.publishNow === true;
   const leadId = typeof body.leadId === 'number' ? body.leadId : null;
   const scheduledFor = typeof body.scheduledFor === 'string' && body.scheduledFor ? body.scheduledFor : null;
 
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       makeCommercial,
       assetType,
       scheduledFor,
+      publishNow,
       actorUserId: guard.actor.userId
     });
     return NextResponse.json({ ok: true, ...result });

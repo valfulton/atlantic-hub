@@ -88,6 +88,9 @@ export function PrDesk() {
   const [discovering, setDiscovering] = useState(false);
   const [orchestrating, setOrchestrating] = useState<number | null>(null);
   const [orchestrateMsg, setOrchestrateMsg] = useState<Record<number, string>>({});
+  // oppId -> queued outbox row that can be published; cleared once posted
+  const [queued, setQueued] = useState<Record<number, { outboxId: number; published: boolean }>>({});
+  const [publishing, setPublishing] = useState<number | null>(null);
 
   // release box
   const [announcement, setAnnouncement] = useState('');
@@ -205,6 +208,9 @@ export function PrDesk() {
       if (json.needsConnection) parts.push('Connect a social account at /admin/social to queue the post.');
       if (Array.isArray(json.notes)) parts.push(...json.notes);
       setOrchestrateMsg((m) => ({ ...m, [oppId]: parts.join(' ') }));
+      if (json.social?.outboxId) {
+        setQueued((q) => ({ ...q, [oppId]: { outboxId: json.social.outboxId, published: false } }));
+      }
       setOpps((prev) =>
         prev.map((o) =>
           o.id === oppId
@@ -216,6 +222,29 @@ export function PrDesk() {
       setError((e as Error).message);
     } finally {
       setOrchestrating(null);
+    }
+  }, []);
+
+  const publishPost = useCallback(async (oppId: number, outboxId: number) => {
+    setPublishing(oppId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/social/publish/${outboxId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'publish failed');
+      setQueued((q) => ({ ...q, [oppId]: { outboxId, published: true } }));
+      setOrchestrateMsg((m) => ({
+        ...m,
+        [oppId]: json.providerUrl ? `Posted: ${json.providerUrl}` : 'Posted to the connected account.'
+      }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPublishing(null);
     }
   }, []);
 
@@ -445,6 +474,21 @@ export function PrDesk() {
                     <span>{orchestrating === o.id ? 'Building campaign' : 'Pitch + commercial + queue'}</span>
                     <span className="ah-sparkle-pair" aria-hidden="true"><span>&#10022;</span><span>&#10023;</span></span>
                   </button>
+                  {queued[o.id] && !queued[o.id].published && (
+                    <button
+                      type="button"
+                      onClick={() => void publishPost(o.id, queued[o.id].outboxId)}
+                      disabled={publishing === o.id}
+                      aria-label="Publish the queued post now"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                      style={{ background: 'rgba(16,185,129,0.18)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.4)' }}
+                    >
+                      {publishing === o.id ? 'Posting' : 'Publish now'}
+                    </button>
+                  )}
+                  {queued[o.id]?.published && (
+                    <span className="text-[12px]" style={{ color: '#34d399' }}>Posted</span>
+                  )}
                 </div>
                 {orchestrateMsg[o.id] && (
                   <p className="text-[12px] mt-2" style={{ color: '#9AE6B4' }} aria-live="polite">

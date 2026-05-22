@@ -25,6 +25,7 @@ import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { draftPitch, upsertIntelligenceObjects } from '@/lib/pr/drafter';
 import { generateCommercialForLead } from '@/lib/grok/discoverer';
+import { publishOutboxRow } from '@/lib/social/publish';
 import { DEFAULT_TENANT, PR_EVENTS, type PrOpportunity, type PrSource } from '@/lib/pr/types';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -38,6 +39,8 @@ export interface OrchestrateOptions {
   assetType?: 'image' | 'video';
   /** ISO datetime to schedule the queued post; null/undefined => draft. */
   scheduledFor?: string | null;
+  /** Publish the queued post immediately via the social publisher. Default false. */
+  publishNow?: boolean;
   actorUserId?: number | null;
 }
 
@@ -54,7 +57,14 @@ export interface OrchestrateResult {
   social: {
     outboxId: number;
     connectionId: number;
-    status: 'draft' | 'scheduled';
+    status: 'draft' | 'scheduled' | 'published';
+  } | null;
+  /** Set when publishNow was requested. */
+  published: {
+    ok: boolean;
+    status: 'published' | 'failed';
+    providerUrl: string | null;
+    error: string | null;
   } | null;
   /** True when no active social connection exists for the tenant -- post not queued. */
   needsConnection: boolean;
@@ -169,6 +179,7 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
 
   // ---- 3. Queue the social post (if a connection exists) ----
   let social: OrchestrateResult['social'] = null;
+  let published: OrchestrateResult['published'] = null;
   let needsConnection = false;
 
   const [conns] = await db.execute<(RowDataPacket & { id: number })[]>(
@@ -213,6 +224,18 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
       source: 'pr_orchestrate',
       payload: { opportunity_id: opportunity.id, outbox_id: ores.insertId, status, has_media: !!commercial }
     });
+
+    // Publish immediately if requested (operator clicked "post now").
+    if (opts.publishNow) {
+      const pub = await publishOutboxRow(ores.insertId);
+      published = { ok: pub.ok, status: pub.status, providerUrl: pub.providerUrl, error: pub.error };
+      if (pub.ok) {
+        social.status = 'published';
+        notes.push(pub.providerUrl ? `Posted: ${pub.providerUrl}` : 'Posted to the connected account.');
+      } else {
+        notes.push(`Publish failed: ${pub.error ?? 'unknown error'}. The post stays queued so you can retry.`);
+      }
+    }
   }
 
   // ---- Link the chain back onto the opportunity ----
@@ -234,6 +257,7 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
     bodyText: drafted.bodyText,
     commercial,
     social,
+    published,
     needsConnection,
     notes
   };
