@@ -46,6 +46,9 @@ interface OppRow extends RowDataPacket {
   latest_pitch_id?: number | null;
   latest_pitch_body?: string | null;
   latest_pitch_status?: string | null;
+  origin?: string | null;
+  suggested?: number | null;
+  relevance_score?: number | null;
 }
 
 function mapOpp(r: OppRow) {
@@ -65,6 +68,9 @@ function mapOpp(r: OppRow) {
     createdByUserId: r.created_by_user_id,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    origin: r.origin ?? 'paste',
+    suggested: Number(r.suggested) === 1,
+    relevanceScore: r.relevance_score ?? null,
     latestPitch: r.latest_pitch_id
       ? { id: r.latest_pitch_id, bodyText: r.latest_pitch_body ?? null, status: r.latest_pitch_status ?? null }
       : null
@@ -106,7 +112,7 @@ export async function GET(req: NextRequest) {
     const [rows] = await db.execute<OppRow[]>(
       `SELECT o.id, o.tenant_id, o.source, o.outlet, o.journalist, o.query_text, o.topic_tags,
               o.why_it_matters, o.deadline, o.matched_lead_id, o.status, o.created_by_user_id,
-              o.created_at, o.updated_at,
+              o.created_at, o.updated_at, o.origin, o.suggested, o.relevance_score,
               l.company AS matched_company,
               p.id AS latest_pitch_id, p.body_text AS latest_pitch_body, p.status AS latest_pitch_status
          FROM pr_opportunities o

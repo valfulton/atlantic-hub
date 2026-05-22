@@ -54,6 +54,18 @@ export const PR_SOURCE_LABELS: Record<PrSource, string> = {
   other: 'Other'
 };
 
+// schema 027: where an opportunity came from.
+export type OpportunityOrigin =
+  | 'paste'
+  | 'internal_signal'
+  | 'email_inbox'
+  | 'reddit'
+  | 'rss'
+  | 'manual';
+
+// schema 027: discovery lanes (pr_discovery_sources.kind).
+export type DiscoverySourceKind = 'internal' | 'email_inbox' | 'reddit' | 'rss';
+
 export type PrOpportunityStatus = 'new' | 'drafted' | 'submitted' | 'won' | 'passed';
 export type PrPitchStatus = 'draft' | 'approved' | 'sent' | 'declined';
 export type PressReleaseStatus = 'draft' | 'approved' | 'published';
@@ -273,7 +285,17 @@ export const PR_EVENTS = {
   distributionQueued: 'pr.distribution.queued',
   distributionFailed: 'pr.distribution.failed',
   authoritySignalDetected: 'pr.authority.signal_detected',
-  topicTrending: 'pr.topic.trending'
+  topicTrending: 'pr.topic.trending',
+  // schema 027 -- discovery + orchestration
+  opportunitySuggested: 'pr.opportunity.suggested',
+  discoverySwept: 'pr.discovery.swept',
+  discoverySourceFailed: 'pr.discovery.source_failed',
+  ingestReceived: 'pr.ingest.received',
+  ingestParsed: 'pr.ingest.parsed',
+  ingestDuplicate: 'pr.ingest.duplicate',
+  orchestrationStarted: 'pr.orchestration.started',
+  commercialRequested: 'pr.commercial.requested',
+  socialQueued: 'pr.social.queued'
 } as const;
 
 // ---------------------------------------------------------------------------

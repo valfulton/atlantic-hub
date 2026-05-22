@@ -28,6 +28,9 @@ interface Opportunity {
   matchedCompany: string | null;
   status: string;
   createdAt: string;
+  origin: string;
+  suggested: boolean;
+  relevanceScore: number | null;
   latestPitch: LatestPitch | null;
 }
 interface Release {
@@ -80,6 +83,11 @@ export function PrDesk() {
 
   // per-opportunity draft state
   const [drafting, setDrafting] = useState<number | null>(null);
+
+  // discovery + orchestration state
+  const [discovering, setDiscovering] = useState(false);
+  const [orchestrating, setOrchestrating] = useState<number | null>(null);
+  const [orchestrateMsg, setOrchestrateMsg] = useState<Record<number, string>>({});
 
   // release box
   const [announcement, setAnnouncement] = useState('');
@@ -158,6 +166,56 @@ export function PrDesk() {
       setError((e as Error).message);
     } finally {
       setDrafting(null);
+    }
+  }, []);
+
+  const runDiscovery = useCallback(async () => {
+    setDiscovering(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/pr/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'discovery failed');
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDiscovering(false);
+    }
+  }, [load]);
+
+  const orchestrate = useCallback(async (oppId: number) => {
+    setOrchestrating(oppId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/pr/opportunities/${oppId}/orchestrate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ makeCommercial: true, assetType: 'image' })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'orchestrate failed');
+      const parts: string[] = ['Pitch drafted.'];
+      if (json.commercial) parts.push(`Commercial ${json.commercial.generationStatus}.`);
+      if (json.social) parts.push(`Post queued to the timeline (${json.social.status}).`);
+      if (json.needsConnection) parts.push('Connect a social account at /admin/social to queue the post.');
+      if (Array.isArray(json.notes)) parts.push(...json.notes);
+      setOrchestrateMsg((m) => ({ ...m, [oppId]: parts.join(' ') }));
+      setOpps((prev) =>
+        prev.map((o) =>
+          o.id === oppId
+            ? { ...o, status: o.status === 'new' ? 'drafted' : o.status, latestPitch: { id: json.pitchId, bodyText: json.bodyText, status: 'draft' } }
+            : o
+        )
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setOrchestrating(null);
     }
   }, []);
 
@@ -264,13 +322,27 @@ export function PrDesk() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold tracking-wide uppercase text-muted">Opportunity inbox</h2>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="text-xs text-muted underline focus-visible:ring-2 focus-visible:ring-brand rounded"
-          >
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={runDiscovery}
+              disabled={discovering}
+              aria-label="Find opportunities from your data"
+              data-loading={discovering ? 'true' : 'false'}
+              className="ah-action-sparkle inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+              style={{ background: 'rgba(255,156,91,0.16)', color: '#FFD9BE', border: '1px solid rgba(255,156,91,0.35)' }}
+            >
+              <span>{discovering ? 'Scanning your data' : 'Find opportunities'}</span>
+              <span className="ah-sparkle-pair" aria-hidden="true"><span>&#10022;</span><span>&#10023;</span></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="text-xs text-muted underline focus-visible:ring-2 focus-visible:ring-brand rounded"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -291,6 +363,15 @@ export function PrDesk() {
                     {PR_SOURCE_LABELS[o.source] ?? o.source}
                   </span>
                   <StatusBadge status={o.status} />
+                  {o.suggested && (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+                      style={{ background: 'rgba(255,156,91,0.16)', color: '#FFD9BE', border: '1px solid rgba(255,156,91,0.35)' }}
+                      title="We surfaced this from your own data"
+                    >
+                      Suggested{o.relevanceScore != null ? ` ${o.relevanceScore}` : ''}
+                    </span>
+                  )}
                   {o.deadline && (
                     <span className="text-[11px] text-amber-300">Deadline: {formatDate(o.deadline)}</span>
                   )}
@@ -339,7 +420,7 @@ export function PrDesk() {
                   </div>
                 ) : null}
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     onClick={() => void draftPitch(o.id)}
@@ -352,7 +433,24 @@ export function PrDesk() {
                     <span>{drafting === o.id ? 'Drafting' : o.latestPitch ? 'Re-draft pitch' : 'Draft pitch'}</span>
                     <span className="ah-sparkle-pair" aria-hidden="true"><span>&#10022;</span><span>&#10023;</span></span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => void orchestrate(o.id)}
+                    disabled={orchestrating === o.id}
+                    aria-label="Draft pitch, generate commercial, and queue a social post"
+                    data-loading={orchestrating === o.id ? 'true' : 'false'}
+                    className="ah-action-sparkle inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                    style={{ background: 'linear-gradient(120deg, #FF5A6E 0%, #FF9C5B 100%)', color: '#1a0a0a' }}
+                  >
+                    <span>{orchestrating === o.id ? 'Building campaign' : 'Pitch + commercial + queue'}</span>
+                    <span className="ah-sparkle-pair" aria-hidden="true"><span>&#10022;</span><span>&#10023;</span></span>
+                  </button>
                 </div>
+                {orchestrateMsg[o.id] && (
+                  <p className="text-[12px] mt-2" style={{ color: '#9AE6B4' }} aria-live="polite">
+                    {orchestrateMsg[o.id]}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
