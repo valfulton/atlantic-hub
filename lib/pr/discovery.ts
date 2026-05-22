@@ -49,6 +49,7 @@ interface WinRow extends RowDataPacket {
   industry: string | null;
   lead_status: string | null;
   ai_score: number | null;
+  client_id: number | null;
 }
 
 /**
@@ -74,13 +75,13 @@ export async function runInternalDiscoverySweep(args: {
     industryClusters++;
     const signalKey = `industry_pain:${cluster.industry}:${normalizeKey(cluster.theme)}`;
     const why =
-      `${cluster.count} of your ${cluster.industry} clients share the pain "${cluster.theme}". ` +
-      `A proactive thought-leadership angle on this positions us as the category expert and ` +
-      `earns authority before competitors react. Pitch it to industry/trade outlets or use it ` +
-      `as a podcast topic; it doubles as social and outreach content.`;
+      `${cluster.count} ${cluster.industry} businesses in your pipeline show the same pain: "${cluster.theme}". ` +
+      `That is a strong ADVISORY outreach hook -- reach out to those prospects with a specific angle on ` +
+      `solving it, and use the same theme for thought-leadership/social content. Note: these are leads, ` +
+      `not clients, so any draft speaks in our voice TO them, not as them.`;
     const queryText =
-      `Proactive media angle for ${cluster.industry}: address the recurring problem "${cluster.theme}" ` +
-      `that ${cluster.count} clients in this space are facing.`;
+      `Advisory outreach angle for ${cluster.industry} prospects: the recurring problem "${cluster.theme}" ` +
+      `that ${cluster.count} businesses in this space are facing.`;
     const oppId = await upsertSuggestedOpportunity({
       tenantId,
       origin: 'internal_signal',
@@ -115,22 +116,33 @@ export async function runInternalDiscoverySweep(args: {
     }
   }
 
-  // ---- Signal 2: client wins ----
+  // ---- Signal 2: standout records ----
+  // A real CLIENT (client_id set) is a genuine win we can announce in their
+  // voice. A standout LEAD is NOT -- it is a prospect to reach out to with a
+  // congratulatory angle, in our voice, never claiming anything as them.
   const wins = await loadClientWins();
   for (const win of wins) {
     if (created >= MAX_SUGGESTIONS_PER_SWEEP) break;
     clientWins++;
-    const signalKey = `client_win:${win.id}`;
-    const why =
-      `${win.company} is a recent win${win.industry ? ` in ${win.industry}` : ''}. ` +
-      `Announcing it builds proof points and authority, gives the client a shareable moment, ` +
-      `and creates a press release that doubles as social + commercial content.`;
-    const queryText = `Client win to announce: ${win.company}${win.industry ? ` (${win.industry})` : ''}.`;
+    const isClient = win.client_id != null;
+    const where = win.industry ? ` in ${win.industry}` : '';
+    const signalKey = isClient ? `client_win:${win.id}` : `prospect_standout:${win.id}`;
+    const why = isClient
+      ? `${win.company} is an active client${where}. Announcing their win builds proof points and ` +
+        `authority and gives them a shareable moment -- draft this in their voice (press release / social).`
+      : `${win.company} is a standout PROSPECT${where} (high fit). Open with a CONGRATULATORY outreach ` +
+        `angle in our voice -- acknowledge what they appear to be doing well and offer a visibility idea. ` +
+        `Do NOT write claims as them; this is outreach TO a prospect, not a client announcement.`;
+    const queryText = isClient
+      ? `Client win to announce: ${win.company}${win.industry ? ` (${win.industry})` : ''}.`
+      : `Congratulatory outreach to prospect: ${win.company}${win.industry ? ` (${win.industry})` : ''}.`;
     const oppId = await upsertSuggestedOpportunity({
       tenantId,
       origin: 'internal_signal',
       queryText,
-      topicTags: ['client-win', 'press-release', win.industry ? win.industry.toLowerCase().slice(0, 48) : 'announcement'],
+      topicTags: isClient
+        ? ['client-win', 'press-release', win.industry ? win.industry.toLowerCase().slice(0, 48) : 'announcement']
+        : ['prospect', 'congratulatory', 'outreach', win.industry ? win.industry.toLowerCase().slice(0, 48) : 'lead'],
       whyItMatters: why,
       relevanceScore: win.ai_score ? Math.min(100, win.ai_score) : 70,
       matchedLeadId: win.id,
@@ -207,11 +219,11 @@ async function loadClientWins(): Promise<WinRow[]> {
   const db = getAvDb();
   // A "win" = a converted lead, or a hot lead tied to a real client account.
   const [rows] = await db.execute<WinRow[]>(
-    `SELECT id, company, industry, lead_status, ai_score
+    `SELECT id, company, industry, lead_status, ai_score, client_id
        FROM leads
       WHERE archived_at IS NULL
-        AND (lead_status = 'converted' OR (ai_score_band = 'hot' AND client_id IS NOT NULL))
-      ORDER BY (lead_status = 'converted') DESC, ai_score DESC, id DESC
+        AND (lead_status = 'converted' OR ai_score_band = 'hot')
+      ORDER BY (client_id IS NOT NULL) DESC, (lead_status = 'converted') DESC, ai_score DESC, id DESC
       LIMIT 20`
   );
   return rows;

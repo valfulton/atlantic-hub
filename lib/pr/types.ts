@@ -67,6 +67,24 @@ export type OpportunityOrigin =
 export type DiscoverySourceKind = 'internal' | 'email_inbox' | 'reddit' | 'rss';
 
 export type PrOpportunityStatus = 'new' | 'drafted' | 'submitted' | 'won' | 'passed';
+/**
+ * Voice/mode for a drafted pitch. CRITICAL: only `client_voice` writes content
+ * to publish in the business's own voice -- it is valid ONLY for actual clients
+ * (we are authorized to speak for them). For leads/prospects we are NOT them and
+ * must never make claims as them, so we write TO them in Atlantic & Vine's voice:
+ *   - advisory       : recommend a PR/content angle they could pursue
+ *   - congratulatory : acknowledge something noteworthy + open a conversation
+ */
+export type PitchMode = 'advisory' | 'congratulatory' | 'client_voice';
+
+export const PITCH_MODES: PitchMode[] = ['advisory', 'congratulatory', 'client_voice'];
+
+export const PITCH_MODE_LABELS: Record<PitchMode, string> = {
+  advisory: 'Advisory (to prospect)',
+  congratulatory: 'Congratulatory (to prospect)',
+  client_voice: 'Client voice (post for them)'
+};
+
 export type PrPitchStatus = 'draft' | 'approved' | 'sent' | 'declined';
 export type PressReleaseStatus = 'draft' | 'approved' | 'published';
 export type DistributionOutcome = 'queued' | 'submitted' | 'live' | 'failed';
@@ -219,6 +237,8 @@ export interface CandidateLead {
 }
 
 export interface DraftedPitchResult {
+  /** The voice/mode actually used (resolved from lead-vs-client if not forced). */
+  mode: PitchMode;
   bodyText: string;
   /** Refreshed/strengthened strategic guidance for this opportunity + client. */
   whyItMatters: string;

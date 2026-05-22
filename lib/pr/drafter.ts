@@ -49,6 +49,7 @@ import {
   type DraftedPitchResult,
   type DraftedReleaseResult,
   type ParsedOpportunity,
+  type PitchMode,
   type PrOpportunity,
   type PrSource
 } from '@/lib/pr/types';
@@ -90,6 +91,8 @@ interface LeadIntelRow extends RowDataPacket {
   audit_content: string | null;
   challenge: string | null;
   pain_point_profile: string | null; // JSON column comes back as string (mysql2 may parse to object)
+  client_id: number | null;
+  lead_status: string | null;
 }
 
 interface IntelObjRow extends RowDataPacket {
@@ -225,14 +228,21 @@ export async function parseOpportunity(args: {
 export async function draftPitch(args: {
   opportunity: PrOpportunity;
   leadId: number | null;
+  /** Force a voice/mode. If omitted, resolved from whether the lead is a client. */
+  mode?: PitchMode;
 }): Promise<DraftedPitchResult> {
   const tenantId = args.opportunity.tenantId || DEFAULT_TENANT;
   const intel = await loadClientIntelligence(tenantId, args.leadId);
   if (args.leadId && !intel.lead) throw new PrLeadNotFoundError(args.leadId);
 
+  // Resolve voice. CRITICAL: never write claims AS a prospect. Only an actual
+  // client (we are authorized to speak for them) gets client_voice; everyone
+  // else defaults to advisory outreach written TO them in A&V's voice.
+  const mode: PitchMode = args.mode ?? resolveDefaultMode(intel.lead);
+
   const started = Date.now();
-  const systemPrompt = buildPitchSystemPrompt();
-  const userPrompt = buildPitchUserPrompt({ opportunity: args.opportunity, intel });
+  const systemPrompt = buildPitchSystemPrompt(mode);
+  const userPrompt = buildPitchUserPrompt({ opportunity: args.opportunity, intel, mode });
 
   let completion;
   try {
@@ -292,6 +302,7 @@ export async function draftPitch(args: {
   });
 
   return {
+    mode,
     bodyText: parsed.body_text.trim(),
     whyItMatters: (parsed.why_it_matters ?? args.opportunity.whyItMatters ?? '').trim().slice(0, 4000),
     model: completion.model,
@@ -503,7 +514,8 @@ async function loadClientIntelligence(
 
   const db = getAvDb();
   const [rows] = await db.execute<LeadIntelRow[]>(
-    `SELECT id, company, industry, website, audit_content, challenge, pain_point_profile
+    `SELECT id, company, industry, website, audit_content, challenge, pain_point_profile,
+            client_id, lead_status
        FROM leads
       WHERE id = ? AND archived_at IS NULL
       LIMIT 1`,
@@ -594,36 +606,79 @@ function buildParseUserPrompt(args: {
   return parts.join('\n');
 }
 
-function buildPitchSystemPrompt(): string {
+/**
+ * Decide the default voice. A lead is only treated as a CLIENT (we may speak for
+ * them) when it is linked to a client account or marked converted. Everyone else
+ * is a prospect -> advisory outreach written TO them in A&V's voice.
+ */
+function resolveDefaultMode(lead: LeadIntelRow | null): PitchMode {
+  if (!lead) return 'advisory';
+  const isClient = lead.client_id != null || lead.lead_status === 'converted';
+  return isClient ? 'client_voice' : 'advisory';
+}
+
+const SHARED_DERIVE_AND_FORMAT = [
+  ``,
+  `ALSO derive reusable strategic intelligence objects you discover while drafting, so the platform reuses them later instead of regenerating. Only emit objects of these types when you genuinely have signal: founder_story, authority_positioning, authority_topics, media_friendly_topics, preferred_narrative_angles, proof_points, market_positioning, differentiators. Each object_json should be a compact structured object. Emit an empty array if you have nothing solid -- do not fabricate.`,
+  ``,
+  `ALSO refresh why_it_matters: 2-4 sentences of strategic guidance for the OPERATOR (why this matters, why now, authority impact, seasonal/positioning relevance).`,
+  ``,
+  `RESPONSE FORMAT: respond with ONLY this JSON object:`,
+  `{`,
+  `  "body_text": "...",`,
+  `  "why_it_matters": "...",`,
+  `  "derived_objects": [ { "object_type": "authority_topics", "object_json": { ... }, "confidence": 0-100 } ]`,
+  `}`
+];
+
+function buildPitchSystemPrompt(mode: PitchMode): string {
+  if (mode === 'client_voice') {
+    return [
+      `You write short, specific, credible PR pitches and expert-source responses for a marketing platform called Atlantic & Vine, ON BEHALF OF AN ACTUAL CLIENT who has authorized us to speak for them.`,
+      ``,
+      `RULES -- never break these:`,
+      `1. Speak in PLURAL voice as the client business ("our team", "we", "our venue/agency"). Never first-person singular "I", never a person's name.`,
+      `2. Ground the pitch in ONE or TWO concrete points from CLIENT_INTELLIGENCE (audit, pain-point profile, intelligence objects). Specific, not filler.`,
+      `3. Address QUERY_TEXT directly; lead with the most quotable line.`,
+      `4. 120-220 words, plain text, no markdown.`,
+      `5. Sound like a real operator, not a press release or chatbot. No "I hope this finds you well", no hype.`,
+      `6. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
+      ...SHARED_DERIVE_AND_FORMAT
+    ].join('\n');
+  }
+  if (mode === 'congratulatory') {
+    return [
+      `You write a short, warm outreach note FROM Atlantic & Vine (a marketing/PR firm) TO a PROSPECT business. You are NOT the prospect and have NO authority to speak for them or to assert claims about their business as fact.`,
+      ``,
+      `RULES -- never break these:`,
+      `1. Voice is Atlantic & Vine's, PLURAL ("we", "our team"), addressed TO the prospect ("you", "your team").`,
+      `2. Acknowledge something genuinely noteworthy the prospect appears to have done, then connect it to a PR/visibility opportunity we could help with. Open a conversation, do not pitch hard.`,
+      `3. NEVER state claims about the prospect as established fact and NEVER write as if you are them. Reference only what is in PROSPECT_INTELLIGENCE, and hedge ("it looks like", "we noticed", "if that's right"). If a detail is not in the intelligence, do not assert it.`,
+      `4. 90-160 words, plain text, no markdown. Warm, specific, not salesy.`,
+      `5. End with a soft, low-pressure CTA to talk.`,
+      `6. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
+      ...SHARED_DERIVE_AND_FORMAT
+    ].join('\n');
+  }
+  // advisory (default for prospects)
   return [
-    `You write short, specific, credible PR pitches and expert-source responses for a marketing platform called Atlantic & Vine, on behalf of its clients.`,
-    `This is reactive PR: a journalist asked a question, and we are responding with a quotable, authority-building answer in the client's voice.`,
+    `You write a short, sharp advisory note FROM Atlantic & Vine (a marketing/PR firm) TO a PROSPECT business. You are NOT the prospect and have NO authority to speak for them or to assert claims about their business as fact.`,
     ``,
     `RULES -- never break these:`,
-    `1. Speak in PLURAL voice on behalf of the client business ("our team", "we", "our venue/agency/etc"). Never use first-person singular "I" and never sign with a person's name.`,
-    `2. Ground the pitch in ONE or TWO specific, concrete points drawn from the CLIENT_INTELLIGENCE (audit observations, pain-point profile, accumulated intelligence objects). Be specific, not generic thought-leadership filler.`,
-    `3. Directly answer / address what the journalist asked in QUERY_TEXT. Lead with the most quotable line.`,
-    `4. Length: 120-220 words. Plain text. No markdown, no bullet symbols, no headers.`,
-    `5. Sound like a real expert operator, not a press release and not a chatbot. No "I hope this finds you well", no "leveraging synergies", no hype.`,
-    `6. Never mention pricing, dollar amounts, or any per-unit AI/API cost. Never reveal the pitch was AI-generated.`,
-    `7. If CLIENT_INTELLIGENCE is thin, still produce a credible pitch grounded in the client's industry and the query topic.`,
-    ``,
-    `ALSO derive reusable strategic intelligence objects you discover while drafting, so the platform reuses them later instead of regenerating. Only emit objects of these types when you genuinely have signal: founder_story, authority_positioning, authority_topics, media_friendly_topics, preferred_narrative_angles, proof_points, market_positioning, differentiators. Each object_json should be a compact structured object. Emit an empty array if you have nothing solid -- do not fabricate.`,
-    ``,
-    `ALSO refresh why_it_matters: 2-4 sentences of strategic guidance (why this matters, why now, authority impact, seasonal/positioning relevance).`,
-    ``,
-    `RESPONSE FORMAT: respond with ONLY this JSON object:`,
-    `{`,
-    `  "body_text": "...",`,
-    `  "why_it_matters": "...",`,
-    `  "derived_objects": [ { "object_type": "authority_topics", "object_json": { ... }, "confidence": 0-100 } ]`,
-    `}`
+    `1. Voice is Atlantic & Vine's, PLURAL ("we", "our team"), addressed TO the prospect ("you", "your team"). Never write as if you are them.`,
+    `2. Recommend ONE specific, credible PR/content/visibility angle the prospect could pursue, grounded in PROSPECT_INTELLIGENCE (their industry, audit observations, pain points) and the opportunity. Frame it as expert advice: "here's the kind of story that would earn you coverage", "we'd position you around X".`,
+    `3. NEVER assert claims about the prospect as established fact; reference only what is in the intelligence and hedge where unsure. Do not fabricate wins, quotes, or numbers.`,
+    `4. 110-180 words, plain text, no markdown. Specific and useful enough that it demonstrates expertise.`,
+    `5. End with a soft CTA to talk about executing it.`,
+    `6. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
+    ...SHARED_DERIVE_AND_FORMAT
   ].join('\n');
 }
 
-function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientIntelligence }): string {
-  const { opportunity, intel } = args;
+function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientIntelligence; mode: PitchMode }): string {
+  const { opportunity, intel, mode } = args;
   const parts: string[] = [];
+  parts.push(`MODE: ${mode}${mode === 'client_voice' ? ' (write AS the client)' : ' (write TO the prospect as Atlantic & Vine -- do NOT claim anything as them)'}`);
   parts.push(`OPPORTUNITY_SOURCE: ${opportunity.source}`);
   if (opportunity.outlet) parts.push(`OUTLET: ${opportunity.outlet}`);
   if (opportunity.journalist) parts.push(`JOURNALIST: ${opportunity.journalist}`);

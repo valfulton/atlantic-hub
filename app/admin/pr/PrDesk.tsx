@@ -5,8 +5,13 @@ import {
   PR_SOURCES,
   PR_SOURCE_LABELS,
   DISTRIBUTION_CHANNELS,
+  PITCH_MODES,
+  PITCH_MODE_LABELS,
+  type PitchMode,
   type PrSource
 } from '@/lib/pr/types';
+
+type VoiceChoice = 'auto' | PitchMode;
 
 // ---- view models (mirror the API responses) ------------------------------
 
@@ -92,6 +97,20 @@ export function PrDesk() {
   const [queued, setQueued] = useState<Record<number, { outboxId: number; published: boolean }>>({});
   const [publishing, setPublishing] = useState<number | null>(null);
 
+  // per-opportunity voice choice + editable pitch buffer
+  const [voice, setVoice] = useState<Record<number, VoiceChoice>>({});
+  const [editBody, setEditBody] = useState<Record<number, string>>({});
+  const [savingPitch, setSavingPitch] = useState<number | null>(null);
+
+  const voiceFor = useCallback((oppId: number): VoiceChoice => voice[oppId] ?? 'auto', [voice]);
+  const modeArg = useCallback(
+    (oppId: number): PitchMode | undefined => {
+      const v = voice[oppId] ?? 'auto';
+      return v === 'auto' ? undefined : v;
+    },
+    [voice]
+  );
+
   // release box
   const [announcement, setAnnouncement] = useState('');
   const [releaseLeadId, setReleaseLeadId] = useState('');
@@ -149,10 +168,11 @@ export function PrDesk() {
       const res = await fetch(`/api/admin/pr/opportunities/${oppId}/draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ mode: modeArg(oppId) })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'draft failed');
+      setEditBody((b) => ({ ...b, [oppId]: json.pitch.bodyText ?? '' }));
       setOpps((prev) =>
         prev.map((o) =>
           o.id === oppId
@@ -198,7 +218,7 @@ export function PrDesk() {
       const res = await fetch(`/api/admin/pr/opportunities/${oppId}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ makeCommercial: true, assetType: 'image' })
+        body: JSON.stringify({ makeCommercial: true, assetType: 'image', mode: modeArg(oppId) })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'orchestrate failed');
@@ -211,6 +231,7 @@ export function PrDesk() {
       if (json.social?.outboxId) {
         setQueued((q) => ({ ...q, [oppId]: { outboxId: json.social.outboxId, published: false } }));
       }
+      setEditBody((b) => ({ ...b, [oppId]: json.bodyText ?? '' }));
       setOpps((prev) =>
         prev.map((o) =>
           o.id === oppId
@@ -245,6 +266,31 @@ export function PrDesk() {
       setError((e as Error).message);
     } finally {
       setPublishing(null);
+    }
+  }, []);
+
+  const savePitch = useCallback(async (oppId: number, pitchId: number, text: string) => {
+    setSavingPitch(oppId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/pr/pitches/${pitchId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bodyText: text })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'save failed');
+      setOpps((prev) =>
+        prev.map((o) =>
+          o.id === oppId && o.latestPitch
+            ? { ...o, latestPitch: { ...o.latestPitch, bodyText: text } }
+            : o
+        )
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingPitch(null);
     }
   }, []);
 
@@ -442,14 +488,46 @@ export function PrDesk() {
                   </div>
                 )}
 
-                {o.latestPitch?.bodyText ? (
+                {o.latestPitch ? (
                   <div className="rounded-lg px-3 py-2 mb-2" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <span className="block text-[10px] uppercase tracking-[0.12em] mb-1 text-muted">Drafted pitch</span>
-                    <p className="text-sm whitespace-pre-wrap" style={{ color: '#e5e7eb' }}>{o.latestPitch.bodyText}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Draft (editable)</span>
+                      <button
+                        type="button"
+                        onClick={() => void savePitch(o.id, o.latestPitch!.id, editBody[o.id] ?? o.latestPitch!.bodyText ?? '')}
+                        disabled={savingPitch === o.id || (editBody[o.id] ?? o.latestPitch.bodyText ?? '') === (o.latestPitch.bodyText ?? '')}
+                        className="text-[11px] underline disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-brand rounded"
+                        style={{ color: '#9AE6B4' }}
+                      >
+                        {savingPitch === o.id ? 'Saving' : 'Save edits'}
+                      </button>
+                    </div>
+                    <textarea
+                      value={editBody[o.id] ?? o.latestPitch.bodyText ?? ''}
+                      onChange={(e) => setEditBody((b) => ({ ...b, [o.id]: e.target.value }))}
+                      rows={6}
+                      aria-label="Edit draft text"
+                      className="w-full rounded text-sm whitespace-pre-wrap focus-visible:ring-2 focus-visible:ring-brand"
+                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#e5e7eb', padding: '8px' }}
+                    />
                   </div>
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-3">
+                  <label className="sr-only" htmlFor={`voice-${o.id}`}>Voice</label>
+                  <select
+                    id={`voice-${o.id}`}
+                    value={voiceFor(o.id)}
+                    onChange={(e) => setVoice((v) => ({ ...v, [o.id]: e.target.value as VoiceChoice }))}
+                    title="Who is this written as? Leads get advisory/congratulatory (our voice, to them)."
+                    className="rounded-lg px-2 py-1.5 text-[12px] focus-visible:ring-2 focus-visible:ring-brand"
+                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
+                  >
+                    <option value="auto" style={{ color: '#000' }}>Voice: Auto</option>
+                    {PITCH_MODES.map((m) => (
+                      <option key={m} value={m} style={{ color: '#000' }}>{PITCH_MODE_LABELS[m]}</option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={() => void draftPitch(o.id)}
