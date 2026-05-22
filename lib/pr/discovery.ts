@@ -49,7 +49,6 @@ interface WinRow extends RowDataPacket {
   industry: string | null;
   lead_status: string | null;
   ai_score: number | null;
-  client_id: number | null;
 }
 
 /**
@@ -116,36 +115,30 @@ export async function runInternalDiscoverySweep(args: {
     }
   }
 
-  // ---- Signal 2: standout records ----
-  // A real CLIENT (client_id set) is a genuine win we can announce in their
-  // voice. A standout LEAD is NOT -- it is a prospect to reach out to with a
-  // congratulatory angle, in our voice, never claiming anything as them.
-  const wins = await loadClientWins();
-  for (const win of wins) {
+  // ---- Signal 2: standout PROSPECTS ----
+  // These are LEADS, never clients (leads.client_id points to the client a lead
+  // belongs to; the lead is still a prospect). So every one of these is an
+  // OUTREACH idea in A&V's voice -- a congratulatory opener -- never a "client
+  // win" and never content written as them.
+  const standouts = await loadStandoutProspects();
+  for (const p of standouts) {
     if (created >= MAX_SUGGESTIONS_PER_SWEEP) break;
     clientWins++;
-    const isClient = win.client_id != null;
-    const where = win.industry ? ` in ${win.industry}` : '';
-    const signalKey = isClient ? `client_win:${win.id}` : `prospect_standout:${win.id}`;
-    const why = isClient
-      ? `${win.company} is an active client${where}. Announcing their win builds proof points and ` +
-        `authority and gives them a shareable moment -- draft this in their voice (press release / social).`
-      : `${win.company} is a standout PROSPECT${where} (high fit). Open with a CONGRATULATORY outreach ` +
-        `angle in our voice -- acknowledge what they appear to be doing well and offer a visibility idea. ` +
-        `Do NOT write claims as them; this is outreach TO a prospect, not a client announcement.`;
-    const queryText = isClient
-      ? `Client win to announce: ${win.company}${win.industry ? ` (${win.industry})` : ''}.`
-      : `Congratulatory outreach to prospect: ${win.company}${win.industry ? ` (${win.industry})` : ''}.`;
+    const where = p.industry ? ` in ${p.industry}` : '';
+    const signalKey = `standout_prospect:${p.id}`;
+    const why =
+      `${p.company} is a standout prospect${where} (high fit). Open with a CONGRATULATORY outreach angle ` +
+      `in our voice -- acknowledge what they appear to be doing well and offer a visibility idea. This is ` +
+      `outreach TO a prospect; do not write claims as them.`;
+    const queryText = `Congratulatory outreach to prospect: ${p.company}${p.industry ? ` (${p.industry})` : ''}.`;
     const oppId = await upsertSuggestedOpportunity({
       tenantId,
       origin: 'internal_signal',
       queryText,
-      topicTags: isClient
-        ? ['client-win', 'press-release', win.industry ? win.industry.toLowerCase().slice(0, 48) : 'announcement']
-        : ['prospect', 'congratulatory', 'outreach', win.industry ? win.industry.toLowerCase().slice(0, 48) : 'lead'],
+      topicTags: ['prospect', 'congratulatory', 'outreach', p.industry ? p.industry.toLowerCase().slice(0, 48) : 'lead'],
       whyItMatters: why,
-      relevanceScore: win.ai_score ? Math.min(100, win.ai_score) : 70,
-      matchedLeadId: win.id,
+      relevanceScore: p.ai_score ? Math.min(100, p.ai_score) : 70,
+      matchedLeadId: p.id,
       dedupeHash: sha256(`${tenantId}:${signalKey}`),
       actorUserId
     });
@@ -215,15 +208,16 @@ async function loadIndustryPainClusters(): Promise<IndustryCluster[]> {
     .sort((a, b) => b.count - a.count);
 }
 
-async function loadClientWins(): Promise<WinRow[]> {
+async function loadStandoutProspects(): Promise<WinRow[]> {
   const db = getAvDb();
-  // A "win" = a converted lead, or a hot lead tied to a real client account.
+  // Standout prospects = hot-scoring leads worth a congratulatory outreach.
+  // These are leads/prospects, never clients.
   const [rows] = await db.execute<WinRow[]>(
-    `SELECT id, company, industry, lead_status, ai_score, client_id
+    `SELECT id, company, industry, lead_status, ai_score
        FROM leads
       WHERE archived_at IS NULL
-        AND (lead_status = 'converted' OR ai_score_band = 'hot')
-      ORDER BY (client_id IS NOT NULL) DESC, (lead_status = 'converted') DESC, ai_score DESC, id DESC
+        AND ai_score_band = 'hot'
+      ORDER BY ai_score DESC, id DESC
       LIMIT 20`
   );
   return rows;

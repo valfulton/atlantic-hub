@@ -607,14 +607,16 @@ function buildParseUserPrompt(args: {
 }
 
 /**
- * Decide the default voice. A lead is only treated as a CLIENT (we may speak for
- * them) when it is linked to a client account or marked converted. Everyone else
- * is a prospect -> advisory outreach written TO them in A&V's voice.
+ * Decide the default voice. CRITICAL data-model note: a lead is essentially
+ * NEVER the client -- `leads.client_id` points to the client account the lead
+ * BELONGS TO, and the lead itself is a prospect. So we always default to
+ * advisory outreach (A&V's voice, written TO the prospect). `client_voice`
+ * (writing as the business, to publish on their behalf) is a deliberate manual
+ * choice the operator makes only when they are genuinely producing content for
+ * an actual client account -- it is never auto-selected.
  */
-function resolveDefaultMode(lead: LeadIntelRow | null): PitchMode {
-  if (!lead) return 'advisory';
-  const isClient = lead.client_id != null || lead.lead_status === 'converted';
-  return isClient ? 'client_voice' : 'advisory';
+function resolveDefaultMode(_lead: LeadIntelRow | null): PitchMode {
+  return 'advisory';
 }
 
 const SHARED_DERIVE_AND_FORMAT = [

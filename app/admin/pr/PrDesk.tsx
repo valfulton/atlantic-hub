@@ -46,6 +46,12 @@ interface Release {
   status: string;
 }
 
+interface Connection {
+  id: number;
+  provider: string;
+  displayName: string | null;
+}
+
 const STATUS_TONE: Record<string, { label: string; bg: string; fg: string }> = {
   new: { label: 'New', bg: 'rgba(59,130,246,0.16)', fg: '#93c5fd' },
   drafted: { label: 'Drafted', bg: 'rgba(245,158,11,0.16)', fg: '#fcd34d' },
@@ -102,6 +108,13 @@ export function PrDesk() {
   const [editBody, setEditBody] = useState<Record<number, string>>({});
   const [savingPitch, setSavingPitch] = useState<number | null>(null);
 
+  // scheduling across profiles
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [schedWhen, setSchedWhen] = useState<Record<number, string>>({});
+  const [schedSel, setSchedSel] = useState<Record<number, number[]>>({});
+  const [scheduling, setScheduling] = useState<number | null>(null);
+  const [schedMsg, setSchedMsg] = useState<Record<number, string>>({});
+
   const voiceFor = useCallback((oppId: number): VoiceChoice => voice[oppId] ?? 'auto', [voice]);
   const modeArg = useCallback(
     (oppId: number): PitchMode | undefined => {
@@ -120,15 +133,20 @@ export function PrDesk() {
     setLoading(true);
     setError(null);
     try {
-      const [oRes, rRes] = await Promise.all([
+      const [oRes, rRes, cRes] = await Promise.all([
         fetch('/api/admin/pr/opportunities', { cache: 'no-store' }),
-        fetch('/api/admin/pr/releases', { cache: 'no-store' })
+        fetch('/api/admin/pr/releases', { cache: 'no-store' }),
+        fetch('/api/admin/social/connections?tenant=av', { cache: 'no-store' })
       ]);
       const oJson = await oRes.json();
       const rJson = await rRes.json();
       if (!oRes.ok) throw new Error(oJson.error || 'failed to load opportunities');
       setOpps(oJson.items || []);
       setReleases(rJson.items || []);
+      if (cRes.ok) {
+        const cJson = await cRes.json();
+        setConnections(cJson.items || []);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -211,18 +229,18 @@ export function PrDesk() {
     }
   }, [load]);
 
-  const orchestrate = useCallback(async (oppId: number) => {
+  const orchestrate = useCallback(async (oppId: number, makeCommercial: boolean) => {
     setOrchestrating(oppId);
     setError(null);
     try {
       const res = await fetch(`/api/admin/pr/opportunities/${oppId}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ makeCommercial: true, assetType: 'image', mode: modeArg(oppId) })
+        body: JSON.stringify({ makeCommercial, assetType: 'image', mode: modeArg(oppId) })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'orchestrate failed');
-      const parts: string[] = ['Pitch drafted.'];
+      const parts: string[] = ['Pitch ready.'];
       if (json.commercial) parts.push(`Commercial ${json.commercial.generationStatus}.`);
       if (json.social) parts.push(`Post queued to the timeline (${json.social.status}).`);
       if (json.needsConnection) parts.push('Connect a social account at /admin/social to queue the post.');
@@ -267,6 +285,45 @@ export function PrDesk() {
     } finally {
       setPublishing(null);
     }
+  }, []);
+
+  const scheduleAcross = useCallback(async (oppId: number) => {
+    const when = schedWhen[oppId];
+    const sel = schedSel[oppId] ?? [];
+    if (!when) {
+      setError('Pick a date and time to schedule.');
+      return;
+    }
+    if (!sel.length) {
+      setError('Select at least one profile to post to.');
+      return;
+    }
+    setScheduling(oppId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/pr/opportunities/${oppId}/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionIds: sel, scheduledFor: new Date(when).toISOString() })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'schedule failed');
+      setSchedMsg((m) => ({
+        ...m,
+        [oppId]: `Scheduled to ${json.scheduled} profile${json.scheduled === 1 ? '' : 's'} -- now on the Campaign timeline.`
+      }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setScheduling(null);
+    }
+  }, [schedWhen, schedSel]);
+
+  const toggleSchedProfile = useCallback((oppId: number, connId: number) => {
+    setSchedSel((s) => {
+      const cur = s[oppId] ?? [];
+      return { ...s, [oppId]: cur.includes(connId) ? cur.filter((x) => x !== connId) : [...cur, connId] };
+    });
   }, []);
 
   const savePitch = useCallback(async (oppId: number, pitchId: number, text: string) => {
@@ -542,14 +599,24 @@ export function PrDesk() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void orchestrate(o.id)}
+                    onClick={() => void orchestrate(o.id, false)}
                     disabled={orchestrating === o.id}
-                    aria-label="Draft pitch, generate commercial, and queue a social post"
+                    aria-label="Queue this pitch to the timeline"
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.14)' }}
+                  >
+                    {orchestrating === o.id ? 'Queueing' : 'Queue post'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void orchestrate(o.id, true)}
+                    disabled={orchestrating === o.id}
+                    aria-label="Generate a commercial for this and queue it"
                     data-loading={orchestrating === o.id ? 'true' : 'false'}
                     className="ah-action-sparkle inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
                     style={{ background: 'linear-gradient(120deg, #FF5A6E 0%, #FF9C5B 100%)', color: '#1a0a0a' }}
                   >
-                    <span>{orchestrating === o.id ? 'Building campaign' : 'Pitch + commercial + queue'}</span>
+                    <span>{orchestrating === o.id ? 'Generating' : 'Add commercial + queue'}</span>
                     <span className="ah-sparkle-pair" aria-hidden="true"><span>&#10022;</span><span>&#10023;</span></span>
                   </button>
                   {queued[o.id] && !queued[o.id].published && (
@@ -572,6 +639,66 @@ export function PrDesk() {
                   <p className="text-[12px] mt-2" style={{ color: '#9AE6B4' }} aria-live="polite">
                     {orchestrateMsg[o.id]}
                   </p>
+                )}
+
+                {o.latestPitch && (
+                  <div className="mt-3 rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span className="block text-[10px] uppercase tracking-[0.12em] mb-2 text-muted">Schedule across profiles</span>
+                    {connections.length === 0 ? (
+                      <p className="text-[12px] text-muted">
+                        No connected profiles yet. Connect accounts at{' '}
+                        <a href="/admin/social" className="underline">/admin/social</a>.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <input
+                            type="datetime-local"
+                            value={schedWhen[o.id] ?? ''}
+                            onChange={(e) => setSchedWhen((w) => ({ ...w, [o.id]: e.target.value }))}
+                            aria-label="Date and time to post"
+                            className="rounded-lg px-2 py-1.5 text-[13px] focus-visible:ring-2 focus-visible:ring-brand"
+                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void scheduleAcross(o.id)}
+                            disabled={scheduling === o.id}
+                            aria-label="Schedule this post across the selected profiles"
+                            className="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                            style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.4)' }}
+                          >
+                            {scheduling === o.id ? 'Scheduling' : 'Schedule'}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {connections.map((c) => {
+                            const checked = (schedSel[o.id] ?? []).includes(c.id);
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => toggleSchedProfile(o.id, c.id)}
+                                aria-pressed={checked}
+                                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] focus-visible:ring-2 focus-visible:ring-brand"
+                                style={
+                                  checked
+                                    ? { background: 'rgba(16,185,129,0.18)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.45)' }
+                                    : { background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.12)' }
+                                }
+                              >
+                                <span aria-hidden="true">{checked ? '✓' : '+'}</span>
+                                {c.displayName || c.provider} ({c.provider})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                    {schedMsg[o.id] && (
+                      <p className="text-[12px] mt-2" style={{ color: '#93c5fd' }} aria-live="polite">{schedMsg[o.id]}</p>
+                    )}
+                  </div>
                 )}
               </li>
             ))}
