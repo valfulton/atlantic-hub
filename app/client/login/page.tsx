@@ -56,6 +56,17 @@ function LoginForm() {
   }
 
   return (
+    <>
+      <nav className="w-full flex items-center justify-between px-6 py-4 border-b border-border">
+        <span className="font-semibold text-ink">Atlantic &amp; Vine</span>
+        <button
+          type="button"
+          onClick={() => window.open('https://atlanticandvine.netlify.app', 'avsite', 'width=1180,height=820')}
+          className="text-sm text-brand hover:underline"
+        >
+          atlanticandvine.com
+        </button>
+      </nav>
     <main className="min-h-screen flex items-center justify-center px-4 py-12">
       <form
         onSubmit={handleSubmit}
@@ -124,6 +135,7 @@ function LoginForm() {
         </p>
       </form>
     </main>
+    </>
   );
 }
 

@@ -262,8 +262,8 @@ export function SocialIntegrationsBoard() {
                 onClick={() => setTenant(t)}
                 className={`px-3.5 py-1.5 rounded-full text-sm transition-all border ${
                   active
-                    ? 'border-transparent text-white shadow-lg shadow-pink-500/20'
-                    : 'border-border text-muted hover:text-ink hover:border-pink-400/60'
+                    ? 'border-transparent text-white shadow-md shadow-pink-500/10'
+                    : 'border-border text-muted hover:text-ink hover:border-pink-400/40'
                 }`}
                 style={
                   active
@@ -362,7 +362,7 @@ export function SocialIntegrationsBoard() {
                   live
                     ? startConnect(p.id)
                     : showToast(
-                        `${p.label} is still in its platform review queue. LinkedIn and X are live now.`
+                        `${p.label} unlocks as a package add-on once its platform review clears. LinkedIn and X are live right now.`
                       )
                 }
               />
@@ -445,7 +445,7 @@ function ProviderCard({
     <div className="relative bg-surface border border-border rounded-2xl p-5 overflow-hidden transition-all hover:border-pink-400/40 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-pink-500/5">
       {/* Brand color flourish */}
       <div
-        className="pointer-events-none absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-20 blur-2xl"
+        className="pointer-events-none absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-[0.09] blur-3xl"
         style={{ background: provider.brandColor }}
       />
 
@@ -493,10 +493,10 @@ function ProviderCard({
         <button
           type="button"
           onClick={onConnect}
-          className="relative w-full px-4 py-2 rounded-full text-white text-sm font-medium transition-all hover:brightness-110"
+          className="relative w-full px-4 py-2.5 rounded-full text-white text-sm font-semibold tracking-wide transition-all hover:brightness-[1.07]"
           style={{
             background: 'linear-gradient(120deg, #FF5A6E, #FF9C5B)',
-            boxShadow: '0 8px 20px -8px rgba(255,90,110,0.5)'
+            boxShadow: '0 6px 16px -10px rgba(255,90,110,0.45)'
           }}
         >
           Connect {provider.label}
@@ -505,9 +505,9 @@ function ProviderCard({
         <button
           type="button"
           onClick={onConnect}
-          className="relative w-full px-4 py-2 rounded-full text-sm font-medium transition-all border border-border text-muted hover:text-ink cursor-not-allowed opacity-80"
+          className="relative w-full px-4 py-2.5 rounded-full text-sm font-medium transition-all border border-border text-muted hover:text-ink hover:border-pink-400/30"
         >
-          {provider.label} pending review
+          Available as add-on
         </button>
       )}
     </div>
