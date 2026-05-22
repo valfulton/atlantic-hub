@@ -147,6 +147,19 @@ const BRAND_SAFETY_CLAUSE =
   'Do not render any text, logos, watermarks, brand names, trademarks, mascots, or competitor brand cues anywhere in the frame. ' +
   'No fictional brand insignia. Treat all visible signage as blank, generic, or out of focus.';
 
+/**
+ * Direction for the spoken voiceover/narration track. Tells the model what the
+ * voiceover should say, not just how the video should look. Concrete per-lead
+ * so the narration names the actual business and lands a call to action.
+ */
+function voiceoverClause(company: string, industry: string): string {
+  return [
+    `Voiceover: include a short spoken narration track in a warm, confident, premium voice.`,
+    `Script should open with a one-line hook, name "${company}" once, convey a single core benefit of this ${industry} business, and close with a clear call to action.`,
+    `Keep narration concise enough to land naturally within the clip length; pace it calm and unhurried, not salesy or frantic.`
+  ].join(' ');
+}
+
 /** Translate a logo-space corner into a concrete negative-space instruction. */
 function logoSpaceClause(space?: LogoSpace): string | null {
   if (!space || space === 'none') return null;
@@ -222,6 +235,7 @@ function buildVideoPrompt(
       `One clear hero moment. Fluid camera movement (slow push-in or smooth handheld). Cinematic depth of field. Editorial-grade lighting.`,
       briefFragment,
       `Real-world authentic feel, not stock-footage. Social-media ready framing.`,
+      voiceoverClause(lead.company, industry),
       logoClause,
       BRAND_SAFETY_CLAUSE
     ]
@@ -236,6 +250,7 @@ function buildVideoPrompt(
     `Cinematic, fluid camera movement, premium product/lifestyle shots, golden-hour or editorial studio lighting. One clear hero moment within the cut.`,
     auditSnippet ? `Brand tone cues from the audit: ${auditSnippet}` : null,
     `Pacing: confident, premium, never frantic. Real-world authentic feel over stock-footage gloss.`,
+    voiceoverClause(lead.company, industry),
     logoClause,
     BRAND_SAFETY_CLAUSE
   ]

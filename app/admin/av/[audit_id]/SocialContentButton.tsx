@@ -561,8 +561,23 @@ function PostToCommercialBridge({
         <div className="rounded-md overflow-hidden border border-border bg-black">
           {result.url ? (
             result.assetType === 'image' ? (
+              // Prefer the branded composite (raw asset + lead logo). The branded
+              // route 404s when the lead has no brand kit, so fall back to the
+              // raw asset on error -- no kit-state plumbing needed here.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={result.url} alt="Generated commercial" className="w-full max-h-80 object-contain" />
+              <img
+                src={
+                  result.assetId
+                    ? `/api/admin/av/leads/${auditId}/commercial/${result.assetId}/branded`
+                    : result.url
+                }
+                alt="Generated commercial"
+                className="w-full max-h-80 object-contain"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (result.url && img.src !== result.url) img.src = result.url;
+                }}
+              />
             ) : (
               <video src={result.url} controls className="w-full max-h-80" />
             )
