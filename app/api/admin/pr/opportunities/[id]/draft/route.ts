@@ -61,10 +61,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // empty body is fine
   }
   const leadOverride = typeof body.leadId === 'number' ? body.leadId : null;
-  const mode =
-    body.mode === 'advisory' || body.mode === 'congratulatory' || body.mode === 'client_voice'
-      ? body.mode
-      : undefined;
 
   try {
     const db = getAvDb();
@@ -97,7 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const leadId = leadOverride ?? opportunity.matchedLeadId ?? null;
 
-    const drafted = await draftPitch({ opportunity, leadId, mode });
+    const drafted = await draftPitch({ opportunity, leadId });
 
     // Persist the pitch.
     const [pres] = await db.execute<ResultSetHeader>(
@@ -151,7 +147,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         model: drafted.model,
         status: 'draft'
       },
-      mode: drafted.mode,
       whyItMatters: drafted.whyItMatters,
       groundedOnIntelligence: drafted.groundedOnIntelligence,
       intelligenceObjectsWritten: written

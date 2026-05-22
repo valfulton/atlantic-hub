@@ -17,9 +17,7 @@ const AV_NAV = [
   { href: '/admin/av', label: 'Atlantic & Vine', section: 'tenant' as const },
   { href: '/admin/av/discover', label: 'Discover leads', section: 'sub' as const },
   { href: '/admin/av/import', label: 'Import CSV', section: 'sub' as const },
-  { href: '/admin/av/outreach', label: 'Outreach', section: 'sub' as const },
-  { href: '/admin/pr', label: 'PR engine', section: 'sub' as const },
-  { href: '/admin/social/calendar', label: 'Campaign timeline', section: 'sub' as const }
+  { href: '/admin/av/outreach', label: 'Outreach', section: 'sub' as const }
 ];
 
 const EBW_NAV = [

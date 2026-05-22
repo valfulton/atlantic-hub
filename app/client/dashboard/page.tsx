@@ -18,9 +18,7 @@ import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getAvDb } from '@/lib/db/av';
 import { TIER_FEATURES, TIER_LABEL } from '@/lib/client-portal/tiers';
-import { getOrComposeClientGuidance } from '@/lib/client/guidance';
 import PortalHeader from '@/app/client/_components/PortalHeader';
-import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -84,19 +82,6 @@ export default async function ClientDashboardPage() {
   const features = TIER_FEATURES[user.tier];
   const headline = user.display_name?.split(/[ ,]/)[0] || 'there';
 
-  // Client guidance feed (the monetization surface): read cached guidance and
-  // recompose only if stale (>24h). Deterministic, grounded in this client's own
-  // intelligence -- see lib/client/guidance.ts. Fails soft to an empty state.
-  const guidance = await getOrComposeClientGuidance({
-    client: {
-      clientUserId: user.client_user_id,
-      clientId: user.client_id,
-      email: user.email,
-      tier: user.tier,
-      displayName: user.display_name
-    }
-  });
-
   return (
     <>
       <PortalHeader
@@ -107,17 +92,15 @@ export default async function ClientDashboardPage() {
       />
 
       <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
-        {/* The guidance feed is the FIRST thing the client sees: what matters
-            most right now, and why. Everything already produced for them sits
-            below it. */}
-        <GuidanceFeed guidance={guidance} firstName={headline} />
-
-        <section className="mb-8">
-          <p className="text-muted text-sm">
+        <section className="mb-8 sm:mb-10">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-ink">
+            Welcome back, {headline}.
+          </h1>
+          <p className="text-muted mt-1 text-sm">
             You&apos;re on the{' '}
             <span className="text-ink font-medium">{TIER_LABEL[user.tier]}</span>{' '}
             plan. {audit
-              ? 'Your Strategic Marketing Audit and what is included are below.'
+              ? 'Your Strategic Marketing Audit is below.'
               : 'Your audit will appear here once it has been generated.'}
           </p>
         </section>
