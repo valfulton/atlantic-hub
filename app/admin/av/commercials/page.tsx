@@ -120,12 +120,16 @@ export default async function CommercialsPage({ searchParams }: { searchParams: 
               className="block rounded-2xl border border-border bg-surface overflow-hidden hover:border-pink-400/40 transition-colors no-underline"
             >
               <div className="aspect-video bg-black flex items-center justify-center">
-                {a.asset_type === 'image' ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.storage_url ?? ''} alt="commercial" className="w-full h-full object-cover" />
-                ) : (
-                  <video src={a.storage_url ?? undefined} preload="metadata" muted className="w-full h-full object-contain bg-black" />
-                )}
+                {(() => {
+                  // Stable, durable URL (persists on first view) instead of the expiring provider URL.
+                  const src = `/api/admin/av/leads/${a.audit_id}/commercial/${a.id}/file`;
+                  return a.asset_type === 'image' ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={src} alt="commercial" className="w-full h-full object-cover" />
+                  ) : (
+                    <video src={src} preload="metadata" muted className="w-full h-full object-contain bg-black" />
+                  );
+                })()}
               </div>
               <div className="p-3">
                 <div className="flex items-center gap-2 mb-1 text-[10px] uppercase tracking-[0.12em] text-muted">

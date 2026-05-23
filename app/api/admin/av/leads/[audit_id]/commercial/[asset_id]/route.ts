@@ -134,7 +134,10 @@ export async function GET(
       leadId: asset.lead_id,
       assetType: asset.asset_type,
       model: asset.model,
-      url: asset.storage_url,
+      url:
+        asset.generation_status === 'succeeded' && asset.storage_url
+          ? `/api/admin/av/leads/${params.audit_id}/commercial/${asset.id}/file`
+          : asset.storage_url,
       costUsd: asset.cost_usd == null ? null : Number(asset.cost_usd),
       generationStatus: asset.generation_status,
       durationSeconds: asset.duration_seconds == null ? null : Number(asset.duration_seconds),

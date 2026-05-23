@@ -23,6 +23,7 @@ import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { decryptToken } from '@/lib/social/encrypt';
 import { linkedInUploadMedia, xUploadImage } from '@/lib/social/media';
+import { markKeeper } from '@/lib/storage/provenance';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export interface PublishResult {
@@ -39,6 +40,7 @@ interface OutboxJoinRow extends RowDataPacket {
   id: number;
   tenant_id: string;
   connection_id: number;
+  asset_id: number | null;
   body_text: string | null;
   media_url: string | null;
   media_type: string | null;
@@ -66,7 +68,7 @@ export class OutboxRowNotFoundError extends Error {
 export async function publishOutboxRow(outboxId: number): Promise<PublishResult> {
   const db = getAvDb();
   const [rows] = await db.execute<OutboxJoinRow[]>(
-    `SELECT o.id, o.tenant_id, o.connection_id, o.body_text, o.media_url, o.media_type,
+    `SELECT o.id, o.tenant_id, o.connection_id, o.asset_id, o.body_text, o.media_url, o.media_type,
             o.status AS outbox_status,
             c.provider, c.provider_account_id, c.display_name, c.access_token_enc,
             c.status AS conn_status
@@ -191,6 +193,9 @@ export async function publishOutboxRow(outboxId: number): Promise<PublishResult>
     [row.connection_id]
   );
   await writePublishLog(outboxId, 'success', post.httpStatus, latency, null);
+  // A published commercial is a KEEPER -> eligible for permanent (Arweave)
+  // archival. Best-effort; never blocks the publish result.
+  if (row.asset_id) void markKeeper(row.asset_id).catch(() => {});
   await logEvent({
     eventType: 'social.published',
     source: 'social_publisher',

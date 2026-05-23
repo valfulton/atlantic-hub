@@ -308,7 +308,12 @@ export async function GET(req: NextRequest, { params }: { params: { audit_id: st
         assetId: r.id,
         assetType: r.asset_type,
         model: r.model,
-        url: r.storage_url,
+        // Stable, durable URL (lazily persists on first view) instead of the
+        // expiring provider URL. Falls back to the raw URL only if not succeeded.
+        url:
+          r.generation_status === 'succeeded' && r.storage_url
+            ? `/api/admin/av/leads/${params.audit_id}/commercial/${r.id}/file`
+            : r.storage_url,
         costUsd: r.cost_usd == null ? null : Number(r.cost_usd),
         generationStatus: r.generation_status,
         durationSeconds: r.duration_seconds == null ? null : Number(r.duration_seconds),
