@@ -84,6 +84,33 @@ export function CampaignsBoard() {
     }
   }, [openId, content, fetchTargets]);
 
+  // Generate content INTO an existing campaign (separate request per piece, so
+  // no compounding timeout; each is tagged with campaignId).
+  const [drafting, setDrafting] = useState<string | null>(null);
+  const draftForCampaign = useCallback(async (campaignId: number, artifactType: 'blog_article' | 'own_brand_post', topic: string) => {
+    const k = `${campaignId}-${artifactType}`;
+    setDrafting(k);
+    setError(null);
+    try {
+      const t = artifactType === 'blog_article'
+        ? `A thought-leadership blog article on: ${topic}. Atlantic & Vine's own voice; general audience; do not name a specific company.`
+        : `A short, engaging own-brand social post on: ${topic}. A hook, one idea, a soft CTA.`;
+      const res = await fetch('/api/admin/pr/artifacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifactType, topic: t, voiceMode: 'client_voice', campaignId })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'draft failed');
+      const cr = await fetch(`/api/admin/campaigns/${campaignId}`, { cache: 'no-store' });
+      const cj = await cr.json().catch(() => ({}));
+      if (cr.ok) setContent((c) => ({ ...c, [campaignId]: { artifacts: cj.artifacts || [], commercials: cj.commercials || [] } }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDrafting(null);
+    }
+  }, []);
+
   const attachByPain = useCallback(async (campaignId: number, value: string) => {
     // value = "industry||painCategory" or "||painCategory"
     const [industry, painCategory] = value.split('||');
@@ -317,9 +344,27 @@ export function CampaignsBoard() {
                             )}
                           </div>
 
+                          {/* Generate content directly into this campaign */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Create</span>
+                            <button type="button" onClick={() => void draftForCampaign(c.id, 'blog_article', c.goal || c.name)}
+                              disabled={drafting === `${c.id}-blog_article`}
+                              className="rounded-lg px-3 py-1 text-[12px] font-medium disabled:opacity-50"
+                              style={{ background: 'linear-gradient(120deg,#FF5A6E,#FF9C5B)', color: '#1a0a0a' }}>
+                              {drafting === `${c.id}-blog_article` ? 'Drafting…' : '✨ Blog post'}
+                            </button>
+                            <button type="button" onClick={() => void draftForCampaign(c.id, 'own_brand_post', c.goal || c.name)}
+                              disabled={drafting === `${c.id}-own_brand_post`}
+                              className="rounded-lg px-3 py-1 text-[12px] font-medium disabled:opacity-50"
+                              style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.16)' }}>
+                              {drafting === `${c.id}-own_brand_post` ? 'Drafting…' : '✨ Social post'}
+                            </button>
+                            <span className="text-[11px] text-muted">— or make a commercial in a lead and use its &quot;+ Campaign&quot;.</span>
+                          </div>
+
                           {/* Content compiled into this campaign */}
                           {ct && (ct.artifacts.length === 0 && ct.commercials.length === 0 ? (
-                            <p className="text-[12px] text-muted">No content yet. Use &quot;+ with content&quot; or add from Content &amp; blog.</p>
+                            <p className="text-[12px] text-muted">No content yet — use the buttons above to create some.</p>
                           ) : (
                             <ul className="space-y-1">
                               {ct.artifacts.map((a) => (
