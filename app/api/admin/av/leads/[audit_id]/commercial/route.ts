@@ -40,7 +40,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
-import { generateCommercialForLead, type LogoSpace } from '@/lib/grok/discoverer';
+import { generateCommercialForLead, type LogoSpace, type CommercialAngle } from '@/lib/grok/discoverer';
 import {
   GrokApiKeyMissingError,
   GrokApiError,
@@ -157,6 +157,11 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
     logoSpace = payload.logoSpace as LogoSpace;
   }
 
+  const angle: CommercialAngle | undefined =
+    payload.angle === 'av_brand' || payload.angle === 'industry' || payload.angle === 'business'
+      ? (payload.angle as CommercialAngle)
+      : undefined;
+
   // Resolve the audit_id -> internal lead id.
   const db = getAvDb();
   const [leadRows] = await db.execute<(RowDataPacket & { id: number })[]>(
@@ -177,6 +182,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       resolution,
       aspectRatio,
       logoSpace,
+      angle,
       actorUserId: guard.actor.userId,
       // Video: return 'running' immediately and let the UI poll. Avoids the
       // serverless 504 on long renders. Images stay synchronous (they're fast).

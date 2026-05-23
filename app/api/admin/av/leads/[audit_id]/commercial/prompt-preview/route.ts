@@ -23,7 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
-import { buildPromptForLead, type LogoSpace } from '@/lib/grok/discoverer';
+import { buildPromptForLead, type LogoSpace, type CommercialAngle } from '@/lib/grok/discoverer';
 import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -79,6 +79,10 @@ export async function GET(req: NextRequest, { params }: { params: { audit_id: st
     logoSpace = lsRaw as LogoSpace;
   }
 
+  const angleRaw = url.searchParams.get('angle');
+  const angle: CommercialAngle | undefined =
+    angleRaw === 'av_brand' || angleRaw === 'industry' || angleRaw === 'business' ? angleRaw : undefined;
+
   // Resolve the audit_id -> internal lead id (same approach as the POST route).
   const db = getAvDb();
   const [leadRows] = await db.execute<(RowDataPacket & { id: number })[]>(
@@ -93,7 +97,8 @@ export async function GET(req: NextRequest, { params }: { params: { audit_id: st
     const built = await buildPromptForLead(leadRows[0].id, {
       assetType,
       durationSeconds,
-      logoSpace
+      logoSpace,
+      angle
     });
     if (!built) return NextResponse.json({ error: 'lead not found' }, { status: 404 });
     return NextResponse.json({

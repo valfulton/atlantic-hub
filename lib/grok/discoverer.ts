@@ -53,6 +53,30 @@ export type LogoSpace =
   | 'bottom-left'
   | 'bottom-right';
 
+/**
+ * Who/what the commercial is FOR. Default 'business' = advertise the matched
+ * lead's business (uses their visual brief). 'av_brand' = an Atlantic & Vine
+ * brand spot. 'industry' = a generic industry piece naming no company.
+ */
+export type CommercialAngle = 'business' | 'av_brand' | 'industry';
+
+function angleFraming(
+  angle: CommercialAngle,
+  company: string,
+  industry: string
+): { subject: string; useBrief: boolean } {
+  if (angle === 'av_brand') {
+    return { subject: 'Atlantic & Vine, an AI-native marketing intelligence agency', useBrief: false };
+  }
+  if (angle === 'industry') {
+    return {
+      subject: `the ${industry} industry (do NOT show signage or name any specific company)`,
+      useBrief: false
+    };
+  }
+  return { subject: `${company}, an independent ${industry} business`, useBrief: true };
+}
+
 interface LeadContextRow extends RowDataPacket {
   id: number;
   audit_id: string;
@@ -112,6 +136,8 @@ export interface GenerateCommercialOptions {
    *  (no long inline poll) so the request can't time out; the GET asset endpoint
    *  resumes the poll. Defaults to true (await inline). */
   awaitCompletion?: boolean;
+  /** Who the commercial is for. Defaults to 'business' (advertise the lead). */
+  angle?: CommercialAngle;
 }
 
 export interface GeneratedCommercial {
@@ -191,15 +217,17 @@ function logoSpaceClause(space?: LogoSpace): string | null {
 function buildImagePrompt(
   lead: LeadContextRow,
   brief: VisualBriefRecord | null,
-  logoSpace?: LogoSpace
+  logoSpace?: LogoSpace,
+  angle: CommercialAngle = 'business'
 ): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
-  const briefFragment = visualBriefToPromptFragment(brief);
+  const { subject, useBrief } = angleFraming(angle, lead.company, industry);
+  const briefFragment = useBrief ? visualBriefToPromptFragment(brief) : null;
   const logoClause = logoSpaceClause(logoSpace);
 
   if (briefFragment) {
     return [
-      `Premium commercial hero image for ${lead.company}, an independent ${industry} business.`,
+      `Premium commercial hero image for ${subject}.`,
       `Authentic, magazine-quality advertising photography. Editorial lighting. Sharp focus on a single confident subject. Real-world feel, not stock-photo cliche.`,
       briefFragment,
       logoClause,
@@ -209,10 +237,10 @@ function buildImagePrompt(
       .join(' ');
   }
 
-  // Legacy fallback path (no visual brief yet)
-  const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 600) : '';
+  // Legacy fallback path (no visual brief yet, or a non-business angle)
+  const auditSnippet = useBrief && lead.audit_content ? truncate(lead.audit_content, 600) : '';
   return [
-    `Premium commercial hero image for ${lead.company}, an independent ${industry} business.`,
+    `Premium commercial hero image for ${subject}.`,
     `Cinematic editorial lighting, sharp focus, magazine-quality advertising composition with one clear hero subject.`,
     auditSnippet ? `Tone cues from the brand audit: ${auditSnippet}` : null,
     `Mood: confident, inviting, premium. Warm, natural color palette. Real-world authenticity over stock-photo polish.`,
@@ -227,19 +255,22 @@ function buildVideoPrompt(
   lead: LeadContextRow,
   durationSeconds: number,
   brief: VisualBriefRecord | null,
-  logoSpace?: LogoSpace
+  logoSpace?: LogoSpace,
+  angle: CommercialAngle = 'business'
 ): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
-  const briefFragment = visualBriefToPromptFragment(brief);
+  const { subject, useBrief } = angleFraming(angle, lead.company, industry);
+  const briefFragment = useBrief ? visualBriefToPromptFragment(brief) : null;
   const logoClause = logoSpaceClause(logoSpace);
+  const voClause = useBrief ? voiceoverClause(lead.company, industry) : null;
 
   if (briefFragment) {
     return [
-      `${durationSeconds}-second premium commercial-style advertising video for ${lead.company}, an independent ${industry} business.`,
+      `${durationSeconds}-second premium commercial-style advertising video for ${subject}.`,
       `One clear hero moment. Fluid camera movement (slow push-in or smooth handheld). Cinematic depth of field. Editorial-grade lighting.`,
       briefFragment,
       `Real-world authentic feel, not stock-footage. Social-media ready framing.`,
-      voiceoverClause(lead.company, industry),
+      voClause,
       logoClause,
       BRAND_SAFETY_CLAUSE
     ]
@@ -247,14 +278,14 @@ function buildVideoPrompt(
       .join(' ');
   }
 
-  // Legacy fallback path
-  const auditSnippet = lead.audit_content ? truncate(lead.audit_content, 500) : '';
+  // Legacy fallback path (or non-business angle)
+  const auditSnippet = useBrief && lead.audit_content ? truncate(lead.audit_content, 500) : '';
   return [
-    `${durationSeconds}-second premium commercial-style advertising video for ${lead.company}, an independent ${industry} business.`,
+    `${durationSeconds}-second premium commercial-style advertising video for ${subject}.`,
     `Cinematic, fluid camera movement, premium product/lifestyle shots, golden-hour or editorial studio lighting. One clear hero moment within the cut.`,
     auditSnippet ? `Brand tone cues from the audit: ${auditSnippet}` : null,
     `Pacing: confident, premium, never frantic. Real-world authentic feel over stock-footage gloss.`,
-    voiceoverClause(lead.company, industry),
+    voClause,
     logoClause,
     BRAND_SAFETY_CLAUSE
   ]
@@ -274,20 +305,22 @@ export async function buildPromptForLead(
     assetType: AssetType;
     durationSeconds?: number;
     logoSpace?: LogoSpace;
+    angle?: CommercialAngle;
   }
 ): Promise<{ prompt: string; source: 'visual_brief' | 'audit' | 'fallback'; briefId: number | null } | null> {
   const lead = await loadLeadContext(leadId);
   if (!lead) return null;
-  const brief = await getActiveBriefForLead(lead.id);
+  const angle = args.angle ?? 'business';
+  const brief = angle === 'business' ? await getActiveBriefForLead(lead.id) : null;
   const source: 'visual_brief' | 'audit' | 'fallback' = brief
     ? 'visual_brief'
-    : lead.audit_content
+    : angle === 'business' && lead.audit_content
     ? 'audit'
     : 'fallback';
   const prompt =
     args.assetType === 'image'
-      ? buildImagePrompt(lead, brief, args.logoSpace)
-      : buildVideoPrompt(lead, Math.max(1, Math.min(15, args.durationSeconds ?? 6)), brief, args.logoSpace);
+      ? buildImagePrompt(lead, brief, args.logoSpace, angle)
+      : buildVideoPrompt(lead, Math.max(1, Math.min(15, args.durationSeconds ?? 6)), brief, args.logoSpace, angle);
   return { prompt, source, briefId: brief?.id ?? null };
 }
 
@@ -501,7 +534,7 @@ async function generateImageCommercial(args: {
     }
   }
 
-  const builtPrompt = buildImagePrompt(lead, brief, options.logoSpace);
+  const builtPrompt = buildImagePrompt(lead, brief, options.logoSpace, options.angle ?? 'business');
   const effectivePrompt = options.customPrompt?.trim() || builtPrompt;
 
   const startMs = Date.now();
@@ -657,7 +690,7 @@ async function generateVideoCommercial(args: {
     }
   }
 
-  const builtPrompt = buildVideoPrompt(lead, duration, brief, options.logoSpace);
+  const builtPrompt = buildVideoPrompt(lead, duration, brief, options.logoSpace, options.angle ?? 'business');
   const effectivePrompt = options.customPrompt?.trim() || builtPrompt;
   const pollTimeoutMs = options.pollTimeoutMs ?? 50_000;
 

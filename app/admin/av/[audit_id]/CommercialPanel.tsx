@@ -193,6 +193,7 @@ export function CommercialPanel({
   const [resolution, setResolution] = useState<ResolutionTier>('1k');
   const [durationSeconds, setDurationSeconds] = useState(6);
   const [logoSpace, setLogoSpace] = useState<LogoSpace>('bottom-right');
+  const [angle, setAngle] = useState<'business' | 'av_brand' | 'industry'>('business');
   const [customPrompt, setCustomPrompt] = useState(initialPrompt);
   const [promptSource, setPromptSource] = useState<'manual' | 'visual_brief' | 'audit' | 'fallback' | null>(
     initialPrompt ? 'manual' : null
@@ -315,6 +316,7 @@ export function CommercialPanel({
       const qs = new URLSearchParams({ assetType });
       if (assetType === 'video') qs.set('durationSeconds', String(durationSeconds));
       if (logoSpace !== 'none') qs.set('logoSpace', logoSpace);
+      if (angle !== 'business') qs.set('angle', angle);
       const res = await fetch(`/api/admin/av/leads/${auditId}/commercial/prompt-preview?${qs.toString()}`);
       const j = (await res.json()) as {
         ok?: boolean;
@@ -342,7 +344,8 @@ export function CommercialPanel({
         assetType,
         resolution,
         aspectRatio,
-        logoSpace
+        logoSpace,
+        angle
       };
       if (customPrompt.trim().length > 0) body.customPrompt = customPrompt.trim();
       if (assetType === 'image') {
@@ -545,6 +548,24 @@ export function CommercialPanel({
                 {assetType === 'video' ? 'HD' : 'High Res'}
               </button>
             </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-[11px] uppercase tracking-[0.12em] text-muted mb-1.5">
+              Voice / who it&apos;s for
+            </label>
+            <select
+              value={angle}
+              onChange={(e) => setAngle(e.target.value as 'business' | 'av_brand' | 'industry')}
+              className={SELECT_CLASS}
+            >
+              <option value="business">Advertise this business (uses their brief)</option>
+              <option value="av_brand">Atlantic &amp; Vine brand spot</option>
+              <option value="industry">Industry-general (no company named)</option>
+            </select>
+            <p className="text-[11px] text-muted mt-1">
+              Changes who the commercial is for. Pick this, then hit &quot;Suggest prompt&quot; to rebuild the prompt in that voice.
+            </p>
           </div>
 
           <div className="md:col-span-2">
@@ -829,6 +850,28 @@ function AssetCard({
     ? `/api/admin/av/leads/${auditId}/commercial/${asset.assetId}/branded`
     : asset.url;
 
+  // Video branding (Phase 2): render the logo onto the video via ffmpeg, served
+  // back from the brand-video endpoint once ready.
+  const canBrandVideo = asset.assetType === 'video' && hasBrandLogo && Boolean(asset.url);
+  const [vidBranding, setVidBranding] = useState(false);
+  const [vidBrandedUrl, setVidBrandedUrl] = useState<string | null>(null);
+  const [vidErr, setVidErr] = useState<string | null>(null);
+  async function brandVideo() {
+    setVidBranding(true);
+    setVidErr(null);
+    try {
+      const res = await fetch(`/api/admin/av/leads/${auditId}/commercial/${asset.assetId}/brand-video`, { method: 'POST' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error || 'branding failed');
+      setVidBrandedUrl(`/api/admin/av/leads/${auditId}/commercial/${asset.assetId}/brand-video?t=${Date.now()}`);
+    } catch (e) {
+      setVidErr((e as Error).message);
+    } finally {
+      setVidBranding(false);
+    }
+  }
+  const videoSrc = vidBrandedUrl || asset.url || undefined;
+
   return (
     <div className="group bg-surface border border-border rounded-2xl overflow-hidden flex flex-col transition-all hover:border-pink-400/40 hover:shadow-xl hover:shadow-pink-500/5 hover:-translate-y-0.5">
       <div className="aspect-video bg-black flex items-center justify-center relative">
@@ -842,7 +885,7 @@ function AssetCard({
             />
           ) : (
             <video
-              src={displayUrl}
+              src={videoSrc}
               controls
               preload="metadata"
               className="w-full h-full object-contain bg-black"
@@ -920,6 +963,19 @@ function AssetCard({
               <span aria-hidden>📣</span> Push to social
             </a>
           ) : null}
+          {canBrandVideo ? (
+            <button
+              type="button"
+              onClick={() => void brandVideo()}
+              disabled={vidBranding}
+              className="px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1.5 transition-all disabled:opacity-50"
+              style={{ background: vidBrandedUrl ? 'linear-gradient(120deg, #56B870, #FFC73D)' : 'rgba(255,255,255,0.06)', color: vidBrandedUrl ? '#0F1F33' : '#FFE2DE', border: '1px solid rgba(255,255,255,0.14)' }}
+              title="Burn your brand-kit logo onto this video"
+            >
+              {vidBranding ? 'Branding…' : vidBrandedUrl ? '🎨 Branded — re-run' : '🎨 Brand this video'}
+            </button>
+          ) : null}
+          {vidErr ? <span className="text-[10px] text-red-300 self-center">{vidErr}</span> : null}
           {displayUrl ? (
             <a
               href={displayUrl}
