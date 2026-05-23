@@ -35,6 +35,20 @@ export interface CampaignContentItem {
   updatedAt: string | null;
   /** Set only when the piece is published AND a public newsroom type. */
   liveHref: string | null;
+  /** Hero image/video URL, if attached + public. */
+  heroUrl: string | null;
+  heroType: 'image' | 'video' | null;
+}
+
+/** A client's campaign with its lane + progress. */
+export interface ClientCampaign {
+  id: number;
+  name: string;
+  status: string;
+  laneName: string | null;
+  laneAccent: string | null;
+  pieceCount: number;
+  liveCount: number;
 }
 
 interface ContentRow extends RowDataPacket {
@@ -43,8 +57,21 @@ interface ContentRow extends RowDataPacket {
   title: string | null;
   body_text: string | null;
   status: string;
+  meta_json: unknown;
   updated_at: Date | string | null;
   created_at: Date | string | null;
+}
+
+function heroFromMeta(raw: unknown): { url: string | null; type: 'image' | 'video' | null } {
+  let meta: Record<string, unknown> | null = null;
+  if (raw != null) {
+    try { meta = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown>; } catch { meta = null; }
+  }
+  const type = meta && (meta.hero_type === 'image' || meta.hero_type === 'video') ? (meta.hero_type as 'image' | 'video') : null;
+  let url: string | null = null;
+  if (meta && typeof meta.hero_url === 'string' && meta.hero_url) url = meta.hero_url as string;
+  else if (meta && typeof meta.hero_asset_id === 'number') url = `/api/public/hero/${meta.hero_asset_id}`;
+  return { url: url ? url : null, type: url ? type : null };
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -92,7 +119,7 @@ export async function listClientCampaignContent(user: {
 }): Promise<CampaignContentItem[]> {
   const db = getAvDb();
   const [rows] = await db.execute<ContentRow[]>(
-    `SELECT a.id, a.artifact_type, a.title, a.body_text, a.status,
+    `SELECT a.id, a.artifact_type, a.title, a.body_text, a.status, a.meta_json,
             a.updated_at, a.created_at
        FROM content_artifacts a
        JOIN leads l ON l.id = a.lead_id
@@ -111,6 +138,7 @@ export async function listClientCampaignContent(user: {
     const { stage, label } = stageFor(r.status);
     const title = (r.title && r.title.trim()) || 'Untitled';
     const isLivePublic = r.status === 'published' && PUBLIC_TYPES.has(r.artifact_type);
+    const hero = heroFromMeta(r.meta_json);
     return {
       id: r.id,
       artifactType: r.artifact_type,
@@ -120,7 +148,40 @@ export async function listClientCampaignContent(user: {
       stage,
       stageLabel: label,
       updatedAt: toIso(r.updated_at) || toIso(r.created_at),
-      liveHref: isLivePublic ? `/newsroom/${articleSlug(title, r.id)}` : null
+      liveHref: isLivePublic ? `/newsroom/${articleSlug(title, r.id)}` : null,
+      heroUrl: hero.url,
+      heroType: hero.type
     };
   });
+}
+
+/** The client's campaigns (tied to their leads), with lane + progress. */
+export async function listClientCampaigns(user: { client_id: number | null; email: string }): Promise<ClientCampaign[]> {
+  const db = getAvDb();
+  const [rows] = await db.execute<(RowDataPacket & {
+    id: number; name: string; status: string; lane_name: string | null; lane_accent: string | null;
+    piece_count: number; live_count: number;
+  })[]>(
+    `SELECT c.id, c.name, c.status, nl.name AS lane_name, nl.accent AS lane_accent,
+            (SELECT COUNT(*) FROM content_artifacts a WHERE a.campaign_id = c.id AND a.status <> 'passed') AS piece_count,
+            (SELECT COUNT(*) FROM content_artifacts a WHERE a.campaign_id = c.id AND a.status = 'published') AS live_count
+       FROM campaigns c
+       LEFT JOIN narrative_lanes nl ON nl.id = c.lane_id
+      WHERE c.archived_at IS NULL
+        AND c.lead_id IN (
+          SELECT id FROM leads WHERE archived_at IS NULL AND ((? IS NOT NULL AND client_id = ?) OR email = ?)
+        )
+      ORDER BY c.created_at DESC
+      LIMIT 50`,
+    [user.client_id, user.client_id, user.email]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    status: r.status,
+    laneName: r.lane_name,
+    laneAccent: r.lane_accent,
+    pieceCount: Number(r.piece_count) || 0,
+    liveCount: Number(r.live_count) || 0
+  }));
 }

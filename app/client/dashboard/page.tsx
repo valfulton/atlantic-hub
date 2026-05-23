@@ -19,7 +19,7 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { getAvDb } from '@/lib/db/av';
 import { TIER_FEATURES, TIER_LABEL } from '@/lib/client-portal/tiers';
 import { getOrComposeClientGuidance } from '@/lib/client/guidance';
-import { listClientCampaignContent, type CampaignContentItem } from '@/lib/client/campaign';
+import { listClientCampaignContent, listClientCampaigns, type CampaignContentItem, type ClientCampaign } from '@/lib/client/campaign';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
 import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
@@ -110,6 +110,14 @@ export default async function ClientDashboardPage() {
     campaign = [];
   }
   const liveCount = campaign.filter((c) => c.stage === 'live').length;
+  const inMotion = campaign.filter((c) => c.stage !== 'live').length;
+
+  let clientCampaigns: ClientCampaign[] = [];
+  try {
+    clientCampaigns = await listClientCampaigns({ client_id: user.client_id, email: user.email });
+  } catch {
+    clientCampaigns = [];
+  }
 
   return (
     <>
@@ -121,9 +129,31 @@ export default async function ClientDashboardPage() {
       />
 
       <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
-        {/* The guidance feed is the FIRST thing the client sees: what matters
-            most right now, and why. Everything already produced for them sits
-            below it. */}
+        {/* Luxury nautical hero band: the at-a-glance state of their campaign. */}
+        <section
+          className="mb-8 rounded-2xl border border-border overflow-hidden"
+          style={{
+            background:
+              'radial-gradient(120% 140% at 0% 0%, rgba(245,158,11,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
+          }}
+        >
+          <div className="px-6 sm:px-8 py-7">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your campaign, live</div>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+              Welcome back, {headline}.
+            </h1>
+            <WaveDivider className="mt-3" width={120} />
+            <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
+              {liveCount > 0
+                ? `${liveCount} piece${liveCount === 1 ? '' : 's'} live${inMotion > 0 ? `, ${inMotion} more in motion` : ''}. Your story is out in the world and building.`
+                : inMotion > 0
+                  ? `${inMotion} piece${inMotion === 1 ? '' : 's'} in motion. Your campaign is taking shape — you'll see it go live here.`
+                  : 'Your campaign is being set in motion. Everything we create for you will appear here.'}
+            </p>
+          </div>
+        </section>
+
+        {/* The guidance feed: what matters most right now, and why. */}
         <GuidanceFeed guidance={guidance} firstName={headline} />
 
         <section className="mb-8">
@@ -136,10 +166,32 @@ export default async function ClientDashboardPage() {
           </p>
         </section>
 
+        {clientCampaigns.length > 0 && (
+          <section aria-labelledby="campaigns-h" className="mb-10">
+            <h2 id="campaigns-h" className="text-lg font-semibold text-ink mb-1">Your campaigns</h2>
+            <WaveDivider className="mb-4" width={104} />
+            <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {clientCampaigns.map((c) => (
+                <li key={c.id} className="rounded-2xl border border-border bg-surface p-5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: c.laneAccent || '#FF9C5B' }} />
+                    {c.laneName && <span className="text-[10px] uppercase tracking-[0.14em] text-muted">{c.laneName}</span>}
+                  </div>
+                  <h3 className="text-ink font-medium leading-snug">{c.name}</h3>
+                  <div className="mt-3 flex items-center gap-3 text-xs text-muted">
+                    <span><span className="text-brand font-medium">{c.liveCount}</span> live</span>
+                    <span>{c.pieceCount} total</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section aria-labelledby="campaign-h" className="mb-10">
           <div className="flex items-end justify-between gap-4 mb-1">
             <h2 id="campaign-h" className="text-lg font-semibold text-ink">
-              Your campaign
+              Your content
             </h2>
             {liveCount > 0 && (
               <span className="text-xs text-muted">
@@ -169,8 +221,19 @@ export default async function ClientDashboardPage() {
                 return (
                   <li
                     key={c.id}
-                    className="rounded-2xl border border-border bg-surface p-5 flex flex-col"
+                    className="rounded-2xl border border-border bg-surface overflow-hidden flex flex-col"
                   >
+                    {c.heroUrl && (
+                      <div className="w-full aspect-video bg-black overflow-hidden">
+                        {c.heroType === 'video' ? (
+                          <video src={c.heroUrl} muted loop playsInline preload="metadata" className="w-full h-full object-cover" />
+                        ) : (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={c.heroUrl} alt={c.title} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
                     <div className="flex items-center gap-2 mb-2 text-[10px] uppercase tracking-[0.14em]">
                       <span className="text-muted">{c.typeLabel}</span>
                       <span
@@ -195,6 +258,7 @@ export default async function ClientDashboardPage() {
                       </a>
                     )}
                     {c.stage === 'ready' && !c.liveHref && <PublishToNewsroom artifactId={c.id} />}
+                    </div>
                   </li>
                 );
               })}
