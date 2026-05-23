@@ -113,6 +113,8 @@ export function CsvImportForm() {
 
   return (
     <div className="space-y-5">
+      <SingleLeadForm />
+
       <div className="rounded-md border border-border p-4" style={{ backgroundColor: '#0e1420' }}>
         <h3 className="text-sm font-medium text-ink mb-2">Accepted columns (fuzzy-matched)</h3>
         <p className="text-xs text-muted mb-3">
@@ -206,6 +208,119 @@ export function CsvImportForm() {
       )}
 
       {result && <ImportResultPanel result={result} />}
+    </div>
+  );
+}
+
+/**
+ * Single-lead quick-add. Builds a one-row CSV and posts it to the SAME
+ * import endpoint, so a manually-added lead inherits dedup, target-business
+ * inference, and background scoring/auditing -- no separate code path.
+ */
+function SingleLeadForm() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({
+    company: '',
+    contactName: '',
+    email: '',
+    phone: '',
+    website: '',
+    industry: '',
+    notes: ''
+  });
+  const [target, setTarget] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setF((p) => ({ ...p, [k]: e.target.value }));
+
+  function csvCell(v: string): string {
+    const s = (v ?? '').trim();
+    if (s === '') return '';
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setMsg(null);
+    if (!f.company.trim() && !f.email.trim() && !f.website.trim()) {
+      setErr('Enter at least a company, email, or website.');
+      return;
+    }
+    const csv =
+      'Company,Contact Name,Email,Phone,Website,Industry,Notes\n' +
+      [f.company, f.contactName, f.email, f.phone, f.website, f.industry, f.notes].map(csvCell).join(',');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/av/leads/import-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csv,
+          sourceLabel: `manual-${(f.company || f.website || 'lead').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
+          targetBusiness: target || undefined
+        })
+      });
+      const json = (await res.json().catch(() => null)) as ImportResponse | null;
+      if (!res.ok || !json?.ok) {
+        setErr(json?.error || `HTTP ${res.status}`);
+        return;
+      }
+      const r = json.results?.[0];
+      if (r?.outcome === 'inserted') setMsg(`Lead created (#${r.leadId}). It is being scored and audited now.`);
+      else if (r?.outcome === 'duplicate_existing') setMsg(`Already in your pipeline (lead #${r.leadId}).`);
+      else if (r?.outcome === 'duplicate_target_upgraded') setMsg(`Existing lead #${r.leadId} updated to cover this pipeline.`);
+      else setMsg(r?.reason || 'Submitted.');
+      setF({ company: '', contactName: '', email: '', phone: '', website: '', industry: '', notes: '' });
+      router.refresh();
+    } catch (e2) {
+      setErr(`Network error: ${(e2 as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputStyle: React.CSSProperties = { backgroundColor: '#1a1f2e', color: '#f1f5f9' };
+
+  return (
+    <div className="rounded-md border border-border p-4" style={{ backgroundColor: '#0e1420' }}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-ink">Add one lead</h3>
+        <button type="button" onClick={() => setOpen((o) => !o)} className="text-xs text-brand hover:underline">
+          {open ? 'Hide' : 'Add a single lead (e.g. a new meeting) →'}
+        </button>
+      </div>
+
+      {open && (
+        <form onSubmit={submit} className="mt-3 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <input value={f.company} onChange={set('company')} placeholder="Company *" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.contactName} onChange={set('contactName')} placeholder="Contact name" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.email} onChange={set('email')} placeholder="Email" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.phone} onChange={set('phone')} placeholder="Phone" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.website} onChange={set('website')} placeholder="Website" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.industry} onChange={set('industry')} placeholder="Industry (e.g. restaurant)" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+          </div>
+          <input value={f.notes} onChange={set('notes')} placeholder="Notes (e.g. Meeting with Skip and Mike)" className="w-full px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+          <div className="flex flex-wrap items-center gap-3">
+            <select value={target} onChange={(e) => setTarget(e.target.value)} className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle}>
+              {TARGET_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+              {busy ? 'Adding…' : 'Add lead'}
+            </button>
+            <span className="text-[11px] text-muted">Enter at least a company, email, or website.</span>
+          </div>
+          {msg && <div className="rounded-md border border-green-500/40 bg-green-500/10 p-2 text-sm text-green-200">{msg}</div>}
+          {err && <div className="rounded-md border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-200 whitespace-pre-wrap">{err}</div>}
+        </form>
+      )}
     </div>
   );
 }
