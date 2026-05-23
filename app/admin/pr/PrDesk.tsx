@@ -133,7 +133,7 @@ export function PrDesk() {
   const [dismissing, setDismissing] = useState<number | null>(null);
 
   // batch actions over the surfaced Ideas (fire-off-everything controls)
-  const [batchRunning, setBatchRunning] = useState<null | 'blog' | 'social' | 'dismiss'>(null);
+  const [batchRunning, setBatchRunning] = useState<null | 'blog' | 'social' | 'dismiss' | 'publish'>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
 
@@ -405,6 +405,10 @@ export function PrDesk() {
         if (res.ok) {
           ok += 1;
           if (json.needsConnection) needsConnection = true;
+          // Remember the queued outbox row so it can be published in one click.
+          if (json.social?.outboxId) {
+            setQueued((q) => ({ ...q, [o.id]: { outboxId: json.social.outboxId, published: false } }));
+          }
         } else {
           failed += 1;
         }
@@ -415,8 +419,10 @@ export function PrDesk() {
     }
     await load();
     setBatchMsg(
-      `Queued ${ok} social post${ok === 1 ? '' : 's'} to the Campaign timeline${failed ? ` (${failed} failed)` : ''}.` +
-        (needsConnection ? ' Connect an account at /admin/social to publish them.' : ' Review them on the timeline before they go out.')
+      `Queued ${ok} social post${ok === 1 ? '' : 's'}${failed ? ` (${failed} failed)` : ''}.` +
+        (needsConnection
+          ? ' Connect an account at /admin/social to publish them.'
+          : ' Use "Publish queued now" to send them, or publish individually.')
     );
     setBatchProgress(null);
     setBatchRunning(null);
@@ -450,6 +456,48 @@ export function PrDesk() {
     setBatchProgress(null);
     setBatchRunning(null);
   }, [opps]);
+
+  // Publish every queued-but-unpublished social post in one deliberate click.
+  // Reuses the proven single-row publish endpoint, sequentially, with progress.
+  const publishAllQueued = useCallback(async () => {
+    const pending = Object.entries(queued)
+      .filter(([, v]) => v && !v.published)
+      .map(([oppId, v]) => ({ oppId: Number(oppId), outboxId: v.outboxId }));
+    if (pending.length === 0) return;
+    setBatchRunning('publish');
+    setBatchMsg(null);
+    setError(null);
+    setBatchProgress({ done: 0, total: pending.length });
+    let ok = 0;
+    let failed = 0;
+    let lastError: string | null = null;
+    for (const { oppId, outboxId } of pending) {
+      try {
+        const res = await fetch(`/api/admin/social/publish/${outboxId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.ok) {
+          ok += 1;
+          setQueued((q) => ({ ...q, [oppId]: { outboxId, published: true } }));
+        } else {
+          failed += 1;
+          lastError = json.error || `publish failed (${res.status})`;
+        }
+      } catch (e) {
+        failed += 1;
+        lastError = (e as Error).message;
+      }
+      setBatchProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    setBatchMsg(
+      `Posted ${ok} of ${pending.length}${failed ? ` -- ${failed} failed${lastError ? `: ${lastError}` : ''}` : '. They are live on the connected account.'}`
+    );
+    setBatchProgress(null);
+    setBatchRunning(null);
+  }, [queued]);
 
   const runSources = useCallback(async () => {
     setRunningSources(true);
@@ -1236,6 +1284,23 @@ export function PrDesk() {
                 ? `Clearing ${batchProgress?.done ?? 0}/${batchProgress?.total ?? ideaOpps.length}`
                 : 'Dismiss all'}
             </button>
+            {(() => {
+              const pendingPublish = Object.values(queued).filter((q) => q && !q.published).length;
+              if (pendingPublish === 0) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={() => void publishAllQueued()}
+                  disabled={batchRunning !== null}
+                  className="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                  style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.4)' }}
+                >
+                  {batchRunning === 'publish'
+                    ? `Posting ${batchProgress?.done ?? 0}/${batchProgress?.total ?? pendingPublish}`
+                    : `Publish queued now (${pendingPublish})`}
+                </button>
+              );
+            })()}
             {batchMsg && (
               <p className="w-full text-[12px] mt-1" style={{ color: '#9AE6B4' }}>
                 {batchMsg}
