@@ -115,6 +115,30 @@ export function CampaignsBoard() {
     await load();
   }, [load]);
 
+  const [spawning, setSpawning] = useState<string | null>(null);
+  const spawnCampaign = useCallback(async (laneId: number | null) => {
+    const key = String(laneId ?? 'none');
+    const d = draft[key];
+    if (!d || !d.name.trim()) return;
+    setSpawning(key);
+    try {
+      const res = await fetch('/api/admin/campaigns/spawn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: d.name.trim(), goal: d.goal.trim() || undefined, topic: d.name.trim(), laneId })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error || 'spawn failed');
+      setDraft((x) => ({ ...x, [key]: { name: '', goal: '' } }));
+      await load();
+      if (json.campaignId) void viewContents(json.campaignId);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSpawning(null);
+    }
+  }, [draft, load, viewContents]);
+
   const createCampaign = useCallback(async (laneId: number | null) => {
     const key = String(laneId ?? 'none');
     const d = draft[key];
@@ -238,9 +262,14 @@ export function CampaignsBoard() {
                 placeholder="New campaign name" className="min-w-[200px] flex-1 rounded-lg px-3 py-1.5 text-[13px]" style={inputStyle} />
               <input value={d.goal} onChange={(e) => setDraft((x) => ({ ...x, [key]: { ...d, goal: e.target.value } }))}
                 placeholder="Goal / narrative (optional)" className="min-w-[200px] flex-1 rounded-lg px-3 py-1.5 text-[13px]" style={inputStyle} />
-              <button type="button" onClick={() => void createCampaign(lane.id)} disabled={creating === key || !d.name.trim()}
+              <button type="button" onClick={() => void createCampaign(lane.id)} disabled={creating === key || spawning === key || !d.name.trim()}
                 className="rounded-lg px-3 py-1.5 text-[13px] disabled:opacity-50" style={{ background: 'rgba(16,185,129,0.16)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.3)' }}>
                 {creating === key ? 'Creating…' : '+ Campaign'}
+              </button>
+              <button type="button" onClick={() => void spawnCampaign(lane.id)} disabled={creating === key || spawning === key || !d.name.trim()}
+                title="Create the campaign AND auto-draft a blog post + a social post into it"
+                className="rounded-lg px-3 py-1.5 text-[13px] font-medium disabled:opacity-50" style={{ background: 'linear-gradient(120deg,#FF5A6E,#FF9C5B)', color: '#1a0a0a' }}>
+                {spawning === key ? 'Spawning…' : '✨ + with content'}
               </button>
             </div>
           </section>
