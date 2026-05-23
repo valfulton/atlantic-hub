@@ -11,7 +11,7 @@
 
 import type { Config } from '@netlify/functions';
 
-const DEFAULT_BATCH_SIZE = 25;
+const DEFAULT_BATCH_SIZE = 50;
 
 export default async (_req: Request) => {
   const base = process.env.URL || 'https://atlantic-hub.netlify.app';
@@ -65,5 +65,7 @@ export default async (_req: Request) => {
 };
 
 export const config: Config = {
-  schedule: '0 8 * * *'
+  // Hourly while the base backfills: every lead gets a pain_category once, then
+  // idles to the 14-day staleness check. Clears the whole pipeline in a day or two.
+  schedule: '0 * * * *'
 };

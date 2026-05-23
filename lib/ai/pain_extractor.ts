@@ -43,8 +43,27 @@ export type DmProximity = 'direct' | 'team_member' | 'unclear';
 export type BudgetSignal = 'strong' | 'possible' | 'weak' | 'unknown';
 export type TimingSignal = 'now' | 'this_quarter' | 'later' | 'unknown';
 
+/**
+ * Fixed pain buckets. The extractor maps each lead's primary_pain to ONE of
+ * these so similar pains cluster across clients (discovery groups on
+ * industry + pain_category). Keep this list STABLE -- it is the cluster key.
+ */
+export const PAIN_CATEGORIES = [
+  'lead_flow',
+  'conversion',
+  'retention',
+  'brand_trust',
+  'visibility',
+  'operational_overwhelm',
+  'pricing_pressure',
+  'differentiation',
+  'other'
+] as const;
+export type PainCategory = (typeof PAIN_CATEGORIES)[number];
+
 export interface PainPointProfile {
   primary_pain: string;
+  pain_category: PainCategory;
   urgency_signal: UrgencySignal;
   decision_maker_proximity: DmProximity;
   budget_signal: BudgetSignal;
@@ -71,6 +90,7 @@ const SYSTEM_INSTRUCTIONS = `You are a senior B2B sales coach for Atlantic & Vin
 Output ALWAYS valid JSON matching this exact shape:
 {
   "primary_pain": "<one crisp sentence in plain English>",
+  "pain_category": "lead_flow" | "conversion" | "retention" | "brand_trust" | "visibility" | "operational_overwhelm" | "pricing_pressure" | "differentiation" | "other",
   "urgency_signal": "high" | "medium" | "low" | "unknown",
   "decision_maker_proximity": "direct" | "team_member" | "unclear",
   "budget_signal": "strong" | "possible" | "weak" | "unknown",
@@ -82,6 +102,7 @@ Output ALWAYS valid JSON matching this exact shape:
 
 Rules:
 - primary_pain is THE problem -- the one a rep would lead the call with. One sentence.
+- pain_category: choose the SINGLE closest bucket from the list above to primary_pain. Be consistent -- the same underlying problem must always map to the same bucket (this is how we cluster the pain across prospects). Use "other" only if none fit.
 - urgency_signal infers from intake-form language, audit findings, recent activity.
 - decision_maker_proximity: "direct" if the contact IS likely the decision maker, "team_member" if they appear to be reporting up, "unclear" otherwise.
 - budget_signal infers from business size, industry margins, and audit clues. Default to "unknown" if nothing clear.
@@ -204,6 +225,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
 
   const profile: PainPointProfile = {
     primary_pain: parsed.primary_pain.slice(0, 600),
+    pain_category: sanitizeCategory(parsed.pain_category),
     urgency_signal: sanitizeUrgency(parsed.urgency_signal),
     decision_maker_proximity: sanitizeProximity(parsed.decision_maker_proximity),
     budget_signal: sanitizeBudget(parsed.budget_signal),
@@ -281,6 +303,7 @@ export async function pickPainCandidates(limit: number): Promise<number[]> {
         AND (
           pain_extracted_at IS NULL
           OR pain_extracted_at < DATE_SUB(NOW(), INTERVAL ${STALE_DAYS} DAY)
+          OR JSON_EXTRACT(pain_point_profile, '$.pain_category') IS NULL
         )
       ORDER BY ai_combined_score DESC, id ASC
       LIMIT ${safeLimit}`
@@ -299,4 +322,7 @@ function sanitizeBudget(v: unknown): BudgetSignal {
 }
 function sanitizeTiming(v: unknown): TimingSignal {
   return v === 'now' || v === 'this_quarter' || v === 'later' || v === 'unknown' ? v : 'unknown';
+}
+function sanitizeCategory(v: unknown): PainCategory {
+  return typeof v === 'string' && (PAIN_CATEGORIES as readonly string[]).includes(v) ? (v as PainCategory) : 'other';
 }

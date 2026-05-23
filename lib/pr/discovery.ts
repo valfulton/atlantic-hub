@@ -41,6 +41,7 @@ interface PainRow extends RowDataPacket {
   industry: string | null;
   lead_id: number;
   primary_pain: string | null;
+  pain_category: string | null;
 }
 
 interface WinRow extends RowDataPacket {
@@ -72,7 +73,7 @@ export async function runInternalDiscoverySweep(args: {
   for (const cluster of clusters) {
     if (created >= MAX_SUGGESTIONS_PER_SWEEP) break;
     industryClusters++;
-    const signalKey = `industry_pain:${cluster.industry}:${normalizeKey(cluster.theme)}`;
+    const signalKey = `industry_pain:${cluster.industry}:${cluster.category}`;
     const why =
       `${cluster.count} ${cluster.industry} businesses in your pipeline show the same pain: "${cluster.theme}". ` +
       `That is a strong ADVISORY outreach hook -- reach out to those prospects with a specific angle on ` +
@@ -104,6 +105,7 @@ export async function runInternalDiscoverySweep(args: {
             objectType: 'media_friendly_topics',
             objectJson: {
               industry: cluster.industry,
+              pain_category: cluster.category,
               theme: cluster.theme,
               client_count: cluster.count,
               detected_at: new Date().toISOString()
@@ -167,6 +169,7 @@ export async function runInternalDiscoverySweep(args: {
 
 interface IndustryCluster {
   industry: string;
+  category: string;
   theme: string;
   count: number;
   exampleLeadId: number;
@@ -174,32 +177,36 @@ interface IndustryCluster {
 
 async function loadIndustryPainClusters(): Promise<IndustryCluster[]> {
   const db = getAvDb();
-  // Pull leads that have a pain profile + an industry; cluster in app code so we
-  // can read the JSON primary_pain reliably across mysql2 JSON return shapes.
+  // Pull leads that have a CATEGORIZED pain profile + an industry. We cluster on
+  // the stable pain_category bucket (not the verbatim sentence), so the same
+  // underlying problem groups across clients even when the wording differs.
   const [rows] = await db.execute<PainRow[]>(
     `SELECT industry,
             id AS lead_id,
-            JSON_UNQUOTE(JSON_EXTRACT(pain_point_profile, '$.primary_pain')) AS primary_pain
+            JSON_UNQUOTE(JSON_EXTRACT(pain_point_profile, '$.primary_pain')) AS primary_pain,
+            JSON_UNQUOTE(JSON_EXTRACT(pain_point_profile, '$.pain_category')) AS pain_category
        FROM leads
       WHERE archived_at IS NULL
         AND industry IS NOT NULL AND industry <> ''
         AND pain_point_profile IS NOT NULL
+        AND JSON_EXTRACT(pain_point_profile, '$.pain_category') IS NOT NULL
       ORDER BY industry
       LIMIT 1000`
   );
 
-  // group by (industry, normalized pain theme)
+  // group by (industry, pain_category)
   const map = new Map<string, IndustryCluster>();
   for (const r of rows) {
-    if (!r.industry || !r.primary_pain) continue;
-    const theme = r.primary_pain.trim();
-    if (theme.length < 4) continue;
-    const key = `${r.industry}::${normalizeKey(theme)}`;
+    if (!r.industry || !r.pain_category) continue;
+    const category = r.pain_category.trim();
+    if (!category || category === 'other') continue; // 'other' is not a coherent angle
+    const theme = (r.primary_pain ?? '').trim();
+    const key = `${r.industry}::${category}`;
     const existing = map.get(key);
     if (existing) {
       existing.count++;
     } else {
-      map.set(key, { industry: r.industry, theme, count: 1, exampleLeadId: r.lead_id });
+      map.set(key, { industry: r.industry, category, theme: theme || category, count: 1, exampleLeadId: r.lead_id });
     }
   }
 
