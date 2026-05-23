@@ -17,6 +17,7 @@ import { redirect } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
+import { ensureClientHub } from '@/lib/client/provision';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import WaveDivider from '@/app/_components/WaveDivider';
@@ -55,6 +56,16 @@ export default async function ClientLeadsPage() {
 
   const user = await findClientUserById(actor.clientUserId);
   if (!user) redirect('/client/login');
+
+  // Self-heal provisioning for accounts created before it landed.
+  if (!user.client_id) {
+    try {
+      const cid = await ensureClientHub(user);
+      if (cid) user.client_id = cid;
+    } catch {
+      /* non-fatal */
+    }
+  }
 
   const headline = user.display_name?.split(/[ ,]/)[0] || 'there';
   const locked = user.tier === 'audit_only';

@@ -22,6 +22,7 @@ import {
 } from '@/lib/auth/client-user';
 import { signClientSessionJwt } from '@/lib/auth/client-jwt';
 import { setClientSessionCookie } from '@/lib/auth/client-session';
+import { ensureClientHub } from '@/lib/client/provision';
 
 export const runtime = 'nodejs';
 
@@ -76,6 +77,14 @@ export async function GET(
     });
     setClientSessionCookie(jwt);
     await markClientUserLoggedIn(user.client_user_id);
+
+    // Provision this account's own hub (idempotent, non-fatal): they build
+    // from scratch, so they need a clients row to own their leads/content.
+    try {
+      await ensureClientHub(user);
+    } catch (e) {
+      console.error('[client-portal:magic-link] provision skipped:', (e as Error).message);
+    }
 
     await writeAuditRow({
       actorUserId: user.client_user_id,

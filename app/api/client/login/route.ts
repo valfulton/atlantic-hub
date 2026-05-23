@@ -18,6 +18,7 @@ import { randomUUID } from 'crypto';
 import { findClientUserByEmail, markClientUserLoggedIn } from '@/lib/auth/client-user';
 import { signClientSessionJwt } from '@/lib/auth/client-jwt';
 import { setClientSessionCookie } from '@/lib/auth/client-session';
+import { ensureClientHub } from '@/lib/client/provision';
 import { verifyPassword } from '@/lib/auth/password';
 import { checkAndConsume, LOGIN_RATE_LIMIT } from '@/lib/rate-limit';
 import { ipHash } from '@/lib/crypto/hash';
@@ -93,6 +94,14 @@ export async function POST(req: NextRequest) {
     });
     setClientSessionCookie(jwt);
     await markClientUserLoggedIn(user.client_user_id);
+
+    // Provision this account's own hub (idempotent, non-fatal).
+    try {
+      await ensureClientHub(user);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[client-portal:login] provision skipped:', (e as Error).message);
+    }
 
     // eslint-disable-next-line no-console
     console.log('[client-portal:login]', JSON.stringify({

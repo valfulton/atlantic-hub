@@ -19,6 +19,7 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { getAvDb } from '@/lib/db/av';
 import { TIER_FEATURES, TIER_LABEL } from '@/lib/client-portal/tiers';
 import { getOrComposeClientGuidance } from '@/lib/client/guidance';
+import { ensureClientHub } from '@/lib/client/provision';
 import { listClientCampaignContent, listClientCampaigns, type CampaignContentItem, type ClientCampaign } from '@/lib/client/campaign';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
@@ -55,6 +56,17 @@ export default async function ClientDashboardPage() {
 
   const user = await findClientUserById(actor.clientUserId);
   if (!user) redirect('/client/login');
+
+  // Self-heal: an account created before provisioning landed (client_id NULL)
+  // gets its own hub on first visit, so its scoped data has somewhere to live.
+  if (!user.client_id) {
+    try {
+      const cid = await ensureClientHub(user);
+      if (cid) user.client_id = cid;
+    } catch {
+      /* non-fatal */
+    }
+  }
 
   const db = getAvDb();
   const [auditRows] = await db.execute<AuditRow[]>(
