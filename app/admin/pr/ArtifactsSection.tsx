@@ -421,6 +421,21 @@ export function ArtifactsSection() {
                       Dismiss
                     </button>
                   )}
+                  {/* Published public content is live on the newsroom -- link straight to it. */}
+                  {a.status === 'published' &&
+                    (a.artifactType === 'blog_article' ||
+                      a.artifactType === 'seo_article' ||
+                      a.artifactType === 'own_brand_post') && (
+                      <a
+                        href={`/newsroom/${a.id}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="rounded-lg px-3 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-brand"
+                        style={{ background: 'rgba(245,158,11,0.16)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.4)' }}
+                      >
+                        View live -&gt;
+                      </a>
+                    )}
                 </div>
 
                 {/* own-brand post: queue to the timeline */}
