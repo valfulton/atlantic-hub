@@ -5,7 +5,7 @@ interface PortalHeaderProps {
   displayName: string | null;
   email: string;
   tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
-  active: 'dashboard' | 'audit';
+  active: 'dashboard' | 'audit' | 'leads';
 }
 
 const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
@@ -64,6 +64,17 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
             }`}
           >
             Dashboard
+          </a>
+          <a
+            href="/client/leads"
+            aria-current={active === 'leads' ? 'page' : undefined}
+            className={`px-3 py-1.5 rounded-md text-sm ${
+              active === 'leads'
+                ? 'bg-surface-2 text-ink'
+                : 'text-muted hover:text-ink hover:bg-surface-2'
+            }`}
+          >
+            Your Leads
           </a>
           <a
             href="/client/audit"

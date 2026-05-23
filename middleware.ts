@@ -13,7 +13,7 @@
  *     headers: x-ah-user-id, x-ah-user-role, x-ah-session-id
  *
  *   ah_client_session  client portal (client_user)
- *     paths: /client/dashboard, /client/audit, /client/set-password,
+ *     paths: /client/dashboard, /client/audit, /client/leads, /client/set-password,
  *            /api/client/me, /api/client/set-password,
  *            /api/client/logout
  *     headers: x-ah-client-user-id, x-ah-client-session-id
@@ -79,6 +79,7 @@ export const config = {
     // Client portal pages (protected)
     '/client/dashboard/:path*',
     '/client/audit/:path*',
+    '/client/leads/:path*',
     '/client/set-password',
     // Client portal APIs (protected)
     '/api/client/me',
