@@ -62,7 +62,13 @@ const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   // every 2h with no operator session; authenticates via X-Cron-Secret
   // (ENRICHMENT_CRON_SECRET) inside the handler. See
   // app/api/admin/pr/discover-sweep/route.ts.
-  '/api/admin/pr/discover-sweep'
+  '/api/admin/pr/discover-sweep',
+  // Pain-extraction sweep: cron target + manual backfill trigger. Dual-mode auth
+  // (X-Cron-Secret = ENRICHMENT_CRON_SECRET, or admin session) lives in the handler.
+  // WITHOUT this exemption middleware 401s the cron before the secret check runs --
+  // which is why pain_point_profile was never getting populated. See
+  // app/api/admin/av/pain-sweep/route.ts. (score-sweep has the same latent gap.)
+  '/api/admin/av/pain-sweep'
 ]);
 
 export const config = {
