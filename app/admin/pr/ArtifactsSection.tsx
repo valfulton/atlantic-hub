@@ -107,6 +107,8 @@ export function ArtifactsSection() {
   const [destId, setDestId] = useState<Record<number, string>>({});
   // live URL returned after publishing to an external site
   const [siteUrl, setSiteUrl] = useState<Record<number, string>>({});
+  // filter the list by where each piece is in the pipeline
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'approved' | 'published'>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -384,6 +386,36 @@ export function ArtifactsSection() {
         </div>
       </div>
 
+      {/* ---- status filter ---- */}
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {([
+            ['all', 'All'],
+            ['draft', 'In progress'],
+            ['approved', 'Ready'],
+            ['published', 'Live']
+          ] as const).map(([key, label]) => {
+            const n = key === 'all' ? items.length : items.filter((a) => a.status === key).length;
+            const active = statusFilter === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setStatusFilter(key)}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] focus-visible:ring-2 focus-visible:ring-brand"
+                style={
+                  active
+                    ? { background: 'rgba(255,156,91,0.18)', color: '#FFD9BE', border: '1px solid rgba(255,156,91,0.4)' }
+                    : { background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.1)' }
+                }
+              >
+                {label} <span style={{ opacity: 0.7 }}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ---- artifacts list ---- */}
       {loading ? (
         <div className="text-sm text-muted">Loading...</div>
@@ -391,9 +423,13 @@ export function ArtifactsSection() {
         <div className="text-sm text-muted" style={cardStyle}>
           <div className="p-4">No owned content yet. Use a button above to draft your first piece.</div>
         </div>
+      ) : items.filter((a) => statusFilter === 'all' || a.status === statusFilter).length === 0 ? (
+        <div className="text-sm text-muted" style={cardStyle}>
+          <div className="p-4">Nothing in this view.</div>
+        </div>
       ) : (
         <ul className="space-y-4">
-          {items.map((a) => {
+          {items.filter((a) => statusFilter === 'all' || a.status === statusFilter).map((a) => {
             const isPost = a.artifactType === 'own_brand_post';
             const editable = a.status === 'draft' || a.status === 'approved';
             const body = editBody[a.id] ?? a.bodyText ?? '';

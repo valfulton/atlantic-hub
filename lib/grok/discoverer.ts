@@ -108,6 +108,10 @@ export interface GenerateCommercialOptions {
   /** If set to a corner, the auto-built prompt asks the model to leave clean
    *  negative space there for a post-production logo overlay. */
   logoSpace?: LogoSpace;
+  /** Video only. When false, kick off the job and return 'running' immediately
+   *  (no long inline poll) so the request can't time out; the GET asset endpoint
+   *  resumes the poll. Defaults to true (await inline). */
+  awaitCompletion?: boolean;
 }
 
 export interface GeneratedCommercial {
@@ -690,6 +694,43 @@ async function generateVideoCommercial(args: {
       errorMessage: null,
       createdByUserId: actorUserId
     });
+
+    // Async mode: the asset is already saved as 'running' with its
+    // provider_request_id, so return immediately instead of blocking the request
+    // past the serverless function timeout (the cause of the 504). The GET asset
+    // endpoint resumes the poll (resumeRunningVideoAsset) and the UI polls it.
+    if (options.awaitCompletion === false) {
+      await tryLogEvent({
+        eventType: 'commercial.generated',
+        leadId: lead.id,
+        userId: actorUserId,
+        status: 'pending',
+        payload: {
+          asset_id: assetId,
+          asset_type: 'video',
+          model: startResult.model,
+          provider_request_id: providerRequestId,
+          duration_seconds: duration,
+          async: true
+        },
+        executionTimeMs: Date.now() - startMs
+      });
+      return {
+        assetId,
+        leadId: lead.id,
+        assetType: 'video',
+        model: startResult.model,
+        storageUrl: null,
+        costUsd: pendingCost ?? 0,
+        prompt: effectivePrompt,
+        generationStatus: 'running',
+        providerRequestId,
+        durationSeconds: duration,
+        resolutionTier: resolution,
+        aspectRatio,
+        errorMessage: null
+      };
+    }
 
     // Now long-poll within the budget.
     const completed = await grokAwaitVideo(providerRequestId, {

@@ -177,7 +177,10 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       resolution,
       aspectRatio,
       logoSpace,
-      actorUserId: guard.actor.userId
+      actorUserId: guard.actor.userId,
+      // Video: return 'running' immediately and let the UI poll. Avoids the
+      // serverless 504 on long renders. Images stay synchronous (they're fast).
+      awaitCompletion: assetType === 'video' ? false : undefined
     });
 
     return NextResponse.json({
