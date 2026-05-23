@@ -134,6 +134,9 @@ export function PrDesk() {
 
   // batch actions over the surfaced Ideas (fire-off-everything controls)
   const [batchRunning, setBatchRunning] = useState<null | 'blog' | 'social' | 'dismiss' | 'publish'>(null);
+  // Voice for the batch blog draft: A&V thought-leadership (general, publishable)
+  // or advisory pieces written about each matched prospect (outreach material).
+  const [blogVoice, setBlogVoice] = useState<'thought_leadership' | 'advisory'>('thought_leadership');
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
 
@@ -357,23 +360,29 @@ export function PrDesk() {
     let failed = 0;
     for (const o of ideas) {
       try {
-        // A&V's own blog = thought-leadership in A&V's voice about the THEME,
-        // NOT advice addressed to one prospect. So: no leadId (don't ground on /
-        // name a specific company), client_voice (A&V "we"), and the cluster
-        // theme as a general topic.
-        const themeTags = (o.topicTags ?? []).filter((t) => t && t !== 'thought-leadership');
-        const topic = themeTags.length
-          ? `A thought-leadership article for businesses in this space (${themeTags.join(', ')}). Write generally for that audience in Atlantic & Vine's own voice; do NOT name, address, or write as any specific company.`
-          : `An Atlantic & Vine thought-leadership article on modern marketing. General audience; do not name any specific company.`;
+        let payload: Record<string, unknown>;
+        if (blogVoice === 'advisory') {
+          // Advisory: a piece written ABOUT/TO the matched prospect (outreach
+          // material / a gift draft for them) -- names the company.
+          payload = {
+            artifactType: 'blog_article',
+            leadId: o.matchedLeadId ?? undefined,
+            opportunityId: o.id,
+            voiceMode: 'advisory'
+          };
+        } else {
+          // Thought-leadership: A&V's own publishable blog in A&V's voice about
+          // the THEME -- no leadId so it never names a specific company.
+          const themeTags = (o.topicTags ?? []).filter((t) => t && t !== 'thought-leadership');
+          const topic = themeTags.length
+            ? `A thought-leadership article for businesses in this space (${themeTags.join(', ')}). Write generally for that audience in Atlantic & Vine's own voice; do NOT name, address, or write as any specific company.`
+            : `An Atlantic & Vine thought-leadership article on modern marketing. General audience; do not name any specific company.`;
+          payload = { artifactType: 'blog_article', opportunityId: o.id, topic, voiceMode: 'client_voice' };
+        }
         const res = await fetch('/api/admin/pr/artifacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            artifactType: 'blog_article',
-            opportunityId: o.id,
-            topic,
-            voiceMode: 'client_voice'
-          })
+          body: JSON.stringify(payload)
         });
         if (res.ok) ok += 1;
         else failed += 1;
@@ -390,7 +399,7 @@ export function PrDesk() {
     );
     setBatchProgress(null);
     setBatchRunning(null);
-  }, [opps]);
+  }, [opps, blogVoice]);
 
   const queueSocialForAllIdeas = useCallback(async () => {
     const ideas = opps.filter((o) => o.suggested);
@@ -1259,6 +1268,19 @@ export function PrDesk() {
             <span className="text-[12px] mr-1" style={{ color: '#FFD9BE' }}>
               {ideaOpps.length} idea{ideaOpps.length === 1 ? '' : 's'} ready —
             </span>
+            <label className="sr-only" htmlFor="blog-voice">Blog voice</label>
+            <select
+              id="blog-voice"
+              value={blogVoice}
+              onChange={(e) => setBlogVoice(e.target.value as 'thought_leadership' | 'advisory')}
+              disabled={batchRunning !== null}
+              className="rounded-lg px-2 py-1.5 text-[12px] focus-visible:ring-2 focus-visible:ring-brand"
+              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.14)', color: '#fff' }}
+              title="Voice for the batch blog draft"
+            >
+              <option value="thought_leadership" style={{ color: '#000' }}>A&amp;V thought-leadership (publishable)</option>
+              <option value="advisory" style={{ color: '#000' }}>Advisory about each prospect (outreach)</option>
+            </select>
             <button
               type="button"
               onClick={() => void draftBlogForAllIdeas()}

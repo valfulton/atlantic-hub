@@ -105,8 +105,8 @@ export async function listLibrary(opts: { limit?: number; tenantHint?: string | 
            last_used_at DESC,
            use_count DESC,
            created_at DESC
-         LIMIT ?`,
-        [opts.tenantHint, limit]
+         LIMIT ${limit}`,
+        [opts.tenantHint]
       );
       return rows.map(rowToItem);
     }
@@ -121,8 +121,8 @@ export async function listLibrary(opts: { limit?: number; tenantHint?: string | 
          last_used_at DESC,
          use_count DESC,
          created_at DESC
-       LIMIT ?`,
-      [limit]
+       LIMIT ${limit}`,
+      []
     );
     return rows.map(rowToItem);
   } catch (err) {

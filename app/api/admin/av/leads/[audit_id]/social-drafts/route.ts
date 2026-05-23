@@ -72,13 +72,15 @@ export async function GET(req: NextRequest, { params }: { params: { audit_id: st
       values.push(platform);
     }
 
+    // `limit` is clamped to an int 1..200 above; inline it. mysql2 + HostGator
+    // throws ER_WRONG_ARGUMENTS on a prepared `LIMIT ?` (this was the 500).
     const [rows] = await db.execute<DraftRow[]>(
       `SELECT id, platform, variant, body_text, char_count, status, commercial_asset_id, created_at
        FROM lead_social_drafts
        WHERE ${where.join(' AND ')}
        ORDER BY created_at DESC
-       LIMIT ?`,
-      [...values, limit]
+       LIMIT ${limit}`,
+      values
     );
 
     return NextResponse.json({

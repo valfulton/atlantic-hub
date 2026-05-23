@@ -46,3 +46,4 @@ credentials.*
 auth.*
 *.secrets
 .ssh/
+/docs/
