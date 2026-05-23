@@ -58,6 +58,32 @@ async function getExistingSha(opts: {
   return json.sha ?? null;
 }
 
+export interface RepoFile {
+  content: string | null;
+  sha: string | null;
+}
+
+/** Read a repo file's UTF-8 content + sha. Returns nulls if it doesn't exist. */
+export async function getFileFromRepo(opts: {
+  owner: string;
+  repo: string;
+  path: string;
+  branch: string;
+}): Promise<RepoFile> {
+  const token = process.env.GITHUB_PUBLISH_TOKEN;
+  if (!token) throw new GitHubTokenMissingError();
+  const url = `${API}/repos/${opts.owner}/${opts.repo}/contents/${encodeURI(opts.path)}?ref=${encodeURIComponent(opts.branch)}`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+  if (res.status === 404) return { content: null, sha: null };
+  if (!res.ok) {
+    const body = await res.text();
+    throw new GitHubPublishError(`GitHub read ${res.status}: ${body.slice(0, 200)}`, res.status);
+  }
+  const json = (await res.json()) as { content?: string; encoding?: string; sha?: string };
+  const content = json.content && json.encoding === 'base64' ? Buffer.from(json.content, 'base64').toString('utf8') : null;
+  return { content, sha: json.sha ?? null };
+}
+
 export interface PublishToRepoResult {
   ok: true;
   path: string;

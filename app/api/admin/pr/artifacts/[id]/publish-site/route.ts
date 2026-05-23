@@ -18,8 +18,8 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { getDestination } from '@/lib/publishing/destinations';
-import { renderPostHtml } from '@/lib/publishing/render_post';
-import { publishFileToRepo, GitHubTokenMissingError, GitHubPublishError } from '@/lib/publishing/github_site';
+import { renderPostHtml, renderBlogIndexHtml, type BlogManifestPost } from '@/lib/publishing/render_post';
+import { publishFileToRepo, getFileFromRepo, GitHubTokenMissingError, GitHubPublishError } from '@/lib/publishing/github_site';
 import { articleSlug } from '@/lib/newsroom/published';
 import { CONTENT_EVENTS } from '@/lib/pr/types';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -98,6 +98,48 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     meta.site_url = liveUrl;
     meta.published_destination = dest.id;
 
+    // The hub OWNS the blog index: maintain a manifest (blog/posts.json) and
+    // regenerate blog/index.html from it so new posts auto-list. Best-effort --
+    // the post page is already committed, so we never fail the publish here.
+    let indexed = false;
+    let indexNote: string | undefined;
+    if (dest.repo.indexPath) {
+      try {
+        const manifestPath = `${dest.repo.pathPrefix}/posts.json`;
+        const mf = await getFileFromRepo({ owner: dest.repo.owner, repo: dest.repo.repo, path: manifestPath, branch: dest.repo.branch });
+        let posts: BlogManifestPost[] = [];
+        if (mf.content) {
+          try { const parsed = JSON.parse(mf.content); if (Array.isArray(parsed)) posts = parsed as BlogManifestPost[]; } catch { posts = []; }
+        }
+        const words = (art.body_text || '').split(/\s+/).filter(Boolean).length;
+        const entry: BlogManifestPost = {
+          slug,
+          title,
+          href: `/${dest.repo.pathPrefix}/${slug}`,
+          excerpt: typeof meta.meta_description === 'string' ? meta.meta_description : null,
+          category: typeof meta.category === 'string' ? meta.category : 'Journal',
+          readMinutes: Math.max(2, Math.round(words / 200)),
+          date: new Date().toISOString()
+        };
+        // newest first; replace any prior entry for the same slug
+        posts = [entry, ...posts.filter((p) => p.slug !== slug)];
+
+        await publishFileToRepo({
+          owner: dest.repo.owner, repo: dest.repo.repo, branch: dest.repo.branch,
+          path: manifestPath, content: JSON.stringify(posts, null, 2),
+          message: `Update blog manifest: ${title}`
+        });
+        await publishFileToRepo({
+          owner: dest.repo.owner, repo: dest.repo.repo, branch: dest.repo.branch,
+          path: dest.repo.indexPath, content: renderBlogIndexHtml(posts),
+          message: `Regenerate blog index: ${title}`
+        });
+        indexed = true;
+      } catch (e) {
+        indexNote = `Post published; blog index auto-update skipped: ${(e as Error).message}`;
+      }
+    }
+
     await db.execute<ResultSetHeader>(
       `UPDATE content_artifacts SET status = 'published', meta_json = CAST(? AS JSON), updated_at = NOW() WHERE id = ?`,
       [JSON.stringify(meta), id]
@@ -111,7 +153,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       payload: { artifact_id: id, destination: dest.id, repo: `${dest.repo.owner}/${dest.repo.repo}`, path, commit: committed.commitSha, live_url: liveUrl }
     });
 
-    return NextResponse.json({ ok: true, url: liveUrl, path, commitSha: committed.commitSha });
+    return NextResponse.json({ ok: true, url: liveUrl, path, commitSha: committed.commitSha, indexed, indexNote });
   } catch (err) {
     if (err instanceof GitHubTokenMissingError) {
       return NextResponse.json({ error: 'GITHUB_PUBLISH_TOKEN is not set in the environment. Add it in Netlify, then retry.' }, { status: 503 });

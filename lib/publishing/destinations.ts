@@ -32,6 +32,8 @@ export interface SiteRepoConfig {
   pathPrefix: string;
   /** Public base URL the committed post is served from. */
   publicBaseUrl: string;
+  /** Repo path of the blog index page to auto-insert a card into (optional). */
+  indexPath?: string;
 }
 
 export interface PublishDestination {
@@ -71,7 +73,8 @@ export const PUBLISH_DESTINATIONS: PublishDestination[] = [
       repo: 'atlanticandvine',
       branch: 'main',
       pathPrefix: 'blog',
-      publicBaseUrl: 'https://atlanticandvine.netlify.app/blog'
+      publicBaseUrl: 'https://atlanticandvine.netlify.app/blog',
+      indexPath: 'blog/index.html'
     }
   },
   {
