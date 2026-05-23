@@ -132,6 +132,11 @@ export function PrDesk() {
   // dismiss (P3)
   const [dismissing, setDismissing] = useState<number | null>(null);
 
+  // batch actions over the surfaced Ideas (fire-off-everything controls)
+  const [batchRunning, setBatchRunning] = useState<null | 'blog' | 'social' | 'dismiss'>(null);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+  const [batchMsg, setBatchMsg] = useState<string | null>(null);
+
   // discovery sources (P6: Reddit / RSS + cross-layer performance sweep)
   const [sources, setSources] = useState<DiscoverySource[]>([]);
   const [runningSources, setRunningSources] = useState(false);
@@ -335,6 +340,116 @@ export function PrDesk() {
       setDismissing(null);
     }
   }, []);
+
+  // ----- Batch actions: meet the desk at its action items and actually create -----
+  // Each runs one real request per idea against the proven single-item endpoints,
+  // sequentially, so there is no aggregate server timeout and we get live progress.
+  // Everything produced is a DRAFT (reviewable, reversible) -- nothing auto-publishes.
+
+  const draftBlogForAllIdeas = useCallback(async () => {
+    const ideas = opps.filter((o) => o.suggested);
+    if (ideas.length === 0) return;
+    setBatchRunning('blog');
+    setBatchMsg(null);
+    setError(null);
+    setBatchProgress({ done: 0, total: ideas.length });
+    let ok = 0;
+    let failed = 0;
+    for (const o of ideas) {
+      try {
+        const res = await fetch('/api/admin/pr/artifacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            artifactType: 'blog_article',
+            leadId: o.matchedLeadId ?? undefined,
+            opportunityId: o.id,
+            voiceMode: 'advisory'
+          })
+        });
+        if (res.ok) ok += 1;
+        else failed += 1;
+      } catch {
+        failed += 1;
+      }
+      setBatchProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    // Tell the Owned-content list to reload so the new drafts appear in place.
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('pr:artifacts:refresh'));
+    setBatchMsg(
+      `Drafted ${ok} blog post${ok === 1 ? '' : 's'}${failed ? ` (${failed} failed)` : ''}. ` +
+        `Review and approve them in "Owned content & artifacts" below.`
+    );
+    setBatchProgress(null);
+    setBatchRunning(null);
+  }, [opps]);
+
+  const queueSocialForAllIdeas = useCallback(async () => {
+    const ideas = opps.filter((o) => o.suggested);
+    if (ideas.length === 0) return;
+    setBatchRunning('social');
+    setBatchMsg(null);
+    setError(null);
+    setBatchProgress({ done: 0, total: ideas.length });
+    let ok = 0;
+    let failed = 0;
+    let needsConnection = false;
+    for (const o of ideas) {
+      try {
+        const res = await fetch(`/api/admin/pr/opportunities/${o.id}/orchestrate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ makeCommercial: false, assetType: 'image', mode: 'advisory' })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) {
+          ok += 1;
+          if (json.needsConnection) needsConnection = true;
+        } else {
+          failed += 1;
+        }
+      } catch {
+        failed += 1;
+      }
+      setBatchProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    await load();
+    setBatchMsg(
+      `Queued ${ok} social post${ok === 1 ? '' : 's'} to the Campaign timeline${failed ? ` (${failed} failed)` : ''}.` +
+        (needsConnection ? ' Connect an account at /admin/social to publish them.' : ' Review them on the timeline before they go out.')
+    );
+    setBatchProgress(null);
+    setBatchRunning(null);
+  }, [opps, load]);
+
+  const dismissAllIdeas = useCallback(async () => {
+    const ideas = opps.filter((o) => o.suggested);
+    if (ideas.length === 0) return;
+    setBatchRunning('dismiss');
+    setBatchMsg(null);
+    setError(null);
+    setBatchProgress({ done: 0, total: ideas.length });
+    let ok = 0;
+    for (const o of ideas) {
+      try {
+        const res = await fetch(`/api/admin/pr/opportunities/${o.id}/dismiss`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (res.ok) {
+          ok += 1;
+          setOpps((prev) => prev.filter((x) => x.id !== o.id));
+        }
+      } catch {
+        /* leave it on the desk if it failed */
+      }
+      setBatchProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    setBatchMsg(`Set aside ${ok} idea${ok === 1 ? '' : 's'}.`);
+    setBatchProgress(null);
+    setBatchRunning(null);
+  }, [opps]);
 
   const runSources = useCallback(async () => {
     setRunningSources(true);
@@ -640,15 +755,30 @@ export function PrDesk() {
           {o.whyItMatters}
         </p>
       )}
-      <button
-        type="button"
-        onClick={() => toggleOpp(o.id)}
-        aria-expanded={openOpps.has(o.id)}
-        className="text-[11px] underline focus-visible:ring-2 focus-visible:ring-brand rounded mb-2"
-        style={{ color: '#9AE6B4' }}
-      >
-        {openOpps.has(o.id) ? 'Hide details' : o.latestPitch ? 'Open draft + actions' : 'Open + draft pitch'}
-      </button>
+      <div className="flex items-center gap-3 mb-2">
+        <button
+          type="button"
+          onClick={() => toggleOpp(o.id)}
+          aria-expanded={openOpps.has(o.id)}
+          className="text-[11px] underline focus-visible:ring-2 focus-visible:ring-brand rounded"
+          style={{ color: '#9AE6B4' }}
+        >
+          {openOpps.has(o.id) ? 'Hide details' : o.latestPitch ? 'Open draft + actions' : 'Open + draft pitch'}
+        </button>
+        {/* Set aside without opening the card -- the calm way to clear noise. */}
+        {!openOpps.has(o.id) && (
+          <button
+            type="button"
+            onClick={() => void dismiss(o.id)}
+            disabled={dismissing === o.id}
+            aria-label="Set this suggestion aside"
+            className="text-[11px] focus-visible:ring-2 focus-visible:ring-brand rounded disabled:opacity-50"
+            style={{ color: '#94a3b8' }}
+          >
+            {dismissing === o.id ? 'Dismissing' : 'Set aside'}
+          </button>
+        )}
+      </div>
 
       {openOpps.has(o.id) && (
         <>
@@ -1063,6 +1193,60 @@ export function PrDesk() {
           <h2 className="text-sm font-semibold tracking-wide uppercase text-muted">Ideas from your data</h2>
           <span className="text-[11px] text-muted">Auto-suggested angles - not real journalist requests</span>
         </div>
+
+        {/* Batch action bar: turn the whole stack of ideas into work in one tap. */}
+        {!loading && ideaOpps.length > 0 && (
+          <div
+            className="mb-3 p-3 rounded-xl flex flex-wrap items-center gap-2"
+            style={{ background: 'rgba(255,156,91,0.06)', border: '1px solid rgba(255,156,91,0.22)' }}
+          >
+            <span className="text-[12px] mr-1" style={{ color: '#FFD9BE' }}>
+              {ideaOpps.length} idea{ideaOpps.length === 1 ? '' : 's'} ready —
+            </span>
+            <button
+              type="button"
+              onClick={() => void draftBlogForAllIdeas()}
+              disabled={batchRunning !== null}
+              className="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+              style={{ background: '#FF7A1A', color: '#1a1206' }}
+            >
+              {batchRunning === 'blog'
+                ? `Drafting ${batchProgress?.done ?? 0}/${batchProgress?.total ?? ideaOpps.length}`
+                : 'Draft a blog post for every idea'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void queueSocialForAllIdeas()}
+              disabled={batchRunning !== null}
+              className="inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+              style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.16)' }}
+            >
+              {batchRunning === 'social'
+                ? `Queueing ${batchProgress?.done ?? 0}/${batchProgress?.total ?? ideaOpps.length}`
+                : 'Queue a social post for every idea'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void dismissAllIdeas()}
+              disabled={batchRunning !== null}
+              className="inline-flex items-center rounded-lg px-3 py-1.5 text-[13px] disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+              style={{ background: 'transparent', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.14)' }}
+            >
+              {batchRunning === 'dismiss'
+                ? `Clearing ${batchProgress?.done ?? 0}/${batchProgress?.total ?? ideaOpps.length}`
+                : 'Dismiss all'}
+            </button>
+            {batchMsg && (
+              <p className="w-full text-[12px] mt-1" style={{ color: '#9AE6B4' }}>
+                {batchMsg}
+              </p>
+            )}
+            <p className="w-full text-[11px] text-muted mt-0.5">
+              Every post is created as an editable draft — nothing publishes until you approve it.
+            </p>
+          </div>
+        )}
+
         {loading ? null : ideaOpps.length === 0 ? (
           <div className="text-sm text-muted" style={cardStyle as React.CSSProperties}>
             <div className="p-4">

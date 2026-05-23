@@ -125,6 +125,16 @@ export function ArtifactsSection() {
     void load();
   }, [load]);
 
+  // Batch drafting on the PR desk dispatches this event so the Owned-content
+  // list reflects the new drafts without the operator hitting reload.
+  useEffect(() => {
+    const onRefresh = () => {
+      void load();
+    };
+    window.addEventListener('pr:artifacts:refresh', onRefresh);
+    return () => window.removeEventListener('pr:artifacts:refresh', onRefresh);
+  }, [load]);
+
   const create = useCallback(
     async (artifactType: ArtifactType) => {
       setCreating(artifactType);
