@@ -233,6 +233,28 @@ export function ArtifactsSection() {
     }
   }, []);
 
+  // Bulk-dismiss every DRAFT (clears a batch of unwanted drafts in one click).
+  const [bulkDismissing, setBulkDismissing] = useState(false);
+  const dismissAllDrafts = useCallback(async () => {
+    const drafts = items.filter((a) => a.status === 'draft');
+    if (drafts.length === 0) return;
+    setBulkDismissing(true);
+    setError(null);
+    for (const a of drafts) {
+      try {
+        const res = await fetch(`/api/admin/pr/artifacts/${a.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'passed' })
+        });
+        if (res.ok) setItems((prev) => prev.map((x) => (x.id === a.id ? { ...x, status: 'passed' } : x)));
+      } catch {
+        /* skip */
+      }
+    }
+    setBulkDismissing(false);
+  }, [items]);
+
   const toggleProfile = useCallback((id: number, connId: number) => {
     setSchedSel((s) => {
       const cur = s[id] ?? [];
@@ -279,6 +301,18 @@ export function ArtifactsSection() {
         articles, posts for our own brands, and client deliverables. Each draft is grounded in the shared graph and makes
         the next one smarter. Edit any draft, then approve, publish, or queue an own-brand post to the timeline.
       </p>
+
+      {items.some((a) => a.status === 'draft') && (
+        <button
+          type="button"
+          onClick={() => void dismissAllDrafts()}
+          disabled={bulkDismissing}
+          className="mb-3 inline-flex items-center rounded-lg px-3 py-1.5 text-[13px] disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+          style={{ background: 'transparent', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.14)' }}
+        >
+          {bulkDismissing ? 'Dismissing…' : `Dismiss all drafts (${items.filter((a) => a.status === 'draft').length})`}
+        </button>
+      )}
 
       {error && (
         <div
@@ -503,6 +537,13 @@ export function ArtifactsSection() {
                         View live -&gt;
                       </a>
                     )}
+                  {a.status === 'published' && (
+                    <button type="button" onClick={() => void setStatus(a.id, 'passed')} disabled={busyId === a.id}
+                      className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                      style={{ background: 'rgba(148,163,184,0.12)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.3)' }}>
+                      Unpublish
+                    </button>
+                  )}
                 </div>
 
                 {/* own-brand post: queue to the timeline */}

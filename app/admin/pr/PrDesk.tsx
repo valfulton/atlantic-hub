@@ -357,14 +357,22 @@ export function PrDesk() {
     let failed = 0;
     for (const o of ideas) {
       try {
+        // A&V's own blog = thought-leadership in A&V's voice about the THEME,
+        // NOT advice addressed to one prospect. So: no leadId (don't ground on /
+        // name a specific company), client_voice (A&V "we"), and the cluster
+        // theme as a general topic.
+        const themeTags = (o.topicTags ?? []).filter((t) => t && t !== 'thought-leadership');
+        const topic = themeTags.length
+          ? `A thought-leadership article for businesses in this space (${themeTags.join(', ')}). Write generally for that audience in Atlantic & Vine's own voice; do NOT name, address, or write as any specific company.`
+          : `An Atlantic & Vine thought-leadership article on modern marketing. General audience; do not name any specific company.`;
         const res = await fetch('/api/admin/pr/artifacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             artifactType: 'blog_article',
-            leadId: o.matchedLeadId ?? undefined,
             opportunityId: o.id,
-            voiceMode: 'advisory'
+            topic,
+            voiceMode: 'client_voice'
           })
         });
         if (res.ok) ok += 1;
