@@ -46,6 +46,23 @@ export function CampaignsBoard() {
   const [draft, setDraft] = useState<Record<string, { name: string; goal: string }>>({});
   const [creating, setCreating] = useState<string | null>(null);
 
+  // expanded campaign content
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [content, setContent] = useState<Record<number, { artifacts: Array<{ id: number; artifactType: string; title: string | null; status: string }>; commercials: Array<{ id: number; assetType: string }> }>>({});
+
+  const viewContents = useCallback(async (id: number) => {
+    if (openId === id) { setOpenId(null); return; }
+    setOpenId(id);
+    if (content[id]) return;
+    try {
+      const res = await fetch(`/api/admin/campaigns/${id}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok) setContent((c) => ({ ...c, [id]: { artifacts: json.artifacts || [], commercials: json.commercials || [] } }));
+    } catch {
+      /* ignore */
+    }
+  }, [openId, content]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -170,16 +187,45 @@ export function CampaignsBoard() {
               <ul className="space-y-2 mb-3">
                 {list.map((c) => {
                   const tone = STATUS_TONE[c.status];
+                  const open = openId === c.id;
+                  const ct = content[c.id];
                   return (
-                    <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <div className="min-w-0">
-                        <div className="text-sm text-ink truncate">{c.name}</div>
-                        {(c.company || c.goal) && <div className="text-[11px] text-muted truncate">{c.company ? `For ${c.company}. ` : ''}{c.goal ?? ''}</div>}
+                    <li key={c.id} className="rounded-lg px-3 py-2" style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm text-ink truncate">{c.name}</div>
+                          {(c.company || c.goal) && <div className="text-[11px] text-muted truncate">{c.company ? `For ${c.company}. ` : ''}{c.goal ?? ''}</div>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button type="button" onClick={() => void viewContents(c.id)} className="text-[11px] underline" style={{ color: '#9AE6B4' }}>
+                            {open ? 'Hide' : 'View'} {c.artifactCount} piece{c.artifactCount === 1 ? '' : 's'}
+                          </button>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ background: tone.bg, color: tone.fg }}>{tone.label}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] text-muted">{c.artifactCount} piece{c.artifactCount === 1 ? '' : 's'}</span>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ background: tone.bg, color: tone.fg }}>{tone.label}</span>
-                      </div>
+                      {open && ct && (
+                        <div className="mt-2 pl-2 border-l-2" style={{ borderColor: lane.accent || '#FF9C5B' }}>
+                          {ct.artifacts.length === 0 && ct.commercials.length === 0 ? (
+                            <p className="text-[12px] text-muted py-1">Nothing assigned yet. Add blog posts from Content &amp; blog, or commercials from a lead.</p>
+                          ) : (
+                            <ul className="space-y-1 py-1">
+                              {ct.artifacts.map((a) => (
+                                <li key={`a-${a.id}`} className="text-[12px] text-ink flex items-center gap-2">
+                                  <span className="text-[10px] uppercase tracking-wide text-muted">{a.artifactType.replace('_', ' ')}</span>
+                                  <span className="truncate">{a.title || 'Untitled'}</span>
+                                  <span className="text-[10px] text-muted">· {a.status}</span>
+                                </li>
+                              ))}
+                              {ct.commercials.map((m) => (
+                                <li key={`m-${m.id}`} className="text-[12px] text-ink flex items-center gap-2">
+                                  <span className="text-[10px] uppercase tracking-wide text-muted">{m.assetType}</span>
+                                  <span className="text-muted">commercial #{m.id}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </li>
                   );
                 })}

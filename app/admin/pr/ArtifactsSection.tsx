@@ -113,14 +113,18 @@ export function ArtifactsSection() {
   const [heroDraft, setHeroDraft] = useState<Record<number, { val: string; type: 'image' | 'video' }>>({});
   const [heroSaving, setHeroSaving] = useState<number | null>(null);
   const [heroMsg, setHeroMsg] = useState<Record<number, string>>({});
+  // campaigns (for the per-artifact "assign to campaign" picker)
+  const [campaigns, setCampaigns] = useState<Array<{ id: number; name: string }>>([]);
+  const [campaignMsg, setCampaignMsg] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [aRes, cRes] = await Promise.all([
+      const [aRes, cRes, kRes] = await Promise.all([
         fetch('/api/admin/pr/artifacts', { cache: 'no-store' }),
-        fetch('/api/admin/social/connections?tenant=av', { cache: 'no-store' })
+        fetch('/api/admin/social/connections?tenant=av', { cache: 'no-store' }),
+        fetch('/api/admin/campaigns', { cache: 'no-store' })
       ]);
       const aJson = await aRes.json();
       if (!aRes.ok) throw new Error(aJson.error || 'failed to load artifacts');
@@ -129,10 +133,29 @@ export function ArtifactsSection() {
         const cJson = await cRes.json();
         setConnections(cJson.items || []);
       }
+      if (kRes.ok) {
+        const kJson = await kRes.json();
+        setCampaigns((kJson.campaigns || []).map((c: { id: number; name: string }) => ({ id: c.id, name: c.name })));
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const assignToCampaign = useCallback(async (artifactId: number, campaignId: number) => {
+    setCampaignMsg((m) => ({ ...m, [artifactId]: '' }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaignId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifactId })
+      });
+      const json = await res.json().catch(() => ({}));
+      setCampaignMsg((m) => ({ ...m, [artifactId]: res.ok && json.ok ? 'Added to campaign.' : json.error || 'Failed' }));
+    } catch (e) {
+      setCampaignMsg((m) => ({ ...m, [artifactId]: (e as Error).message }));
     }
   }, []);
 
@@ -547,6 +570,28 @@ export function ArtifactsSection() {
                     </div>
                   );
                 })()}
+
+                {/* Assign to a campaign (narrative lane orchestration) */}
+                {campaigns.length > 0 && (
+                  <div className="flex items-center flex-wrap gap-2 mb-2">
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Campaign</span>
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (v > 0) void assignToCampaign(a.id, v);
+                      }}
+                      className="rounded-lg px-2 py-1 text-[12px]"
+                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
+                    >
+                      <option value="" style={{ color: '#000' }}>Add to campaign…</option>
+                      {campaigns.map((c) => (
+                        <option key={c.id} value={c.id} style={{ color: '#000' }}>{c.name}</option>
+                      ))}
+                    </select>
+                    {campaignMsg[a.id] && <span className="text-[11px]" style={{ color: '#9AE6B4' }}>{campaignMsg[a.id]}</span>}
+                  </div>
+                )}
 
                 {/* meta: SEO cluster / hashtags */}
                 {a.metaJson?.target_query && (

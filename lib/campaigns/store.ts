@@ -153,6 +153,54 @@ export async function listCampaigns(tenantId = DEFAULT_TENANT): Promise<Campaign
   }));
 }
 
+export interface CampaignContent {
+  campaign: { id: number; name: string; goal: string | null; status: string; laneId: number | null; company: string | null };
+  artifacts: Array<{ id: number; artifactType: string; title: string | null; status: string }>;
+  commercials: Array<{ id: number; assetType: string; auditId: string | null; brandedStatus: string | null }>;
+}
+
+/** Assign (or clear, campaignId=null) a content artifact to a campaign. */
+export async function assignArtifactToCampaign(artifactId: number, campaignId: number | null): Promise<void> {
+  const db = getAvDb();
+  await db.execute<ResultSetHeader>(`UPDATE content_artifacts SET campaign_id = ?, updated_at = NOW() WHERE id = ?`, [campaignId, artifactId]);
+}
+
+/** Assign (or clear) a generated commercial asset to a campaign. */
+export async function assignAssetToCampaign(assetId: number, campaignId: number | null): Promise<void> {
+  const db = getAvDb();
+  await db.execute<ResultSetHeader>(`UPDATE grok_imagine_assets SET campaign_id = ? WHERE id = ?`, [campaignId, assetId]);
+}
+
+/** A campaign plus the blog/commercial content compiled into it. */
+export async function getCampaignContent(campaignId: number): Promise<CampaignContent | null> {
+  const db = getAvDb();
+  const [cRows] = await db.execute<(RowDataPacket & { id: number; name: string; goal: string | null; status: string; lane_id: number | null; company: string | null })[]>(
+    `SELECT c.id, c.name, c.goal, c.status, c.lane_id, l.company
+       FROM campaigns c LEFT JOIN leads l ON l.id = c.lead_id
+      WHERE c.id = ? AND c.archived_at IS NULL LIMIT 1`,
+    [campaignId]
+  );
+  const c = cRows[0];
+  if (!c) return null;
+
+  const [aRows] = await db.execute<(RowDataPacket & { id: number; artifact_type: string; title: string | null; status: string })[]>(
+    `SELECT id, artifact_type, title, status FROM content_artifacts WHERE campaign_id = ? ORDER BY id DESC LIMIT 100`,
+    [campaignId]
+  );
+  const [mRows] = await db.execute<(RowDataPacket & { id: number; asset_type: string; audit_id: string | null; branded_status: string | null })[]>(
+    `SELECT g.id, g.asset_type, l.audit_id, g.branded_status
+       FROM grok_imagine_assets g LEFT JOIN leads l ON l.id = g.lead_id
+      WHERE g.campaign_id = ? AND g.archived_at IS NULL ORDER BY g.id DESC LIMIT 100`,
+    [campaignId]
+  );
+
+  return {
+    campaign: { id: c.id, name: c.name, goal: c.goal, status: c.status, laneId: c.lane_id, company: c.company },
+    artifacts: aRows.map((r) => ({ id: r.id, artifactType: r.artifact_type, title: r.title, status: r.status })),
+    commercials: mRows.map((r) => ({ id: r.id, assetType: r.asset_type, auditId: r.audit_id, brandedStatus: r.branded_status }))
+  };
+}
+
 export async function createCampaign(input: {
   tenantId?: string;
   laneId: number | null;
