@@ -351,6 +351,17 @@ export interface TimelineItem {
   leadId: number | null;
   title: string;
   link: string | null;
+  /** Numeric source-row id (e.g. social_outbox.id) for review/publish actions. */
+  outboxId?: number | null;
+  /** The post copy, so the operator can review before publishing. */
+  bodyText?: string | null;
+  /** Attached commercial, if any (for preview + branding). */
+  mediaUrl?: string | null;
+  mediaType?: string | null;
+  /** Human provider label (LinkedIn / X / ...). */
+  providerLabel?: string | null;
+  /** Last failure reason, when status === 'failed'. */
+  errorMessage?: string | null;
 }
 
 // ---------------------------------------------------------------------------

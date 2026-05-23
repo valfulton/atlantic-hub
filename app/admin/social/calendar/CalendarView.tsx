@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { TimelineItem, TimelineItemStatus } from '@/lib/pr/types';
+import { TimelineEntry } from './TimelineEntry';
 
 interface CalWindow {
   gridStart: Date;
@@ -116,26 +117,9 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
                 )}
               </div>
               <div className="space-y-1">
-                {dayItems.slice(0, view === 'week' ? 12 : 4).map((it) => {
-                  const s = STATUS_STYLE[it.status];
-                  const chip = (
-                    <div
-                      className="rounded px-1.5 py-1 text-[11px] leading-tight truncate"
-                      style={{ background: s.bg, color: s.fg }}
-                      title={`${it.title} - ${s.label}`}
-                    >
-                      <span className="font-medium">{s.label}</span>{' '}
-                      <span style={{ opacity: 0.85 }}>{it.title}</span>
-                    </div>
-                  );
-                  return it.link ? (
-                    <a key={it.id} href={it.link} target="_blank" rel="noreferrer" className="block focus-visible:ring-2 focus-visible:ring-brand rounded">
-                      {chip}
-                    </a>
-                  ) : (
-                    <div key={it.id}>{chip}</div>
-                  );
-                })}
+                {dayItems.slice(0, view === 'week' ? 12 : 4).map((it) => (
+                  <TimelineEntry key={it.id} item={it} />
+                ))}
                 {dayItems.length > (view === 'week' ? 12 : 4) && (
                   <div className="text-[10px] text-muted px-1">+{dayItems.length - (view === 'week' ? 12 : 4)} more</div>
                 )}

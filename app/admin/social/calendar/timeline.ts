@@ -27,6 +27,10 @@ interface OutboxRow extends RowDataPacket {
   provider: string | null;
   provider_url: string | null;
   company: string | null;
+  body_text: string | null;
+  media_url: string | null;
+  media_type: string | null;
+  error_message: string | null;
 }
 
 const VALID_STATUSES: TimelineItemStatus[] = [
@@ -66,7 +70,13 @@ function mapOutbox(r: OutboxRow): TimelineItem {
     tenant: r.tenant_id,
     leadId: r.lead_id,
     title: titleParts.join(' '),
-    link: r.provider_url
+    link: r.provider_url,
+    outboxId: r.id,
+    bodyText: r.body_text,
+    mediaUrl: r.media_url,
+    mediaType: r.media_type,
+    providerLabel: provider,
+    errorMessage: r.error_message
   };
 }
 
@@ -94,7 +104,8 @@ export async function fetchTimelineItems(opts: {
 
   const [rows] = await db.execute<OutboxRow[]>(
     `SELECT o.id, o.tenant_id, o.lead_id, o.status, o.scheduled_for, o.published_at,
-            o.created_at, c.provider, o.provider_url, l.company
+            o.created_at, c.provider, o.provider_url, l.company,
+            o.body_text, o.media_url, o.media_type, o.error_message
        FROM social_outbox o
        LEFT JOIN social_connections c ON c.id = o.connection_id
        LEFT JOIN leads l ON l.id = o.lead_id
