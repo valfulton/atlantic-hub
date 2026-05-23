@@ -57,7 +57,12 @@ const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   // with no operator session; authenticates via X-Cron-Secret
   // (SOCIAL_PUBLISH_CRON_SECRET) inside the handler. See
   // app/api/admin/social/publish-due/route.ts.
-  '/api/admin/social/publish-due'
+  '/api/admin/social/publish-due',
+  // PR discovery cadence cron target. Called by netlify/functions/pr-discovery-cron.mts
+  // every 2h with no operator session; authenticates via X-Cron-Secret
+  // (ENRICHMENT_CRON_SECRET) inside the handler. See
+  // app/api/admin/pr/discover-sweep/route.ts.
+  '/api/admin/pr/discover-sweep'
 ]);
 
 export const config = {

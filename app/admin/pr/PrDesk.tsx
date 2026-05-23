@@ -106,6 +106,10 @@ export function PrDesk() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // discovery cadence status (makes the every-2h auto-pull visible) + manual rerun
+  const [cadence, setCadence] = useState<{ lastAutoRunAt: string | null; suggestedThisWeek: number } | null>(null);
+  const [rerunning, setRerunning] = useState(false);
+
   // intake box
   const [rawText, setRawText] = useState('');
   const [source, setSource] = useState<PrSource>('qwoted');
@@ -165,11 +169,12 @@ export function PrDesk() {
     setLoading(true);
     setError(null);
     try {
-      const [oRes, rRes, cRes, sRes] = await Promise.all([
+      const [oRes, rRes, cRes, sRes, dRes] = await Promise.all([
         fetch('/api/admin/pr/opportunities', { cache: 'no-store' }),
         fetch('/api/admin/pr/releases', { cache: 'no-store' }),
         fetch('/api/admin/social/connections?tenant=av', { cache: 'no-store' }),
-        fetch('/api/admin/pr/sources?tenant=av', { cache: 'no-store' })
+        fetch('/api/admin/pr/sources?tenant=av', { cache: 'no-store' }),
+        fetch('/api/admin/pr/discovery-status?tenant=av', { cache: 'no-store' })
       ]);
       const oJson = await oRes.json();
       const rJson = await rRes.json();
@@ -183,6 +188,10 @@ export function PrDesk() {
       if (sRes.ok) {
         const sJson = await sRes.json();
         setSources(sJson.items || []);
+      }
+      if (dRes.ok) {
+        const dJson = await dRes.json();
+        setCadence({ lastAutoRunAt: dJson.lastAutoRunAt ?? null, suggestedThisWeek: dJson.suggestedThisWeek ?? 0 });
       }
     } catch (e) {
       setError((e as Error).message);
@@ -263,6 +272,36 @@ export function PrDesk() {
       setError((e as Error).message);
     } finally {
       setDiscovering(false);
+    }
+  }, [load]);
+
+  // Manual full rerun: fire BOTH lanes the cron fires (internal data sweep +
+  // external web sources + performance sweep) on demand, then refresh.
+  const rerunAll = useCallback(async () => {
+    setRerunning(true);
+    setError(null);
+    try {
+      const [d, s] = await Promise.all([
+        fetch('/api/admin/pr/discover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }),
+        fetch('/api/admin/pr/sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'run' })
+        })
+      ]);
+      if (!d.ok && !s.ok) {
+        const dj = await d.json().catch(() => ({}));
+        throw new Error(dj.error || 'rerun failed');
+      }
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRerunning(false);
     }
   }, [load]);
 
@@ -851,6 +890,18 @@ export function PrDesk() {
             </button>
             <button
               type="button"
+              onClick={() => void rerunAll()}
+              disabled={rerunning}
+              aria-label="Re-run the full discovery sweep now"
+              data-loading={rerunning ? 'true' : 'false'}
+              className="ah-action-sparkle inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+              style={{ background: 'linear-gradient(120deg, #FF5A6E 0%, #FF9C5B 100%)', color: '#1a0a0a' }}
+            >
+              <span>{rerunning ? 'Re-running' : 'Re-run now'}</span>
+              <span className="ah-sparkle-pair" aria-hidden="true"><span>&#10022;</span><span>&#10023;</span></span>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowSources((v) => !v)}
               aria-expanded={showSources}
               className="text-xs text-muted underline focus-visible:ring-2 focus-visible:ring-brand rounded"
@@ -866,6 +917,17 @@ export function PrDesk() {
             </button>
           </div>
         </div>
+
+        {cadence && (
+          <p className="text-[11px] mb-3" style={{ color: '#9AE6B4' }}>
+            Auto-discovery runs every 2h
+            {cadence.lastAutoRunAt
+              ? ` - last auto-run ${formatWhen(cadence.lastAutoRunAt)}`
+              : ' - waiting for the first scheduled run after deploy'}
+            {' - '}
+            {cadence.suggestedThisWeek} suggested this week
+          </p>
+        )}
 
         {sourcesMsg && (
           <p className="text-[12px] mb-3" style={{ color: '#93c5fd' }} aria-live="polite">{sourcesMsg}</p>
@@ -1067,6 +1129,12 @@ function formatDate(s: string): string {
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatWhen(s: string): string {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function describeSourceConfig(s: DiscoverySource): string {
