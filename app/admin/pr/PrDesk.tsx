@@ -110,6 +110,17 @@ export function PrDesk() {
   const [cadence, setCadence] = useState<{ lastAutoRunAt: string | null; suggestedThisWeek: number } | null>(null);
   const [rerunning, setRerunning] = useState(false);
 
+  // collapse each opportunity card by default so the desk reads as a calm list
+  const [openOpps, setOpenOpps] = useState<Set<number>>(new Set());
+  const toggleOpp = useCallback((id: number) => {
+    setOpenOpps((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }, []);
+
   // intake box
   const [rawText, setRawText] = useState('');
   const [source, setSource] = useState<PrSource>('qwoted');
@@ -620,6 +631,27 @@ export function PrDesk() {
         </div>
       )}
 
+      {/* Collapsed by default: a one-line why-preview keeps the list calm; tap to open the rest. */}
+      {!openOpps.has(o.id) && o.whyItMatters && (
+        <p
+          className="text-[12px] text-muted mb-2"
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+        >
+          {o.whyItMatters}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => toggleOpp(o.id)}
+        aria-expanded={openOpps.has(o.id)}
+        className="text-[11px] underline focus-visible:ring-2 focus-visible:ring-brand rounded mb-2"
+        style={{ color: '#9AE6B4' }}
+      >
+        {openOpps.has(o.id) ? 'Hide details' : o.latestPitch ? 'Open draft + actions' : 'Open + draft pitch'}
+      </button>
+
+      {openOpps.has(o.id) && (
+        <>
       {o.whyItMatters && (
         <div
           className="text-[13px] rounded-lg px-3 py-2 mb-3"
@@ -793,6 +825,8 @@ export function PrDesk() {
             <p className="text-[12px] mt-2" style={{ color: '#93c5fd' }} aria-live="polite">{schedMsg[o.id]}</p>
           )}
         </div>
+      )}
+        </>
       )}
     </li>
   );
