@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { listCampaigns, createCampaign } from '@/lib/campaigns/store';
+import { listCampaigns, createCampaign, listCampaignsForLead } from '@/lib/campaigns/store';
 
 export const runtime = 'nodejs';
 
@@ -16,9 +16,16 @@ export async function GET(req: NextRequest) {
   const guard = await guardAdminRequest(req, { targetResource: '/api/admin/campaigns:GET', tenantId: 'av' });
   if (!guard.ok) return guard.response;
   if (guard.actor.role === 'client_user') return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-  const tenant = new URL(req.url).searchParams.get('tenant') || 'av';
+  const url = new URL(req.url);
+  const leadIdParam = url.searchParams.get('leadId');
   try {
-    const campaigns = await listCampaigns(tenant);
+    // Lead-side view: which campaigns this lead is a target of.
+    if (leadIdParam) {
+      const leadId = Number.parseInt(leadIdParam, 10);
+      if (!Number.isFinite(leadId) || leadId <= 0) return NextResponse.json({ error: 'invalid leadId' }, { status: 400 });
+      return NextResponse.json({ ok: true, campaigns: await listCampaignsForLead(leadId) });
+    }
+    const campaigns = await listCampaigns(url.searchParams.get('tenant') || 'av');
     return NextResponse.json({ ok: true, campaigns });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });

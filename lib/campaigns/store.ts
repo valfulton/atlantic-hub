@@ -201,6 +201,19 @@ export async function getCampaignContent(campaignId: number): Promise<CampaignCo
   };
 }
 
+/** Campaigns a given lead is a target of (for the lead-side picker). */
+export async function listCampaignsForLead(leadId: number): Promise<Array<{ id: number; name: string }>> {
+  const db = getAvDb();
+  const [rows] = await db.execute<(RowDataPacket & { id: number; name: string })[]>(
+    `SELECT c.id, c.name
+       FROM campaigns c JOIN campaign_leads cl ON cl.campaign_id = c.id
+      WHERE cl.lead_id = ? AND c.archived_at IS NULL
+      ORDER BY c.created_at DESC LIMIT 100`,
+    [leadId]
+  );
+  return rows.map((r) => ({ id: r.id, name: r.name }));
+}
+
 export interface CampaignTarget {
   leadId: number;
   company: string | null;

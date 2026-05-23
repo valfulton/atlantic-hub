@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getAvDb } from '@/lib/db/av';
+import { DeleteCommercialButton } from './DeleteCommercialButton';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -114,11 +115,12 @@ export default async function CommercialsPage({ searchParams }: { searchParams: 
           {rows
             .filter((a) => filter === 'all' || (filter === 'branded' ? a.branded_status === 'ready' : a.branded_status !== 'ready'))
             .map((a) => (
-            <a
-              key={a.id}
-              href={`/admin/av/${a.audit_id}`}
-              className="block rounded-2xl border border-border bg-surface overflow-hidden hover:border-pink-400/40 transition-colors no-underline"
-            >
+            <div key={a.id} className="relative rounded-2xl border border-border bg-surface overflow-hidden hover:border-pink-400/40 transition-colors">
+              <DeleteCommercialButton auditId={a.audit_id} assetId={a.id} />
+              <a
+                href={`/admin/av/${a.audit_id}`}
+                className="block no-underline"
+              >
               <div className="aspect-video bg-black flex items-center justify-center">
                 {(() => {
                   // Stable, durable URL (persists on first view) instead of the expiring provider URL.
@@ -138,7 +140,8 @@ export default async function CommercialsPage({ searchParams }: { searchParams: 
                 </div>
                 <div className="text-sm text-ink truncate">{a.company || `Lead ${a.audit_id.slice(0, 8)}`}</div>
               </div>
-            </a>
+              </a>
+            </div>
           ))}
         </div>
       )}

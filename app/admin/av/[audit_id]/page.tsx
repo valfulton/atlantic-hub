@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { serverFetch } from '@/lib/server-fetch';
 import { StatusBadge } from '@/components/StatusBadge';
 import { LeadDetailTabs } from './LeadDetailTabs';
+import { LeadCampaigns } from './LeadCampaigns';
 import { SocialContentButton } from './SocialContentButton';
 import { RescoreButton } from './RescoreButton';
 import { AssignmentControl } from './AssignmentControl';
@@ -68,6 +69,8 @@ export default async function AvLeadDetailPage({
           />
         </div>
       </div>
+
+      <LeadCampaigns leadId={lead.id} />
 
       <div className="bg-surface border border-border rounded-xl p-6">
         <LeadDetailTabs lead={lead} />
