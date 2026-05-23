@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface RowResult {
@@ -114,6 +114,7 @@ export function CsvImportForm() {
   return (
     <div className="space-y-5">
       <SingleLeadForm />
+      <AddContactForm />
 
       <div className="rounded-md border border-border p-4" style={{ backgroundColor: '#0e1420' }}>
         <h3 className="text-sm font-medium text-ink mb-2">Accepted columns (fuzzy-matched)</h3>
@@ -316,6 +317,138 @@ function SingleLeadForm() {
               {busy ? 'Adding…' : 'Add lead'}
             </button>
             <span className="text-[11px] text-muted">Enter at least a company, email, or website.</span>
+          </div>
+          {msg && <div className="rounded-md border border-green-500/40 bg-green-500/10 p-2 text-sm text-green-200">{msg}</div>}
+          {err && <div className="rounded-md border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-200 whitespace-pre-wrap">{err}</div>}
+        </form>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Add a person (contact) and attach them to one OR MORE companies. A person can
+ * belong to multiple companies; pick all that apply. Posts to /api/admin/av/contacts.
+ */
+function AddContactForm() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [companies, setCompanies] = useState<Array<{ id: number; company: string }>>([]);
+  const [loadingCos, setLoadingCos] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [selected, setSelected] = useState<number[]>([]);
+  const [f, setF] = useState({ fullName: '', email: '', phone: '', title: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || companies.length > 0) return;
+    setLoadingCos(true);
+    fetch('/api/admin/av/companies', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => setCompanies(j.items || []))
+      .catch(() => setErr('Could not load companies.'))
+      .finally(() => setLoadingCos(false));
+  }, [open, companies.length]);
+
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setF((p) => ({ ...p, [k]: e.target.value }));
+
+  function toggle(id: number) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setMsg(null);
+    if (!f.fullName.trim() && !f.email.trim()) {
+      setErr('Enter at least a name or email.');
+      return;
+    }
+    if (selected.length === 0) {
+      setErr('Pick at least one company to attach this person to.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/av/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...f, leadIds: selected })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setErr(json?.error || `HTTP ${res.status}`);
+        return;
+      }
+      setMsg(`Contact saved and linked to ${json.companiesLinked} compan${json.companiesLinked === 1 ? 'y' : 'ies'}.`);
+      setF({ fullName: '', email: '', phone: '', title: '' });
+      setSelected([]);
+      router.refresh();
+    } catch (e2) {
+      setErr(`Network error: ${(e2 as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputStyle: React.CSSProperties = { backgroundColor: '#1a1f2e', color: '#f1f5f9' };
+  const shown = filter.trim()
+    ? companies.filter((c) => (c.company || '').toLowerCase().includes(filter.trim().toLowerCase()))
+    : companies;
+
+  return (
+    <div className="rounded-md border border-border p-4" style={{ backgroundColor: '#0e1420' }}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-ink">Add a contact (person)</h3>
+        <button type="button" onClick={() => setOpen((o) => !o)} className="text-xs text-brand hover:underline">
+          {open ? 'Hide' : 'Add a person to one or more companies →'}
+        </button>
+      </div>
+
+      {open && (
+        <form onSubmit={submit} className="mt-3 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <input value={f.fullName} onChange={set('fullName')} placeholder="Full name *" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.email} onChange={set('email')} placeholder="Email" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.phone} onChange={set('phone')} placeholder="Phone" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+            <input value={f.title} onChange={set('title')} placeholder="Title / role at these companies" className="px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm" style={inputStyle} />
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-muted mb-1">
+              Attach to companies {selected.length > 0 && <span className="normal-case text-brand">({selected.length} selected)</span>}
+            </label>
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter companies…"
+              className="w-full mb-2 px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm"
+              style={inputStyle}
+            />
+            <div className="max-h-44 overflow-y-auto rounded-md border border-border divide-y divide-border/40">
+              {loadingCos ? (
+                <div className="p-3 text-xs text-muted">Loading companies…</div>
+              ) : shown.length === 0 ? (
+                <div className="p-3 text-xs text-muted">No companies found.</div>
+              ) : (
+                shown.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-sm text-ink cursor-pointer hover:bg-surface-2">
+                    <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="accent-amber-500" />
+                    <span>{c.company}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+              {busy ? 'Saving…' : 'Save contact'}
+            </button>
+            <span className="text-[11px] text-muted">A person can be attached to several companies — check all that apply.</span>
           </div>
           {msg && <div className="rounded-md border border-green-500/40 bg-green-500/10 p-2 text-sm text-green-200">{msg}</div>}
           {err && <div className="rounded-md border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-200 whitespace-pre-wrap">{err}</div>}

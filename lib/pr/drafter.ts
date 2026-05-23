@@ -232,8 +232,13 @@ export async function draftPitch(args: {
   mode?: PitchMode;
 }): Promise<DraftedPitchResult> {
   const tenantId = args.opportunity.tenantId || DEFAULT_TENANT;
-  const intel = await loadClientIntelligence(tenantId, args.leadId);
-  if (args.leadId && !intel.lead) throw new PrLeadNotFoundError(args.leadId);
+  let intel = await loadClientIntelligence(tenantId, args.leadId);
+  // Tolerate an archived/missing lead: degrade to a tenant-level pitch rather
+  // than failing the whole orchestrate run. Batch social points at ideas whose
+  // matched lead may have been archived (this was the `Lead not found` error).
+  if (args.leadId && !intel.lead) {
+    intel = await loadClientIntelligence(tenantId, null);
+  }
 
   // Resolve voice. CRITICAL: never write claims AS a prospect. Only an actual
   // client (we are authorized to speak for them) gets client_voice; everyone
@@ -322,8 +327,11 @@ export async function draftRelease(args: {
   announcement: string;
 }): Promise<DraftedReleaseResult> {
   const tenantId = args.tenantId ?? DEFAULT_TENANT;
-  const intel = await loadClientIntelligence(tenantId, args.leadId);
-  if (args.leadId && !intel.lead) throw new PrLeadNotFoundError(args.leadId);
+  let intel = await loadClientIntelligence(tenantId, args.leadId);
+  // Tolerate an archived/missing lead: degrade to tenant-level rather than fail.
+  if (args.leadId && !intel.lead) {
+    intel = await loadClientIntelligence(tenantId, null);
+  }
 
   const started = Date.now();
   const systemPrompt = buildReleaseSystemPrompt();

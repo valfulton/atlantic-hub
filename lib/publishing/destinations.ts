@@ -23,6 +23,17 @@
 
 export type DestinationKind = 'newsroom' | 'brand_site' | 'client_site';
 
+/** Where a GitHub-backed static site stores its posts. */
+export interface SiteRepoConfig {
+  owner: string;
+  repo: string;
+  branch: string;
+  /** Folder in the repo that holds post files, e.g. "blog". */
+  pathPrefix: string;
+  /** Public base URL the committed post is served from. */
+  publicBaseUrl: string;
+}
+
 export interface PublishDestination {
   id: string;
   label: string;
@@ -31,6 +42,8 @@ export interface PublishDestination {
   connected: boolean;
   /** Short operator-facing explanation of status. */
   note: string;
+  /** Present for brand_site/client_site destinations that publish via GitHub. */
+  repo?: SiteRepoConfig;
 }
 
 export const NEWSROOM_DESTINATION_ID = 'newsroom';
@@ -49,24 +62,31 @@ export const PUBLISH_DESTINATIONS: PublishDestination[] = [
   },
   {
     id: 'av_site',
-    label: 'atlanticandvine.netlify.app',
+    label: 'atlanticandvine.netlify.app (Journal)',
     kind: 'brand_site',
-    connected: false,
-    note: 'Connect the site to publish posts straight onto it.'
+    connected: true,
+    note: 'Commits the post to the atlanticandvine repo; Netlify rebuilds. Needs GITHUB_PUBLISH_TOKEN set.',
+    repo: {
+      owner: 'valfulton',
+      repo: 'atlanticandvine',
+      branch: 'main',
+      pathPrefix: 'blog',
+      publicBaseUrl: 'https://atlanticandvine.netlify.app/blog'
+    }
   },
   {
     id: 'ebw_site',
     label: 'Events by Water',
     kind: 'brand_site',
     connected: false,
-    note: 'Brand site not connected yet.'
+    note: 'No blog set up on this site yet — set up a blog page first.'
   },
   {
     id: 'hh_site',
     label: 'HunterHoney',
     kind: 'brand_site',
     connected: false,
-    note: 'Brand site not connected yet.'
+    note: 'No blog set up on this site yet — set up a blog page first.'
   }
 ];
 

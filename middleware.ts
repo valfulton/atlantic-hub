@@ -83,7 +83,10 @@ export const config = {
     // Client portal APIs (protected)
     '/api/client/me',
     '/api/client/set-password',
-    '/api/client/logout'
+    '/api/client/logout',
+    // Client campaign actions (publish own approved content). Guarded so the
+    // route receives x-ah-client-user-id and rejects anonymous callers.
+    '/api/client/campaign/:path*'
   ]
 };
 

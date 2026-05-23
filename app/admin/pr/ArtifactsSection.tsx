@@ -105,6 +105,8 @@ export function ArtifactsSection() {
   const [queueMsg, setQueueMsg] = useState<Record<number, string>>({});
   // per-artifact publishing destination (defaults to the live newsroom)
   const [destId, setDestId] = useState<Record<number, string>>({});
+  // live URL returned after publishing to an external site
+  const [siteUrl, setSiteUrl] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -203,6 +205,27 @@ export function ArtifactsSection() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'update failed');
       setItems((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  // Publish to an external brand/client site (commits to the repo -> Netlify rebuilds).
+  const publishToSite = useCallback(async (id: number, destinationId: string) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/pr/artifacts/${id}/publish-site`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destinationId })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error || 'site publish failed');
+      setItems((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'published' } : a)));
+      setSiteUrl((m) => ({ ...m, [id]: json.url }));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -436,17 +459,28 @@ export function ArtifactsSection() {
                         </select>
                         <button
                           type="button"
-                          onClick={() => connected && void setStatus(a.id, 'published')}
+                          onClick={() => {
+                            if (!connected) return;
+                            if (dest?.repo) void publishToSite(a.id, chosen);
+                            else void setStatus(a.id, 'published');
+                          }}
                           disabled={busyId === a.id || !connected}
-                          title={connected ? undefined : dest?.note}
+                          title={connected ? dest?.note : dest?.note}
                           className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
                           style={{ background: 'rgba(16,185,129,0.22)', color: '#34d399', border: '1px solid rgba(16,185,129,0.4)' }}
                         >
-                          {connected ? 'Publish' : 'Connect site first'}
+                          {busyId === a.id ? 'Publishing…' : connected ? (dest?.repo ? 'Publish to site' : 'Publish') : 'Set up blog page'}
                         </button>
                       </span>
                     );
                   })()}
+                  {siteUrl[a.id] && (
+                    <a href={siteUrl[a.id]} target="_blank" rel="noopener"
+                      className="text-sm focus-visible:ring-2 focus-visible:ring-brand"
+                      style={{ color: '#fcd34d' }}>
+                      View live -&gt;
+                    </a>
+                  )}
                   {a.status !== 'passed' && a.status !== 'published' && (
                     <button type="button" onClick={() => void setStatus(a.id, 'passed')} disabled={busyId === a.id}
                       className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"

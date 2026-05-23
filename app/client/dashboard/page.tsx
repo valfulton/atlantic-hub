@@ -22,6 +22,7 @@ import { getOrComposeClientGuidance } from '@/lib/client/guidance';
 import { listClientCampaignContent, type CampaignContentItem } from '@/lib/client/campaign';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
+import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
 import WaveDivider from '@/app/_components/WaveDivider';
 import type { RowDataPacket } from 'mysql2';
 
@@ -193,6 +194,7 @@ export default async function ClientDashboardPage() {
                         View it live -&gt;
                       </a>
                     )}
+                    {c.stage === 'ready' && !c.liveHref && <PublishToNewsroom artifactId={c.id} />}
                   </li>
                 );
               })}
