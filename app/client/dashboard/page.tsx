@@ -19,8 +19,10 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { getAvDb } from '@/lib/db/av';
 import { TIER_FEATURES, TIER_LABEL } from '@/lib/client-portal/tiers';
 import { getOrComposeClientGuidance } from '@/lib/client/guidance';
+import { listClientCampaignContent, type CampaignContentItem } from '@/lib/client/campaign';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
+import WaveDivider from '@/app/_components/WaveDivider';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +99,17 @@ export default async function ClientDashboardPage() {
     }
   });
 
+  // The client's own campaign content (drafted -> ready -> live). Scoped to their
+  // leads in lib/client/campaign.ts; prospect-targeting drafts can never appear.
+  // Fails soft to an empty list so the dashboard always renders.
+  let campaign: CampaignContentItem[] = [];
+  try {
+    campaign = await listClientCampaignContent({ client_id: user.client_id, email: user.email });
+  } catch {
+    campaign = [];
+  }
+  const liveCount = campaign.filter((c) => c.stage === 'live').length;
+
   return (
     <>
       <PortalHeader
@@ -120,6 +133,71 @@ export default async function ClientDashboardPage() {
               ? 'Your Strategic Marketing Audit and what is included are below.'
               : 'Your audit will appear here once it has been generated.'}
           </p>
+        </section>
+
+        <section aria-labelledby="campaign-h" className="mb-10">
+          <div className="flex items-end justify-between gap-4 mb-1">
+            <h2 id="campaign-h" className="text-lg font-semibold text-ink">
+              Your campaign
+            </h2>
+            {liveCount > 0 && (
+              <span className="text-xs text-muted">
+                <span className="text-brand font-medium">{liveCount}</span> live
+              </span>
+            )}
+          </div>
+          <WaveDivider className="mb-4" width={104} />
+
+          {campaign.length === 0 ? (
+            <div className="rounded-2xl border border-border bg-surface p-6">
+              <p className="text-sm text-ink font-medium">Your campaign is being set in motion.</p>
+              <p className="text-sm text-muted mt-1.5 leading-relaxed">
+                As we draft content, ready it for approval, and publish it on your behalf, every
+                piece will appear here — so you can watch your campaign move.
+              </p>
+            </div>
+          ) : (
+            <ul className="grid sm:grid-cols-2 gap-3">
+              {campaign.map((c) => {
+                const tone =
+                  c.stage === 'live'
+                    ? { bg: 'rgba(16,185,129,0.16)', fg: '#6ee7b7' }
+                    : c.stage === 'ready'
+                      ? { bg: 'rgba(245,158,11,0.16)', fg: '#fcd34d' }
+                      : { bg: 'rgba(148,163,184,0.16)', fg: '#cbd5e1' };
+                return (
+                  <li
+                    key={c.id}
+                    className="rounded-2xl border border-border bg-surface p-5 flex flex-col"
+                  >
+                    <div className="flex items-center gap-2 mb-2 text-[10px] uppercase tracking-[0.14em]">
+                      <span className="text-muted">{c.typeLabel}</span>
+                      <span
+                        className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: tone.bg, color: tone.fg }}
+                      >
+                        {c.stageLabel}
+                      </span>
+                    </div>
+                    <h3 className="text-ink font-medium leading-snug">{c.title}</h3>
+                    {c.excerpt && (
+                      <p className="text-sm text-muted mt-2 leading-relaxed flex-1">{c.excerpt}</p>
+                    )}
+                    {c.liveHref && (
+                      <a
+                        href={c.liveHref}
+                        target="_blank"
+                        rel="noopener"
+                        className="mt-3 text-sm text-brand hover:underline"
+                      >
+                        View it live -&gt;
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
 
         <section
