@@ -21,6 +21,11 @@ import {
   type ArtifactType,
   type PitchMode
 } from '@/lib/pr/types';
+import {
+  PUBLISH_DESTINATIONS,
+  NEWSROOM_DESTINATION_ID,
+  getDestination
+} from '@/lib/publishing/destinations';
 
 interface ArtifactMeta {
   slug?: string | null;
@@ -98,6 +103,8 @@ export function ArtifactsSection() {
   const [schedWhen, setSchedWhen] = useState<Record<number, string>>({});
   const [schedSel, setSchedSel] = useState<Record<number, number[]>>({});
   const [queueMsg, setQueueMsg] = useState<Record<number, string>>({});
+  // per-artifact publishing destination (defaults to the live newsroom)
+  const [destId, setDestId] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -407,13 +414,39 @@ export function ArtifactsSection() {
                       Approve
                     </button>
                   )}
-                  {a.status === 'approved' && (
-                    <button type="button" onClick={() => void setStatus(a.id, 'published')} disabled={busyId === a.id}
-                      className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
-                      style={{ background: 'rgba(16,185,129,0.22)', color: '#34d399', border: '1px solid rgba(16,185,129,0.4)' }}>
-                      Mark published
-                    </button>
-                  )}
+                  {a.status === 'approved' && (() => {
+                    const chosen = destId[a.id] ?? NEWSROOM_DESTINATION_ID;
+                    const dest = getDestination(chosen);
+                    const connected = dest?.connected ?? false;
+                    return (
+                      <span className="inline-flex items-center gap-2">
+                        <label className="sr-only" htmlFor={`dest-${a.id}`}>Publish destination</label>
+                        <select
+                          id={`dest-${a.id}`}
+                          value={chosen}
+                          onChange={(e) => setDestId((d) => ({ ...d, [a.id]: e.target.value }))}
+                          className="rounded-lg px-2 py-1.5 text-[13px] focus-visible:ring-2 focus-visible:ring-brand"
+                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
+                        >
+                          {PUBLISH_DESTINATIONS.map((d) => (
+                            <option key={d.id} value={d.id} style={{ color: '#000' }}>
+                              {d.label}{d.connected ? '' : ' (connect to enable)'}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => connected && void setStatus(a.id, 'published')}
+                          disabled={busyId === a.id || !connected}
+                          title={connected ? undefined : dest?.note}
+                          className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                          style={{ background: 'rgba(16,185,129,0.22)', color: '#34d399', border: '1px solid rgba(16,185,129,0.4)' }}
+                        >
+                          {connected ? 'Publish' : 'Connect site first'}
+                        </button>
+                      </span>
+                    );
+                  })()}
                   {a.status !== 'passed' && a.status !== 'published' && (
                     <button type="button" onClick={() => void setStatus(a.id, 'passed')} disabled={busyId === a.id}
                       className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
