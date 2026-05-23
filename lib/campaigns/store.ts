@@ -201,6 +201,90 @@ export async function getCampaignContent(campaignId: number): Promise<CampaignCo
   };
 }
 
+export interface CampaignTarget {
+  leadId: number;
+  company: string | null;
+  painCategory: string | null;
+  industry: string | null;
+}
+
+export interface PainCluster {
+  industry: string | null;
+  painCategory: string;
+  count: number;
+}
+
+/** Leads currently targeted by a campaign. */
+export async function getCampaignTargets(campaignId: number): Promise<CampaignTarget[]> {
+  const db = getAvDb();
+  const [rows] = await db.execute<(RowDataPacket & { lead_id: number; company: string | null; pain_category: string | null; industry: string | null })[]>(
+    `SELECT cl.lead_id, l.company, l.industry,
+            JSON_UNQUOTE(JSON_EXTRACT(l.pain_point_profile, '$.pain_category')) AS pain_category
+       FROM campaign_leads cl JOIN leads l ON l.id = cl.lead_id
+      WHERE cl.campaign_id = ? AND l.archived_at IS NULL
+      ORDER BY l.company ASC LIMIT 500`,
+    [campaignId]
+  );
+  return rows.map((r) => ({ leadId: r.lead_id, company: r.company, painCategory: r.pain_category, industry: r.industry }));
+}
+
+/** Attach specific leads to a campaign (idempotent). Returns how many were added. */
+export async function attachLeads(campaignId: number, leadIds: number[]): Promise<number> {
+  const ids = Array.from(new Set(leadIds.filter((n) => Number.isFinite(n) && n > 0)));
+  if (ids.length === 0) return 0;
+  const db = getAvDb();
+  const values = ids.map(() => '(?, ?)').join(', ');
+  const params: number[] = [];
+  for (const id of ids) params.push(campaignId, id);
+  const [res] = await db.execute<ResultSetHeader>(
+    `INSERT IGNORE INTO campaign_leads (campaign_id, lead_id) VALUES ${values}`,
+    params
+  );
+  return res.affectedRows;
+}
+
+/** Attach ALL active leads sharing a pain (and optionally an industry). The
+ *  "multiple clients via similar pain points" move. Returns how many were added. */
+export async function attachLeadsByPain(campaignId: number, opts: { painCategory: string; industry?: string | null }): Promise<number> {
+  const db = getAvDb();
+  const where: string[] = ["JSON_UNQUOTE(JSON_EXTRACT(pain_point_profile, '$.pain_category')) = ?", 'archived_at IS NULL'];
+  const vals: unknown[] = [campaignId, opts.painCategory];
+  if (opts.industry) {
+    where.push('industry = ?');
+    vals.push(opts.industry);
+  }
+  const [res] = await db.execute<ResultSetHeader>(
+    `INSERT IGNORE INTO campaign_leads (campaign_id, lead_id)
+       SELECT ?, id FROM leads WHERE ${where.join(' AND ')}`,
+    vals
+  );
+  return res.affectedRows;
+}
+
+export async function detachLead(campaignId: number, leadId: number): Promise<void> {
+  const db = getAvDb();
+  await db.execute<ResultSetHeader>(`DELETE FROM campaign_leads WHERE campaign_id = ? AND lead_id = ?`, [campaignId, leadId]);
+}
+
+/** Pain clusters available to target: (industry, pain_category) with lead counts. */
+export async function listPainClusters(): Promise<PainCluster[]> {
+  const db = getAvDb();
+  const [rows] = await db.execute<(RowDataPacket & { industry: string | null; pain_category: string; c: number })[]>(
+    `SELECT industry,
+            JSON_UNQUOTE(JSON_EXTRACT(pain_point_profile, '$.pain_category')) AS pain_category,
+            COUNT(*) AS c
+       FROM leads
+      WHERE archived_at IS NULL
+        AND JSON_EXTRACT(pain_point_profile, '$.pain_category') IS NOT NULL
+        AND JSON_UNQUOTE(JSON_EXTRACT(pain_point_profile, '$.pain_category')) <> 'other'
+      GROUP BY industry, pain_category
+      HAVING c > 0
+      ORDER BY c DESC
+      LIMIT 60`
+  );
+  return rows.map((r) => ({ industry: r.industry, painCategory: r.pain_category, count: Number(r.c) || 0 }));
+}
+
 export async function createCampaign(input: {
   tenantId?: string;
   laneId: number | null;

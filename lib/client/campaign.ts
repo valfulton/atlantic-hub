@@ -168,8 +168,10 @@ export async function listClientCampaigns(user: { client_id: number | null; emai
        FROM campaigns c
        LEFT JOIN narrative_lanes nl ON nl.id = c.lane_id
       WHERE c.archived_at IS NULL
-        AND c.lead_id IN (
-          SELECT id FROM leads WHERE archived_at IS NULL AND ((? IS NOT NULL AND client_id = ?) OR email = ?)
+        AND c.id IN (
+          SELECT cl.campaign_id FROM campaign_leads cl
+           JOIN leads l ON l.id = cl.lead_id
+          WHERE l.archived_at IS NULL AND ((? IS NOT NULL AND l.client_id = ?) OR l.email = ?)
         )
       ORDER BY c.created_at DESC
       LIMIT 50`,

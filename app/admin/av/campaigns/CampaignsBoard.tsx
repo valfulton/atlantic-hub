@@ -46,13 +46,34 @@ export function CampaignsBoard() {
   const [draft, setDraft] = useState<Record<string, { name: string; goal: string }>>({});
   const [creating, setCreating] = useState<string | null>(null);
 
-  // expanded campaign content
+  // expanded campaign content + targets
   const [openId, setOpenId] = useState<number | null>(null);
   const [content, setContent] = useState<Record<number, { artifacts: Array<{ id: number; artifactType: string; title: string | null; status: string }>; commercials: Array<{ id: number; assetType: string }> }>>({});
+  const [targets, setTargets] = useState<Record<number, Array<{ leadId: number; company: string | null; painCategory: string | null }>>>({});
+  const [clusters, setClusters] = useState<Array<{ industry: string | null; painCategory: string; count: number }>>([]);
+  const [attaching, setAttaching] = useState<number | null>(null);
+
+  const fetchTargets = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`/api/admin/campaigns/${id}/targets`, { cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok) setTargets((t) => ({ ...t, [id]: json.targets || [] }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/admin/campaigns/clusters', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => setClusters(j.clusters || []))
+      .catch(() => {});
+  }, []);
 
   const viewContents = useCallback(async (id: number) => {
     if (openId === id) { setOpenId(null); return; }
     setOpenId(id);
+    void fetchTargets(id);
     if (content[id]) return;
     try {
       const res = await fetch(`/api/admin/campaigns/${id}`, { cache: 'no-store' });
@@ -61,7 +82,26 @@ export function CampaignsBoard() {
     } catch {
       /* ignore */
     }
-  }, [openId, content]);
+  }, [openId, content, fetchTargets]);
+
+  const attachByPain = useCallback(async (campaignId: number, value: string) => {
+    // value = "industry||painCategory" or "||painCategory"
+    const [industry, painCategory] = value.split('||');
+    if (!painCategory) return;
+    setAttaching(campaignId);
+    try {
+      await fetch(`/api/admin/campaigns/${campaignId}/targets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ painCategory, industry: industry || undefined })
+      });
+      await fetchTargets(campaignId);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAttaching(null);
+    }
+  }, [fetchTargets]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -227,12 +267,43 @@ export function CampaignsBoard() {
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ background: tone.bg, color: tone.fg }}>{tone.label}</span>
                         </div>
                       </div>
-                      {open && ct && (
-                        <div className="mt-2 pl-2 border-l-2" style={{ borderColor: lane.accent || '#FF9C5B' }}>
-                          {ct.artifacts.length === 0 && ct.commercials.length === 0 ? (
-                            <p className="text-[12px] text-muted py-1">Nothing assigned yet. Add blog posts from Content &amp; blog, or commercials from a lead.</p>
+                      {open && (
+                        <div className="mt-2 pl-2 border-l-2 space-y-3" style={{ borderColor: lane.accent || '#FF9C5B' }}>
+                          {/* Targets: which businesses this campaign serves */}
+                          <div>
+                            <div className="flex items-center flex-wrap gap-2 mb-1">
+                              <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Targets ({(targets[c.id] ?? []).length})</span>
+                              <select
+                                defaultValue=""
+                                onChange={(e) => { if (e.target.value) void attachByPain(c.id, e.target.value); e.currentTarget.selectedIndex = 0; }}
+                                disabled={attaching === c.id}
+                                className="rounded-lg px-2 py-1 text-[12px]"
+                                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
+                              >
+                                <option value="" style={{ color: '#000' }}>{attaching === c.id ? 'Attaching…' : 'Attach all sharing a pain…'}</option>
+                                {clusters.map((cl) => (
+                                  <option key={`${cl.industry}-${cl.painCategory}`} value={`${cl.industry ?? ''}||${cl.painCategory}`} style={{ color: '#000' }}>
+                                    {cl.painCategory.replace(/_/g, ' ')}{cl.industry ? ` · ${cl.industry.replace(/_/g, ' ')}` : ''} ({cl.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {(targets[c.id] ?? []).length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {(targets[c.id] ?? []).map((t) => (
+                                  <span key={t.leadId} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>
+                                    {t.company || `Lead ${t.leadId}`}{t.painCategory ? ` · ${t.painCategory.replace(/_/g, ' ')}` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Content compiled into this campaign */}
+                          {ct && (ct.artifacts.length === 0 && ct.commercials.length === 0 ? (
+                            <p className="text-[12px] text-muted">No content yet. Use &quot;+ with content&quot; or add from Content &amp; blog.</p>
                           ) : (
-                            <ul className="space-y-1 py-1">
+                            <ul className="space-y-1">
                               {ct.artifacts.map((a) => (
                                 <li key={`a-${a.id}`} className="text-[12px] text-ink flex items-center gap-2">
                                   <span className="text-[10px] uppercase tracking-wide text-muted">{a.artifactType.replace('_', ' ')}</span>
@@ -247,7 +318,7 @@ export function CampaignsBoard() {
                                 </li>
                               ))}
                             </ul>
-                          )}
+                          ))}
                         </div>
                       )}
                     </li>
