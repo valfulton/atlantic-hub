@@ -25,9 +25,11 @@ interface AssetRow extends RowDataPacket {
   company: string | null;
 }
 
-export default async function CommercialsPage() {
+export default async function CommercialsPage({ searchParams }: { searchParams: { filter?: string } }) {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
   if (role === 'client_user') redirect('/admin');
+
+  const filter = searchParams.filter === 'branded' || searchParams.filter === 'needs' ? searchParams.filter : 'all';
 
   let rows: AssetRow[] = [];
   let failed = false;
@@ -70,6 +72,36 @@ export default async function CommercialsPage() {
         social. To make a new one, open a lead and use the Commercial panel.
       </p>
 
+      {!failed && rows.length > 0 && (() => {
+        const brandedN = rows.filter((r) => r.branded_status === 'ready').length;
+        const chips: Array<{ key: string; label: string; n: number }> = [
+          { key: 'all', label: 'All', n: rows.length },
+          { key: 'branded', label: 'Branded', n: brandedN },
+          { key: 'needs', label: 'Needs branding', n: rows.length - brandedN }
+        ];
+        return (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {chips.map((c) => {
+              const active = filter === c.key;
+              return (
+                <a
+                  key={c.key}
+                  href={c.key === 'all' ? '/admin/av/commercials' : `/admin/av/commercials?filter=${c.key}`}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] no-underline"
+                  style={
+                    active
+                      ? { background: 'rgba(255,156,91,0.18)', color: '#FFD9BE', border: '1px solid rgba(255,156,91,0.4)' }
+                      : { background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.1)' }
+                  }
+                >
+                  {c.label} <span style={{ opacity: 0.7 }}>{c.n}</span>
+                </a>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {failed ? (
         <div className="rounded-2xl border border-border bg-surface p-6 text-muted">Could not load commercials right now.</div>
       ) : rows.length === 0 ? (
@@ -79,7 +111,9 @@ export default async function CommercialsPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rows.map((a) => (
+          {rows
+            .filter((a) => filter === 'all' || (filter === 'branded' ? a.branded_status === 'ready' : a.branded_status !== 'ready'))
+            .map((a) => (
             <a
               key={a.id}
               href={`/admin/av/${a.audit_id}`}
