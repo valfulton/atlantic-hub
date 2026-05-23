@@ -85,6 +85,7 @@ export const config = {
     '/api/client/me',
     '/api/client/set-password',
     '/api/client/logout',
+    '/api/client/discover',
     // Client campaign actions (publish own approved content). Guarded so the
     // route receives x-ah-client-user-id and rejects anonymous callers.
     '/api/client/campaign/:path*'

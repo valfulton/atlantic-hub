@@ -21,6 +21,7 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import WaveDivider from '@/app/_components/WaveDivider';
+import DiscoverPanel from './DiscoverPanel';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -106,6 +107,8 @@ export default async function ClientLeadsPage() {
             </p>
           </div>
         </section>
+
+        {!locked && <DiscoverPanel />}
 
         {locked ? (
           <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-8 text-center">

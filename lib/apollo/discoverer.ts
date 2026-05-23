@@ -50,6 +50,18 @@ const DEFAULT_MONTHLY_SEARCH_CEILING = 10_000;
 
 export type DiscoverTriggerSource = 'manual' | 'cron' | 'test';
 
+/**
+ * Per-client dedup scoping. The leads.apollo_person_id column is UNIQUE, so
+ * the raw Apollo id can only exist once across the whole table. When discovery
+ * runs FOR a specific client (their own hub), we prefix the stored key with
+ * the client id so the same Apollo org/person can be discovered independently
+ * into multiple clients' pipelines without colliding. Operator runs
+ * (clientId null) keep the raw id, so existing rows + dedup are unchanged.
+ */
+function scopedApolloKey(rawId: string, clientId: number | null): string {
+  return clientId && clientId > 0 ? `c${clientId}:${rawId}` : rawId;
+}
+
 export interface DiscoverResult {
   apolloOrganizationId: string;
   apolloPersonId?: string;
@@ -131,8 +143,9 @@ async function logSearch(opts: {
  * when organization_top_people returns no contacts for that org).
  * Dedups on apollo_person_id (storing Apollo's organization id there).
  */
-async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverResult> {
+async function insertApolloOrgAsLead(org: ApolloOrganization, clientId: number | null): Promise<DiscoverResult> {
   const apolloOrgId = org.id;
+  const dedupKey = scopedApolloKey(apolloOrgId, clientId);
   const company = org.name || 'Unknown company';
   const domain = extractApolloDomain(org.website_url || org.primary_domain);
   const website = org.website_url || (org.primary_domain ? `https://${org.primary_domain}` : null);
@@ -145,7 +158,7 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
 
   const [existing] = await db.execute<(RowDataPacket & { id: number })[]>(
     `SELECT id FROM leads WHERE apollo_person_id = ? LIMIT 1`,
-    [apolloOrgId]
+    [dedupKey]
   );
   if (existing.length > 0) {
     return {
@@ -172,10 +185,10 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
       `INSERT INTO leads (
          audit_id, company, email, phone, website,
          industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
-         last_activity_at
+         client_id, last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, NOW())`,
-      [auditId, company, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), apolloOrgId]
+       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW())`,
+      [auditId, company, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId]
     );
 
     const newLeadId = result.insertId;
@@ -224,9 +237,11 @@ async function insertApolloOrgAsLead(org: ApolloOrganization): Promise<DiscoverR
  */
 async function insertApolloPersonAsLead(
   person: ApolloPersonAtOrg,
-  org: ApolloOrganization
+  org: ApolloOrganization,
+  clientId: number | null
 ): Promise<DiscoverResult> {
   const apolloPersonId = person.id;
+  const dedupKey = scopedApolloKey(apolloPersonId, clientId);
   const apolloOrgId = org.id;
   const company = org.name || 'Unknown company';
   const name = person.name || [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unknown';
@@ -243,7 +258,7 @@ async function insertApolloPersonAsLead(
 
   const [existing] = await db.execute<(RowDataPacket & { id: number })[]>(
     `SELECT id FROM leads WHERE apollo_person_id = ? LIMIT 1`,
-    [apolloPersonId]
+    [dedupKey]
   );
   if (existing.length > 0) {
     return {
@@ -272,10 +287,10 @@ async function insertApolloPersonAsLead(
       `INSERT INTO leads (
          audit_id, company, contact_name, contact_title, email, phone, website,
          industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
-         last_activity_at
+         client_id, last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, NOW())`,
-      [auditId, company, name, title, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), apolloPersonId]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW())`,
+      [auditId, company, name, title, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId]
     );
 
     const newLeadId = result.insertId;
@@ -340,7 +355,7 @@ async function insertApolloPersonAsLead(
  * people as named leads. If Apollo has no people on file for that org,
  * fall back to inserting a company shell.
  */
-async function discoverPeopleForOrg(org: ApolloOrganization): Promise<DiscoverResult[]> {
+async function discoverPeopleForOrg(org: ApolloOrganization, clientId: number | null): Promise<DiscoverResult[]> {
   let topPeopleResult;
   try {
     topPeopleResult = await apolloOrganizationTopPeople(org.id, { perPage: TOP_PEOPLE_PER_ORG });
@@ -348,7 +363,7 @@ async function discoverPeopleForOrg(org: ApolloOrganization): Promise<DiscoverRe
     // top_people errored — fall back to company shell so the lead still lands.
     // Common reasons: rate limit, transient API issue, missing data for this org.
     console.error('[discoverer:top_people]', org.name, (err as Error).message);
-    return [await insertApolloOrgAsLead(org)];
+    return [await insertApolloOrgAsLead(org, clientId)];
   }
 
   const people = topPeopleResult.people.slice(0, TOP_PEOPLE_PER_ORG);
@@ -356,12 +371,12 @@ async function discoverPeopleForOrg(org: ApolloOrganization): Promise<DiscoverRe
   if (people.length === 0) {
     // Apollo doesn't have anyone listed at this company — insert company shell;
     // Hunter cron can still try the domain.
-    return [await insertApolloOrgAsLead(org)];
+    return [await insertApolloOrgAsLead(org, clientId)];
   }
 
   const results: DiscoverResult[] = [];
   for (const person of people) {
-    results.push(await insertApolloPersonAsLead(person, org));
+    results.push(await insertApolloPersonAsLead(person, org, clientId));
   }
   return results;
 }
@@ -371,10 +386,17 @@ export async function runDiscoveryBatch(opts: {
   triggerSource: DiscoverTriggerSource;
   actorUserId?: number | null;
   monthlyCeiling?: number;
+  /**
+   * When set, discovered leads are inserted scoped to this client's hub
+   * (leads.client_id) and dedup keys are client-prefixed. Omit/null for the
+   * operator pipeline (unchanged behavior).
+   */
+  clientId?: number | null;
 }): Promise<DiscoverBatchSummary> {
   const triggerSource = opts.triggerSource;
   const monthlyCeiling = opts.monthlyCeiling ?? DEFAULT_MONTHLY_SEARCH_CEILING;
   const actorUserId = opts.actorUserId ?? null;
+  const clientId = opts.clientId ?? null;
 
   const usedThisMonth = await getMonthlySearchUsage();
   const remaining = Math.max(0, monthlyCeiling - usedThisMonth);
@@ -464,7 +486,7 @@ export async function runDiscoveryBatch(opts: {
   let insertFailed = 0;
 
   for (const org of orgs) {
-    const orgResults = await discoverPeopleForOrg(org);
+    const orgResults = await discoverPeopleForOrg(org, clientId);
     for (const r of orgResults) {
       results.push(r);
       if (r.outcome === 'inserted_person') insertedPeople++;
