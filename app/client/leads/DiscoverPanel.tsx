@@ -83,10 +83,7 @@ export default function DiscoverPanel() {
         const found = Number(j.inserted ?? 0);
         setMsg({
           tone: found > 0 ? 'ok' : 'info',
-          text:
-            found > 0
-              ? `Found ${found} new lead${found === 1 ? '' : 's'}. They're being scored and will appear below.`
-              : j.stoppedEarlyReason || 'No new matches this run. Try broadening your industries or locations.'
+          text: j.message || (found > 0 ? `Found ${found} new leads. They're being scored.` : 'No new matches this run.')
         });
         if (found > 0) router.refresh();
       }

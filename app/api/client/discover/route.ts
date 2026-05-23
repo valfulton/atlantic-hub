@@ -25,8 +25,23 @@ import {
   icpToApolloFilters
 } from '@/lib/client/icp';
 import { runDiscoveryBatch } from '@/lib/apollo/discoverer';
+import { runPlacesDiscoveryBatch } from '@/lib/google_places/discoverer';
+import { logEvent } from '@/lib/events/log';
 import { getAvDb } from '@/lib/db/av';
+import type { ClientIcp } from '@/lib/client/icp';
 import type { RowDataPacket } from 'mysql2';
+
+/**
+ * Build a Google Places free-text query from the ICP. Places needs a textQuery
+ * (industry/keywords + location); returns null when the ICP lacks both so we
+ * skip Places and let Apollo carry the run.
+ */
+function placesQueryFromIcp(icp: ClientIcp): string | null {
+  const kw = icp.industries.join(' ').trim();
+  const loc = icp.geographies.join(', ').trim();
+  if (!kw && !loc) return null;
+  return [kw, loc ? `in ${loc}` : ''].join(' ').trim();
+}
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -121,26 +136,103 @@ export async function POST(req: NextRequest) {
     }
 
     const perRun = TIER_PER_RUN[user.tier];
-    const filters = icpToApolloFilters(icp, { perPage: Math.min(perRun, Math.max(1, cap - used)) });
+    const budget = Math.min(perRun, Math.max(1, cap - used));
 
-    const summary = await runDiscoveryBatch({
-      filters,
-      triggerSource: 'manual',
-      clientId,
-      actorUserId: null
-    });
+    // Run multiple sources behind the single client action. Each source is
+    // isolated: if one provider fails, the other still contributes, and the
+    // client never sees the raw error — we record it for the operator instead.
+    let inserted = 0;
+    let duplicates = 0;
+    let attempted = 0;
+    let anyError = false;
+
+    // 1) Apollo (B2B companies by ICP).
+    try {
+      const summary = await runDiscoveryBatch({
+        filters: icpToApolloFilters(icp, { perPage: budget }),
+        triggerSource: 'manual',
+        clientId,
+        actorUserId: null
+      });
+      inserted += summary.inserted;
+      duplicates += summary.duplicates;
+      attempted += summary.attempted;
+      if (summary.stoppedEarlyReason) {
+        anyError = true;
+        await logEvent({
+          eventType: 'workflow.failed',
+          source: 'client_discovery',
+          status: 'failure',
+          payload: { client_id: clientId, stage: 'apollo', reason: summary.stoppedEarlyReason }
+        });
+      }
+    } catch (e) {
+      anyError = true;
+      await logEvent({
+        eventType: 'workflow.failed',
+        source: 'client_discovery',
+        status: 'failure',
+        payload: { client_id: clientId, stage: 'apollo' },
+        errorMessage: (e as Error).message.slice(0, 500)
+      });
+    }
+
+    // 2) Google Places (local/hospitality), only if the ICP yields a query.
+    const placesQuery = placesQueryFromIcp(icp);
+    if (placesQuery) {
+      try {
+        const p = await runPlacesDiscoveryBatch(
+          { textQuery: placesQuery, pageSize: Math.min(20, budget) },
+          { clientId }
+        );
+        inserted += p.insertedCount;
+        duplicates += p.duplicateCount;
+        attempted += p.resultsCount;
+      } catch (e) {
+        anyError = true;
+        await logEvent({
+          eventType: 'workflow.failed',
+          source: 'client_discovery',
+          status: 'failure',
+          payload: { client_id: clientId, stage: 'places' },
+          errorMessage: (e as Error).message.slice(0, 500)
+        });
+      }
+    }
 
     const usedAfter = await monthlyUsage(clientId);
+
+    // Client-safe message: calm + generic, no provider/error detail.
+    let message: string;
+    if (inserted > 0) {
+      message = `Found ${inserted} new lead${inserted === 1 ? '' : 's'}. They're being scored and will appear below.`;
+    } else if (anyError) {
+      message = 'We hit a brief snag finding leads. Please try again in a moment.';
+    } else {
+      message = 'No new matches this run. Try broadening your industries or locations.';
+    }
+
     return NextResponse.json({
       ok: true,
-      inserted: summary.inserted,
-      duplicates: summary.duplicates,
-      attempted: summary.attempted,
-      stoppedEarlyReason: summary.stoppedEarlyReason,
+      inserted,
+      duplicates,
+      attempted,
+      message,
       usage: { usedThisMonth: usedAfter, monthlyCap: cap }
     });
   } catch (err) {
+    // Unexpected failure: log for operator, return a calm client message.
     console.error('[client:discover:post]', (err as Error).message);
-    return NextResponse.json({ error: 'discovery_failed', message: (err as Error).message }, { status: 500 });
+    await logEvent({
+      eventType: 'workflow.failed',
+      source: 'client_discovery',
+      status: 'failure',
+      payload: { client_id: clientId, stage: 'route' },
+      errorMessage: (err as Error).message.slice(0, 500)
+    }).catch(() => {});
+    return NextResponse.json(
+      { error: 'discovery_failed', message: 'We hit a brief snag finding leads. Please try again in a moment.' },
+      { status: 500 }
+    );
   }
 }

@@ -55,7 +55,7 @@ export interface PlacesDiscoverBatchResult {
 
 const PLACE_ID_PREFIX = 'placeid:'; // stored in apollo_person_id column to share the unique constraint
 
-async function insertOnePlace(db: Pool, det: PlaceDetails): Promise<PlacesDiscoverResult> {
+async function insertOnePlace(db: Pool, det: PlaceDetails, clientId: number | null): Promise<PlacesDiscoverResult> {
   const company = det.displayName || 'Unknown';
   const website = det.websiteUri || null;
   const domain = normalizeDomain(website);
@@ -64,32 +64,53 @@ async function insertOnePlace(db: Pool, det: PlaceDetails): Promise<PlacesDiscov
   const targetBusiness: TargetBusiness = inferTargetBusinessFromRaw(det.primaryType ?? det.types[0] ?? null);
 
   // Stable dedup key — store in apollo_person_id (UNIQUE) to share the constraint.
-  const dedupKey = `${PLACE_ID_PREFIX}${det.id}`;
+  // Client runs prefix the key so the same place can land in multiple hubs.
+  const scoped = clientId && clientId > 0;
+  const dedupKey = scoped ? `c${clientId}:${PLACE_ID_PREFIX}${det.id}` : `${PLACE_ID_PREFIX}${det.id}`;
   const placeholderEmail = `noemail+place-${det.id.slice(0, 24)}@eventsbywater.com`;
   const auditId = randomUUID();
 
-  // Try domain-based dedup first — Apollo might have already inserted this same business.
-  const existing = await findExistingLead(db, { domain: website, phone, mode: 'loose' });
-  if (existing) {
-    const merged = mergeTargetBusiness(existing.targetBusiness ?? 'av', targetBusiness);
-    if (merged !== existing.targetBusiness) {
-      await db.execute(`UPDATE leads SET target_business = ?, last_activity_at = NOW() WHERE id = ?`, [
-        merged,
-        existing.leadId
-      ]);
+  if (scoped) {
+    // Per-client dedup: only against THIS client's own leads. Never read or
+    // mutate the operator pipeline or another client's rows.
+    if (domain) {
+      const [dupDomain] = await db.execute<(RowDataPacket & { id: number })[]>(
+        `SELECT id FROM leads WHERE client_id = ? AND normalized_domain = ? AND archived_at IS NULL LIMIT 1`,
+        [clientId, domain]
+      );
+      if (dupDomain.length > 0) {
+        return {
+          placeId: det.id,
+          outcome: 'duplicate_existing',
+          leadId: dupDomain[0].id,
+          details: { company, domain: domain ?? undefined, industry, primaryType: det.primaryType, rating: det.rating, userRatingCount: det.userRatingCount }
+        };
+      }
+    }
+  } else {
+    // Operator path (unchanged): global domain dedup + target_business merge.
+    const existing = await findExistingLead(db, { domain: website, phone, mode: 'loose' });
+    if (existing) {
+      const merged = mergeTargetBusiness(existing.targetBusiness ?? 'av', targetBusiness);
+      if (merged !== existing.targetBusiness) {
+        await db.execute(`UPDATE leads SET target_business = ?, last_activity_at = NOW() WHERE id = ?`, [
+          merged,
+          existing.leadId
+        ]);
+        return {
+          placeId: det.id,
+          outcome: 'duplicate_target_upgraded',
+          leadId: existing.leadId,
+          details: { company, domain: domain ?? undefined, industry, primaryType: det.primaryType, rating: det.rating, userRatingCount: det.userRatingCount }
+        };
+      }
       return {
         placeId: det.id,
-        outcome: 'duplicate_target_upgraded',
+        outcome: 'duplicate_existing',
         leadId: existing.leadId,
         details: { company, domain: domain ?? undefined, industry, primaryType: det.primaryType, rating: det.rating, userRatingCount: det.userRatingCount }
       };
     }
-    return {
-      placeId: det.id,
-      outcome: 'duplicate_existing',
-      leadId: existing.leadId,
-      details: { company, domain: domain ?? undefined, industry, primaryType: det.primaryType, rating: det.rating, userRatingCount: det.userRatingCount }
-    };
   }
 
   // Also check by Google place_id stored in apollo_person_id (handles re-runs of same search)
@@ -133,9 +154,9 @@ async function insertOnePlace(db: Pool, det: PlaceDetails): Promise<PlacesDiscov
       `INSERT INTO leads (
          audit_id, company, email, phone, website, normalized_domain,
          industry, lead_status, source_type, target_business, source_payload,
-         apollo_person_id, last_activity_at
+         apollo_person_id, client_id, last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, ?, NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, ?, ?, NOW())`,
       [
         auditId,
         company,
@@ -146,7 +167,8 @@ async function insertOnePlace(db: Pool, det: PlaceDetails): Promise<PlacesDiscov
         industry,
         targetBusiness,
         JSON.stringify(sourcePayload),
-        dedupKey
+        dedupKey,
+        clientId
       ]
     );
     const newLeadId = result.insertId;
@@ -196,7 +218,11 @@ async function insertOnePlace(db: Pool, det: PlaceDetails): Promise<PlacesDiscov
  * Cost per call: 1 text search + N place detail lookups. For pageSize=20:
  * roughly 21 API calls = ~$0.32 ($5 + 20*$17) / 1k = ~$0.00037 per place.
  */
-export async function runPlacesDiscoveryBatch(filters: TextSearchFilters): Promise<PlacesDiscoverBatchResult> {
+export async function runPlacesDiscoveryBatch(
+  filters: TextSearchFilters,
+  opts: { clientId?: number | null } = {}
+): Promise<PlacesDiscoverBatchResult> {
+  const clientId = opts.clientId ?? null;
   const db = getAvDb();
   const search = await placesTextSearch(filters);
   const results: PlacesDiscoverResult[] = [];
@@ -213,7 +239,7 @@ export async function runPlacesDiscoveryBatch(filters: TextSearchFilters): Promi
       continue;
     }
     if (!details) continue;
-    results.push(await insertOnePlace(db, details));
+    results.push(await insertOnePlace(db, details, clientId));
   }
   const insertedCount = results.filter((r) => r.outcome === 'inserted').length;
   const duplicateCount = results.filter((r) => r.outcome === 'duplicate_existing' || r.outcome === 'duplicate_target_upgraded').length;
