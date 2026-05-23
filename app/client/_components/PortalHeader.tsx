@@ -41,8 +41,14 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
           </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-ink">Atlantic &amp; Vine</div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted">
-              Client Portal
+            {/* Mirrors the operator chrome's "Live · Operator" line (components/
+                Sidebar.tsx) -- same live-dot + label CSS, but shows the client's
+                name instead of the operator label. */}
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="live-dot" aria-hidden="true" />
+              <span className="text-[10.5px] text-muted uppercase tracking-[0.12em] font-medium">
+                {displayName || 'Client'}
+              </span>
             </div>
           </div>
         </div>

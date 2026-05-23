@@ -45,7 +45,6 @@ import { logEvent } from '@/lib/events/log';
 import {
   loadClientIntelligence,
   buildIntelligenceBlock,
-  PrLeadNotFoundError,
   PrDraftParseError,
   type ClientIntelligence,
   type LeadIntelRow
@@ -110,8 +109,17 @@ export async function draftArtifact(args: {
   voiceMode?: PitchMode;
 }): Promise<DraftedArtifactResult> {
   const tenantId = args.tenantId ?? DEFAULT_TENANT;
-  const intel = await loadClientIntelligence(tenantId, args.leadId);
-  if (args.leadId && !intel.lead) throw new PrLeadNotFoundError(args.leadId);
+  let intel = await loadClientIntelligence(tenantId, args.leadId);
+  // If a leadId was supplied but the lead is gone (archived / cleaned up), DON'T
+  // fail the whole draft. Batch drafting points at ideas whose matched lead may
+  // have been archived; a missing lead must not kill the post. Degrade to a
+  // tenant-level piece grounded on whatever cluster / own-brand intelligence we
+  // have, and record that the artifact should be stored with no lead_id.
+  let effectiveLeadId = args.leadId;
+  if (args.leadId && !intel.lead) {
+    effectiveLeadId = null;
+    intel = await loadClientIntelligence(tenantId, null);
+  }
 
   const voiceMode = resolveArtifactVoice(args.artifactType, intel.lead, args.voiceMode);
   const started = Date.now();
@@ -138,7 +146,7 @@ export async function draftArtifact(args: {
     if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
       await logEvent({
         eventType: CONTENT_EVENTS.artifactDraftFailed,
-        leadId: args.leadId,
+        leadId: effectiveLeadId,
         source: 'openai',
         status: 'failure',
         errorMessage: err.message,
@@ -158,7 +166,7 @@ export async function draftArtifact(args: {
   if (!parsed || typeof parsed.body_text !== 'string') {
     await logEvent({
       eventType: CONTENT_EVENTS.artifactDraftFailed,
-      leadId: args.leadId,
+      leadId: effectiveLeadId,
       source: 'openai',
       status: 'failure',
       errorMessage: 'parse error -- malformed JSON from artifact drafter',
@@ -195,7 +203,8 @@ export async function draftArtifact(args: {
     model: completion.model,
     tokensUsed: completion.usage.totalTokens,
     derivedObjects,
-    groundedOnIntelligence: intel.grounded
+    groundedOnIntelligence: intel.grounded,
+    effectiveLeadId
   };
 }
 

@@ -158,6 +158,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const drafted = await draftArtifact({ artifactType, tenantId, leadId, topic, voiceMode });
+    // draftArtifact degrades to a tenant-level piece when the supplied lead is
+    // gone; persist the lead it actually used so we never store a dangling id.
+    const storedLeadId = drafted.effectiveLeadId;
 
     const db = getAvDb();
     const [ins] = await db.execute<ResultSetHeader>(
@@ -168,7 +171,7 @@ export async function POST(req: NextRequest) {
       [
         tenantId,
         artifactType,
-        leadId,
+        storedLeadId,
         opportunityId,
         drafted.voiceMode,
         drafted.title || null,
@@ -183,14 +186,14 @@ export async function POST(req: NextRequest) {
     // Compound the intelligence graph: persist anything the drafter derived.
     const written = await upsertIntelligenceObjects({
       tenantId,
-      leadId,
+      leadId: storedLeadId,
       objects: drafted.derivedObjects,
       source: 'pr_artifact'
     });
 
     await logEvent({
       eventType: CONTENT_EVENTS.artifactDrafted,
-      leadId,
+      leadId: storedLeadId,
       userId: guard.actor.userId,
       source: 'pr_desk',
       payload: {
@@ -206,7 +209,7 @@ export async function POST(req: NextRequest) {
       id,
       tenantId,
       artifactType,
-      leadId,
+      leadId: storedLeadId,
       opportunityId,
       voiceMode: drafted.voiceMode,
       title: drafted.title || null,

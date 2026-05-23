@@ -443,6 +443,13 @@ export interface DraftedArtifactResult {
   derivedObjects: DerivedIntelligenceObject[];
   /** True if the lead's audit_content / pain_point_profile grounded the draft. */
   groundedOnIntelligence: boolean;
+  /**
+   * The lead the artifact should actually be stored against. Equals the supplied
+   * leadId, unless that lead was missing/archived -- in which case the draft
+   * degrades to a tenant-level piece and this is null. Callers persist THIS, not
+   * the raw input, so artifacts never carry a dangling lead_id.
+   */
+  effectiveLeadId: number | null;
 }
 
 // ---------------------------------------------------------------------------
