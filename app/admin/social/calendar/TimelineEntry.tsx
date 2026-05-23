@@ -29,6 +29,7 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -80,6 +81,26 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
       setErr((e as Error).message);
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function deletePost() {
+    if (item.outboxId == null) return;
+    setDeleting(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/admin/social/publish/${item.outboxId}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        setErr(json.error || `Delete failed (${res.status})`);
+        return;
+      }
+      setOpen(false);
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -155,11 +176,20 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
             {msg && <div className="mb-3 rounded-lg px-3 py-2 text-[13px]" style={{ background: 'rgba(16,185,129,0.12)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.3)' }}>{msg}</div>}
             {err && <div className="mb-3 rounded-lg px-3 py-2 text-[13px]" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => void deletePost()}
+                disabled={deleting || publishing}
+                className="rounded-lg px-3 py-2 text-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                style={{ background: 'rgba(148,163,184,0.12)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.3)' }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
               <button
                 type="button"
                 onClick={() => void publishNow()}
-                disabled={publishing}
+                disabled={publishing || deleting}
                 className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
                 style={{ background: 'rgba(16,185,129,0.22)', color: '#34d399', border: '1px solid rgba(16,185,129,0.4)' }}
               >

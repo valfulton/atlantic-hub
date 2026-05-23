@@ -215,6 +215,13 @@ export function CommercialPanel({
   // toggle on each asset card. We don't need the full kit shape here --
   // just yes/no.
   const [hasBrandLogo, setHasBrandLogo] = useState(false);
+  const [campaigns, setCampaigns] = useState<Array<{ id: number; name: string }>>([]);
+  useEffect(() => {
+    fetch('/api/admin/campaigns', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => setCampaigns((j.campaigns || []).map((c: { id: number; name: string }) => ({ id: c.id, name: c.name }))))
+      .catch(() => {});
+  }, []);
 
   const fetchAssets = useCallback(async () => {
     setLoadError(null);
@@ -805,6 +812,7 @@ export function CommercialPanel({
                 auditId={auditId}
                 asset={asset}
                 hasBrandLogo={hasBrandLogo}
+                campaigns={campaigns}
                 onDelete={() => handleDelete(asset.assetId)}
               />
             ))}
@@ -819,13 +827,30 @@ function AssetCard({
   auditId,
   asset,
   hasBrandLogo,
+  campaigns,
   onDelete
 }: {
   auditId: string;
   asset: Asset;
   hasBrandLogo: boolean;
+  campaigns: Array<{ id: number; name: string }>;
   onDelete: () => void;
 }) {
+  const [campaignMsg, setCampaignMsg] = useState<string | null>(null);
+  async function addToCampaign(campaignId: number) {
+    setCampaignMsg(null);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaignId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: asset.assetId })
+      });
+      const json = await res.json().catch(() => ({}));
+      setCampaignMsg(res.ok && json.ok ? 'Added to campaign' : json.error || 'Failed');
+    } catch (e) {
+      setCampaignMsg((e as Error).message);
+    }
+  }
   const isRunning =
     asset.generationStatus === 'running' || asset.generationStatus === 'queued';
 
@@ -1002,6 +1027,21 @@ function AssetCard({
               Copy URL
             </button>
           ) : null}
+          {campaigns.length > 0 && asset.url ? (
+            <select
+              defaultValue=""
+              onChange={(e) => { const v = Number(e.target.value); if (v > 0) void addToCampaign(v); }}
+              className="px-2 py-1.5 rounded-full border border-border text-xs bg-transparent text-muted hover:text-ink"
+              title="Add this commercial to a campaign"
+              style={{ background: 'rgba(0,0,0,0.3)' }}
+            >
+              <option value="" style={{ color: '#000' }}>+ Campaign…</option>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id} style={{ color: '#000' }}>{c.name}</option>
+              ))}
+            </select>
+          ) : null}
+          {campaignMsg ? <span className="text-[10px] text-emerald-300 self-center">{campaignMsg}</span> : null}
           <button
             type="button"
             onClick={onDelete}

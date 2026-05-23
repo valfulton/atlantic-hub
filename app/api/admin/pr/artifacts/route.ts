@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
   const leadId = typeof body.leadId === 'number' && Number.isFinite(body.leadId) ? body.leadId : null;
   const opportunityId = typeof body.opportunityId === 'number' && Number.isFinite(body.opportunityId) ? body.opportunityId : null;
   const topic = typeof body.topic === 'string' ? body.topic : null;
+  const campaignId = typeof body.campaignId === 'number' && Number.isFinite(body.campaignId) ? body.campaignId : null;
   const voiceMode =
     body.voiceMode === 'advisory' || body.voiceMode === 'congratulatory' || body.voiceMode === 'client_voice'
       ? (body.voiceMode as PitchMode)
@@ -166,8 +167,8 @@ export async function POST(req: NextRequest) {
     const [ins] = await db.execute<ResultSetHeader>(
       `INSERT INTO content_artifacts
          (tenant_id, artifact_type, lead_id, opportunity_id, voice_mode, title, body_text,
-          meta_json, model, status, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, 'draft', ?)`,
+          meta_json, model, status, created_by_user_id, campaign_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, 'draft', ?, ?)`,
       [
         tenantId,
         artifactType,
@@ -178,7 +179,8 @@ export async function POST(req: NextRequest) {
         drafted.bodyText,
         JSON.stringify(drafted.metaJson ?? {}),
         drafted.model,
-        guard.actor.userId
+        guard.actor.userId,
+        campaignId
       ]
     );
     const id = ins.insertId;

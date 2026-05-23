@@ -156,22 +156,40 @@ export function CampaignsBoard() {
   }, [load]);
 
   const [spawning, setSpawning] = useState<string | null>(null);
+  // Client-orchestrated so each AI draft is its OWN request (no compounding
+  // server timeout): create the campaign, then draft blog + social separately,
+  // each tagged to the campaign.
   const spawnCampaign = useCallback(async (laneId: number | null) => {
     const key = String(laneId ?? 'none');
     const d = draft[key];
     if (!d || !d.name.trim()) return;
+    const topic = d.name.trim();
     setSpawning(key);
+    setError(null);
     try {
-      const res = await fetch('/api/admin/campaigns/spawn', {
+      const cRes = await fetch('/api/admin/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: d.name.trim(), goal: d.goal.trim() || undefined, topic: d.name.trim(), laneId })
+        body: JSON.stringify({ name: topic, goal: d.goal.trim() || undefined, laneId })
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) throw new Error(json.error || 'spawn failed');
+      const cJson = await cRes.json().catch(() => ({}));
+      if (!cRes.ok || !cJson.id) throw new Error(cJson.error || 'could not create campaign');
+      const campaignId = cJson.id as number;
+
+      const draftPiece = (artifactType: string, t: string) =>
+        fetch('/api/admin/pr/artifacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ artifactType, topic: t, voiceMode: 'client_voice', campaignId })
+        });
+
+      // Two independent requests -- each stays within its own time budget.
+      await draftPiece('blog_article', `A thought-leadership blog article on: ${topic}. Atlantic & Vine's own voice; general audience; do not name a specific company.`);
+      await draftPiece('own_brand_post', `A short, engaging own-brand social post on: ${topic}. A hook, one idea, a soft CTA.`);
+
       setDraft((x) => ({ ...x, [key]: { name: '', goal: '' } }));
       await load();
-      if (json.campaignId) void viewContents(json.campaignId);
+      void viewContents(campaignId);
     } catch (e) {
       setError((e as Error).message);
     } finally {
