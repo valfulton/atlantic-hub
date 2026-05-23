@@ -29,10 +29,21 @@ function ArticleCard({ a, featured = false }: { a: NewsroomArticle; featured?: b
   return (
     <Link
       href={articleHref(a)}
-      className={`group block no-underline rounded-2xl border border-border bg-surface hover:bg-surface-2 transition-colors ${
-        featured ? 'p-7 sm:p-9' : 'p-6'
+      className={`group block no-underline rounded-2xl border border-border bg-surface hover:bg-surface-2 transition-colors overflow-hidden ${
+        featured ? '' : ''
       }`}
     >
+      {a.heroUrl && (
+        <div className={`w-full overflow-hidden ${featured ? 'aspect-[2/1]' : 'aspect-video'}`} style={{ background: '#000' }}>
+          {a.heroType === 'video' ? (
+            <video src={a.heroUrl} muted loop playsInline preload="metadata" className="w-full h-full object-cover" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={a.heroUrl} alt={a.title} className="w-full h-full object-cover" />
+          )}
+        </div>
+      )}
+      <div className={featured ? 'p-7 sm:p-9' : 'p-6'}>
       <div className="flex items-center gap-3 mb-3 text-[10px] uppercase tracking-[0.16em]">
         <span className="text-brand">{TYPE_LABEL[a.artifactType] ?? 'Insight'}</span>
         {a.publishedAt && <span className="text-muted">{formatDate(a.publishedAt)}</span>}
@@ -54,6 +65,7 @@ function ArticleCard({ a, featured = false }: { a: NewsroomArticle; featured?: b
           On <span className="text-ink">{a.company}</span>
         </p>
       )}
+      </div>
     </Link>
   );
 }

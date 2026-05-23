@@ -127,6 +127,17 @@ export default async function NewsroomArticlePage({ params }: { params: { slug: 
           {article.title}
         </h1>
 
+        {article.heroUrl && (
+          <div className="mt-6 rounded-2xl overflow-hidden border border-border" style={{ background: '#000' }}>
+            {article.heroType === 'video' ? (
+              <video src={article.heroUrl} controls playsInline preload="metadata" className="w-full" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={article.heroUrl} alt={article.title} className="w-full" />
+            )}
+          </div>
+        )}
+
         {article.company && (
           <p className="mt-3 text-sm text-muted">
             On <span className="text-ink">{article.company}</span>

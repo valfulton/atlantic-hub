@@ -109,6 +109,10 @@ export function ArtifactsSection() {
   const [siteUrl, setSiteUrl] = useState<Record<number, string>>({});
   // filter the list by where each piece is in the pipeline
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'approved' | 'published'>('all');
+  // hero media draft input + save state per artifact
+  const [heroDraft, setHeroDraft] = useState<Record<number, { val: string; type: 'image' | 'video' }>>({});
+  const [heroSaving, setHeroSaving] = useState<number | null>(null);
+  const [heroMsg, setHeroMsg] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -256,6 +260,48 @@ export function ArtifactsSection() {
     }
     setBulkDismissing(false);
   }, [items]);
+
+  const saveHero = useCallback(async (id: number) => {
+    const d = heroDraft[id];
+    if (!d || !d.val.trim()) return;
+    setHeroSaving(id);
+    setHeroMsg((m) => ({ ...m, [id]: '' }));
+    const v = d.val.trim();
+    const isAssetId = /^\d+$/.test(v);
+    const payload = isAssetId
+      ? { heroAssetId: Number(v), heroType: d.type }
+      : { heroUrl: v, heroType: d.type };
+    try {
+      const res = await fetch(`/api/admin/pr/artifacts/${id}/hero`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json().catch(() => ({}));
+      setHeroMsg((m) => ({ ...m, [id]: res.ok && json.ok ? 'Hero set.' : json.error || 'Failed' }));
+    } catch (e) {
+      setHeroMsg((m) => ({ ...m, [id]: (e as Error).message }));
+    } finally {
+      setHeroSaving(null);
+    }
+  }, [heroDraft]);
+
+  const clearHero = useCallback(async (id: number) => {
+    setHeroSaving(id);
+    try {
+      await fetch(`/api/admin/pr/artifacts/${id}/hero`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clear: true })
+      });
+      setHeroMsg((m) => ({ ...m, [id]: 'Hero cleared.' }));
+      setHeroDraft((d) => ({ ...d, [id]: { val: '', type: d[id]?.type ?? 'image' } }));
+    } catch {
+      /* ignore */
+    } finally {
+      setHeroSaving(null);
+    }
+  }, []);
 
   const toggleProfile = useCallback((id: number, connId: number) => {
     setSchedSel((s) => {
@@ -455,6 +501,52 @@ export function ArtifactsSection() {
                 </div>
 
                 {a.title && <h3 className="text-sm font-semibold mb-2" style={{ color: '#fff' }}>{a.title}</h3>}
+
+                {/* Hero media: attach a branded image/video (a commercial # or a URL) */}
+                {a.artifactType !== 'client_deliverable' && (() => {
+                  const meta = a.metaJson as { hero_url?: string; hero_asset_id?: number; hero_type?: string } | null;
+                  const current = meta?.hero_url || (meta?.hero_asset_id ? `commercial #${meta.hero_asset_id}` : null);
+                  const draft = heroDraft[a.id] ?? { val: '', type: 'image' as const };
+                  return (
+                    <div className="mb-2 rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Hero media</span>
+                        {current && <span className="text-[11px]" style={{ color: '#9AE6B4' }}>Set: {current}</span>}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={draft.type}
+                          onChange={(e) => setHeroDraft((d) => ({ ...d, [a.id]: { val: draft.val, type: e.target.value as 'image' | 'video' } }))}
+                          className="rounded-lg px-2 py-1.5 text-[12px]"
+                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
+                        >
+                          <option value="image" style={{ color: '#000' }}>Image</option>
+                          <option value="video" style={{ color: '#000' }}>Video</option>
+                        </select>
+                        <input
+                          value={draft.val}
+                          onChange={(e) => setHeroDraft((d) => ({ ...d, [a.id]: { val: e.target.value, type: draft.type } }))}
+                          placeholder="Commercial # (from Commercials) or paste an image/video URL"
+                          className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-[13px]"
+                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
+                        />
+                        <button type="button" onClick={() => void saveHero(a.id)} disabled={heroSaving === a.id}
+                          className="rounded-lg px-3 py-1.5 text-[13px] disabled:opacity-50"
+                          style={{ background: 'rgba(16,185,129,0.16)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.3)' }}>
+                          {heroSaving === a.id ? 'Saving' : 'Set hero'}
+                        </button>
+                        {current && (
+                          <button type="button" onClick={() => void clearHero(a.id)} disabled={heroSaving === a.id}
+                            className="rounded-lg px-3 py-1.5 text-[13px] disabled:opacity-50"
+                            style={{ background: 'transparent', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.14)' }}>
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      {heroMsg[a.id] && <p className="text-[11px] mt-1" style={{ color: '#9AE6B4' }}>{heroMsg[a.id]}</p>}
+                    </div>
+                  );
+                })()}
 
                 {/* meta: SEO cluster / hashtags */}
                 {a.metaJson?.target_query && (

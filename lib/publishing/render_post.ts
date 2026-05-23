@@ -93,6 +93,8 @@ export interface BlogCardInput {
   excerpt?: string | null;
   category?: string | null;
   readMinutes?: number | null;
+  heroUrl?: string | null;
+  heroType?: 'image' | 'video' | null;
 }
 
 /** A single card matching the live /blog grid, self-styled so it needs no site CSS. */
@@ -100,10 +102,18 @@ export function renderBlogCard(input: BlogCardInput): string {
   const cat = (input.category || 'Journal').toUpperCase();
   const grad = CATEGORY_GRADIENT[cat] || CATEGORY_GRADIENT.JOURNAL;
   const mins = input.readMinutes && input.readMinutes > 0 ? input.readMinutes : 4;
-  return `<a href="${esc(input.href)}" style="display:block;text-decoration:none;color:inherit;border:1px solid #ece7dd;border-radius:16px;overflow:hidden;background:#fff;">
-  <div style="position:relative;height:160px;background:${grad};">
+  const header = input.heroUrl
+    ? `<div style="position:relative;height:160px;background:#000;overflow:hidden;">
+    ${input.heroType === 'video'
+      ? `<video src="${esc(input.heroUrl)}" muted loop playsinline style="width:100%;height:100%;object-fit:cover;"></video>`
+      : `<img src="${esc(input.heroUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;" />`}
     <span style="position:absolute;top:14px;left:14px;background:#fff;color:#15202b;font:600 11px/1 Inter,sans-serif;letter-spacing:.06em;padding:6px 10px;border-radius:999px;">${esc(cat)}</span>
-  </div>
+  </div>`
+    : `<div style="position:relative;height:160px;background:${grad};">
+    <span style="position:absolute;top:14px;left:14px;background:#fff;color:#15202b;font:600 11px/1 Inter,sans-serif;letter-spacing:.06em;padding:6px 10px;border-radius:999px;">${esc(cat)}</span>
+  </div>`;
+  return `<a href="${esc(input.href)}" style="display:block;text-decoration:none;color:inherit;border:1px solid #ece7dd;border-radius:16px;overflow:hidden;background:#fff;">
+  ${header}
   <div style="padding:18px 18px 20px;">
     <h3 style="font-family:Fraunces,Georgia,serif;font-weight:600;font-size:20px;line-height:1.2;margin:0 0 8px;color:#15202b;">${esc(input.title)}</h3>
     ${input.excerpt ? `<p style="margin:0 0 14px;color:#5b6b7a;font:400 14px/1.5 Inter,sans-serif;">${esc(input.excerpt)}</p>` : ''}
@@ -121,6 +131,8 @@ export interface BlogManifestPost {
   category?: string | null;
   readMinutes?: number | null;
   date?: string | null;
+  heroUrl?: string | null;
+  heroType?: 'image' | 'video' | null;
 }
 
 /**
@@ -136,7 +148,9 @@ export function renderBlogIndexHtml(posts: BlogManifestPost[]): string {
         title: p.title,
         excerpt: p.excerpt ?? null,
         category: p.category ?? null,
-        readMinutes: p.readMinutes ?? null
+        readMinutes: p.readMinutes ?? null,
+        heroUrl: p.heroUrl ?? null,
+        heroType: p.heroType ?? null
       })
     )
     .join('\n');
@@ -200,6 +214,8 @@ export interface RenderPostInput {
   metaDescription?: string | null;
   readMinutes?: number | null;
   dateLabel?: string | null;
+  heroUrl?: string | null;
+  heroType?: 'image' | 'video' | null;
 }
 
 export function renderPostHtml(input: RenderPostInput): string {
@@ -209,6 +225,11 @@ export function renderPostHtml(input: RenderPostInput): string {
   const date = input.dateLabel || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const mins = input.readMinutes && input.readMinutes > 0 ? input.readMinutes : Math.max(2, Math.round((input.bodyText || '').split(/\s+/).length / 200));
   const body = renderBlocks(toBlocks(input.bodyText || ''));
+  const heroHtml = input.heroUrl
+    ? input.heroType === 'video'
+      ? `<div class="hero" style="margin:24px 0;"><video src="${input.heroUrl}" controls playsinline preload="metadata" style="width:100%;border-radius:14px;"></video></div>`
+      : `<div class="hero" style="margin:24px 0;"><img src="${input.heroUrl}" alt="${esc(title)}" style="width:100%;border-radius:14px;" /></div>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -264,6 +285,7 @@ export function renderPostHtml(input: RenderPostInput): string {
   <h1>${esc(title)}</h1>
   ${desc ? `<p class="promise">${esc(desc)}</p>` : ''}
   <div class="byline">By Atlantic &amp; Vine&nbsp;&nbsp;&middot;&nbsp;&nbsp;${esc(date)}&nbsp;&nbsp;&middot;&nbsp;&nbsp;${mins} min read</div>
+  ${heroHtml}
   <article>
     ${body}
   </article>

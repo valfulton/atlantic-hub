@@ -77,11 +77,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const title = (art.title && art.title.trim()) || 'Untitled';
     const slug = articleSlug(title, art.id);
+
+    // Hero media: pasted URL, or an absolute hub URL for a commercial-asset hero
+    // (the external site is cross-origin, so the <img>/<video> points back here).
+    const HUB_BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://atlantic-hub.netlify.app';
+    const heroType = meta.hero_type === 'image' || meta.hero_type === 'video' ? (meta.hero_type as 'image' | 'video') : null;
+    let heroUrl: string | null = null;
+    if (typeof meta.hero_url === 'string' && meta.hero_url) heroUrl = meta.hero_url as string;
+    else if (typeof meta.hero_asset_id === 'number') heroUrl = `${HUB_BASE}/api/public/hero/${meta.hero_asset_id}`;
+
     const html = renderPostHtml({
       title,
       bodyText: art.body_text || '',
       category: typeof meta.category === 'string' ? meta.category : 'Journal',
-      metaDescription: typeof meta.meta_description === 'string' ? meta.meta_description : null
+      metaDescription: typeof meta.meta_description === 'string' ? meta.meta_description : null,
+      heroUrl,
+      heroType
     });
 
     const path = `${dest.repo.pathPrefix}/${slug}.html`;
@@ -119,7 +130,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           excerpt: typeof meta.meta_description === 'string' ? meta.meta_description : null,
           category: typeof meta.category === 'string' ? meta.category : 'Journal',
           readMinutes: Math.max(2, Math.round(words / 200)),
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          heroUrl,
+          heroType
         };
         // newest first; replace any prior entry for the same slug
         posts = [entry, ...posts.filter((p) => p.slug !== slug)];

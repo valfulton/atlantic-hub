@@ -42,6 +42,9 @@ export interface NewsroomArticle {
   company: string | null;
   publishedAt: string | null;
   hashtags: string[];
+  /** Hero media (top of post + card image), if attached. */
+  heroUrl: string | null;
+  heroType: 'image' | 'video' | null;
 }
 
 interface ArticleRow extends RowDataPacket {
@@ -91,7 +94,12 @@ export function idFromSlug(slug: string): number | null {
   return Number.isFinite(bare) && bare > 0 ? bare : null;
 }
 
-function parseMeta(raw: unknown): { metaDescription: string | null; hashtags: string[] } {
+function parseMeta(raw: unknown): {
+  metaDescription: string | null;
+  hashtags: string[];
+  heroUrl: string | null;
+  heroType: 'image' | 'video' | null;
+} {
   let meta: Record<string, unknown> | null = null;
   if (raw != null) {
     try {
@@ -106,7 +114,15 @@ function parseMeta(raw: unknown): { metaDescription: string | null; hashtags: st
     meta && Array.isArray(meta.hashtags)
       ? (meta.hashtags as unknown[]).filter((h): h is string => typeof h === 'string').slice(0, 12)
       : [];
-  return { metaDescription, hashtags };
+  const heroType =
+    meta && (meta.hero_type === 'image' || meta.hero_type === 'video') ? (meta.hero_type as 'image' | 'video') : null;
+  let heroUrl: string | null = null;
+  if (meta && typeof meta.hero_url === 'string' && meta.hero_url) {
+    heroUrl = meta.hero_url as string;
+  } else if (meta && typeof meta.hero_asset_id === 'number') {
+    heroUrl = `/api/public/hero/${meta.hero_asset_id}`;
+  }
+  return { metaDescription, hashtags, heroUrl, heroType: heroUrl ? heroType : null };
 }
 
 function makeExcerpt(body: string | null, max = 200): string {
@@ -132,7 +148,7 @@ function toIso(v: Date | string | null): string | null {
 }
 
 function rowToArticle(r: ArticleRow): NewsroomArticle {
-  const { metaDescription, hashtags } = parseMeta(r.meta_json);
+  const { metaDescription, hashtags, heroUrl, heroType } = parseMeta(r.meta_json);
   const title = (r.title && r.title.trim()) || 'Untitled';
   const body = r.body_text || '';
   return {
@@ -146,7 +162,9 @@ function rowToArticle(r: ArticleRow): NewsroomArticle {
     metaDescription,
     company: r.company,
     publishedAt: toIso(r.updated_at) || toIso(r.created_at),
-    hashtags
+    hashtags,
+    heroUrl,
+    heroType
   };
 }
 
