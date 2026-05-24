@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fmtDateTime } from '@/lib/format/datetime';
 
 /**
  * BrandKitPanel
@@ -370,7 +371,7 @@ export function BrandKitPanel({
                 {kit.logoMimeType} · {kit.logoWidth || '?'}×{kit.logoHeight || '?'} px
               </div>
               <div className="text-[11px] text-muted">
-                Updated {new Date(kit.updatedAt).toLocaleString()}
+                Updated {fmtDateTime(kit.updatedAt)}
               </div>
               <div className="flex items-center gap-2 mt-2">
                 <button

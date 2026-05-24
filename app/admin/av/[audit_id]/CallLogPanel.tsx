@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { fmtDateTime } from '@/lib/format/datetime';
 
 /**
  * Calls tab content for the lead detail page.
@@ -195,7 +196,7 @@ export function CallLogPanel({ auditId, onCallLogged }: Props) {
                     )}
                   </div>
                   <time dateTime={c.calledAt} className="text-xs text-muted">
-                    {new Date(c.calledAt).toLocaleString()}
+                    {fmtDateTime(c.calledAt)}
                   </time>
                 </div>
                 {c.notes && (

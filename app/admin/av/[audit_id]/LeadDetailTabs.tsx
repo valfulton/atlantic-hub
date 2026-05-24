@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { fmtDate, fmtDateTime } from '@/lib/format/datetime';
 import { ScoreRadarChart } from '@/components/ScoreRadarChart';
 import { ScoreSparkline } from '@/components/ScoreSparkline';
 import { PainPointCallout } from './PainPointCallout';
@@ -264,7 +265,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
                   </span>
                   {lead.enrichedAt && (
                     <span className="text-xs text-muted">
-                      {new Date(lead.enrichedAt).toLocaleString()}
+                      {fmtDateTime(lead.enrichedAt)}
                     </span>
                   )}
                 </div>
@@ -314,7 +315,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             />
             {lead.wakeAtDate && (lead.leadStatus === 'nurture' || lead.leadStatus === 'not_now') && (
               <div className="mt-2 text-xs text-muted">
-                Parked. Wakes {new Date(lead.wakeAtDate).toLocaleDateString()}
+                Parked. Wakes {fmtDate(lead.wakeAtDate)}
                 {lead.parkedReason ? ` -- ${lead.parkedReason}` : ''}
               </div>
             )}
@@ -366,7 +367,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             {legacyOpen && (
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 border border-border rounded-lg p-4">
                 <Field label="Approved" value={lead.isApproved ? 'Yes' : 'No'} />
-                <Field label="Approval date" value={lead.approvalDate ? new Date(lead.approvalDate).toLocaleString() : null} />
+                <Field label="Approval date" value={lead.approvalDate ? fmtDateTime(lead.approvalDate) : null} />
                 <Field label="Approved by" value={lead.approvedBy} />
                 <Field label="Source type" value={lead.sourceType} />
                 <Field label="Internal id" value={String(lead.id)} />
@@ -388,7 +389,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               </pre>
               {lead.auditGenerated && (
                 <p className="text-xs text-muted mt-2">
-                  Generated {new Date(lead.auditGenerated).toLocaleString()}
+                  Generated {fmtDateTime(lead.auditGenerated)}
                 </p>
               )}
             </>
@@ -437,7 +438,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
                         <span className="text-[10px] text-muted">
                           {lead.scoreHistory.length} signals
                           {lead.engagementScoreUpdatedAt && (
-                            <> {`-- last moved ${new Date(lead.engagementScoreUpdatedAt).toLocaleString()}`}</>
+                            <> {`-- last moved ${fmtDateTime(lead.engagementScoreUpdatedAt)}`}</>
                           )}
                         </span>
                       </div>
@@ -482,7 +483,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               )}
               {lead.aiLastScoredAt && (
                 <p className="text-xs text-muted">
-                  Scored {new Date(lead.aiLastScoredAt).toLocaleString()}
+                  Scored {fmtDateTime(lead.aiLastScoredAt)}
                 </p>
               )}
             </div>
@@ -540,7 +541,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
                   <li key={n.noteId} className="bg-surface border border-border rounded-lg p-4">
                     <div className="flex items-center justify-between text-xs text-muted mb-2">
                       <span>{n.authorRole}{n.isInternal ? ' · internal' : ''}</span>
-                      <span>{new Date(n.createdAt).toLocaleString()}</span>
+                      <span>{fmtDateTime(n.createdAt)}</span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">{n.body}</p>
                   </li>
@@ -567,7 +568,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
                       <pre className="mt-1 text-xs text-muted whitespace-pre-wrap break-words">{JSON.stringify(e.eventPayload, null, 0)}</pre>
                     )}
                   </div>
-                  <div className="text-xs text-muted whitespace-nowrap">{new Date(e.occurredAt).toLocaleString()}</div>
+                  <div className="text-xs text-muted whitespace-nowrap">{fmtDateTime(e.occurredAt)}</div>
                 </li>
               ))}
             </ul>

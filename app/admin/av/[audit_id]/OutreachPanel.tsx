@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { fmtDateTime } from '@/lib/format/datetime';
 
 interface Campaign {
   id: number;
@@ -284,9 +285,9 @@ export function OutreachPanel({
                 </div>
                 <div className="text-xs text-muted">
                   {m.sent_at
-                    ? `Sent ${new Date(m.sent_at).toLocaleString()}`
-                    : `Drafted ${new Date(m.created_at).toLocaleString()}`}
-                  {m.replied_at && ` · Replied ${new Date(m.replied_at).toLocaleString()}`}
+                    ? `Sent ${fmtDateTime(m.sent_at)}`
+                    : `Drafted ${fmtDateTime(m.created_at)}`}
+                  {m.replied_at && ` · Replied ${fmtDateTime(m.replied_at)}`}
                 </div>
               </li>
             ))}
@@ -315,7 +316,7 @@ export function OutreachPanel({
                     dateTime={r.received_at}
                     className="text-xs text-muted"
                   >
-                    {new Date(r.received_at).toLocaleString()}
+                    {fmtDateTime(r.received_at)}
                   </time>
                 </article>
               </li>
