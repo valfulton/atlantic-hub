@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TimelineItem, TimelineItemStatus } from '@/lib/pr/types';
+import { useCalendarSelection } from './CalendarSelection';
 
 const STATUS_STYLE: Record<TimelineItemStatus, { label: string; bg: string; fg: string }> = {
   draft: { label: 'Draft', bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1' },
@@ -34,6 +35,7 @@ const BRAND_ACCENT: Record<string, string> = {
 
 export function TimelineEntry({ item }: { item: TimelineItem }) {
   const router = useRouter();
+  const sel = useCalendarSelection();
   const [open, setOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -122,16 +124,31 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
 
   const isImage = !!item.mediaUrl && item.mediaType === 'image';
 
+  const selectable = sel && item.outboxId != null;
+  const isSelected = selectable ? sel!.selected.has(item.outboxId!) : false;
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="block w-full text-left focus-visible:ring-2 focus-visible:ring-brand rounded"
-        aria-label={`Review ${item.title}`}
-      >
-        {chip}
-      </button>
+      <div className="flex items-start gap-1" style={isSelected ? { outline: '2px solid #FFC73D', outlineOffset: 1, borderRadius: 4 } : undefined}>
+        {selectable && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => sel!.toggle(item.outboxId!)}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 shrink-0"
+            aria-label={`Select ${item.title} for bulk action`}
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="block w-full text-left focus-visible:ring-2 focus-visible:ring-brand rounded"
+          aria-label={`Review ${item.title}`}
+        >
+          {chip}
+        </button>
+      </div>
 
       {open && (
         <div

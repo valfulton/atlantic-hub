@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { fetchTimelineItems, fetchTimelineTenants } from './timeline';
 import { CalendarView } from './CalendarView';
+import { CalendarSelectionProvider } from './CalendarSelection';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,14 +66,16 @@ export default async function CampaignTimelinePage({
         seasonal campaigns onto the same view as those systems come online.
       </p>
 
-      <CalendarView
-        view={view}
-        anchor={anchor}
-        window={window}
-        items={items}
-        tenant={tenant}
-        tenants={tenants}
-      />
+      <CalendarSelectionProvider>
+        <CalendarView
+          view={view}
+          anchor={anchor}
+          window={window}
+          items={items}
+          tenant={tenant}
+          tenants={tenants}
+        />
+      </CalendarSelectionProvider>
     </div>
   );
 }
