@@ -18,23 +18,12 @@ export default function CampaignsPage() {
   return (
     <div className="max-w-5xl">
       <h1 className="text-3xl font-semibold tracking-tight mb-1">
-        Narrative{' '}
-        <span
-          className="font-bold italic"
-          style={{
-            background: 'linear-gradient(120deg, #FF5A6E 0%, #FF9C5B 50%, #FFC73D 100%)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            color: 'transparent'
-          }}
-        >
-          Lanes
-        </span>
+        Campaigns
       </h1>
       <p className="text-sm text-muted mb-6 max-w-2xl">
-        Your editorial pillars. Each lane holds campaigns; each campaign groups the blog posts, social
-        posts, and commercials produced around one intelligence signal — so one idea becomes coordinated
-        movement. Add, rename, or retire lanes anytime; they&apos;re yours to shape.
+        The execution layer beneath your <strong>Narrative Lines</strong>. A campaign is a time-boxed push
+        that rides a line and groups the blog posts, social posts, and commercials produced around it — so
+        one thesis becomes coordinated movement. Manage the strategy itself over in Narrative Lines.
       </p>
       <CampaignsBoard />
     </div>
