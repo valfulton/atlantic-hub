@@ -84,6 +84,24 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const [entry, setEntry] = useState({ channel: 'linkedin', impressions: '', engagements: '', clicks: '', conversions: '', note: '' });
   const [pullMsg, setPullMsg] = useState<string | null>(null);
 
+  // Editable commercial-prompt draft per line (auto-filled from the line; no generation).
+  const [promptDraft, setPromptDraft] = useState<Record<number, { assetType: 'image' | 'video'; duration: string; text: string; loading: boolean }>>({});
+  const draftCommercialPrompt = useCallback(async (id: number, assetType: 'image' | 'video', duration: string) => {
+    setPromptDraft((p) => ({ ...p, [id]: { assetType, duration, text: p[id]?.text ?? '', loading: true } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${id}/commercial/preview`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetType, durationSeconds: assetType === 'video' ? (Number(duration) || 6) : undefined })
+      });
+      const j = await res.json();
+      setPromptDraft((p) => ({ ...p, [id]: { assetType, duration, text: res.ok ? (j.prompt ?? '') : (j.error || 'Could not build prompt'), loading: false } }));
+    } catch {
+      setPromptDraft((p) => ({ ...p, [id]: { assetType, duration, text: 'Could not build prompt', loading: false } }));
+    }
+  }, []);
+  const setPromptText = useCallback((id: number, text: string) =>
+    setPromptDraft((p) => ({ ...p, [id]: { assetType: p[id]?.assetType ?? 'image', duration: p[id]?.duration ?? '6', text, loading: false } })), []);
+
   const [newCustomerKey, setNewCustomerKey] = useState(customers[0]?.key ?? 'av:house');
   const [newName, setNewName] = useState('');
   const [newThesis, setNewThesis] = useState('');
@@ -195,7 +213,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText };
 
   return (
     <div>
@@ -275,6 +293,9 @@ interface EditorProps {
   submitEngagement: (id: number) => void;
   pullSocials: (id: number) => void;
   pullMsg: string | null;
+  promptDraft: Record<number, { assetType: 'image' | 'video'; duration: string; text: string; loading: boolean }>;
+  draftCommercialPrompt: (id: number, assetType: 'image' | 'video', duration: string) => void;
+  setPromptText: (id: number, text: string) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -302,11 +323,12 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
   const comms = commercials[id] ?? [];
+  const pd = promptDraft[id];
 
   const field = (label: string, key: keyof Line, placeholder: string) => (
     <div>
@@ -384,12 +406,51 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
         {pullMsg && <div style={{ fontSize: 12, color: '#fcd34d', marginTop: 8 }}>{pullMsg}</div>}
       </div>
 
-      {/* Commercials */}
+      {/* Commercial prompt — born from the line, no lead, editable before generating */}
+      <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>Commercial from this line</div>
+        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+          Auto-drafts a prompt from this line&apos;s thesis, audience, emotional driver &amp; authority angle — with voiceover + imagery direction baked in. Edit it freely; nothing generates yet.
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
+          <div>
+            <label style={labelStyle}>Type</label>
+            <select style={{ ...inputStyle, width: 120 }} value={pd?.assetType ?? 'image'} onChange={(e) => draftCommercialPrompt(id, e.target.value as 'image' | 'video', pd?.duration ?? '6')}>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+            </select>
+          </div>
+          {(pd?.assetType ?? 'image') === 'video' && (
+            <div>
+              <label style={labelStyle}>Seconds</label>
+              <input style={{ ...inputStyle, width: 80 }} inputMode="numeric" value={pd?.duration ?? '6'} onChange={(e) => draftCommercialPrompt(id, 'video', e.target.value)} />
+            </div>
+          )}
+          <button onClick={() => draftCommercialPrompt(id, pd?.assetType ?? 'image', pd?.duration ?? '6')} style={btnGhost}>
+            {pd?.loading ? 'Drafting…' : pd?.text ? 'Re-draft from line' : 'Draft commercial prompt'}
+          </button>
+        </div>
+        {pd?.text !== undefined && (
+          <textarea
+            style={{ ...inputStyle, minHeight: 120, marginTop: 8, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
+            value={pd.text}
+            onChange={(e) => setPromptText(id, e.target.value)}
+            placeholder="Your editable commercial prompt will appear here…"
+          />
+        )}
+        {pd?.text && (
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+            Refine this prompt until it&apos;s right. One-click generation (image now, video with a hard cap) hooks up here next — your edited prompt is what it&apos;ll use.
+          </div>
+        )}
+      </div>
+
+      {/* Existing commercials tied to this line */}
       <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>Commercials on this line</div>
         {comms.length === 0 ? (
           <div style={{ fontSize: 12, color: '#64748b' }}>
-            No commercials tied to this line yet. Generating a commercial straight from a line (no lead required) is the next build.
+            No commercials tied to this line yet.
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8 }}>

@@ -37,6 +37,7 @@ import {
   visualBriefToPromptFragment,
   type VisualBriefRecord
 } from '@/lib/ai/visual_brief';
+import { buildNarrativeContext } from '@/lib/campaigns/store';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export type AssetType = 'image' | 'video';
@@ -319,6 +320,68 @@ export async function buildPromptForLead(
       ? buildImagePrompt(lead, brief, args.logoSpace, angle)
       : buildVideoPrompt(lead, Math.max(1, Math.min(15, args.durationSeconds ?? 6)), brief, args.logoSpace, angle);
   return { prompt, source, briefId: brief?.id ?? null };
+}
+
+/**
+ * Build a commercial prompt FROM A NARRATIVE LINE — no lead required.
+ *
+ * This is the "commercials aren't shackled to a prospect" path. The line's
+ * intelligence (thesis, audience, emotional driver, authority angle, proof
+ * points) auto-populates the visual direction, and — because val likes a
+ * voiceover and beautiful imagery — both a narration direction and a hero-image
+ * direction are baked in so she doesn't retype found intelligence.
+ *
+ * PURE: assembles text only, no model call. The result is meant to be SHOWN in
+ * an editable box so the operator refines it before anything is generated. A
+ * line commercial names no specific company, so it's brand-safe by default.
+ */
+export async function buildLineCommercialPrompt(
+  lineId: number,
+  args: { assetType: AssetType; durationSeconds?: number; logoSpace?: LogoSpace }
+): Promise<{ prompt: string; lineName: string } | null> {
+  const ctx = await buildNarrativeContext(lineId);
+  if (!ctx) return null;
+
+  const logoClause = logoSpaceClause(args.logoSpace);
+  // Story spine, drawn straight from the line:
+  const story: string[] = [];
+  if (ctx.thesis) story.push(`Story / market thesis to dramatize: ${ctx.thesis}`);
+  if (ctx.audience) story.push(`Speak to: ${ctx.audience}`);
+  if (ctx.emotionalDriver) story.push(`Emotional register: ${ctx.emotionalDriver}`);
+  if (ctx.authorityAngle) story.push(`Authority angle (what makes it credible): ${ctx.authorityAngle}`);
+  if (ctx.proofPoints.length) story.push(`Proof points to evoke (don't render as text): ${ctx.proofPoints.join('; ')}`);
+  const storyBlock = story.join(' ');
+
+  if (args.assetType === 'image') {
+    const prompt = [
+      `Premium commercial hero image advancing a brand narrative line.`,
+      `Authentic, magazine-quality advertising photography. Editorial lighting. One confident hero subject. Real-world feel, not stock-photo cliche.`,
+      storyBlock,
+      `Mood: confident, inviting, premium. Warm, natural palette.`,
+      logoClause,
+      BRAND_SAFETY_CLAUSE
+    ].filter(Boolean).join(' ');
+    return { prompt, lineName: ctx.name };
+  }
+
+  const dur = Math.max(1, Math.min(15, args.durationSeconds ?? 6));
+  const voClause = [
+    `Voiceover: include a short, warm, confident, premium narration track.`,
+    ctx.thesis ? `Open on a hook that lands the idea that ${ctx.thesis.replace(/\.$/, '')};` : `Open on a strong hook;`,
+    ctx.audience ? `speak to ${ctx.audience};` : '',
+    `convey one core idea and close with a clear, calm call to action.`,
+    `Pace unhurried, never salesy; land naturally within the clip length.`
+  ].filter(Boolean).join(' ');
+
+  const prompt = [
+    `${dur}-second premium commercial-style advertising video advancing a brand narrative line.`,
+    `One clear hero moment. Fluid camera movement (slow push-in or smooth handheld). Cinematic depth of field. Editorial-grade lighting. Social-media ready framing.`,
+    storyBlock,
+    voClause,
+    logoClause,
+    BRAND_SAFETY_CLAUSE
+  ].filter(Boolean).join(' ');
+  return { prompt, lineName: ctx.name };
 }
 
 // ---------------------------------------------------------------------
