@@ -50,6 +50,12 @@ interface EngagementSummary {
   recent: Array<{ id: number; channel: string; impressions: number; engagements: number; clicks: number; conversions: number; source: string; createdAt: string }>;
 }
 interface Commercial { id: number; assetType: string; brandedStatus: string | null; campaignName: string | null; company: string | null; }
+interface LineFit {
+  totalLeads: number;
+  matchedCount: number;
+  bands: { hot: number; warm: number; cool: number };
+  top: Array<{ leadId: number; company: string; band: string | null; score: number | null; sharedTerms: string[] }>;
+}
 
 const STATE_TONE: Record<LineState, { label: string; bg: string; fg: string }> = {
   active: { label: 'Active', bg: 'rgba(16,185,129,0.18)', fg: '#6ee7b7' },
@@ -82,6 +88,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
 
   const [eng, setEng] = useState<Record<number, EngagementSummary>>({});
   const [commercials, setCommercials] = useState<Record<number, Commercial[]>>({});
+  const [fit, setFit] = useState<Record<number, LineFit>>({});
   const [entry, setEntry] = useState({ channel: 'linkedin', impressions: '', engagements: '', clicks: '', conversions: '', note: '' });
   const [pullMsg, setPullMsg] = useState<string | null>(null);
 
@@ -105,12 +112,14 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
 
   const loadLineData = useCallback(async (id: number) => {
     try {
-      const [e, c] = await Promise.all([
+      const [e, c, f] = await Promise.all([
         fetch(`/api/admin/campaigns/lines/${id}/engagement`, { cache: 'no-store' }).then((r) => r.json()),
-        fetch(`/api/admin/campaigns/lines/${id}/commercials`, { cache: 'no-store' }).then((r) => r.json())
+        fetch(`/api/admin/campaigns/lines/${id}/commercials`, { cache: 'no-store' }).then((r) => r.json()),
+        fetch(`/api/admin/campaigns/lines/${id}/fit`, { cache: 'no-store' }).then((r) => r.json())
       ]);
       if (e?.summary) setEng((m) => ({ ...m, [id]: e.summary }));
       if (c?.commercials) setCommercials((m) => ({ ...m, [id]: c.commercials }));
+      if (f?.fit) setFit((m) => ({ ...m, [id]: f.fit }));
     } catch { /* ignore */ }
   }, []);
 
@@ -237,7 +246,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial };
 
   return (
     <div>
@@ -312,6 +321,7 @@ interface EditorProps {
   changeState: (id: number, s: LineState) => void;
   eng: Record<number, EngagementSummary>;
   commercials: Record<number, Commercial[]>;
+  fit: Record<number, LineFit>;
   entry: { channel: string; impressions: string; engagements: string; clicks: string; conversions: string; note: string };
   setEntry: (e: EditorProps['entry']) => void;
   submitEngagement: (id: number) => void;
@@ -349,11 +359,12 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
   const comms = commercials[id] ?? [];
+  const lf = fit[id];
   const pd = promptDraft[id];
   const gen = genStatus[id];
 
@@ -398,6 +409,39 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
         {line.state === 'active' && <button onClick={() => changeState(id, 'reinforcing')} style={btnGhost}>Mark reinforcing</button>}
         {line.state !== 'candidate' && <button onClick={() => changeState(id, 'candidate')} style={btnGhost}>Back to candidate</button>}
         {line.state !== 'retiring' && <button onClick={() => changeState(id, 'retiring')} style={btnGhost}>Retire</button>}
+      </div>
+
+      {/* Lead fit — how many of this owner's leads the line speaks to (defend the push order) */}
+      <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>Lead fit — who this line serves</div>
+        {!lf ? (
+          <div style={{ fontSize: 12, color: '#64748b' }}>Checking your pipeline…</div>
+        ) : lf.totalLeads === 0 ? (
+          <div style={{ fontSize: 12, color: '#64748b' }}>No leads in this customer&apos;s pipeline yet — once there are, you&apos;ll see how many this line speaks to.</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: '#cbd5e1' }}>
+              Maps to <strong style={{ color: lf.matchedCount > 0 ? '#6ee7b7' : '#94a3b8' }}>{lf.matchedCount}</strong> of {lf.totalLeads} leads
+              {lf.matchedCount > 0 && (
+                <span style={{ color: '#94a3b8' }}> &nbsp;·&nbsp; {lf.bands.hot} hot · {lf.bands.warm} warm · {lf.bands.cool} cool</span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+              Use this to defend the push order — lead with the line that reaches the most (and hottest) leads. (Themed match; gets smarter over time.)
+            </div>
+            {lf.top.length > 0 && (
+              <ul style={{ marginTop: 8, listStyle: 'none', padding: 0 }}>
+                {lf.top.map((t) => (
+                  <li key={t.leadId} style={{ fontSize: 12, color: '#cbd5e1', padding: '3px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{t.company}</span>
+                    {t.band && <span style={{ color: '#94a3b8' }}>{t.band}{t.score != null ? ` · ${t.score}` : ''}</span>}
+                    {t.sharedTerms.length > 0 && <span style={{ color: '#64748b' }}>matched on: {t.sharedTerms.join(', ')}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
       </div>
 
       {/* Engagement */}
