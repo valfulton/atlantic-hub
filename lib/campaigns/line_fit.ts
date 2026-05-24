@@ -32,7 +32,9 @@ function tokenize(...parts: (string | null | undefined)[]): Set<string> {
   const text = parts.filter(Boolean).join(' ').toLowerCase();
   const out = new Set<string>();
   for (const m of text.matchAll(/[a-z]{4,}/g)) {
-    const w = m[0];
+    let w = m[0];
+    // light stemming so singular/plural match: retreats==retreat, assets==asset.
+    if (w.length > 4 && w.endsWith('s')) w = w.slice(0, -1);
     if (!STOPWORDS.has(w)) out.add(w);
   }
   return out;

@@ -151,6 +151,19 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
     }
   }, [promptDraft, loadLineData]);
 
+  // AI thesis suggestions grounded in the line's lead needs.
+  const [thesisIdeas, setThesisIdeas] = useState<Record<number, { loading: boolean; items: Array<{ thesis: string; why: string }> }>>({});
+  const suggestThesisIdeas = useCallback(async (id: number) => {
+    setThesisIdeas((s) => ({ ...s, [id]: { loading: true, items: s[id]?.items ?? [] } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${id}/suggest-thesis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const j = await res.json();
+      setThesisIdeas((s) => ({ ...s, [id]: { loading: false, items: res.ok ? (j.suggestions ?? []) : [] } }));
+    } catch {
+      setThesisIdeas((s) => ({ ...s, [id]: { loading: false, items: [] } }));
+    }
+  }, []);
+
   const [newCustomerKey, setNewCustomerKey] = useState(customers[0]?.key ?? 'av:house');
   const [newName, setNewName] = useState('');
   const [newThesis, setNewThesis] = useState('');
@@ -251,7 +264,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas };
 
   return (
     <div>
@@ -337,6 +350,8 @@ interface EditorProps {
   setPromptText: (id: number, text: string) => void;
   genStatus: Record<number, { loading: boolean; msg: string | null }>;
   generateCommercial: (id: number) => void;
+  thesisIdeas: Record<number, { loading: boolean; items: Array<{ thesis: string; why: string }> }>;
+  suggestThesisIdeas: (id: number) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -364,7 +379,7 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -372,6 +387,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
   const lf = fit[id];
   const pd = promptDraft[id];
   const gen = genStatus[id];
+  const ideas = thesisIdeas[id];
 
   const field = (label: string, key: keyof Line, suggestion: string) => (
     <div>
@@ -391,6 +407,25 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
       <div>
         <label style={labelStyle}>Thesis — the believable market thesis, one sentence</label>
         <SuggestTextarea value={d.thesis ?? ''} onChange={(v) => patchField(id, 'thesis', v)} suggestion="Luxury retreats are becoming strategic executive performance assets." ariaLabel="Thesis" />
+        <div style={{ marginTop: 6 }}>
+          <button type="button" onClick={() => suggestThesisIdeas(id)} style={btnGhost} title="AI proposes theses from this customer's lead needs">
+            {ideas?.loading ? 'Thinking…' : '✦ Suggest thesis ideas from my leads'}
+          </button>
+        </div>
+        {ideas && !ideas.loading && ideas.items.length === 0 && (
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>No suggestions came back — add a few leads or some line detail and try again.</div>
+        )}
+        {ideas && ideas.items.length > 0 && (
+          <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+            {ideas.items.map((s, i) => (
+              <div key={i} style={{ border: '1px solid rgba(96,165,250,0.25)', background: 'rgba(96,165,250,0.06)', borderRadius: 10, padding: 10 }}>
+                <div style={{ fontSize: 13, color: '#e2e8f0' }}>{s.thesis}</div>
+                {s.why && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.why}</div>}
+                <button type="button" onClick={() => patchField(id, 'thesis', s.thesis)} style={{ ...btnGhost, marginTop: 6, fontSize: 11, padding: '4px 10px' }}>Use this thesis</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {field('Audience', 'audience', 'burned-out leadership teams')}
@@ -434,7 +469,12 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
                 <button
                   key={it.label}
                   type="button"
-                  onClick={() => patchField(id, 'audience', (d.audience && d.audience.trim()) ? `${d.audience.trim()}, ${it.label}` : it.label)}
+                  onClick={() => {
+                    const cur = (d.audience ?? '').trim();
+                    const already = cur.toLowerCase().split(/\s*,\s*/).includes(it.label.toLowerCase());
+                    if (already) return;
+                    patchField(id, 'audience', cur ? `${cur}, ${it.label}` : it.label);
+                  }}
                   title="Click to add to Audience"
                   style={{ display: 'inline-block', margin: '2px 4px 2px 0', padding: '2px 9px', borderRadius: 999, border: '1px solid rgba(96,165,250,0.3)', background: 'rgba(96,165,250,0.08)', color: '#bfdbfe', fontSize: 11, cursor: 'pointer' }}
                 >
