@@ -18,7 +18,14 @@ import type { RowDataPacket } from 'mysql2';
 const STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'that', 'this', 'their', 'your', 'from', 'into', 'are', 'our',
   'who', 'what', 'when', 'where', 'will', 'have', 'has', 'they', 'them', 'about', 'more', 'less',
-  'business', 'businesses', 'company', 'companies', 'team', 'teams', 'becoming', 'become', 'strategic'
+  'business', 'businesses', 'company', 'companies', 'team', 'teams', 'becoming', 'become', 'strategic',
+  // generic words from the originally-seeded editorial lanes — matching on these
+  // is noise ("matched on: brand"), so they don't count toward fit.
+  'brand', 'story', 'stories', 'authority', 'expertise', 'education', 'educational',
+  'seasonal', 'timely', 'community', 'partnership', 'partnerships', 'offer', 'offers',
+  'conversion', 'wins', 'proof', 'client', 'clients', 'pain', 'point', 'points',
+  'behind', 'scenes', 'content', 'marketing', 'social', 'media', 'general', 'other',
+  'service', 'services', 'product', 'products', 'customer', 'customers'
 ]);
 
 function tokenize(...parts: (string | null | undefined)[]): Set<string> {
@@ -43,6 +50,22 @@ function painText(raw: unknown): string {
   return '';
 }
 
+/** The discrete pain_category label for a lead, if present. */
+function painCategory(raw: unknown): string | null {
+  let v: unknown = raw;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return null; } }
+  if (v && typeof v === 'object') {
+    const c = (v as Record<string, unknown>).pain_category;
+    if (typeof c === 'string' && c.trim() && c.trim().toLowerCase() !== 'other') return c.trim();
+  }
+  return null;
+}
+
+/** Top-N (label, count) from a frequency map. */
+function topCounts(map: Map<string, number>, n: number): Array<{ label: string; count: number }> {
+  return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([label, count]) => ({ label, count }));
+}
+
 export interface LineFitLead {
   leadId: number;
   company: string;
@@ -51,12 +74,20 @@ export interface LineFitLead {
   sharedTerms: string[];
 }
 
+/** What the owner's leads are actually saying — to shape the line toward them. */
+export interface LineNeeds {
+  painThemes: Array<{ label: string; count: number }>;   // discrete pain categories
+  industries: Array<{ label: string; count: number }>;
+  keywords: Array<{ label: string; count: number }>;     // recurring words worth using
+}
+
 export interface LineFit {
   lineId: number;
   totalLeads: number;       // addressable: the owner's pipeline
   matchedCount: number;     // leads that share at least one theme word
   bands: { hot: number; warm: number; cool: number };  // among matched
   top: LineFitLead[];       // best matches, for the "why"
+  needs: LineNeeds;         // what the leads need (to edit the line toward them)
 }
 
 interface LeadRow extends RowDataPacket {
@@ -65,7 +96,10 @@ interface LeadRow extends RowDataPacket {
   pain_point_profile: unknown;
 }
 
-const EMPTY = (lineId: number): LineFit => ({ lineId, totalLeads: 0, matchedCount: 0, bands: { hot: 0, warm: 0, cool: 0 }, top: [] });
+const EMPTY = (lineId: number): LineFit => ({
+  lineId, totalLeads: 0, matchedCount: 0, bands: { hot: 0, warm: 0, cool: 0 }, top: [],
+  needs: { painThemes: [], industries: [], keywords: [] }
+});
 
 export async function getLineLeadFit(lineId: number): Promise<LineFit> {
   const line = await getLane(lineId);
@@ -92,8 +126,23 @@ export async function getLineLeadFit(lineId: number): Promise<LineFit> {
 
   const matched: LineFitLead[] = [];
   const bands = { hot: 0, warm: 0, cool: 0 };
+  // "What your leads need" tallies — computed across the WHOLE pipeline, not just
+  // matches, so they reveal where the line SHOULD point.
+  const painMap = new Map<string, number>();
+  const indMap = new Map<string, number>();
+  const kwMap = new Map<string, number>();
   for (const r of rows) {
+    // needs tallies (all leads)
+    const pc = painCategory(r.pain_point_profile);
+    if (pc) painMap.set(pc, (painMap.get(pc) ?? 0) + 1);
+    if (r.industry && r.industry.trim()) {
+      const ind = r.industry.replace(/_/g, ' ').trim();
+      indMap.set(ind, (indMap.get(ind) ?? 0) + 1);
+    }
     const leadTokens = tokenize(r.company, r.industry, painText(r.pain_point_profile));
+    for (const t of leadTokens) kwMap.set(t, (kwMap.get(t) ?? 0) + 1);
+
+    // fit matching
     const shared: string[] = [];
     for (const t of leadTokens) if (lineTokens.has(t)) shared.push(t);
     if (shared.length === 0) continue;
@@ -111,12 +160,19 @@ export async function getLineLeadFit(lineId: number): Promise<LineFit> {
   }
 
   matched.sort((a, b) => b.sharedTerms.length - a.sharedTerms.length || (b.score ?? 0) - (a.score ?? 0));
+  // Only surface keywords that recur (count >= 2) — single mentions are noise.
+  const keywords = topCounts(kwMap, 12).filter((k) => k.count >= 2).slice(0, 8);
 
   return {
     lineId,
     totalLeads: rows.length,
     matchedCount: matched.length,
     bands,
-    top: matched.slice(0, 6)
+    top: matched.slice(0, 6),
+    needs: {
+      painThemes: topCounts(painMap, 5),
+      industries: topCounts(indMap, 5),
+      keywords
+    }
   };
 }

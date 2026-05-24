@@ -55,6 +55,11 @@ interface LineFit {
   matchedCount: number;
   bands: { hot: number; warm: number; cool: number };
   top: Array<{ leadId: number; company: string; band: string | null; score: number | null; sharedTerms: string[] }>;
+  needs: {
+    painThemes: Array<{ label: string; count: number }>;
+    industries: Array<{ label: string; count: number }>;
+    keywords: Array<{ label: string; count: number }>;
+  };
 }
 
 const STATE_TONE: Record<LineState, { label: string; bg: string; fg: string }> = {
@@ -410,6 +415,36 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
         {line.state !== 'candidate' && <button onClick={() => changeState(id, 'candidate')} style={btnGhost}>Back to candidate</button>}
         {line.state !== 'retiring' && <button onClick={() => changeState(id, 'retiring')} style={btnGhost}>Retire</button>}
       </div>
+
+      {/* What your leads need — shape the line toward the pipeline it has to convert */}
+      {lf && lf.totalLeads > 0 && (lf.needs.painThemes.length > 0 || lf.needs.industries.length > 0 || lf.needs.keywords.length > 0) && (
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>What your leads need</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+            Drawn from this customer&apos;s {lf.totalLeads} leads. Click any chip to drop it into the line&apos;s audience, then shape the thesis to serve it.
+          </div>
+          {([
+            { label: 'Pain themes', items: lf.needs.painThemes },
+            { label: 'Industries', items: lf.needs.industries },
+            { label: 'Recurring words', items: lf.needs.keywords }
+          ] as const).map((group) => group.items.length > 0 && (
+            <div key={group.label} style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, color: '#475569', marginRight: 6 }}>{group.label}:</span>
+              {group.items.map((it) => (
+                <button
+                  key={it.label}
+                  type="button"
+                  onClick={() => patchField(id, 'audience', (d.audience && d.audience.trim()) ? `${d.audience.trim()}, ${it.label}` : it.label)}
+                  title="Click to add to Audience"
+                  style={{ display: 'inline-block', margin: '2px 4px 2px 0', padding: '2px 9px', borderRadius: 999, border: '1px solid rgba(96,165,250,0.3)', background: 'rgba(96,165,250,0.08)', color: '#bfdbfe', fontSize: 11, cursor: 'pointer' }}
+                >
+                  {it.label} {it.count > 1 && <span style={{ color: '#64748b' }}>×{it.count}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Lead fit — how many of this owner's leads the line speaks to (defend the push order) */}
       <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
