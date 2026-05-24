@@ -25,8 +25,10 @@ import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
 import CreativeBrief from '@/app/client/_components/CreativeBrief';
 import Collapsible from '@/app/client/_components/Collapsible';
+import AccessPaused from '@/app/client/_components/AccessPaused';
 import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
 import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
+import { getClientAccessState } from '@/lib/av/client_access';
 import WaveDivider from '@/app/_components/WaveDivider';
 import type { RowDataPacket } from 'mysql2';
 
@@ -68,6 +70,20 @@ export default async function ClientDashboardPage() {
       if (cid) user.client_id = cid;
     } catch {
       /* non-fatal */
+    }
+  }
+
+  // Access gate: a lapsed trial or revoked account sees a calm "paused" screen,
+  // never a broken page. Read-glitch safe (defaults to active). Operator unaffected.
+  if (user.client_id) {
+    const access = await getClientAccessState(user.client_id);
+    if (!access.active) {
+      return (
+        <>
+          <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="dashboard" />
+          <AccessPaused expired={access.expired} />
+        </>
+      );
     }
   }
 

@@ -2,6 +2,9 @@ import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getClientAccountDetail } from '@/lib/av/clients_overview';
+import { getClientAccessState } from '@/lib/av/client_access';
+import AccessControls from './AccessControls';
+import type { ClientTier } from '@/lib/client-portal/tiers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +25,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
   const d = await getClientAccountDetail(clientId);
   if (!d) notFound();
+
+  const access = await getClientAccessState(clientId);
+  const currentTier = (d.members[0]?.tier as ClientTier) || 'sprint';
 
   const icpBits = [
     d.icp.industries.length ? `Industries: ${d.icp.industries.join(', ')}` : null,
@@ -48,6 +54,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           </p>
         </div>
       </div>
+
+      {/* Access & tier controls */}
+      <AccessControls clientId={clientId} initialState={access} currentTier={currentTier} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">

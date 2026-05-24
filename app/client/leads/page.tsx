@@ -19,7 +19,9 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { ensureClientHub } from '@/lib/client/provision';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
+import { getClientAccessState } from '@/lib/av/client_access';
 import PortalHeader from '@/app/client/_components/PortalHeader';
+import AccessPaused from '@/app/client/_components/AccessPaused';
 import WaveDivider from '@/app/_components/WaveDivider';
 import DiscoverPanel from './DiscoverPanel';
 
@@ -65,6 +67,19 @@ export default async function ClientLeadsPage() {
       if (cid) user.client_id = cid;
     } catch {
       /* non-fatal */
+    }
+  }
+
+  // Access gate (same as dashboard): lapsed/revoked -> calm paused screen.
+  if (user.client_id) {
+    const access = await getClientAccessState(user.client_id);
+    if (!access.active) {
+      return (
+        <>
+          <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="leads" />
+          <AccessPaused expired={access.expired} />
+        </>
+      );
     }
   }
 
