@@ -24,6 +24,7 @@ import { listClientCampaignContent, listClientCampaigns, type CampaignContentIte
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
 import CreativeBrief from '@/app/client/_components/CreativeBrief';
+import Collapsible from '@/app/client/_components/Collapsible';
 import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
 import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
 import WaveDivider from '@/app/_components/WaveDivider';
@@ -135,7 +136,7 @@ export default async function ClientDashboardPage() {
 
   // The creative brief: the unifying operating view (story + next leads +
   // what's ready to approve), assembled from existing data. Fails soft.
-  let brief: CreativeBriefData = { activeLines: [], nextLeads: [], awaitingApproval: [], awaitingCount: 0 };
+  let brief: CreativeBriefData = { activeLines: [], nextLeads: [], awaitingApproval: [], awaitingCount: 0, pipeline: { total: 0, hot: 0, warm: 0, cool: 0 } };
   try {
     brief = await getClientCreativeBrief({ client_id: user.client_id, email: user.email });
   } catch {
@@ -166,12 +167,33 @@ export default async function ClientDashboardPage() {
               Welcome back, {headline}.
             </h1>
             <WaveDivider className="mt-3" width={120} />
+
+            {/* Live pipeline — the number that entices moving leads through the cycle. */}
+            <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Live pipeline</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-4xl font-semibold text-ink leading-none">{brief.pipeline.total}</span>
+                  <span className="text-sm text-muted">{brief.pipeline.total === 1 ? 'lead' : 'leads'} in play</span>
+                </div>
+              </div>
+              {brief.pipeline.total > 0 && (
+                <div className="flex items-center gap-4 text-sm">
+                  {brief.pipeline.hot > 0 && <span className="text-rose-300"><span className="font-semibold">{brief.pipeline.hot}</span> hot</span>}
+                  {brief.pipeline.warm > 0 && <span className="text-amber-300"><span className="font-semibold">{brief.pipeline.warm}</span> warm</span>}
+                  {brief.pipeline.cool > 0 && <span className="text-sky-300"><span className="font-semibold">{brief.pipeline.cool}</span> cool</span>}
+                </div>
+              )}
+            </div>
+
             <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
-              {liveCount > 0
-                ? `${liveCount} piece${liveCount === 1 ? '' : 's'} live${inMotion > 0 ? `, ${inMotion} more in motion` : ''}. Your story is out in the world and building.`
-                : inMotion > 0
-                  ? `${inMotion} piece${inMotion === 1 ? '' : 's'} in motion. Your campaign is taking shape — you'll see it go live here.`
-                  : 'Your campaign is being set in motion. Everything we create for you will appear here.'}
+              {brief.pipeline.hot > 0
+                ? `${brief.pipeline.hot} hot lead${brief.pipeline.hot === 1 ? '' : 's'} ready to move — let's turn momentum into booked business.`
+                : liveCount > 0
+                  ? `${liveCount} piece${liveCount === 1 ? '' : 's'} live${inMotion > 0 ? `, ${inMotion} more in motion` : ''}. Your story is out in the world and building.`
+                  : inMotion > 0
+                    ? `${inMotion} piece${inMotion === 1 ? '' : 's'} in motion. Your campaign is taking shape — you'll see it go live here.`
+                    : 'Your campaign is being set in motion. Everything we create for you will appear here.'}
             </p>
           </div>
         </section>
@@ -192,9 +214,7 @@ export default async function ClientDashboardPage() {
         </section>
 
         {clientCampaigns.length > 0 && (
-          <section aria-labelledby="campaigns-h" className="mb-10">
-            <h2 id="campaigns-h" className="text-lg font-semibold text-ink mb-1">Your campaigns</h2>
-            <WaveDivider className="mb-4" width={104} />
+          <Collapsible title="Your campaigns" meta={`${clientCampaigns.length} campaign${clientCampaigns.length === 1 ? '' : 's'}`}>
             <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {clientCampaigns.map((c) => (
                 <li key={c.id} className="rounded-2xl border border-border bg-surface p-5">
@@ -210,21 +230,10 @@ export default async function ClientDashboardPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </Collapsible>
         )}
 
-        <section aria-labelledby="campaign-h" className="mb-10">
-          <div className="flex items-end justify-between gap-4 mb-1">
-            <h2 id="campaign-h" className="text-lg font-semibold text-ink">
-              Your content
-            </h2>
-            {liveCount > 0 && (
-              <span className="text-xs text-muted">
-                <span className="text-brand font-medium">{liveCount}</span> live
-              </span>
-            )}
-          </div>
-          <WaveDivider className="mb-4" width={104} />
+        <Collapsible title="Your content" meta={liveCount > 0 ? `${liveCount} live` : (campaign.length ? `${campaign.length} in motion` : 'nothing yet')} defaultOpen={campaign.length > 0}>
 
           {campaign.length === 0 ? (
             <div className="rounded-2xl border border-border bg-surface p-6">
@@ -289,12 +298,9 @@ export default async function ClientDashboardPage() {
               })}
             </ul>
           )}
-        </section>
+        </Collapsible>
 
-        <section
-          aria-labelledby="audit-h"
-          className="mb-8 rounded-2xl border border-border bg-surface p-6"
-        >
+        <Collapsible title="Strategic Marketing Audit" meta={audit ? 'ready' : 'pending'}>
           <div className="flex items-start justify-between gap-4 mb-3">
             <div>
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted">
@@ -348,12 +354,9 @@ export default async function ClientDashboardPage() {
               </span>
             </div>
           )}
-        </section>
+        </Collapsible>
 
-        <section aria-labelledby="features-h" className="mb-8">
-          <h2 id="features-h" className="text-lg font-semibold text-ink mb-3">
-            What&apos;s included in your plan
-          </h2>
+        <Collapsible title="What's included in your plan">
           <ul className="grid sm:grid-cols-2 gap-2">
             {features.included.map((feature) => (
               <li
@@ -367,7 +370,7 @@ export default async function ClientDashboardPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </Collapsible>
 
         {features.locked.length > 0 && (
           <section aria-labelledby="locked-h" className="mb-12">

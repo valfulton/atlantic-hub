@@ -22,14 +22,25 @@ export interface BriefLine {
   emotionalDriver: string | null;
 }
 
+export interface PipelineSummary {
+  total: number;
+  hot: number;
+  warm: number;
+  cool: number;
+}
+
 export interface CreativeBrief {
   activeLines: BriefLine[];
   nextLeads: ClientLead[];
   awaitingApproval: CampaignContentItem[];
   awaitingCount: number;
+  pipeline: PipelineSummary;
 }
 
-const EMPTY: CreativeBrief = { activeLines: [], nextLeads: [], awaitingApproval: [], awaitingCount: 0 };
+const EMPTY: CreativeBrief = {
+  activeLines: [], nextLeads: [], awaitingApproval: [], awaitingCount: 0,
+  pipeline: { total: 0, hot: 0, warm: 0, cool: 0 }
+};
 
 /**
  * Assemble the brief for a logged-in client user. Each piece degrades on its
@@ -48,11 +59,18 @@ export async function getClientCreativeBrief(user: { client_id: number | null; e
     ? linesRes.value.map((l) => ({ id: l.id, name: l.name, thesis: l.thesis, emotionalDriver: l.emotionalDriver }))
     : [];
 
-  const nextLeads: ClientLead[] = leadsRes.status === 'fulfilled' ? leadsRes.value.slice(0, 5) : [];
+  const allLeads: ClientLead[] = leadsRes.status === 'fulfilled' ? leadsRes.value : [];
+  const nextLeads: ClientLead[] = allLeads.slice(0, 5);
+  const pipeline: PipelineSummary = {
+    total: allLeads.length,
+    hot: allLeads.filter((l) => l.band === 'hot').length,
+    warm: allLeads.filter((l) => l.band === 'warm').length,
+    cool: allLeads.filter((l) => l.band === 'cool').length
+  };
 
   const awaitingApproval: CampaignContentItem[] = contentRes.status === 'fulfilled'
     ? contentRes.value.filter((c) => c.stage === 'ready')
     : [];
 
-  return { activeLines, nextLeads, awaitingApproval, awaitingCount: awaitingApproval.length };
+  return { activeLines, nextLeads, awaitingApproval, awaitingCount: awaitingApproval.length, pipeline };
 }
