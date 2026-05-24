@@ -19,21 +19,18 @@
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import {
-  grokGenerateImage,
-  grokStartVideo,
-  grokAwaitVideo,
-  grokPollVideoOnce,
-  estimateImageCostUsd,
-  estimateVideoCostUsd,
-  GrokApiKeyMissingError,
-  GrokApiError,
-  GrokVideoTimeoutError,
-  GrokVideoFailedError,
   type GrokImageModel,
   type GrokVideoModel,
   type GrokResolutionTier,
   type GrokAspectRatio
 } from '@/lib/grok/imagine';
+import {
+  getVideoProvider,
+  VideoProviderKeyMissingError,
+  VideoProviderError,
+  VideoTimeoutError,
+  VideoFailedError
+} from '@/lib/video/provider';
 import {
   getActiveBriefForLead,
   generateVisualBriefForLead,
@@ -541,7 +538,7 @@ async function generateImageCommercial(args: {
   let assetId: number | null = null;
 
   try {
-    const results = await grokGenerateImage({
+    const results = await getVideoProvider().generateImage({
       prompt: effectivePrompt,
       model,
       resolution,
@@ -615,7 +612,7 @@ async function generateImageCommercial(args: {
   } catch (err) {
     const latency = Date.now() - startMs;
     const outcome =
-      err instanceof GrokApiError && err.status === 429 ? 'rate_limited' : 'error';
+      err instanceof VideoProviderError && err.status === 429 ? 'rate_limited' : 'error';
     const errorMessage = (err as Error).message;
 
     // Persist a failed row only if we haven't yet (i.e. error happened during the API call).
@@ -654,7 +651,7 @@ async function generateImageCommercial(args: {
       actorUserId
     });
     await tryLogEvent({
-      eventType: err instanceof GrokApiKeyMissingError ? 'api.openai_error' : 'workflow.failed',
+      eventType: err instanceof VideoProviderKeyMissingError ? 'api.openai_error' : 'workflow.failed',
       leadId: lead.id,
       userId: actorUserId,
       status: 'failure',
@@ -697,17 +694,18 @@ async function generateVideoCommercial(args: {
   const startMs = Date.now();
   let assetId: number | null = null;
   let providerRequestId: string | null = null;
-  let pendingCost: number | null = estimateVideoCostUsd(duration);
+  const provider = getVideoProvider();
+  let pendingCost: number | null = provider.estimateVideoCostUsd(duration);
 
   try {
-    const startResult = await grokStartVideo({
+    const startResult = await provider.startVideo({
       prompt: effectivePrompt,
       model,
       durationSeconds: duration,
       resolution,
       aspectRatio
     });
-    providerRequestId = startResult.requestId;
+    providerRequestId = startResult.jobId;
     pendingCost = startResult.costUsd;
 
     // Insert as 'running' first so the UI can show the pending asset immediately.
@@ -766,7 +764,7 @@ async function generateVideoCommercial(args: {
     }
 
     // Now long-poll within the budget.
-    const completed = await grokAwaitVideo(providerRequestId, {
+    const completed = await provider.awaitVideo(providerRequestId, {
       pollTimeoutMs,
       pollIntervalMs: 3000
     });
@@ -830,7 +828,7 @@ async function generateVideoCommercial(args: {
     // Special case: video job is still running on xAI side, we just hit our
     // poll budget. Leave the row in 'running' state with provider_request_id
     // set so the GET asset endpoint can resume polling.
-    if (err instanceof GrokVideoTimeoutError && assetId !== null) {
+    if (err instanceof VideoTimeoutError && assetId !== null) {
       await logGrokCall({
         endpoint: '/v1/videos/generations',
         leadId: lead.id,
@@ -876,7 +874,7 @@ async function generateVideoCommercial(args: {
 
     const errorMessage = (err as Error).message;
     const outcome =
-      err instanceof GrokApiError && err.status === 429 ? 'rate_limited' : 'error';
+      err instanceof VideoProviderError && err.status === 429 ? 'rate_limited' : 'error';
 
     if (assetId === null) {
       try {
@@ -915,7 +913,7 @@ async function generateVideoCommercial(args: {
       actorUserId
     });
     await tryLogEvent({
-      eventType: err instanceof GrokVideoFailedError ? 'workflow.failed' : 'api.openai_error',
+      eventType: err instanceof VideoFailedError ? 'workflow.failed' : 'api.openai_error',
       leadId: lead.id,
       userId: actorUserId,
       status: 'failure',
@@ -960,12 +958,13 @@ export async function resumeRunningVideoAsset(assetId: number): Promise<Generate
     return assetRowToShape(asset);
   }
 
+  const provider = getVideoProvider();
   try {
-    const status = await grokPollVideoOnce(asset.provider_request_id);
+    const status = await provider.pollVideoOnce(asset.provider_request_id);
 
     if (status.status === 'done' && status.videoUrl) {
       const finalDuration = status.durationSeconds ?? Number(asset.duration_seconds ?? 0) ?? null;
-      const finalCost = estimateVideoCostUsd(finalDuration ?? 0);
+      const finalCost = provider.estimateVideoCostUsd(finalDuration ?? 0);
       await patchAssetWithResult({
         assetId,
         storageUrl: status.videoUrl,
