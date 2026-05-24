@@ -12,6 +12,7 @@
  * /api/admin/campaigns/lines/[id]/{engagement,commercials}.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { SuggestInput, SuggestTextarea } from '@/components/SuggestField';
 
 type LineState = 'candidate' | 'active' | 'reinforcing' | 'retiring';
 
@@ -356,10 +357,10 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
   const pd = promptDraft[id];
   const gen = genStatus[id];
 
-  const field = (label: string, key: keyof Line, placeholder: string) => (
+  const field = (label: string, key: keyof Line, suggestion: string) => (
     <div>
       <label style={labelStyle}>{label}</label>
-      <input style={inputStyle} placeholder={placeholder} value={(d[key] as string) ?? ''} onChange={(e) => patchField(id, key, e.target.value)} />
+      <SuggestInput value={(d[key] as string) ?? ''} onChange={(v) => patchField(id, key, v)} suggestion={suggestion} ariaLabel={label} />
     </div>
   );
   const listField = (label: string, key: 'proofPoints' | 'doSay' | 'dontSay', placeholder: string) => (
@@ -373,7 +374,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
     <div style={{ marginTop: 12, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
       <div>
         <label style={labelStyle}>Thesis — the believable market thesis, one sentence</label>
-        <textarea style={{ ...inputStyle, minHeight: 52 }} value={d.thesis ?? ''} onChange={(e) => patchField(id, 'thesis', e.target.value)} placeholder="e.g. Luxury retreats are becoming strategic executive performance assets." />
+        <SuggestTextarea value={d.thesis ?? ''} onChange={(v) => patchField(id, 'thesis', v)} suggestion="Luxury retreats are becoming strategic executive performance assets." ariaLabel="Thesis" />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {field('Audience', 'audience', 'burned-out leadership teams')}
@@ -383,7 +384,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
       </div>
       <div>
         <label style={labelStyle}>Conversion signal — the moment that means it&apos;s working</label>
-        <input style={inputStyle} value={d.conversionSignal ?? ''} onChange={(e) => patchField(id, 'conversionSignal', e.target.value)} placeholder="retreat inquiry after commercial view" />
+        <SuggestInput value={d.conversionSignal ?? ''} onChange={(v) => patchField(id, 'conversionSignal', v)} suggestion="retreat inquiry after commercial view" ariaLabel="Conversion signal" />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         {listField('Proof points', 'proofPoints', 'stat / quote / result')}
