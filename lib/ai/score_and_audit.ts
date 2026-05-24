@@ -31,6 +31,7 @@ import {
   OpenAIApiError
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
+import { extractBriefSeedFromIntake } from '@/lib/client/intake_brief';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -131,7 +132,7 @@ The audit_content is the deliverable the operator may share with this prospect. 
 
 Never wrap the JSON in markdown code fences. Return JSON only.`;
 
-function buildUserPrompt(lead: LeadRow): string {
+function buildUserPrompt(lead: LeadRow, briefContext?: string | null): string {
   const lines: string[] = [];
   lines.push(`Score and audit the following prospective business.`);
   lines.push('');
@@ -150,6 +151,10 @@ function buildUserPrompt(lead: LeadRow): string {
   if (lead.challenge) {
     lines.push('');
     lines.push(`Self-reported challenge from intake form: ${lead.challenge}`);
+  }
+  if (briefContext && briefContext.trim()) {
+    lines.push('');
+    lines.push(briefContext.trim());
   }
   lines.push('');
   lines.push('Return the JSON object only. No code fences. ASCII characters only.');
@@ -214,12 +219,48 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
     };
   }
 
+  // If this lead belongs to a client account (matched by their real email),
+  // ground the audit in the client's OWN intake/brief answers instead of
+  // guessing. Prospect leads (no matching client_user) get no brief context, so
+  // their audit is unchanged. Non-fatal: the audit still runs without it.
+  let briefContext: string | null = null;
+  try {
+    if (lead.email && !/^(prospect|apollo|noemail)\+/i.test(lead.email)) {
+      const [cuRows] = await db.execute<(RowDataPacket & { intake_payload: unknown })[]>(
+        `SELECT intake_payload FROM client_users
+          WHERE email = ? AND archived_at IS NULL
+          ORDER BY client_user_id DESC LIMIT 1`,
+        [lead.email]
+      );
+      if (cuRows[0]?.intake_payload) {
+        const seed = extractBriefSeedFromIntake(cuRows[0].intake_payload);
+        const parts: string[] = [];
+        if (seed.whyAdvertise) parts.push(`Why they advertise: ${seed.whyAdvertise}`);
+        if (seed.goals) parts.push(`Their 90-day goals: ${seed.goals}`);
+        if (seed.audience) parts.push(`Their target audience: ${seed.audience}`);
+        if (seed.audienceInsights) parts.push(`What they know about that audience: ${seed.audienceInsights}`);
+        if (seed.keyMessage) parts.push(`Their single key message: ${seed.keyMessage}`);
+        if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
+        if (seed.differentiators) parts.push(`What makes them different: ${seed.differentiators}`);
+        if (seed.brandVoice) parts.push(`Brand voice: ${seed.brandVoice}`);
+        if (seed.competitors) parts.push(`Competitors they named: ${seed.competitors}`);
+        if (parts.length) {
+          briefContext =
+            'The client completed an intake brief in their own words. Ground the audit in these and do not contradict them:\n- ' +
+            parts.join('\n- ');
+        }
+      }
+    }
+  } catch {
+    /* non-fatal: audit proceeds without the brief context */
+  }
+
   let completion;
   try {
     completion = await openaiChatCompletion(
       [
         { role: 'system', content: SYSTEM_INSTRUCTIONS },
-        { role: 'user', content: buildUserPrompt(lead) }
+        { role: 'user', content: buildUserPrompt(lead, briefContext) }
       ],
       { json: true, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, model: MODEL }
     );
