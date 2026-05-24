@@ -48,9 +48,27 @@ const IntakeSchema = z.object({
   website: z.string().max(500).optional(),
   industry: z.string().max(120).optional(),
   message: z.string().max(4000).optional(),
-  // Allow the marketing form to send any other fields without rejection;
-  // we store them in intake_payload as forensic record.
-  source: z.string().max(120).optional()
+  source: z.string().max(120).optional(),
+
+  // ── Creative-brief feeders (val's canonical 6-question brief) ──────────────
+  // These auto-populate the creative brief + seed the first narrative line.
+  // The marketing form should ask these; they're optional here so the form can
+  // roll out incrementally. Maps: see lib/client/intake_brief.ts.
+  why_advertise: z.string().max(2000).optional(),      // Q1 why advertise -> campaign goal
+  goals: z.string().max(2000).optional(),              // Q2 what it accomplishes -> objectives
+  target_audience: z.string().max(1000).optional(),    // Q3 who -> line.audience
+  audience_insights: z.string().max(2000).optional(),  // Q4 insights about them
+  key_message: z.string().max(1000).optional(),        // Q5 single most effective message -> line.thesis
+  message_support: z.string().max(2000).optional(),    // Q6 what supports it -> proof_points
+  // Brand/voice + targeting extras the brief and commercials use:
+  brand_voice: z.string().max(1000).optional(),        // tone -> emotional_driver / voice guardrails
+  differentiators: z.string().max(2000).optional(),    // -> authority_angle / proof_points
+  competitors: z.string().max(1000).optional(),
+  brand_colors: z.string().max(500).optional(),        // -> brand kit
+  preferred_channels: z.string().max(500).optional(),  // -> best_channels
+  timeline: z.string().max(500).optional(),            // -> seasonality
+
+  // Anything else the form sends is still captured verbatim into intake_payload.
 }).passthrough();
 
 export async function OPTIONS(req: NextRequest) {
