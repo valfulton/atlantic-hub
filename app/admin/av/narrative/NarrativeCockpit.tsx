@@ -70,6 +70,16 @@ const STATE_TONE: Record<LineState, { label: string; bg: string; fg: string }> =
 };
 const CHANNELS = ['linkedin', 'facebook', 'instagram', 'blog', 'newsroom', 'email', 'other'];
 
+// A scored thesis suggestion + the color language that makes the best one pop.
+type ThesisBand = 'strong' | 'good' | 'light' | 'loose';
+interface ThesisIdea { thesis: string; why: string; fitScore: number; matchedTerms: string[]; band: ThesisBand; }
+const BAND_STYLE: Record<ThesisBand, { border: string; bg: string; fg: string; label: string; spark: boolean }> = {
+  strong: { border: 'rgba(110,231,183,0.6)', bg: 'rgba(16,185,129,0.10)', fg: '#6ee7b7', label: 'Strong fit', spark: true },
+  good: { border: 'rgba(147,197,253,0.5)', bg: 'rgba(59,130,246,0.10)', fg: '#93c5fd', label: 'Good fit', spark: false },
+  light: { border: 'rgba(203,213,225,0.4)', bg: 'rgba(148,163,184,0.07)', fg: '#cbd5e1', label: 'Light fit', spark: false },
+  loose: { border: 'rgba(252,211,77,0.45)', bg: 'rgba(245,158,11,0.07)', fg: '#fcd34d', label: 'Loose — tighten toward your leads', spark: false }
+};
+
 const card: React.CSSProperties = { border: '1px solid rgba(148,163,184,0.16)', borderRadius: 14, background: 'rgba(15,23,42,0.5)', padding: 16, marginBottom: 14 };
 const inputStyle: React.CSSProperties = { width: '100%', background: 'rgba(2,6,23,0.6)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 8, padding: '7px 10px', color: '#e2e8f0', fontSize: 13 };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, color: '#94a3b8', margin: '8px 0 3px' };
@@ -98,7 +108,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const [eng, setEng] = useState<Record<number, EngagementSummary>>({});
   const [commercials, setCommercials] = useState<Record<number, Commercial[]>>({});
   const [fit, setFit] = useState<Record<number, LineFit>>({});
-  const [entry, setEntry] = useState({ channel: 'linkedin', impressions: '', engagements: '', clicks: '', conversions: '', note: '' });
+  const [entry, setEntry] = useState<{ channels: string[]; impressions: string; engagements: string; clicks: string; conversions: string; note: string }>({ channels: ['linkedin'], impressions: '', engagements: '', clicks: '', conversions: '', note: '' });
   const [pullMsg, setPullMsg] = useState<string | null>(null);
 
   // Editable commercial-prompt draft per line (auto-filled from the line; no generation).
@@ -155,18 +165,40 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
     }
   }, [promptDraft, loadLineData]);
 
-  // AI thesis suggestions grounded in the line's lead needs.
-  const [thesisIdeas, setThesisIdeas] = useState<Record<number, { loading: boolean; items: Array<{ thesis: string; why: string }> }>>({});
-  const suggestThesisIdeas = useCallback(async (id: number) => {
-    setThesisIdeas((s) => ({ ...s, [id]: { loading: true, items: s[id]?.items ?? [] } }));
+  // AI thesis suggestions — two-step so the operator sees + edits the prompt
+  // BEFORE any tokens are spent, then gets fewer, fit-SCORED choices back.
+  const [thesisPrompt, setThesisPrompt] = useState<Record<number, { text: string; loading: boolean; totalLeads?: number }>>({});
+  const [thesisIdeas, setThesisIdeas] = useState<Record<number, { loading: boolean; ran: boolean; items: ThesisIdea[] }>>({});
+
+  // Step 1 — fetch the editable prompt (NO LLM cost).
+  const draftThesisPrompt = useCallback(async (id: number) => {
+    setThesisPrompt((p) => ({ ...p, [id]: { text: p[id]?.text ?? '', loading: true, totalLeads: p[id]?.totalLeads } }));
     try {
-      const res = await fetch(`/api/admin/campaigns/lines/${id}/suggest-thesis`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const res = await fetch(`/api/admin/campaigns/lines/${id}/suggest-thesis/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
       const j = await res.json();
-      setThesisIdeas((s) => ({ ...s, [id]: { loading: false, items: res.ok ? (j.suggestions ?? []) : [] } }));
+      setThesisPrompt((p) => ({ ...p, [id]: { text: res.ok ? (j.prompt ?? '') : (j.error || 'Could not build prompt'), loading: false, totalLeads: j.totalLeads } }));
     } catch {
-      setThesisIdeas((s) => ({ ...s, [id]: { loading: false, items: [] } }));
+      setThesisPrompt((p) => ({ ...p, [id]: { text: 'Could not build prompt', loading: false } }));
     }
   }, []);
+  const setThesisPromptText = useCallback((id: number, text: string) =>
+    setThesisPrompt((p) => ({ ...p, [id]: { text, loading: false, totalLeads: p[id]?.totalLeads } })), []);
+
+  // Step 2 — send the (possibly edited) prompt; get back fit-scored ideas.
+  const generateThesisIdeas = useCallback(async (id: number) => {
+    const prompt = thesisPrompt[id]?.text?.trim();
+    setThesisIdeas((s) => ({ ...s, [id]: { loading: true, ran: true, items: s[id]?.items ?? [] } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${id}/suggest-thesis`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(prompt ? { prompt } : {})
+      });
+      const j = await res.json();
+      setThesisIdeas((s) => ({ ...s, [id]: { loading: false, ran: true, items: res.ok ? (j.suggestions ?? []) : [] } }));
+    } catch {
+      setThesisIdeas((s) => ({ ...s, [id]: { loading: false, ran: true, items: [] } }));
+    }
+  }, [thesisPrompt]);
 
   const [newCustomerKey, setNewCustomerKey] = useState(customers[0]?.key ?? 'av:house');
   const [newName, setNewName] = useState('');
@@ -249,18 +281,25 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   }, []);
 
   const submitEngagement = useCallback(async (id: number) => {
-    const res = await fetch(`/api/admin/campaigns/lines/${id}/engagement`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        mode: 'manual', channel: entry.channel,
-        impressions: Number(entry.impressions) || 0, engagements: Number(entry.engagements) || 0,
-        clicks: Number(entry.clicks) || 0, conversions: Number(entry.conversions) || 0, note: entry.note || null
-      })
-    });
-    const j = await res.json();
-    if (res.ok && j.summary) {
-      setEng((m) => ({ ...m, [id]: j.summary }));
-      setEntry({ channel: 'linkedin', impressions: '', engagements: '', clicks: '', conversions: '', note: '' });
+    // Records one reading per ticked channel (so "check all" logs the same
+    // numbers across every channel and the by-channel breakdown stays correct).
+    const channels = entry.channels.length ? entry.channels : ['other'];
+    let lastSummary: EngagementSummary | null = null;
+    for (const channel of channels) {
+      const res = await fetch(`/api/admin/campaigns/lines/${id}/engagement`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'manual', channel,
+          impressions: Number(entry.impressions) || 0, engagements: Number(entry.engagements) || 0,
+          clicks: Number(entry.clicks) || 0, conversions: Number(entry.conversions) || 0, note: entry.note || null
+        })
+      });
+      const j = await res.json();
+      if (res.ok && j.summary) lastSummary = j.summary;
+    }
+    if (lastSummary) {
+      setEng((m) => ({ ...m, [id]: lastSummary as EngagementSummary }));
+      setEntry({ channels: ['linkedin'], impressions: '', engagements: '', clicks: '', conversions: '', note: '' });
     }
   }, [entry]);
 
@@ -301,10 +340,12 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas };
 
   return (
     <div>
+      {/* Gentle "win" glow for strong-fit suggestions. */}
+      <style>{`@keyframes avSpark { 0%,100% { box-shadow: 0 0 0 0 rgba(110,231,183,0); } 50% { box-shadow: 0 0 16px 1px rgba(110,231,183,0.35); } }`}</style>
       {/* new line */}
       <div style={card}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 8 }}>New narrative line</div>
@@ -379,7 +420,7 @@ interface EditorProps {
   eng: Record<number, EngagementSummary>;
   commercials: Record<number, Commercial[]>;
   fit: Record<number, LineFit>;
-  entry: { channel: string; impressions: string; engagements: string; clicks: string; conversions: string; note: string };
+  entry: { channels: string[]; impressions: string; engagements: string; clicks: string; conversions: string; note: string };
   setEntry: (e: EditorProps['entry']) => void;
   submitEngagement: (id: number) => void;
   pullSocials: (id: number) => void;
@@ -389,8 +430,11 @@ interface EditorProps {
   setPromptText: (id: number, text: string) => void;
   genStatus: Record<number, { loading: boolean; msg: string | null }>;
   generateCommercial: (id: number) => void;
-  thesisIdeas: Record<number, { loading: boolean; items: Array<{ thesis: string; why: string }> }>;
-  suggestThesisIdeas: (id: number) => void;
+  thesisIdeas: Record<number, { loading: boolean; ran: boolean; items: ThesisIdea[] }>;
+  thesisPrompt: Record<number, { text: string; loading: boolean; totalLeads?: number }>;
+  draftThesisPrompt: (id: number) => void;
+  setThesisPromptText: (id: number, text: string) => void;
+  generateThesisIdeas: (id: number) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -418,7 +462,7 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -427,6 +471,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
   const pd = promptDraft[id];
   const gen = genStatus[id];
   const ideas = thesisIdeas[id];
+  const tp = thesisPrompt[id];
   const sm = saveMsg[id];
   const isDirty = !!dirty[id];
 
@@ -449,22 +494,59 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
         <label style={labelStyle}>Thesis — the believable market thesis, one sentence</label>
         <SuggestTextarea value={d.thesis ?? ''} onChange={(v) => patchField(id, 'thesis', v)} suggestion="Luxury retreats are becoming strategic executive performance assets." ariaLabel="Thesis" />
         <div style={{ marginTop: 6 }}>
-          <button type="button" onClick={() => suggestThesisIdeas(id)} style={btnGhost} title="AI proposes theses from this customer's lead needs">
-            {ideas?.loading ? 'Thinking…' : '✦ Suggest thesis ideas from my leads'}
-          </button>
+          {/* Step 1 — see the prompt before spending anything. */}
+          {!tp && (
+            <button type="button" onClick={() => draftThesisPrompt(id)} style={btnGhost} title="Builds the exact prompt from this customer's lead needs — nothing is sent to the AI yet">
+              ✦ Draft a suggestion prompt from my leads
+            </button>
+          )}
+          {tp?.loading && !tp.text && <span style={{ fontSize: 12, color: '#94a3b8' }}>Building your prompt…</span>}
+          {tp && tp.text !== undefined && tp.text !== '' && (
+            <div>
+              <label style={{ ...labelStyle, marginTop: 0 }}>
+                Prompt the AI will read <span style={{ color: '#475569' }}>(edit it — nothing sends until you click Generate)</span>
+              </label>
+              <textarea
+                style={{ ...inputStyle, minHeight: 130, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
+                value={tp.text}
+                onChange={(e) => setThesisPromptText(id, e.target.value)}
+              />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => generateThesisIdeas(id)} disabled={ideas?.loading || !tp.text.trim()} style={{ ...btnPrimary, opacity: ideas?.loading || !tp.text.trim() ? 0.5 : 1 }}>
+                  {ideas?.loading ? 'Generating…' : '✦ Generate 2 ideas'}
+                </button>
+                <button type="button" onClick={() => draftThesisPrompt(id)} style={btnGhost}>{tp.loading ? 'Refreshing…' : 'Re-draft from leads'}</button>
+                <span style={{ fontSize: 11, color: '#64748b' }}>One small AI call.{tp.totalLeads != null ? ` Grounded in ${tp.totalLeads} leads.` : ''}</span>
+              </div>
+            </div>
+          )}
         </div>
-        {ideas && !ideas.loading && ideas.items.length === 0 && (
+        {ideas?.ran && !ideas.loading && ideas.items.length === 0 && (
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>No suggestions came back — add a few leads or some line detail and try again.</div>
         )}
         {ideas && ideas.items.length > 0 && (
-          <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-            {ideas.items.map((s, i) => (
-              <div key={i} style={{ border: '1px solid rgba(96,165,250,0.25)', background: 'rgba(96,165,250,0.06)', borderRadius: 10, padding: 10 }}>
-                <div style={{ fontSize: 13, color: '#e2e8f0' }}>{s.thesis}</div>
-                {s.why && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.why}</div>}
-                <button type="button" onClick={() => patchField(id, 'thesis', s.thesis)} style={{ ...btnGhost, marginTop: 6, fontSize: 11, padding: '4px 10px' }}>Use this thesis</button>
-              </div>
-            ))}
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>
+              Best fit first. Click <strong style={{ color: '#e2e8f0' }}>Use this thesis</strong> to drop it into the Thesis box above, then <strong style={{ color: '#e2e8f0' }}>Save line</strong>.
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {ideas.items.map((s, i) => {
+                const bs = BAND_STYLE[s.band];
+                return (
+                  <div key={i} style={{ border: `1px solid ${bs.border}`, background: bs.bg, borderRadius: 10, padding: 11, animation: bs.spark ? 'avSpark 2.4s ease-in-out infinite' : undefined }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: bs.fg }}>{bs.spark ? '✨ ' : ''}{bs.label}</span>
+                      {s.matchedTerms.length > 0 && (
+                        <span style={{ fontSize: 11, color: '#94a3b8' }}>matches your leads on: {s.matchedTerms.join(', ')}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#e2e8f0' }}>{s.thesis}</div>
+                    {s.why && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.why}</div>}
+                    <button type="button" onClick={() => patchField(id, 'thesis', s.thesis)} style={{ ...btnPrimary, marginTop: 8, fontSize: 11, padding: '5px 12px' }}>Use this thesis →</button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -577,20 +659,59 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
         ) : (
           <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>No engagement recorded yet. Add a reading below.</div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', gap: 8, alignItems: 'end' }}>
-          <div>
-            <label style={labelStyle}>Channel</label>
-            <select style={inputStyle} value={entry.channel} onChange={(e) => setEntry({ ...entry, channel: e.target.value })}>
-              {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+        {/* Channels — tick marks, multi-select, with Check all / Clear. The reading
+            below is logged once per ticked channel. */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <label style={{ ...labelStyle, margin: 0 }}>Channels</label>
+            {(() => {
+              const allOn = CHANNELS.every((c) => entry.channels.includes(c));
+              return (
+                <button
+                  type="button"
+                  onClick={() => setEntry({ ...entry, channels: allOn ? [] : [...CHANNELS] })}
+                  style={{ ...btnGhost, padding: '2px 10px', fontSize: 11 }}
+                >
+                  {allOn ? 'Clear all' : 'Check all'}
+                </button>
+              );
+            })()}
+            <span style={{ fontSize: 11, color: '#64748b' }}>{entry.channels.length} selected · logs one reading each</span>
           </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {CHANNELS.map((c) => {
+              const on = entry.channels.includes(c);
+              return (
+                <label
+                  key={c}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                    padding: '5px 10px', borderRadius: 8, fontSize: 12,
+                    border: `1px solid ${on ? 'rgba(255,199,61,0.5)' : 'rgba(148,163,184,0.22)'}`,
+                    background: on ? 'rgba(255,199,61,0.12)' : 'rgba(2,6,23,0.5)',
+                    color: on ? '#f5c453' : '#cbd5e1'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => setEntry({ ...entry, channels: on ? entry.channels.filter((x) => x !== c) : [...entry.channels, c] })}
+                    style={{ accentColor: '#FFC73D', cursor: 'pointer' }}
+                  />
+                  {c}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, alignItems: 'end' }}>
           <div><label style={labelStyle}>Impressions</label><input style={inputStyle} inputMode="numeric" value={entry.impressions} onChange={(e) => setEntry({ ...entry, impressions: e.target.value })} /></div>
           <div><label style={labelStyle}>Engagements</label><input style={inputStyle} inputMode="numeric" value={entry.engagements} onChange={(e) => setEntry({ ...entry, engagements: e.target.value })} /></div>
           <div><label style={labelStyle}>Clicks</label><input style={inputStyle} inputMode="numeric" value={entry.clicks} onChange={(e) => setEntry({ ...entry, clicks: e.target.value })} /></div>
           <div><label style={labelStyle}>Conversions</label><input style={inputStyle} inputMode="numeric" value={entry.conversions} onChange={(e) => setEntry({ ...entry, conversions: e.target.value })} /></div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => submitEngagement(id)} style={btnPrimary}>Add reading</button>
+          <button onClick={() => submitEngagement(id)} disabled={entry.channels.length === 0} style={{ ...btnPrimary, opacity: entry.channels.length === 0 ? 0.5 : 1 }}>Add reading</button>
           <button onClick={() => pullSocials(id)} style={btnGhost} title="Auto-pull from connected socials (coming with the social accounts work)">Pull from socials</button>
         </div>
         {pullMsg && <div style={{ fontSize: 12, color: '#fcd34d', marginTop: 8 }}>{pullMsg}</div>}

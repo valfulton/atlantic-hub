@@ -2,7 +2,9 @@
  * POST /api/admin/campaigns/lines/[id]/suggest-thesis
  *
  * Propose new narrative-line theses grounded in the owner's lead needs.
- * One small LLM call. Owner + staff only. Returns { ok, suggestions: [...] }.
+ * One small LLM call. Accepts an optional edited prompt: { prompt?: string }
+ * (from the preview step) so the operator controls exactly what is sent.
+ * Owner + staff only. Returns { ok, suggestions: [...] } (each fit-scored).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
@@ -17,8 +19,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (guard.actor.role === 'client_user') return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   const lineId = Number.parseInt(params.id, 10);
   if (!Number.isFinite(lineId) || lineId <= 0) return NextResponse.json({ error: 'invalid line id' }, { status: 400 });
+
+  let customPrompt: string | undefined;
   try {
-    const suggestions = await suggestThesesForLine(lineId);
+    const body = (await req.json()) as Record<string, unknown>;
+    if (typeof body?.prompt === 'string' && body.prompt.trim()) customPrompt = body.prompt;
+  } catch { /* no/empty body is fine — falls back to the built-in prompt */ }
+
+  try {
+    const suggestions = await suggestThesesForLine(lineId, { customPrompt });
     return NextResponse.json({ ok: true, suggestions });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });

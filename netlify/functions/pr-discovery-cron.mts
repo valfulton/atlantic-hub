@@ -83,5 +83,6 @@ export default async (_req: Request) => {
  * "0 *\/2 * * *" -> top of every even hour (every 2 hours) = the high-priority tier.
  */
 export const config: Config = {
-  schedule: '0 */2 * * *'
+  // Leaned down from every 2h to every 6h to cut Netlify usage.
+  schedule: '0 */6 * * *'
 };

@@ -65,7 +65,7 @@ export default async (_req: Request) => {
 };
 
 export const config: Config = {
-  // Hourly while the base backfills: every lead gets a pain_category once, then
-  // idles to the 14-day staleness check. Clears the whole pipeline in a day or two.
-  schedule: '0 * * * *'
+  // Leaned down from hourly to every 6 hours to cut Netlify usage. Backfill just
+  // takes a bit longer; the 14-day staleness check is unaffected.
+  schedule: '0 */6 * * *'
 };

@@ -93,5 +93,7 @@ export default async (_req: Request) => {
  * function time budget.
  */
 export const config: Config = {
-  schedule: '*/10 * * * *'
+  // Leaned down from every 10 min to every 30 min to cut Netlify usage ~3x.
+  // Scheduled posts now fire within ~30 min of their time (fine for a calendar).
+  schedule: '*/30 * * * *'
 };

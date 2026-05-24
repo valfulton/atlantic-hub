@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { holidayMap } from '@/lib/calendar/holidays';
 import type { TimelineItem, TimelineItemStatus } from '@/lib/pr/types';
 import { TimelineEntry } from './TimelineEntry';
 
@@ -45,6 +46,9 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
     arr.push(it);
     byDate.set(key, arr);
   }
+
+  // Fun holiday markers so the grid is never barren + seasonal hooks are obvious.
+  const holidays = holidayMap(cells.map((c) => c.getFullYear()));
 
   const periodLabel =
     view === 'week'
@@ -116,6 +120,15 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
                   <span className="text-[10px] text-muted">{dayItems.length}</span>
                 )}
               </div>
+              {holidays.get(key) && (
+                <div
+                  className="text-[10px] mb-1 truncate rounded px-1 py-0.5"
+                  title={holidays.get(key)!.name}
+                  style={{ color: '#fcd34d', background: 'rgba(245,199,61,0.10)' }}
+                >
+                  {holidays.get(key)!.emoji} {holidays.get(key)!.name}
+                </div>
+              )}
               <div className="space-y-1">
                 {dayItems.slice(0, view === 'week' ? 12 : 4).map((it) => (
                   <TimelineEntry key={it.id} item={it} />
@@ -139,9 +152,28 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
       </div>
 
       {items.length === 0 && (
-        <p className="text-sm text-muted mt-4">
-          Nothing scheduled in this period. Scheduled and published social posts will appear here.
-        </p>
+        <div
+          className="mt-5 rounded-2xl p-5 sm:p-6"
+          style={{
+            background: 'radial-gradient(120% 140% at 0% 0%, rgba(245,158,11,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))',
+            border: '1px solid rgba(255,255,255,0.10)'
+          }}
+        >
+          <div className="text-[10px] uppercase tracking-[0.22em] mb-2" style={{ color: '#FFC73D' }}>Let&apos;s fill this calendar</div>
+          <h3 className="text-lg font-semibold text-ink">Nothing scheduled yet — let&apos;s change that.</h3>
+          <p className="text-sm text-muted mt-1.5 max-w-xl leading-relaxed">
+            A great calendar starts with a clear story. Sharpen your <strong>narrative lines</strong>, then generate
+            on-thesis social posts and watch them land here — staggered, branded, and ready to approve.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/admin/av/narrative" className="rounded-lg px-4 py-2 text-sm font-medium" style={{ background: 'linear-gradient(120deg,#FF9C5B,#FFC73D)', color: '#1a1207' }}>
+              Nurture your narrative lines →
+            </Link>
+            <Link href="/admin/av/content" className="rounded-lg px-4 py-2 text-sm" style={{ background: 'rgba(255,255,255,0.06)', color: '#e5e7eb', border: '1px solid rgba(255,255,255,0.14)' }}>
+              Generate socials now
+            </Link>
+          </div>
+        </div>
       )}
     </div>
   );
