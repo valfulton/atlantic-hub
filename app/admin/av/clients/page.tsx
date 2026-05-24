@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { listClientAccounts, type ClientAccountSummary } from '@/lib/av/clients_overview';
+import NewClientForm from './NewClientForm';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,6 +33,8 @@ export default async function ClientsPage() {
         Every client hub. Each client runs their own scoped pipeline; you see them all here. Open one to
         review their leads, discovery activity, and any errors.
       </p>
+
+      <NewClientForm />
 
       {failed ? (
         <div className="rounded-2xl border border-border bg-surface p-6 text-muted">Could not load clients right now.</div>
