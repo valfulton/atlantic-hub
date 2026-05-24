@@ -110,7 +110,7 @@ Rules:
 - The brief should feel like THIS specific business, not a generic version of their industry.
 `;
 
-function buildUserPrompt(lead: LeadContextRow): string {
+function buildUserPrompt(lead: LeadContextRow, narrativeContext?: string | null): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
   const audit = lead.audit_content ? truncate(lead.audit_content, 3000) : '';
 
@@ -122,6 +122,12 @@ function buildUserPrompt(lead: LeadContextRow): string {
   if (lead.contact_title) sections.push(`Primary contact title: ${lead.contact_title}`);
   if (lead.challenge) sections.push(`Stated challenge: ${lead.challenge}`);
   if (audit) sections.push(`Strategic audit (use as raw material for tone, audience, and pain points):\n${audit}`);
+  // The active narrative line steers the visual direction (emotional driver +
+  // authority angle become the mood + framing). This is how a commercial lands
+  // on-thesis — e.g. "Your team doesn't need another ballroom."
+  if (narrativeContext && narrativeContext.trim()) {
+    sections.push(`${narrativeContext.trim()}\n(Let this narrative line drive the mood, hero moment, and emotional framing of the brief.)`);
+  }
 
   return `${sections.join('\n\n')}\n\nReturn ONLY the JSON visual brief.`;
 }
@@ -200,7 +206,7 @@ export async function getActiveBriefForLead(leadId: number): Promise<VisualBrief
 // ---------------------------------------------------------------------
 export async function generateVisualBriefForLead(
   leadId: number,
-  opts: { actorUserId?: number | null; force?: boolean } = {}
+  opts: { actorUserId?: number | null; force?: boolean; narrativeContext?: string | null } = {}
 ): Promise<VisualBriefRecord> {
   const db = getAvDb();
   const actorUserId = opts.actorUserId ?? null;
@@ -224,7 +230,7 @@ export async function generateVisualBriefForLead(
     const completion = await openaiChatCompletion(
       [
         { role: 'system', content: SYSTEM_INSTRUCTIONS },
-        { role: 'user', content: buildUserPrompt(lead) }
+        { role: 'user', content: buildUserPrompt(lead, opts.narrativeContext) }
       ],
       { json: true, temperature: 0.6, maxTokens: 1200 }
     );

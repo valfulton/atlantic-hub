@@ -539,6 +539,52 @@ export async function listPainClusters(): Promise<PainCluster[]> {
   return rows.map((r) => ({ industry: r.industry, painCategory: r.pain_category, count: Number(r.c) || 0 }));
 }
 
+export interface LineCommercial {
+  id: number;
+  assetType: string;
+  brandedStatus: string | null;
+  campaignId: number | null;
+  campaignName: string | null;
+  company: string | null;
+  auditId: string | null;
+  createdAt: string;
+}
+
+/**
+ * Commercials/assets attributed to a narrative line, through the line's
+ * campaigns (campaign.lane_id = lineId -> grok_imagine_assets.campaign_id).
+ * Read-only; powers the cockpit's "Commercials on this line" gallery.
+ */
+export async function listLineCommercials(lineId: number, limit = 24): Promise<LineCommercial[]> {
+  if (!Number.isInteger(lineId) || lineId <= 0) return [];
+  const db = getAvDb();
+  const lim = Math.min(Math.max(1, Math.trunc(limit)), 100);
+  const [rows] = await db.execute<(RowDataPacket & {
+    id: number; asset_type: string; branded_status: string | null; campaign_id: number | null;
+    campaign_name: string | null; company: string | null; audit_id: string | null; created_at: string;
+  })[]>(
+    `SELECT g.id, g.asset_type, g.branded_status, g.campaign_id,
+            c.name AS campaign_name, l.company, l.audit_id, g.created_at
+       FROM grok_imagine_assets g
+       JOIN campaigns c ON c.id = g.campaign_id
+       LEFT JOIN leads l ON l.id = g.lead_id
+      WHERE c.lane_id = ? AND g.archived_at IS NULL
+      ORDER BY g.id DESC
+      LIMIT ${lim}`,
+    [lineId]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    assetType: r.asset_type,
+    brandedStatus: r.branded_status,
+    campaignId: r.campaign_id,
+    campaignName: r.campaign_name,
+    company: r.company,
+    auditId: r.audit_id,
+    createdAt: r.created_at
+  }));
+}
+
 export async function createCampaign(input: {
   tenantId?: string;
   laneId: number | null;
