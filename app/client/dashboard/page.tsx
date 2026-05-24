@@ -23,7 +23,9 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { listClientCampaignContent, listClientCampaigns, type CampaignContentItem, type ClientCampaign } from '@/lib/client/campaign';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
+import CreativeBrief from '@/app/client/_components/CreativeBrief';
 import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
+import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
 import WaveDivider from '@/app/_components/WaveDivider';
 import type { RowDataPacket } from 'mysql2';
 
@@ -131,6 +133,15 @@ export default async function ClientDashboardPage() {
     clientCampaigns = [];
   }
 
+  // The creative brief: the unifying operating view (story + next leads +
+  // what's ready to approve), assembled from existing data. Fails soft.
+  let brief: CreativeBriefData = { activeLines: [], nextLeads: [], awaitingApproval: [], awaitingCount: 0 };
+  try {
+    brief = await getClientCreativeBrief({ client_id: user.client_id, email: user.email });
+  } catch {
+    /* keep empty brief */
+  }
+
   return (
     <>
       <PortalHeader
@@ -167,6 +178,8 @@ export default async function ClientDashboardPage() {
 
         {/* The guidance feed: what matters most right now, and why. */}
         <GuidanceFeed guidance={guidance} firstName={headline} />
+
+        <CreativeBrief brief={brief} firstName={headline} />
 
         <section className="mb-8">
           <p className="text-muted text-sm">
