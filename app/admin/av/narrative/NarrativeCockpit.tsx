@@ -90,6 +90,10 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const [draft, setDraft] = useState<Record<number, Line>>({});
   const [saving, setSaving] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Per-line save feedback (rendered right next to each line's Save button, so
+  // it's never off-screen) + a dirty flag so it's obvious a click registered.
+  const [saveMsg, setSaveMsg] = useState<Record<number, { ok: boolean; text: string } | null>>({});
+  const [dirty, setDirty] = useState<Record<number, boolean>>({});
 
   const [eng, setEng] = useState<Record<number, EngagementSummary>>({});
   const [commercials, setCommercials] = useState<Record<number, Commercial[]>>({});
@@ -174,16 +178,30 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
     if (openId === l.id) { setOpenId(null); return; }
     setOpenId(l.id);
     setDraft((d) => ({ ...d, [l.id]: { ...l } }));
+    // Opening a fresh copy means no unsaved changes / stale save message yet.
+    setDirty((m) => ({ ...m, [l.id]: false }));
+    setSaveMsg((m) => ({ ...m, [l.id]: null }));
     if (!eng[l.id]) loadLineData(l.id);
   }, [openId, eng, loadLineData]);
 
-  const patchField = (id: number, key: keyof Line, value: unknown) =>
-    setDraft((d) => ({ ...d, [id]: { ...d[id], [key]: value } }));
+  // Update a field in the draft AND flag the line dirty so the Save button lights
+  // up — this is the visible proof that clicking a suggestion chip did something.
+  // Defends against a missing draft[id] by seeding from the known line.
+  const patchField = (id: number, key: keyof Line, value: unknown) => {
+    setDraft((d) => {
+      const base = d[id] ?? lines.find((l) => l.id === id);
+      if (!base) return d;
+      return { ...d, [id]: { ...base, [key]: value } };
+    });
+    setDirty((m) => (m[id] ? m : { ...m, [id]: true }));
+    setSaveMsg((m) => (m[id] ? { ...m, [id]: null } : m));
+  };
 
   const saveLine = useCallback(async (id: number) => {
     const d = draft[id];
     if (!d) return;
-    setSaving(id); setNotice(null);
+    setSaving(id);
+    setSaveMsg((m) => ({ ...m, [id]: null }));
     try {
       const res = await fetch('/api/admin/campaigns/lanes', {
         method: 'PATCH', headers: { 'content-type': 'application/json' },
@@ -193,22 +211,41 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
           proofPoints: d.proofPoints, doSay: d.doSay, dontSay: d.dontSay
         })
       });
-      const j = await res.json();
-      if (!res.ok) { setNotice(j.error || 'Could not save.'); return; }
+      let j: { error?: string } = {};
+      try { j = await res.json(); } catch { /* non-JSON response */ }
+      if (!res.ok) {
+        setSaveMsg((m) => ({ ...m, [id]: { ok: false, text: j.error || `Save failed (${res.status}). Try again.` } }));
+        return;
+      }
       setLines((ls) => ls.map((l) => (l.id === id ? { ...d } : l)));
-      setNotice('Saved.');
-    } finally { setSaving(null); }
+      setDirty((m) => ({ ...m, [id]: false }));
+      setSaveMsg((m) => ({ ...m, [id]: { ok: true, text: 'Saved ✓' } }));
+    } catch {
+      // Network/throw path — never leave the user staring at nothing.
+      setSaveMsg((m) => ({ ...m, [id]: { ok: false, text: 'Could not reach the server. Check your connection and retry.' } }));
+    } finally {
+      setSaving(null);
+    }
   }, [draft]);
 
   const changeState = useCallback(async (id: number, state: LineState) => {
-    setNotice(null);
-    const res = await fetch('/api/admin/campaigns/lanes', {
-      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, state })
-    });
-    const j = await res.json();
-    if (!res.ok) { setNotice(j.error || 'Could not change state.'); return; }
-    setLines((ls) => ls.map((l) => (l.id === id ? { ...l, state } : l)));
-    setDraft((d) => (d[id] ? { ...d, [id]: { ...d[id], state } } : d));
+    setSaveMsg((m) => ({ ...m, [id]: null }));
+    try {
+      const res = await fetch('/api/admin/campaigns/lanes', {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, state })
+      });
+      let j: { error?: string } = {};
+      try { j = await res.json(); } catch { /* non-JSON response */ }
+      if (!res.ok) {
+        setSaveMsg((m) => ({ ...m, [id]: { ok: false, text: j.error || 'Could not change state.' } }));
+        return;
+      }
+      setLines((ls) => ls.map((l) => (l.id === id ? { ...l, state } : l)));
+      setDraft((d) => (d[id] ? { ...d, [id]: { ...d[id], state } } : d));
+      setSaveMsg((m) => ({ ...m, [id]: { ok: true, text: `Moved to ${state}.` } }));
+    } catch {
+      setSaveMsg((m) => ({ ...m, [id]: { ok: false, text: 'Could not reach the server. Check your connection and retry.' } }));
+    }
   }, []);
 
   const submitEngagement = useCallback(async (id: number) => {
@@ -264,7 +301,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas };
 
   return (
     <div>
@@ -336,6 +373,8 @@ interface EditorProps {
   patchField: (id: number, key: keyof Line, value: unknown) => void;
   saveLine: (id: number) => void;
   saving: number | null;
+  saveMsg: Record<number, { ok: boolean; text: string } | null>;
+  dirty: Record<number, boolean>;
   changeState: (id: number, s: LineState) => void;
   eng: Record<number, EngagementSummary>;
   commercials: Record<number, Commercial[]>;
@@ -379,7 +418,7 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, suggestThesisIdeas }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -388,6 +427,8 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
   const pd = promptDraft[id];
   const gen = genStatus[id];
   const ideas = thesisIdeas[id];
+  const sm = saveMsg[id];
+  const isDirty = !!dirty[id];
 
   const field = (label: string, key: keyof Line, suggestion: string) => (
     <div>
@@ -443,12 +484,15 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
         {listField("Don't say (off-thesis)", 'dontSay', 'phrases to avoid')}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-        <button onClick={() => saveLine(id)} disabled={saving === id} style={{ ...btnPrimary, opacity: saving === id ? 0.5 : 1 }}>{saving === id ? 'Saving…' : 'Save line'}</button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button onClick={() => saveLine(id)} disabled={saving === id} style={{ ...btnPrimary, opacity: saving === id ? 0.5 : 1 }}>{saving === id ? 'Saving…' : isDirty ? 'Save line •' : 'Save line'}</button>
         {line.state !== 'active' && <button onClick={() => changeState(id, 'active')} style={btnGhost}>Activate</button>}
         {line.state === 'active' && <button onClick={() => changeState(id, 'reinforcing')} style={btnGhost}>Mark reinforcing</button>}
         {line.state !== 'candidate' && <button onClick={() => changeState(id, 'candidate')} style={btnGhost}>Back to candidate</button>}
         {line.state !== 'retiring' && <button onClick={() => changeState(id, 'retiring')} style={btnGhost}>Retire</button>}
+        {/* Feedback lives right here, next to the button — never off-screen. */}
+        {sm && <span style={{ fontSize: 12, fontWeight: 600, color: sm.ok ? '#6ee7b7' : '#fca5a5' }}>{sm.text}</span>}
+        {!sm && isDirty && <span style={{ fontSize: 12, color: '#fcd34d' }}>Unsaved changes — click Save line</span>}
       </div>
 
       {/* What your leads need — shape the line toward the pipeline it has to convert */}
