@@ -20,11 +20,19 @@ function asObject(raw: unknown): Record<string, unknown> {
 }
 const str = (o: Record<string, unknown>, k: string): string | null => {
   const v = o[k];
-  return typeof v === 'string' && v.trim() ? v.trim() : null;
+  if (typeof v === 'string' && v.trim()) return v.trim();
+  if (Array.isArray(v)) { const j = v.map((x) => String(x)).filter(Boolean).join(', '); return j || null; }
+  return null;
+};
+/** First non-empty value among several possible field names (the live intake
+ *  form uses different names than our canonical ones — harvest both). */
+const pick = (o: Record<string, unknown>, keys: string[]): string | null => {
+  for (const k of keys) { const s = str(o, k); if (s) return s; }
+  return null;
 };
 /** Split a free-text field into list items on newlines/semicolons/bullets. */
 const list = (s: string | null): string[] =>
-  s ? s.split(/[\n;•]+/).map((x) => x.trim()).filter(Boolean).slice(0, 8) : [];
+  s ? s.split(/[\n;•,]+/).map((x) => x.trim()).filter(Boolean).slice(0, 8) : [];
 
 export interface BriefSeed {
   whyAdvertise: string | null;   // Q1
@@ -45,26 +53,27 @@ export interface BriefSeed {
 
 export function extractBriefSeedFromIntake(intakePayload: unknown): BriefSeed {
   const o = asObject(intakePayload);
-  const keyMessage = str(o, 'key_message');
-  const audience = str(o, 'target_audience');
-  const messageSupport = str(o, 'message_support');
-  const differentiators = str(o, 'differentiators');
-  const brandVoice = str(o, 'brand_voice');
-  const timeline = str(o, 'timeline');
-  const channels = str(o, 'preferred_channels');
+  // canonical name first, then the live intake form's real field names as fallback.
+  const keyMessage = pick(o, ['key_message', 'market_position']);
+  const audience = pick(o, ['target_audience', 'ideal_client']);
+  const messageSupport = pick(o, ['message_support', 'proof_points', 'press_awards', 'client_results']);
+  const differentiators = pick(o, ['differentiators', 'market_position']);
+  const brandVoice = pick(o, ['brand_voice']);
+  const timeline = pick(o, ['timeline', 'busy_seasons', 'key_dates']);
+  const channels = pick(o, ['preferred_channels', 'content_platforms']);
   const company = str(o, 'company');
 
   return {
-    whyAdvertise: str(o, 'why_advertise'),
-    goals: str(o, 'goals'),
+    whyAdvertise: pick(o, ['why_advertise', 'founder_story']),
+    goals: pick(o, ['goals', 'website_goals']),
     audience,
-    audienceInsights: str(o, 'audience_insights'),
+    audienceInsights: pick(o, ['audience_insights', 'client_problems', 'client_results']),
     keyMessage,
     messageSupport,
     brandVoice,
     differentiators,
-    competitors: str(o, 'competitors'),
-    brandColors: str(o, 'brand_colors'),
+    competitors: pick(o, ['competitors']),
+    brandColors: pick(o, ['brand_colors']),
     preferredChannels: channels,
     timeline,
     lineSeed: {
