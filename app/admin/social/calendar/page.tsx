@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { fetchTimelineItems, fetchTimelineTenants } from './timeline';
-import { CalendarView } from './CalendarView';
+import { CalendarView, SKIN_KEYS, type SkinKey } from './CalendarView';
 import { CalendarSelectionProvider } from './CalendarSelection';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 export default async function CampaignTimelinePage({
   searchParams
 }: {
-  searchParams: { view?: string; anchor?: string; tenant?: string };
+  searchParams: { view?: string; anchor?: string; tenant?: string; skin?: string };
 }) {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
   if (role === 'client_user') {
@@ -31,6 +31,7 @@ export default async function CampaignTimelinePage({
   const view: 'week' | 'month' = searchParams.view === 'week' ? 'week' : 'month';
   const anchor = parseAnchor(searchParams.anchor);
   const tenant = searchParams.tenant && searchParams.tenant !== 'all' ? searchParams.tenant : null;
+  const skin: SkinKey = (SKIN_KEYS as string[]).includes(searchParams.skin ?? '') ? (searchParams.skin as SkinKey) : 'midnight';
 
   const window = computeWindow(view, anchor);
   const [items, tenants] = await Promise.all([
@@ -74,6 +75,7 @@ export default async function CampaignTimelinePage({
           items={items}
           tenant={tenant}
           tenants={tenants}
+          skin={skin}
         />
       </CalendarSelectionProvider>
     </div>

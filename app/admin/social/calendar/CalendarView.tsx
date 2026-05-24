@@ -17,7 +17,22 @@ interface Props {
   items: TimelineItem[];
   tenant: string | null;
   tenants: string[];
+  skin: SkinKey;
 }
+
+// ---- skins: selectable palettes for the grid ------------------------------
+export type SkinKey = 'midnight' | 'regatta' | 'champagne' | 'mono';
+export const SKIN_KEYS: SkinKey[] = ['midnight', 'regatta', 'champagne', 'mono'];
+interface Skin {
+  label: string; gridBg: string; cellIn: string; cellOut: string;
+  today: string; holFg: string; holBg: string;
+}
+const SKINS: Record<SkinKey, Skin> = {
+  midnight: { label: 'Midnight', gridBg: 'rgba(255,255,255,0.06)', cellIn: 'rgba(10,10,14,0.85)', cellOut: 'rgba(10,10,14,0.45)', today: 'rgba(255,156,91,0.6)', holFg: '#fcd34d', holBg: 'rgba(245,199,61,0.10)' },
+  regatta: { label: 'Regatta', gridBg: 'rgba(45,212,191,0.12)', cellIn: 'rgba(7,15,20,0.9)', cellOut: 'rgba(7,15,20,0.5)', today: 'rgba(45,212,191,0.75)', holFg: '#7dd3fc', holBg: 'rgba(45,212,191,0.10)' },
+  champagne: { label: 'Champagne', gridBg: 'rgba(255,199,61,0.14)', cellIn: 'rgba(20,16,8,0.9)', cellOut: 'rgba(20,16,8,0.55)', today: 'rgba(255,199,61,0.75)', holFg: '#fcd34d', holBg: 'rgba(245,199,61,0.16)' },
+  mono: { label: 'Mono', gridBg: 'rgba(148,163,184,0.16)', cellIn: 'rgba(15,18,24,0.92)', cellOut: 'rgba(15,18,24,0.55)', today: 'rgba(203,213,225,0.7)', holFg: '#cbd5e1', holBg: 'rgba(148,163,184,0.10)' }
+};
 
 const STATUS_STYLE: Record<TimelineItemStatus, { label: string; bg: string; fg: string }> = {
   draft: { label: 'Draft', bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1' },
@@ -30,7 +45,8 @@ const STATUS_STYLE: Record<TimelineItemStatus, { label: string; bg: string; fg: 
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function CalendarView({ view, anchor, window, items, tenant, tenants }: Props) {
+export function CalendarView({ view, anchor, window, items, tenant, tenants, skin }: Props) {
+  const sk = SKINS[skin] ?? SKINS.midnight;
   const today = startOfDay(new Date());
   const cellCount = view === 'week' ? 7 : 42;
   const cells: Date[] = [];
@@ -60,14 +76,14 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
       {/* nav bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
-          <NavLink href={hrefFor(view, navAnchor(view, anchor, -1), tenant)} label="Previous period">&#8592;</NavLink>
-          <NavLink href={hrefFor(view, toIso(today), tenant)} label="Jump to today">Today</NavLink>
-          <NavLink href={hrefFor(view, navAnchor(view, anchor, 1), tenant)} label="Next period">&#8594;</NavLink>
+          <NavLink href={hrefFor(view, navAnchor(view, anchor, -1), tenant, skin)} label="Previous period">&#8592;</NavLink>
+          <NavLink href={hrefFor(view, toIso(today), tenant, skin)} label="Jump to today">Today</NavLink>
+          <NavLink href={hrefFor(view, navAnchor(view, anchor, 1), tenant, skin)} label="Next period">&#8594;</NavLink>
           <span className="text-base font-semibold ml-2" style={{ color: '#fff' }}>{periodLabel}</span>
         </div>
         <div className="flex items-center gap-2">
-          <ToggleLink href={hrefFor('week', toIso(anchor), tenant)} active={view === 'week'}>Week</ToggleLink>
-          <ToggleLink href={hrefFor('month', toIso(anchor), tenant)} active={view === 'month'}>Month</ToggleLink>
+          <ToggleLink href={hrefFor('week', toIso(anchor), tenant, skin)} active={view === 'week'}>Week</ToggleLink>
+          <ToggleLink href={hrefFor('month', toIso(anchor), tenant, skin)} active={view === 'month'}>Month</ToggleLink>
         </div>
       </div>
 
@@ -75,12 +91,20 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
       {tenants.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <span className="text-xs text-muted">Brand:</span>
-          <TenantChip href={hrefFor(view, toIso(anchor), null)} active={!tenant}>All</TenantChip>
+          <TenantChip href={hrefFor(view, toIso(anchor), null, skin)} active={!tenant}>All</TenantChip>
           {tenants.map((t) => (
-            <TenantChip key={t} href={hrefFor(view, toIso(anchor), t)} active={tenant === t}>{t}</TenantChip>
+            <TenantChip key={t} href={hrefFor(view, toIso(anchor), t, skin)} active={tenant === t}>{t}</TenantChip>
           ))}
         </div>
       )}
+
+      {/* skin picker — give reps a look they like; choice persists in the URL */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-xs text-muted">Skin:</span>
+        {SKIN_KEYS.map((s) => (
+          <TenantChip key={s} href={hrefFor(view, toIso(anchor), tenant, s)} active={skin === s}>{SKINS[s].label}</TenantChip>
+        ))}
+      </div>
 
       {/* weekday header */}
       <div className="grid grid-cols-7 gap-px mb-px">
@@ -92,7 +116,7 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
       {/* grid */}
       <div
         className="grid grid-cols-7 gap-px rounded-lg overflow-hidden"
-        style={{ background: 'rgba(255,255,255,0.06)' }}
+        style={{ background: sk.gridBg }}
       >
         {cells.map((day) => {
           const key = toIso(day);
@@ -104,9 +128,9 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
               key={key}
               className="p-1.5 align-top"
               style={{
-                background: inPeriod ? 'rgba(10,10,14,0.85)' : 'rgba(10,10,14,0.45)',
+                background: inPeriod ? sk.cellIn : sk.cellOut,
                 minHeight: view === 'week' ? 220 : 104,
-                outline: isToday ? '1px solid rgba(255,156,91,0.6)' : 'none'
+                outline: isToday ? `1px solid ${sk.today}` : 'none'
               }}
             >
               <div className="flex items-center justify-between mb-1">
@@ -124,7 +148,7 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants }: P
                 <div
                   className="text-[10px] mb-1 truncate rounded px-1 py-0.5"
                   title={holidays.get(key)!.name}
-                  style={{ color: '#fcd34d', background: 'rgba(245,199,61,0.10)' }}
+                  style={{ color: sk.holFg, background: sk.holBg }}
                 >
                   {holidays.get(key)!.emoji} {holidays.get(key)!.name}
                 </div>
@@ -230,11 +254,12 @@ function TenantChip({ href, active, children }: { href: string; active: boolean;
 
 // ---- date helpers ----------------------------------------------------------
 
-function hrefFor(view: 'week' | 'month', anchorIso: string, tenant: string | null): string {
+function hrefFor(view: 'week' | 'month', anchorIso: string, tenant: string | null, skin?: SkinKey): string {
   const p = new URLSearchParams();
   p.set('view', view);
   p.set('anchor', anchorIso);
   if (tenant) p.set('tenant', tenant);
+  if (skin && skin !== 'midnight') p.set('skin', skin); // default skin stays out of the URL
   return `/admin/social/calendar?${p.toString()}`;
 }
 
