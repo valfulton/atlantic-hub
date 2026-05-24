@@ -41,6 +41,23 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
   const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [when, setWhen] = useState('');
+  const [rescheduling, setRescheduling] = useState(false);
+
+  async function reschedule() {
+    if (item.outboxId == null || !when) return;
+    setRescheduling(true); setErr(null); setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/social/publish/${item.outboxId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduledFor: new Date(when).toISOString() })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.ok) { setMsg('Rescheduled.'); router.refresh(); }
+      else setErr(j.error || 'Could not reschedule.');
+    } catch { setErr('Could not reschedule.'); }
+    finally { setRescheduling(false); }
+  }
 
   const s = STATUS_STYLE[item.status];
   const brand = BRAND_ACCENT[item.tenant] ?? '#94a3b8';
@@ -208,6 +225,28 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
 
             {msg && <div className="mb-3 rounded-lg px-3 py-2 text-[13px]" style={{ background: 'rgba(16,185,129,0.12)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.3)' }}>{msg}</div>}
             {err && <div className="mb-3 rounded-lg px-3 py-2 text-[13px]" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+
+            {/* Reschedule (time-of-day staggering) */}
+            <div className="mb-3 flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] uppercase tracking-[0.12em] text-muted">Reschedule</span>
+              <input
+                type="datetime-local"
+                value={when}
+                onChange={(e) => setWhen(e.target.value)}
+                className="rounded-lg px-2 py-1 text-xs"
+                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.14)', color: '#e2e8f0' }}
+                aria-label="New date and time"
+              />
+              <button
+                type="button"
+                onClick={() => void reschedule()}
+                disabled={rescheduling || !when}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                style={{ background: 'rgba(59,130,246,0.18)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)' }}
+              >
+                {rescheduling ? 'Moving…' : 'Move'}
+              </button>
+            </div>
 
             <div className="flex items-center justify-between gap-2">
               <button

@@ -49,6 +49,7 @@ function BulkBar() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [when, setWhen] = useState('');
   if (!ctx || ctx.selected.size === 0) return null;
   const count = ctx.selected.size;
 
@@ -67,13 +68,46 @@ function BulkBar() {
     router.refresh();
   }
 
+  async function rescheduleSelected() {
+    if (!ctx || !when) return;
+    const iso = new Date(when).toISOString();
+    setBusy(true); setMsg(null);
+    const ids = [...ctx.selected];
+    const results = await Promise.allSettled(
+      ids.map((id) => fetch(`/api/admin/social/publish/${id}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scheduledFor: iso })
+      }))
+    );
+    const ok = results.filter((r) => r.status === 'fulfilled' && (r.value as Response).ok).length;
+    ctx.clear(); setWhen('');
+    setBusy(false);
+    setMsg(`Rescheduled ${ok} of ${ids.length}.`);
+    router.refresh();
+  }
+
   return (
     <div
-      className="fixed left-1/2 -translate-x-1/2 bottom-6 z-50 flex items-center gap-3 rounded-full px-4 py-2.5 shadow-2xl"
+      className="fixed left-1/2 -translate-x-1/2 bottom-6 z-50 flex items-center gap-2 rounded-full px-4 py-2.5 shadow-2xl flex-wrap justify-center"
       style={{ background: '#0e1420', border: '1px solid rgba(255,255,255,0.14)' }}
     >
-      <span className="text-sm text-ink"><strong>{count}</strong> selected</span>
-      {msg && <span className="text-xs text-muted">{msg}</span>}
+      <span className="text-sm text-ink mr-1"><strong>{count}</strong> selected</span>
+      <input
+        type="datetime-local"
+        value={when}
+        onChange={(e) => setWhen(e.target.value)}
+        className="rounded-lg px-2 py-1 text-xs"
+        style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.16)', color: '#e2e8f0' }}
+        aria-label="New date and time for selected posts"
+      />
+      <button
+        type="button"
+        onClick={rescheduleSelected}
+        disabled={busy || !when}
+        className="rounded-full px-3 py-1.5 text-sm font-medium"
+        style={{ background: 'rgba(59,130,246,0.18)', color: '#93c5fd', opacity: busy || !when ? 0.5 : 1 }}
+      >
+        Reschedule
+      </button>
       <button
         type="button"
         onClick={deleteSelected}
@@ -81,9 +115,10 @@ function BulkBar() {
         className="rounded-full px-3 py-1.5 text-sm font-medium"
         style={{ background: 'rgba(239,68,68,0.18)', color: '#fca5a5', opacity: busy ? 0.5 : 1 }}
       >
-        {busy ? 'Removing…' : 'Delete selected'}
+        {busy ? 'Working…' : 'Delete'}
       </button>
       <button type="button" onClick={() => ctx.clear()} className="text-sm text-muted hover:text-ink">Clear</button>
+      {msg && <span className="text-xs text-muted w-full text-center">{msg}</span>}
     </div>
   );
 }

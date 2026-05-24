@@ -44,6 +44,52 @@ export async function POST(req: NextRequest, { params }: { params: { outbox_id: 
 }
 
 /**
+ * PATCH -> reschedule a not-yet-published post to a new date/time. Body:
+ * { scheduledFor: ISO datetime }. Only affects draft/scheduled/failed rows
+ * (never republishes live posts). Stored as UTC. Powers calendar time-staggering
+ * and bulk reschedule. Owner + staff only.
+ */
+export async function PATCH(req: NextRequest, { params }: { params: { outbox_id: string } }) {
+  const guard = await guardAdminRequest(req, {
+    targetResource: '/api/admin/social/publish/[outbox_id]:PATCH',
+    tenantId: 'av'
+  });
+  if (!guard.ok) return guard.response;
+  if (guard.actor.role === 'client_user') {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  const outboxId = Number.parseInt(params.outbox_id, 10);
+  if (!Number.isFinite(outboxId) || outboxId <= 0) {
+    return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
+  }
+  const raw = typeof body.scheduledFor === 'string' ? body.scheduledFor : '';
+  const d = raw ? new Date(raw) : null;
+  if (!d || Number.isNaN(d.getTime())) {
+    return NextResponse.json({ error: 'a valid scheduledFor datetime is required' }, { status: 400 });
+  }
+  const mysqlUtc = d.toISOString().slice(0, 19).replace('T', ' ');
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `UPDATE social_outbox
+          SET scheduled_for = ?, status = 'scheduled', updated_at = NOW()
+        WHERE id = ? AND archived_at IS NULL AND status IN ('draft','scheduled','failed')`,
+      [mysqlUtc, outboxId]
+    );
+    return NextResponse.json({ ok: true, rescheduled: res.affectedRows, scheduledFor: d.toISOString() });
+  } catch (err) {
+    console.error('[social:publish:patch]', (err as Error).message);
+    return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
+  }
+}
+
+/**
  * DELETE -> soft-delete (cancel + archive) a queued/failed social post so it
  * drops off the Campaign timeline. Used to clear wrong-voice or unwanted drafts.
  * Does not delete already-published posts' provider content (those are live).
