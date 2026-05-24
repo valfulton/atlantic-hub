@@ -70,6 +70,8 @@ export async function POST(req: NextRequest) {
       description: typeof body.description === 'string' ? body.description : null,
       accent: typeof body.accent === 'string' ? body.accent : null,
       cadenceHint: typeof body.cadenceHint === 'string' ? body.cadenceHint : null,
+      // Customer owner: null/omitted = house line, >0 = a client account.
+      clientId: typeof body.clientId === 'number' && body.clientId > 0 ? body.clientId : null,
       // New lines default to 'candidate' in the store unless an explicit state is sent.
       state: typeof body.state === 'string' && VALID_STATES.includes(body.state as NarrativeLineState)
         ? (body.state as NarrativeLineState) : undefined,
@@ -100,8 +102,7 @@ export async function PATCH(req: NextRequest) {
       if (!VALID_STATES.includes(body.state as NarrativeLineState)) {
         return NextResponse.json({ error: 'invalid state' }, { status: 400 });
       }
-      const tenant = typeof body.tenant === 'string' ? body.tenant : 'av';
-      const result = await setLineState(id, body.state as NarrativeLineState, tenant);
+      const result = await setLineState(id, body.state as NarrativeLineState);
       if (!result.ok) {
         return NextResponse.json({ error: result.message, activeCount: result.activeCount }, { status: 409 });
       }

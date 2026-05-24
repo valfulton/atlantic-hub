@@ -21,6 +21,8 @@ export const MAX_ACTIVE_LINES = 4;
 export interface NarrativeLane {
   id: number;
   tenantId: string;
+  /** Customer owner: null = house line (brand/operator), >0 = a client account. */
+  clientId: number | null;
   name: string;
   description: string | null;
   accent: string | null;
@@ -57,6 +59,7 @@ export interface CampaignRow {
 interface LaneDbRow extends RowDataPacket {
   id: number;
   tenant_id: string;
+  client_id: number | null;
   name: string;
   description: string | null;
   accent: string | null;
@@ -107,6 +110,7 @@ function mapLane(r: LaneDbRow): NarrativeLane {
   return {
     id: r.id,
     tenantId: r.tenant_id,
+    clientId: r.client_id ?? null,
     name: r.name,
     description: r.description,
     accent: r.accent,
@@ -128,18 +132,31 @@ function mapLane(r: LaneDbRow): NarrativeLane {
 }
 
 const LANE_COLS =
-  'id, tenant_id, name, description, accent, cadence_hint, sort_order, is_active, ' +
+  'id, tenant_id, client_id, name, description, accent, cadence_hint, sort_order, is_active, ' +
   'state, thesis, audience, emotional_driver, authority_angle, seasonality, ' +
   'conversion_signal, proof_points, best_channels, do_say, dont_say';
 
-export async function listLanes(tenantId = DEFAULT_TENANT, opts?: { includeInactive?: boolean }): Promise<NarrativeLane[]> {
+/**
+ * List narrative lines for a customer.
+ *   clientId omitted        -> house lines for the brand (client_id IS NULL)
+ *   clientId = a number     -> that client account's lines
+ *   clientId = 'all'        -> every line in the brand (house + all clients)
+ * `client_id <=> ?` is null-safe equality, so it matches NULL when scoping to house.
+ */
+export async function listLanes(
+  tenantId = DEFAULT_TENANT,
+  opts?: { includeInactive?: boolean; clientId?: number | null | 'all' }
+): Promise<NarrativeLane[]> {
   const db = getAvDb();
   const where = ['tenant_id = ?', 'archived_at IS NULL'];
+  const params: unknown[] = [tenantId];
+  const scope = opts?.clientId === undefined ? null : opts.clientId;
+  if (scope !== 'all') { where.push('client_id <=> ?'); params.push(scope); }
   if (!opts?.includeInactive) where.push('is_active = 1');
   const [rows] = await db.execute<LaneDbRow[]>(
     `SELECT ${LANE_COLS}
        FROM narrative_lanes WHERE ${where.join(' AND ')} ORDER BY sort_order ASC, name ASC`,
-    [tenantId]
+    params
   );
   return rows.map(mapLane);
 }
@@ -154,50 +171,53 @@ export async function getLane(id: number): Promise<NarrativeLane | null> {
   return rows[0] ? mapLane(rows[0]) : null;
 }
 
-/** The 2-4 lines actually steering content right now (active + reinforcing). */
-export async function listActiveLines(tenantId = DEFAULT_TENANT): Promise<NarrativeLane[]> {
+/** The 2-4 lines steering content for a customer (active + reinforcing). */
+export async function listActiveLines(tenantId = DEFAULT_TENANT, clientId: number | null = null): Promise<NarrativeLane[]> {
   const db = getAvDb();
   const [rows] = await db.execute<LaneDbRow[]>(
     `SELECT ${LANE_COLS} FROM narrative_lanes
-      WHERE tenant_id = ? AND archived_at IS NULL AND state IN ('active','reinforcing')
+      WHERE tenant_id = ? AND client_id <=> ? AND archived_at IS NULL AND state IN ('active','reinforcing')
       ORDER BY sort_order ASC, name ASC`,
-    [tenantId]
+    [tenantId, clientId]
   );
   return rows.map(mapLane);
 }
 
-/** How many lines are currently steering content (for the anti-sprawl cap). */
-export async function countActiveLines(tenantId = DEFAULT_TENANT): Promise<number> {
+/** How many lines steer content for a customer (the anti-sprawl cap is PER customer). */
+export async function countActiveLines(tenantId = DEFAULT_TENANT, clientId: number | null = null): Promise<number> {
   const db = getAvDb();
   const [rows] = await db.execute<(RowDataPacket & { c: number })[]>(
     `SELECT COUNT(*) AS c FROM narrative_lanes
-      WHERE tenant_id = ? AND archived_at IS NULL AND state IN ('active','reinforcing')`,
-    [tenantId]
+      WHERE tenant_id = ? AND client_id <=> ? AND archived_at IS NULL AND state IN ('active','reinforcing')`,
+    [tenantId, clientId]
   );
   return Number(rows[0]?.c) || 0;
 }
 
 /**
- * Move a line through its lifecycle. Enforces the hard cap (MAX_ACTIVE_LINES):
- * promoting to active/reinforcing past the cap is refused, so the system can
- * never sprawl into messaging chaos. Returns { ok, activeCount, message }.
+ * Move a line through its lifecycle. Enforces the hard cap (MAX_ACTIVE_LINES)
+ * PER CUSTOMER: promoting past the cap for that owner is refused, so no customer
+ * sprawls into messaging chaos. The owner (tenant + client) is read from the line
+ * itself, so callers don't have to know it. Returns { ok, activeCount, message }.
  */
 export async function setLineState(
   id: number,
-  state: NarrativeLineState,
-  tenantId = DEFAULT_TENANT
+  state: NarrativeLineState
 ): Promise<{ ok: boolean; activeCount: number; message?: string }> {
   const db = getAvDb();
+  const current = await getLane(id);
+  if (!current) return { ok: false, activeCount: 0, message: 'Line not found.' };
+  const tenantId = current.tenantId;
+  const clientId = current.clientId;
   if (state === 'active' || state === 'reinforcing') {
-    const current = await getLane(id);
-    const alreadyActive = current?.state === 'active' || current?.state === 'reinforcing';
+    const alreadyActive = current.state === 'active' || current.state === 'reinforcing';
     if (!alreadyActive) {
-      const count = await countActiveLines(tenantId);
+      const count = await countActiveLines(tenantId, clientId);
       if (count >= MAX_ACTIVE_LINES) {
         return {
           ok: false,
           activeCount: count,
-          message: `You already have ${count} active narrative lines (max ${MAX_ACTIVE_LINES}). Retire one before activating another — keeping it to a few is what keeps the messaging coherent.`
+          message: `This customer already has ${count} active narrative lines (max ${MAX_ACTIVE_LINES}). Retire one before activating another — keeping it to a few is what keeps the messaging coherent.`
         };
       }
     }
@@ -206,7 +226,7 @@ export async function setLineState(
     `UPDATE narrative_lanes SET state = ? WHERE id = ?`,
     [state, id]
   );
-  return { ok: true, activeCount: await countActiveLines(tenantId) };
+  return { ok: true, activeCount: await countActiveLines(tenantId, clientId) };
 }
 
 /** Stringify a list for a JSON column, or null when empty/undefined. */
@@ -232,6 +252,8 @@ export interface NarrativeLineFields {
 
 export async function createLane(input: {
   tenantId?: string;
+  /** Customer owner: null/omitted = house line, >0 = a client account. */
+  clientId?: number | null;
   name: string;
   description?: string | null;
   accent?: string | null;
@@ -239,23 +261,24 @@ export async function createLane(input: {
 } & NarrativeLineFields): Promise<number> {
   const db = getAvDb();
   const tenantId = input.tenantId || DEFAULT_TENANT;
+  const clientId = input.clientId && input.clientId > 0 ? input.clientId : null;
   const [maxRows] = await db.execute<(RowDataPacket & { m: number | null })[]>(
-    `SELECT MAX(sort_order) AS m FROM narrative_lanes WHERE tenant_id = ?`,
-    [tenantId]
+    `SELECT MAX(sort_order) AS m FROM narrative_lanes WHERE tenant_id = ? AND client_id <=> ?`,
+    [tenantId, clientId]
   );
   const nextOrder = (maxRows[0]?.m ?? 0) + 1;
   // New lines default to 'candidate' so they never silently bust the active cap.
   const state: NarrativeLineState = input.state ?? 'candidate';
   const [res] = await db.execute<ResultSetHeader>(
     `INSERT INTO narrative_lanes
-       (tenant_id, name, description, accent, cadence_hint, sort_order, state,
+       (tenant_id, client_id, name, description, accent, cadence_hint, sort_order, state,
         thesis, audience, emotional_driver, authority_angle, seasonality,
         conversion_signal, proof_points, best_channels, do_say, dont_say)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE description = VALUES(description), accent = VALUES(accent),
        cadence_hint = VALUES(cadence_hint), is_active = 1, archived_at = NULL`,
     [
-      tenantId, input.name.slice(0, 120), input.description?.slice(0, 500) ?? null,
+      tenantId, clientId, input.name.slice(0, 120), input.description?.slice(0, 500) ?? null,
       input.accent?.slice(0, 16) ?? null, input.cadenceHint?.slice(0, 120) ?? null, nextOrder, state,
       input.thesis?.slice(0, 500) ?? null, input.audience?.slice(0, 300) ?? null,
       input.emotionalDriver?.slice(0, 200) ?? null, input.authorityAngle?.slice(0, 200) ?? null,
@@ -537,6 +560,54 @@ export async function listPainClusters(): Promise<PainCluster[]> {
       LIMIT 60`
   );
   return rows.map((r) => ({ industry: r.industry, painCategory: r.pain_category, count: Number(r.c) || 0 }));
+}
+
+/** Stable owner key for grouping lines in the cockpit: 'av:house', 'av:12', 'ebw:house'. */
+export function lineOwnerKey(tenantId: string, clientId: number | null): string {
+  return `${tenantId}:${clientId == null ? 'house' : clientId}`;
+}
+
+/** A customer the cockpit can scope to: one of the brands, or a client account. */
+export interface CockpitCustomer {
+  key: string;
+  label: string;
+  kind: 'brand' | 'client';
+  tenantId: string;
+  clientId: number | null;
+}
+
+const BRAND_CUSTOMERS: CockpitCustomer[] = [
+  { key: 'av:house', label: 'Atlantic & Vine', kind: 'brand', tenantId: 'av', clientId: null },
+  { key: 'ebw:house', label: 'Events by Water', kind: 'brand', tenantId: 'ebw', clientId: null },
+  { key: 'hh:house', label: 'Hunter Honey', kind: 'brand', tenantId: 'hh', clientId: null }
+];
+
+/** The customers the cockpit groups by: the 3 brands + every active client account. */
+export async function listCockpitCustomers(): Promise<CockpitCustomer[]> {
+  const db = getAvDb();
+  const [rows] = await db.execute<(RowDataPacket & { client_id: number; client_name: string })[]>(
+    `SELECT client_id, client_name FROM clients WHERE archived_at IS NULL ORDER BY client_name ASC LIMIT 500`
+  );
+  const clients: CockpitCustomer[] = rows.map((r) => ({
+    key: lineOwnerKey('av', r.client_id),
+    label: r.client_name || `Client #${r.client_id}`,
+    kind: 'client',
+    tenantId: 'av',
+    clientId: r.client_id
+  }));
+  return [...BRAND_CUSTOMERS, ...clients];
+}
+
+/** Every narrative line across the brands (house + client-owned), for the cockpit
+ *  to group by owner. Includes inactive so the parking lot shows. */
+export async function listLinesForCockpit(): Promise<NarrativeLane[]> {
+  const db = getAvDb();
+  const [rows] = await db.execute<LaneDbRow[]>(
+    `SELECT ${LANE_COLS} FROM narrative_lanes
+      WHERE tenant_id IN ('av','ebw','hh') AND archived_at IS NULL
+      ORDER BY sort_order ASC, name ASC`
+  );
+  return rows.map(mapLane);
 }
 
 export interface LineCommercial {
