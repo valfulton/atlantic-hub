@@ -43,6 +43,8 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
   const [err, setErr] = useState<string | null>(null);
   const [when, setWhen] = useState('');
   const [rescheduling, setRescheduling] = useState(false);
+  const [editingBody, setEditingBody] = useState(false);
+  const [bodyDraft, setBodyDraft] = useState(item.bodyText ?? '');
 
   async function reschedule() {
     if (item.outboxId == null || !when) return;
@@ -57,6 +59,21 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
       else setErr(j.error || 'Could not reschedule.');
     } catch { setErr('Could not reschedule.'); }
     finally { setRescheduling(false); }
+  }
+
+  async function saveBody() {
+    if (item.outboxId == null) return;
+    setRescheduling(false);
+    setErr(null); setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/social/publish/${item.outboxId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bodyText: bodyDraft })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.ok) { setMsg('Copy saved.'); setEditingBody(false); router.refresh(); }
+      else setErr(j.error || 'Could not save copy.');
+    } catch { setErr('Could not save copy.'); }
   }
 
   const s = STATUS_STYLE[item.status];
@@ -204,9 +221,30 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
               </div>
             )}
 
-            <div className="rounded-lg px-3 py-2 mb-3 whitespace-pre-wrap text-[14px]" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', color: '#e5e7eb', maxHeight: 280, overflowY: 'auto' }}>
-              {item.bodyText?.trim() || <span className="text-muted">No copy on this post.</span>}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Post copy</span>
+              {!editingBody ? (
+                <button type="button" onClick={() => { setBodyDraft(item.bodyText ?? ''); setEditingBody(true); }} className="text-xs text-brand hover:underline">Edit</button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => void saveBody()} className="text-xs font-medium" style={{ color: '#6ee7b7' }}>Save</button>
+                  <button type="button" onClick={() => setEditingBody(false)} className="text-xs text-muted hover:text-ink">Cancel</button>
+                </div>
+              )}
             </div>
+            {editingBody ? (
+              <textarea
+                value={bodyDraft}
+                onChange={(e) => setBodyDraft(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 mb-3 text-[14px]"
+                style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.16)', color: '#e5e7eb', minHeight: 140 }}
+                aria-label="Edit post copy"
+              />
+            ) : (
+              <div className="rounded-lg px-3 py-2 mb-3 whitespace-pre-wrap text-[14px]" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', color: '#e5e7eb', maxHeight: 280, overflowY: 'auto' }}>
+                {item.bodyText?.trim() || <span className="text-muted">No copy on this post.</span>}
+              </div>
+            )}
 
             {item.mediaUrl && (
               <div className="mb-3">

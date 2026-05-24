@@ -68,21 +68,41 @@ export async function PATCH(req: NextRequest, { params }: { params: { outbox_id:
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
-  const raw = typeof body.scheduledFor === 'string' ? body.scheduledFor : '';
-  const d = raw ? new Date(raw) : null;
-  if (!d || Number.isNaN(d.getTime())) {
-    return NextResponse.json({ error: 'a valid scheduledFor datetime is required' }, { status: 400 });
+  // Accept a reschedule (scheduledFor) and/or an edit to the post copy (bodyText).
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+
+  if (body.scheduledFor !== undefined) {
+    const raw = typeof body.scheduledFor === 'string' ? body.scheduledFor : '';
+    const d = raw ? new Date(raw) : null;
+    if (!d || Number.isNaN(d.getTime())) {
+      return NextResponse.json({ error: 'invalid scheduledFor datetime' }, { status: 400 });
+    }
+    sets.push('scheduled_for = ?', "status = 'scheduled'");
+    vals.push(d.toISOString().slice(0, 19).replace('T', ' '));
   }
-  const mysqlUtc = d.toISOString().slice(0, 19).replace('T', ' ');
+
+  if (body.bodyText !== undefined) {
+    if (typeof body.bodyText !== 'string') {
+      return NextResponse.json({ error: 'bodyText must be a string' }, { status: 400 });
+    }
+    sets.push('body_text = ?');
+    vals.push(body.bodyText.slice(0, 20000));
+  }
+
+  if (sets.length === 0) {
+    return NextResponse.json({ error: 'nothing to update (send scheduledFor and/or bodyText)' }, { status: 400 });
+  }
+
   try {
     const db = getAvDb();
+    vals.push(outboxId);
     const [res] = await db.execute<ResultSetHeader>(
-      `UPDATE social_outbox
-          SET scheduled_for = ?, status = 'scheduled', updated_at = NOW()
+      `UPDATE social_outbox SET ${sets.join(', ')}, updated_at = NOW()
         WHERE id = ? AND archived_at IS NULL AND status IN ('draft','scheduled','failed')`,
-      [mysqlUtc, outboxId]
+      vals
     );
-    return NextResponse.json({ ok: true, rescheduled: res.affectedRows, scheduledFor: d.toISOString() });
+    return NextResponse.json({ ok: true, updated: res.affectedRows });
   } catch (err) {
     console.error('[social:publish:patch]', (err as Error).message);
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
