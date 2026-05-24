@@ -135,6 +135,30 @@ export async function saveClientIcp(clientId: number, icp: ClientIcp, userId?: n
   );
 }
 
+/**
+ * Build a STARTER ICP from a client's intake submission so their discovery
+ * panel is pre-filled the first time they open it (rather than blank). We map
+ * what intake captured -> ICP: industry -> industries, message/challenge ->
+ * notes. Locations aren't captured at intake, so the client adds those.
+ * Returned as a suggestion; it's only persisted when they first run discovery.
+ */
+export function suggestIcpFromIntake(raw: unknown): ClientIcp {
+  let p: Record<string, unknown> | null = null;
+  try {
+    p = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown> | null;
+  } catch {
+    p = null;
+  }
+  if (!p || typeof p !== 'object') return { ...EMPTY_ICP };
+  const industries: string[] = [];
+  if (typeof p.industry === 'string' && p.industry.trim()) industries.push(p.industry.trim());
+  const note =
+    (typeof p.message === 'string' && p.message.trim()) ||
+    (typeof p.challenge === 'string' && p.challenge.trim()) ||
+    '';
+  return { ...EMPTY_ICP, industries, description: note ? note.slice(0, 2000) : '' };
+}
+
 /** Does this ICP have enough to run a discovery search? */
 export function hasUsableIcp(icp: ClientIcp): boolean {
   return (

@@ -15,6 +15,7 @@ const HH_NAV = [
 
 const AV_NAV = [
   { href: '/admin/av', label: 'Atlantic & Vine', section: 'tenant' as const },
+  { href: '/admin/av/clients', label: 'Clients', section: 'sub' as const },
   { href: '/admin/av/discover', label: 'Discover leads', section: 'sub' as const },
   { href: '/admin/av/import', label: 'Import CSV', section: 'sub' as const },
   { href: '/admin/av/outreach', label: 'Outreach', section: 'sub' as const },

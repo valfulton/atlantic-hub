@@ -22,7 +22,8 @@ import {
   saveClientIcp,
   normalizeIcp,
   hasUsableIcp,
-  icpToApolloFilters
+  icpToApolloFilters,
+  suggestIcpFromIntake
 } from '@/lib/client/icp';
 import { runDiscoveryBatch } from '@/lib/apollo/discoverer';
 import { runPlacesDiscoveryBatch } from '@/lib/google_places/discoverer';
@@ -84,7 +85,25 @@ export async function GET(req: NextRequest) {
   if ('error' in r) return r.error;
   const { user, clientId } = r;
   try {
-    const [icp, used] = await Promise.all([getClientIcp(clientId), monthlyUsage(clientId)]);
+    let icp = await getClientIcp(clientId);
+    const used = await monthlyUsage(clientId);
+
+    // First time (no saved ICP yet): pre-fill from their intake submission so
+    // the panel isn't blank — clients already told us their industry at intake.
+    if (!hasUsableIcp(icp) && !icp.description) {
+      try {
+        const db = getAvDb();
+        const [rows] = await db.execute<(RowDataPacket & { intake_payload: unknown })[]>(
+          `SELECT intake_payload FROM client_users WHERE client_user_id = ? LIMIT 1`,
+          [user.client_user_id]
+        );
+        const suggested = suggestIcpFromIntake(rows[0]?.intake_payload);
+        if (hasUsableIcp(suggested) || suggested.description) icp = suggested;
+      } catch {
+        /* non-fatal: leave the empty ICP */
+      }
+    }
+
     return NextResponse.json({
       icp,
       tier: user.tier,
