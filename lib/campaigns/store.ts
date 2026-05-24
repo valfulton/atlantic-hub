@@ -634,15 +634,17 @@ export async function listLineCommercials(lineId: number, limit = 24): Promise<L
     id: number; asset_type: string; branded_status: string | null; campaign_id: number | null;
     campaign_name: string | null; company: string | null; audit_id: string | null; created_at: string;
   })[]>(
+    // A commercial belongs to a line either DIRECTLY (line-born: narrative_line_id)
+    // or THROUGH a campaign in that line (campaign.lane_id). Match both.
     `SELECT g.id, g.asset_type, g.branded_status, g.campaign_id,
             c.name AS campaign_name, l.company, l.audit_id, g.created_at
        FROM grok_imagine_assets g
-       JOIN campaigns c ON c.id = g.campaign_id
+       LEFT JOIN campaigns c ON c.id = g.campaign_id
        LEFT JOIN leads l ON l.id = g.lead_id
-      WHERE c.lane_id = ? AND g.archived_at IS NULL
+      WHERE g.archived_at IS NULL AND (g.narrative_line_id = ? OR c.lane_id = ?)
       ORDER BY g.id DESC
       LIMIT ${lim}`,
-    [lineId]
+    [lineId, lineId]
   );
   return rows.map((r) => ({
     id: r.id,

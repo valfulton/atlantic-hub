@@ -102,11 +102,6 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const setPromptText = useCallback((id: number, text: string) =>
     setPromptDraft((p) => ({ ...p, [id]: { assetType: p[id]?.assetType ?? 'image', duration: p[id]?.duration ?? '6', text, loading: false } })), []);
 
-  const [newCustomerKey, setNewCustomerKey] = useState(customers[0]?.key ?? 'av:house');
-  const [newName, setNewName] = useState('');
-  const [newThesis, setNewThesis] = useState('');
-  const [adding, setAdding] = useState(false);
-
   const loadLineData = useCallback(async (id: number) => {
     try {
       const [e, c] = await Promise.all([
@@ -117,6 +112,34 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
       if (c?.commercials) setCommercials((m) => ({ ...m, [id]: c.commercials }));
     } catch { /* ignore */ }
   }, []);
+
+  const [genStatus, setGenStatus] = useState<Record<number, { loading: boolean; msg: string | null }>>({});
+  const generateCommercial = useCallback(async (id: number) => {
+    const pd = promptDraft[id];
+    if (!pd?.text?.trim()) return;
+    setGenStatus((s) => ({ ...s, [id]: { loading: true, msg: null } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${id}/commercial/generate`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetType: pd.assetType, prompt: pd.text, durationSeconds: pd.assetType === 'video' ? (Number(pd.duration) || 6) : undefined })
+      });
+      const j = await res.json();
+      if (res.ok) {
+        const isVideo = j.asset?.assetType === 'video';
+        setGenStatus((s) => ({ ...s, [id]: { loading: false, msg: isVideo ? 'Video started — it will appear below once rendering finishes (refresh in a bit).' : 'Image generated — see below.' } }));
+        loadLineData(id);
+      } else {
+        setGenStatus((s) => ({ ...s, [id]: { loading: false, msg: j.detail || j.error || 'Generation failed.' } }));
+      }
+    } catch {
+      setGenStatus((s) => ({ ...s, [id]: { loading: false, msg: 'Generation failed.' } }));
+    }
+  }, [promptDraft, loadLineData]);
+
+  const [newCustomerKey, setNewCustomerKey] = useState(customers[0]?.key ?? 'av:house');
+  const [newName, setNewName] = useState('');
+  const [newThesis, setNewThesis] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const toggleLine = useCallback((l: Line) => {
     setNotice(null); setPullMsg(null);
@@ -213,7 +236,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial };
 
   return (
     <div>
@@ -296,6 +319,8 @@ interface EditorProps {
   promptDraft: Record<number, { assetType: 'image' | 'video'; duration: string; text: string; loading: boolean }>;
   draftCommercialPrompt: (id: number, assetType: 'image' | 'video', duration: string) => void;
   setPromptText: (id: number, text: string) => void;
+  genStatus: Record<number, { loading: boolean; msg: string | null }>;
+  generateCommercial: (id: number) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -323,12 +348,13 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, changeState, eng, commercials, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
   const comms = commercials[id] ?? [];
   const pd = promptDraft[id];
+  const gen = genStatus[id];
 
   const field = (label: string, key: keyof Line, placeholder: string) => (
     <div>
@@ -439,8 +465,16 @@ function LineEditor({ line, draft, patchField, saveLine, saving, changeState, en
           />
         )}
         {pd?.text && (
-          <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
-            Refine this prompt until it&apos;s right. One-click generation (image now, video with a hard cap) hooks up here next — your edited prompt is what it&apos;ll use.
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => generateCommercial(id)} disabled={gen?.loading || !pd.text.trim()} style={{ ...btnPrimary, opacity: gen?.loading || !pd.text.trim() ? 0.5 : 1 }}>
+                {gen?.loading ? 'Generating…' : `Generate ${pd.assetType}`}
+              </button>
+              <span style={{ fontSize: 11, color: '#64748b' }}>
+                Uses exactly the prompt above. {pd.assetType === 'video' ? 'Video is the expensive call — it starts and renders in the background.' : 'Image generates right away.'}
+              </span>
+            </div>
+            {gen?.msg && <div style={{ fontSize: 12, color: gen.msg.toLowerCase().includes('fail') ? '#fca5a5' : '#6ee7b7', marginTop: 8 }}>{gen.msg}</div>}
           </div>
         )}
       </div>

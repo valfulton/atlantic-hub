@@ -140,7 +140,7 @@ export interface GenerateCommercialOptions {
 
 export interface GeneratedCommercial {
   assetId: number;
-  leadId: number;
+  leadId: number | null;
   assetType: AssetType;
   model: string;
   storageUrl: string | null;
@@ -384,6 +384,114 @@ export async function buildLineCommercialPrompt(
   return { prompt, lineName: ctx.name };
 }
 
+/**
+ * Generate a commercial FROM A NARRATIVE LINE — no lead required.
+ *
+ * Self-contained on purpose: it reuses the low-level helpers (insert / log /
+ * provider) but does NOT touch the lead generation path, so the working
+ * per-lead engine is unaffected. The operator's EDITED prompt is what's used
+ * (customPrompt); if none is supplied we fall back to the line-built prompt.
+ * Image is synchronous; video starts async (awaitCompletion=false default) so
+ * the request can't time out and the existing GET-asset poller finishes it.
+ * The asset is tagged with narrative_line_id and has no lead_id.
+ */
+export async function generateLineCommercial(
+  lineId: number,
+  options: {
+    assetType: AssetType;
+    customPrompt?: string;
+    imageModel?: GrokImageModel;
+    videoModel?: GrokVideoModel;
+    durationSeconds?: number;
+    resolution?: GrokResolutionTier;
+    aspectRatio?: GrokAspectRatio;
+    logoSpace?: LogoSpace;
+    actorUserId?: number | null;
+    awaitCompletion?: boolean;
+  }
+): Promise<GeneratedCommercial> {
+  const actorUserId = options.actorUserId ?? null;
+  const resolution: GrokResolutionTier = options.resolution ?? '1k';
+  const aspectRatio: GrokAspectRatio = options.aspectRatio ?? '16:9';
+
+  // Resolve the prompt: the operator's edited text wins; else build from the line.
+  let prompt = options.customPrompt?.trim() || '';
+  if (!prompt) {
+    const built = await buildLineCommercialPrompt(lineId, { assetType: options.assetType, durationSeconds: options.durationSeconds, logoSpace: options.logoSpace });
+    if (!built) throw new Error(`narrative line ${lineId} not found`);
+    prompt = built.prompt;
+  }
+
+  const provider = getVideoProvider();
+  const startMs = Date.now();
+  let assetId: number | null = null;
+
+  if (options.assetType === 'image') {
+    const model: GrokImageModel = options.imageModel ?? 'grok-imagine-image-quality';
+    try {
+      const results = await provider.generateImage({ prompt, model, resolution, aspectRatio, n: 1 });
+      const result = results[0];
+      assetId = await insertAssetRow({
+        leadId: null, narrativeLineId: lineId, assetType: 'image', model: result.model, prompt,
+        enhancedPrompt: result.revisedPrompt ?? null, resolutionTier: resolution, aspectRatio,
+        durationSeconds: null, generationStatus: 'succeeded', costUsd: result.costUsd,
+        providerRequestId: null, storageUrl: result.imageUrl, errorMessage: null, createdByUserId: actorUserId
+      });
+      await logGrokCall({ endpoint: '/v1/images/generations', leadId: null, assetId, model: result.model, costUsd: result.costUsd, latencyMs: Date.now() - startMs, outcome: 'success', errorMessage: null, actorUserId });
+      await tryLogEvent({ eventType: 'commercial.generated', leadId: null, userId: actorUserId, status: 'success', payload: { asset_id: assetId, asset_type: 'image', narrative_line_id: lineId, model: result.model, cost_usd: result.costUsd } });
+      return { assetId, leadId: null, assetType: 'image', model: result.model, storageUrl: result.imageUrl, costUsd: result.costUsd, prompt, generationStatus: 'succeeded', providerRequestId: null, durationSeconds: null, resolutionTier: resolution, aspectRatio, errorMessage: null };
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (assetId === null) {
+        try {
+          assetId = await insertAssetRow({ leadId: null, narrativeLineId: lineId, assetType: 'image', model, prompt, enhancedPrompt: null, resolutionTier: resolution, aspectRatio, durationSeconds: null, generationStatus: 'failed', costUsd: null, providerRequestId: null, storageUrl: null, errorMessage: msg.slice(0, 500), createdByUserId: actorUserId });
+        } catch { /* swallow */ }
+      }
+      await logGrokCall({ endpoint: '/v1/images/generations', leadId: null, assetId, model, costUsd: null, latencyMs: Date.now() - startMs, outcome: err instanceof VideoProviderError && err.status === 429 ? 'rate_limited' : 'error', errorMessage: msg, actorUserId });
+      throw err;
+    }
+  }
+
+  // video
+  const model: GrokVideoModel = options.videoModel ?? 'grok-imagine-video';
+  const duration = Math.max(1, Math.min(15, Math.round(options.durationSeconds ?? 6)));
+  let providerRequestId: string | null = null;
+  let pendingCost: number | null = provider.estimateVideoCostUsd(duration);
+  try {
+    const startResult = await provider.startVideo({ prompt, model, durationSeconds: duration, resolution, aspectRatio });
+    providerRequestId = startResult.jobId;
+    pendingCost = startResult.costUsd;
+    assetId = await insertAssetRow({
+      leadId: null, narrativeLineId: lineId, assetType: 'video', model: startResult.model, prompt,
+      enhancedPrompt: null, resolutionTier: resolution, aspectRatio, durationSeconds: duration,
+      generationStatus: 'running', costUsd: pendingCost, providerRequestId, storageUrl: null,
+      errorMessage: null, createdByUserId: actorUserId
+    });
+    // Default async: return 'running' immediately; the GET-asset endpoint resumes the poll.
+    if (options.awaitCompletion === false || options.awaitCompletion === undefined) {
+      await tryLogEvent({ eventType: 'commercial.generated', leadId: null, userId: actorUserId, status: 'pending', payload: { asset_id: assetId, asset_type: 'video', narrative_line_id: lineId, provider_request_id: providerRequestId, duration_seconds: duration, async: true } });
+      return { assetId, leadId: null, assetType: 'video', model: startResult.model, storageUrl: null, costUsd: pendingCost ?? 0, prompt, generationStatus: 'running', providerRequestId, durationSeconds: duration, resolutionTier: resolution, aspectRatio, errorMessage: null };
+    }
+    const completed = await provider.awaitVideo(providerRequestId, { pollTimeoutMs: 50_000, pollIntervalMs: 3000 });
+    await patchAssetWithResult({ assetId, storageUrl: completed.videoUrl, durationSeconds: completed.durationSeconds || duration, costUsd: completed.costUsd });
+    await tryLogEvent({ eventType: 'commercial.generated', leadId: null, userId: actorUserId, status: 'success', payload: { asset_id: assetId, asset_type: 'video', narrative_line_id: lineId, cost_usd: completed.costUsd } });
+    return { assetId, leadId: null, assetType: 'video', model: completed.model, storageUrl: completed.videoUrl, costUsd: completed.costUsd, prompt, generationStatus: 'succeeded', providerRequestId, durationSeconds: completed.durationSeconds || duration, resolutionTier: resolution, aspectRatio, errorMessage: null };
+  } catch (err) {
+    const msg = (err as Error).message;
+    // Hit our poll budget but the job is still running: leave it 'running' to be resumed.
+    if (err instanceof VideoTimeoutError && assetId !== null) {
+      return { assetId, leadId: null, assetType: 'video', model, storageUrl: null, costUsd: pendingCost ?? 0, prompt, generationStatus: 'running', providerRequestId, durationSeconds: duration, resolutionTier: resolution, aspectRatio, errorMessage: null };
+    }
+    if (assetId === null) {
+      try {
+        assetId = await insertAssetRow({ leadId: null, narrativeLineId: lineId, assetType: 'video', model, prompt, enhancedPrompt: null, resolutionTier: resolution, aspectRatio, durationSeconds: duration, generationStatus: 'failed', costUsd: null, providerRequestId, storageUrl: null, errorMessage: msg.slice(0, 500), createdByUserId: actorUserId });
+      } catch { /* swallow */ }
+    }
+    await logGrokCall({ endpoint: '/v1/videos/generations', leadId: null, assetId, model, costUsd: null, latencyMs: Date.now() - startMs, outcome: err instanceof VideoProviderError && err.status === 429 ? 'rate_limited' : 'error', errorMessage: msg, actorUserId });
+    throw err;
+  }
+}
+
 // ---------------------------------------------------------------------
 // Best-effort event logging -- never throws
 // ---------------------------------------------------------------------
@@ -433,7 +541,8 @@ async function loadLeadContext(leadId: number): Promise<LeadContextRow | null> {
 }
 
 async function insertAssetRow(args: {
-  leadId: number;
+  leadId: number | null;
+  narrativeLineId?: number | null;
   assetType: AssetType;
   model: string;
   prompt: string;
@@ -451,15 +560,16 @@ async function insertAssetRow(args: {
   const db = getAvDb();
   const [result] = await db.execute<ResultSetHeader>(
     `INSERT INTO grok_imagine_assets
-       (lead_id, asset_type, model, prompt, enhanced_prompt, resolution_tier,
+       (lead_id, narrative_line_id, asset_type, model, prompt, enhanced_prompt, resolution_tier,
         aspect_ratio, duration_seconds, generation_status, cost_usd,
         provider_request_id, storage_url, error_message, created_by_user_id,
         completed_at)
      VALUES
-       (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         CASE WHEN ? IN ('succeeded','failed') THEN NOW() ELSE NULL END)`,
     [
       args.leadId,
+      args.narrativeLineId ?? null,
       args.assetType,
       args.model,
       args.prompt,
