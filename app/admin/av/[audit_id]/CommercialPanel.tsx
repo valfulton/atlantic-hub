@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { BrandKitPanel } from './BrandKitPanel';
+import { fmtDateTime } from '@/lib/format/datetime';
 
 /**
  * CommercialPanel
@@ -621,7 +622,7 @@ export function CommercialPanel({
             >
               <option value="">Pick a generated post...</option>
               {drafts.map((d) => {
-                const when = new Date(d.createdAt).toLocaleString();
+                const when = fmtDateTime(d.createdAt);
                 const preview = d.body.replace(/\s+/g, ' ').slice(0, 80);
                 const tag = d.status === 'used_for_commercial' ? ' ✓ used' : '';
                 return (
@@ -971,7 +972,7 @@ function AssetCard({
           <span>{friendlyModelLabel(asset.model)}</span>
           <span>{asset.resolutionTier.toUpperCase()}</span>
           {asset.aspectRatio && <span>{asset.aspectRatio}</span>}
-          <span>{new Date(asset.createdAt).toLocaleString()}</span>
+          <span suppressHydrationWarning>{new Date(asset.createdAt).toLocaleString()}</span>
         </div>
 
         <div className="flex items-center gap-2 mt-1 flex-wrap">
