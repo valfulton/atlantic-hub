@@ -25,6 +25,13 @@ const STATUS_STYLE: Record<TimelineItemStatus, { label: string; bg: string; fg: 
 
 const REVIEWABLE: TimelineItemStatus[] = ['draft', 'scheduled', 'failed', 'publishing'];
 
+/** Brand accent by tenant — at-a-glance "which brand is this post for". */
+const BRAND_ACCENT: Record<string, string> = {
+  av: '#FFC73D',   // Atlantic & Vine — gold
+  ebw: '#2DD4BF',  // Events by Water — teal
+  hh: '#F4A340'    // Hunter Honey — honey-amber
+};
+
 export function TimelineEntry({ item }: { item: TimelineItem }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -34,12 +41,21 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
   const [err, setErr] = useState<string | null>(null);
 
   const s = STATUS_STYLE[item.status];
+  const brand = BRAND_ACCENT[item.tenant] ?? '#94a3b8';
   const chip = (
     <div
       className="rounded px-1.5 py-1 text-[11px] leading-tight truncate"
-      style={{ background: s.bg, color: s.fg }}
-      title={`${item.title} - ${s.label}`}
+      style={{ background: s.bg, color: s.fg, borderLeft: `3px solid ${brand}` }}
+      title={`${item.providerLabel ? item.providerLabel + ' · ' : ''}${item.title} - ${s.label}`}
     >
+      {item.providerLabel && (
+        <span
+          className="inline-block align-middle mr-1 px-1 rounded-sm text-[9px] font-bold uppercase tracking-wide"
+          style={{ background: 'rgba(255,255,255,0.10)', color: brand }}
+        >
+          {item.providerLabel}
+        </span>
+      )}
       <span className="font-medium">{s.label}</span> <span style={{ opacity: 0.85 }}>{item.title}</span>
     </div>
   );
