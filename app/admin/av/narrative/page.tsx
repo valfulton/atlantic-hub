@@ -1,29 +1,31 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { listLanes, countActiveLines, MAX_ACTIVE_LINES, type NarrativeLane } from '@/lib/campaigns/store';
+import {
+  listLinesForCockpit, listCockpitCustomers, lineOwnerKey, MAX_ACTIVE_LINES, type NarrativeLane
+} from '@/lib/campaigns/store';
 import { NarrativeCockpit } from './NarrativeCockpit';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * /admin/av/narrative -- the Narrative Lines cockpit.
+ * /admin/av/narrative -- the Narrative Lines cockpit, scoped BY CUSTOMER.
  *
  * A narrative line is a strategic MARKET THESIS (not a content category) that
- * steers every channel. Here you write the thesis + intelligence, move a line
- * through its lifecycle (candidate -> active -> reinforcing -> retiring) under a
- * hard 2-4 active cap, and capture engagement so the line learns. Owner + staff.
+ * steers every channel. Lines are grouped under the customer that owns them —
+ * your brands (Atlantic & Vine, Events by Water, Hunter Honey) and each client
+ * account — so you can peek into any customer and steer their story. The 2-4
+ * active cap is enforced PER customer. Owner + staff only.
  */
 export default async function NarrativePage() {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
   if (role === 'client_user') redirect('/admin');
 
+  let customers: Awaited<ReturnType<typeof listCockpitCustomers>> = [];
   let lines: NarrativeLane[] = [];
-  let activeCount = 0;
   try {
-    lines = await listLanes('av', { includeInactive: true });
-    activeCount = await countActiveLines('av');
+    [customers, lines] = await Promise.all([listCockpitCustomers(), listLinesForCockpit()]);
   } catch {
-    /* render empty; the cockpit will show a load error path */
+    /* render empty; the cockpit shows a graceful empty state */
   }
 
   return (
@@ -43,14 +45,13 @@ export default async function NarrativePage() {
         </span>
       </h1>
       <p className="text-sm text-muted mb-6 max-w-2xl">
-        Each line is a believable <em>market thesis</em> that steers your PR, social, blog, and
-        commercials — so everything advances one story instead of drifting. Keep{' '}
-        <strong>{MAX_ACTIVE_LINES} active at most</strong>; park the rest as candidates. Change a line and
-        every new piece pivots with it.
+        Each line is a believable <em>market thesis</em> that steers a customer&apos;s PR, social, blog, and
+        commercials. Grouped by customer — your brands and each client. Keep{' '}
+        <strong>{MAX_ACTIVE_LINES} active at most per customer</strong>; park the rest as candidates.
       </p>
       <NarrativeCockpit
+        customers={customers}
         initialLines={lines.map(toClient)}
-        activeCount={activeCount}
         maxActive={MAX_ACTIVE_LINES}
       />
     </div>
@@ -60,6 +61,9 @@ export default async function NarrativePage() {
 function toClient(l: NarrativeLane) {
   return {
     id: l.id,
+    ownerKey: lineOwnerKey(l.tenantId, l.clientId),
+    tenantId: l.tenantId,
+    clientId: l.clientId,
     name: l.name,
     state: l.state,
     accent: l.accent,
