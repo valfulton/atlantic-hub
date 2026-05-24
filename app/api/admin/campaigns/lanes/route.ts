@@ -9,9 +9,32 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { listLanes, createLane, updateLane } from '@/lib/campaigns/store';
+import { listLanes, createLane, updateLane, setLineState, type NarrativeLineState } from '@/lib/campaigns/store';
 
 export const runtime = 'nodejs';
+
+const VALID_STATES: NarrativeLineState[] = ['candidate', 'active', 'reinforcing', 'retiring'];
+
+/** Pull the narrative-line intelligence fields out of a request body.
+ *  A key is only included when present, so PATCH stays a partial update. */
+function lineFieldsFromBody(body: Record<string, unknown>) {
+  const str = (k: string): string | null | undefined =>
+    body[k] === undefined ? undefined : (typeof body[k] === 'string' ? (body[k] as string) : null);
+  const strList = (k: string): string[] | undefined =>
+    body[k] === undefined ? undefined : (Array.isArray(body[k]) ? (body[k] as unknown[]).map((x) => String(x)) : []);
+  return {
+    thesis: str('thesis'),
+    audience: str('audience'),
+    emotionalDriver: str('emotionalDriver'),
+    authorityAngle: str('authorityAngle'),
+    seasonality: str('seasonality'),
+    conversionSignal: str('conversionSignal'),
+    proofPoints: strList('proofPoints'),
+    bestChannels: strList('bestChannels'),
+    doSay: strList('doSay'),
+    dontSay: strList('dontSay')
+  };
+}
 
 export async function GET(req: NextRequest) {
   const guard = await guardAdminRequest(req, { targetResource: '/api/admin/campaigns/lanes:GET', tenantId: 'av' });
@@ -46,7 +69,11 @@ export async function POST(req: NextRequest) {
       name,
       description: typeof body.description === 'string' ? body.description : null,
       accent: typeof body.accent === 'string' ? body.accent : null,
-      cadenceHint: typeof body.cadenceHint === 'string' ? body.cadenceHint : null
+      cadenceHint: typeof body.cadenceHint === 'string' ? body.cadenceHint : null,
+      // New lines default to 'candidate' in the store unless an explicit state is sent.
+      state: typeof body.state === 'string' && VALID_STATES.includes(body.state as NarrativeLineState)
+        ? (body.state as NarrativeLineState) : undefined,
+      ...lineFieldsFromBody(body)
     });
     return NextResponse.json({ ok: true, id });
   } catch (err) {
@@ -67,13 +94,26 @@ export async function PATCH(req: NextRequest) {
   const id = typeof body.id === 'number' ? body.id : Number.parseInt(String(body.id), 10);
   if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
   try {
+    // A lifecycle change goes through setLineState, which enforces the 2-4
+    // active cap. If it refuses (cap hit), surface the friendly message and stop.
+    if (typeof body.state === 'string') {
+      if (!VALID_STATES.includes(body.state as NarrativeLineState)) {
+        return NextResponse.json({ error: 'invalid state' }, { status: 400 });
+      }
+      const tenant = typeof body.tenant === 'string' ? body.tenant : 'av';
+      const result = await setLineState(id, body.state as NarrativeLineState, tenant);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.message, activeCount: result.activeCount }, { status: 409 });
+      }
+    }
     await updateLane(id, {
       name: typeof body.name === 'string' ? body.name : undefined,
       description: body.description === undefined ? undefined : (typeof body.description === 'string' ? body.description : null),
       accent: typeof body.accent === 'string' ? body.accent : undefined,
       cadenceHint: typeof body.cadenceHint === 'string' ? body.cadenceHint : undefined,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
-      sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined
+      sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
+      ...lineFieldsFromBody(body)
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

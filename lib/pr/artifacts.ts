@@ -105,6 +105,10 @@ export async function draftArtifact(args: {
   leadId: number | null;
   /** Optional operator-supplied topic/angle. Keeps "no typing" optional. */
   topic?: string | null;
+  /** Optional narrative-line context (from buildNarrativeContext().promptBlock).
+   *  When present, the piece MUST advance this market thesis. This is how a
+   *  narrative line steers generation across channels. */
+  narrativeContext?: string | null;
   /** Force a voice; otherwise resolved from artifact type + lead-vs-client. */
   voiceMode?: PitchMode;
 }): Promise<DraftedArtifactResult> {
@@ -130,7 +134,8 @@ export async function draftArtifact(args: {
     artifactType: args.artifactType,
     intel,
     tenantId,
-    topic: args.topic ?? null
+    topic: args.topic ?? null,
+    narrativeContext: args.narrativeContext ?? null
   });
 
   let completion;
@@ -335,11 +340,17 @@ function buildArtifactUserPrompt(args: {
   intel: ClientIntelligence;
   tenantId: string;
   topic: string | null;
+  narrativeContext?: string | null;
 }): string {
   const parts: string[] = [];
   parts.push(`ARTIFACT_TYPE: ${args.artifactType}`);
   if (args.artifactType === 'own_brand_post') {
     parts.push(`OWN_BRAND_TENANT: ${args.tenantId} (this content is published by this brand on its own channel)`);
+  }
+  // Narrative line comes FIRST and is binding: the piece must advance the thesis.
+  if (args.narrativeContext && args.narrativeContext.trim()) {
+    parts.push(args.narrativeContext.trim());
+    parts.push(`(The narrative line above is binding. Advance this thesis; do not drift off it.)`);
   }
   if (args.topic && args.topic.trim()) {
     parts.push(`OPERATOR_TOPIC (optional steer -- prioritize this angle if present): ${args.topic.trim().slice(0, 600)}`);

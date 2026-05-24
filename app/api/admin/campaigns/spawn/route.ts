@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
-import { createCampaign } from '@/lib/campaigns/store';
+import { createCampaign, buildNarrativeContext } from '@/lib/campaigns/store';
 import { draftArtifact } from '@/lib/pr/artifacts';
 import { DEFAULT_TENANT, CONTENT_EVENTS, type ArtifactType, type PitchMode } from '@/lib/pr/types';
 import type { ResultSetHeader } from 'mysql2';
@@ -30,6 +30,7 @@ async function draftIntoCampaign(args: {
   topic: string;
   campaignId: number;
   userId: number | null;
+  narrativeContext?: string | null;
 }): Promise<number | null> {
   try {
     const drafted = await draftArtifact({
@@ -37,6 +38,7 @@ async function draftIntoCampaign(args: {
       tenantId: args.tenantId,
       leadId: null, // A&V's own voice; general, never names a prospect
       topic: args.topic,
+      narrativeContext: args.narrativeContext ?? null,
       voiceMode: 'client_voice' as PitchMode
     });
     const db = getAvDb();
@@ -86,11 +88,16 @@ export async function POST(req: NextRequest) {
   try {
     const campaignId = await createCampaign({ tenantId, laneId, leadId, name, goal, userId: guard.actor.userId });
 
+    // Resolve the campaign's narrative line ONCE (pure data, no API cost) and
+    // hand it to every draft so the blog + social spawn on the same thesis.
+    const narrative = await buildNarrativeContext(laneId);
+    const narrativeBlock = narrative?.promptBlock ?? null;
+
     const blogTopic = `A thought-leadership blog article on: ${topicBase}. Write generally for the audience in Atlantic & Vine's own voice; do NOT name a specific company.`;
     const socialTopic = `A short, engaging own-brand social post on: ${topicBase}. Atlantic & Vine's voice; a hook + one idea + a soft CTA.`;
 
-    const blogId = await draftIntoCampaign({ artifactType: 'blog_article', tenantId, topic: blogTopic, campaignId, userId: guard.actor.userId });
-    const socialId = await draftIntoCampaign({ artifactType: 'own_brand_post', tenantId, topic: socialTopic, campaignId, userId: guard.actor.userId });
+    const blogId = await draftIntoCampaign({ artifactType: 'blog_article', tenantId, topic: blogTopic, campaignId, userId: guard.actor.userId, narrativeContext: narrativeBlock });
+    const socialId = await draftIntoCampaign({ artifactType: 'own_brand_post', tenantId, topic: socialTopic, campaignId, userId: guard.actor.userId, narrativeContext: narrativeBlock });
 
     const drafted = [blogId, socialId].filter((x) => x != null).length;
 
