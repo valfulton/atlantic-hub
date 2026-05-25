@@ -33,6 +33,11 @@ const BRAND_ACCENT: Record<string, string> = {
   ebw: '#2DD4BF',  // Events by Water — teal
   hh: '#F4A340'    // Hunter Honey — honey-amber
 };
+const BRAND_NAME: Record<string, string> = {
+  av: 'Atlantic & Vine',
+  ebw: 'Events by Water',
+  hh: 'Hunter Honey'
+};
 
 export function TimelineEntry({ item }: { item: TimelineItem }) {
   const router = useRouter();
@@ -46,6 +51,7 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
   const [rescheduling, setRescheduling] = useState(false);
   const [editingBody, setEditingBody] = useState(false);
   const [bodyDraft, setBodyDraft] = useState(item.bodyText ?? '');
+  const [confirming, setConfirming] = useState(false); // approval gate before go-live
 
   async function reschedule() {
     if (item.outboxId == null || !when) return;
@@ -179,7 +185,7 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
         )}
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => { setOpen(true); setConfirming(false); }}
           className="block w-full text-left focus-visible:ring-2 focus-visible:ring-brand rounded"
           aria-label={`Review ${item.title}`}
         >
@@ -191,7 +197,7 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setOpen(false)}
+          onClick={() => { setOpen(false); setConfirming(false); }}
           role="dialog"
           aria-modal="true"
         >
@@ -212,7 +218,7 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
                   {item.providerLabel ?? 'Social'} post
                 </span>
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="text-sm text-muted hover:text-ink">
+              <button type="button" onClick={() => { setOpen(false); setConfirming(false); }} className="text-sm text-muted hover:text-ink">
                 Close
               </button>
             </div>
@@ -289,6 +295,16 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
               </button>
             </div>
 
+            {/* Pre-flight: exactly what is about to go live, so publish is a deliberate approval. */}
+            <div className="mb-2 flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: brand, border: `1px solid ${brand}66` }}>
+                {BRAND_NAME[item.tenant] ?? item.tenant}
+              </span>
+              {item.providerLabel && <span className="text-muted">→ {item.providerLabel}</span>}
+              <span style={{ color: item.bodyText?.trim() ? '#6ee7b7' : '#94a3b8' }}>{item.bodyText?.trim() ? '✓ copy' : '• no copy'}</span>
+              <span style={{ color: item.mediaUrl ? '#6ee7b7' : '#94a3b8' }}>{item.mediaUrl ? '✓ commercial' : '• no media'}</span>
+            </div>
+
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
@@ -299,15 +315,40 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
               >
                 {deleting ? 'Deleting…' : 'Delete'}
               </button>
-              <button
-                type="button"
-                onClick={() => void publishNow()}
-                disabled={publishing || deleting}
-                className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
-                style={{ background: 'rgba(16,185,129,0.22)', color: '#34d399', border: '1px solid rgba(16,185,129,0.4)' }}
-              >
-                {publishing ? 'Publishing…' : item.status === 'failed' ? 'Retry publish' : 'Approve & publish'}
-              </button>
+
+              {!confirming ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  disabled={publishing || deleting}
+                  className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                  style={{ background: 'rgba(16,185,129,0.22)', color: '#34d399', border: '1px solid rgba(16,185,129,0.4)' }}
+                >
+                  {item.status === 'failed' ? 'Retry publish' : 'Approve & publish'}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted">Live now on {item.providerLabel ?? 'the connected account'}?</span>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(false)}
+                    disabled={publishing}
+                    className="rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+                    style={{ background: 'rgba(148,163,184,0.12)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.3)' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void publishNow()}
+                    disabled={publishing || deleting}
+                    className="rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand"
+                    style={{ background: '#10b981', color: '#03251b', border: '1px solid rgba(16,185,129,0.6)' }}
+                  >
+                    {publishing ? 'Publishing…' : 'Confirm — go live'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

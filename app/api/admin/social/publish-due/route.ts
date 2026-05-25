@@ -37,6 +37,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { publishOutboxRow } from '@/lib/social/publish';
+import { getPublishingPause } from '@/lib/social/publishing_control';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -83,6 +84,17 @@ export async function POST(req: NextRequest) {
   const triggerSource = cronAuthorized ? 'cron' : 'manual';
   const start = Date.now();
   const db = getAvDb();
+
+  // ---------- Step 0: "stop the presses" global pause ----------
+  // When paused, the publisher does NOTHING: no orphan recovery, no claims, no
+  // posts. Scheduled rows stay untouched and fire on the next run after resume.
+  const pause = await getPublishingPause();
+  if (pause.paused) {
+    return NextResponse.json({
+      ok: true, paused: true, published: 0, failed: 0, due: 0,
+      reason: pause.reason, triggerSource
+    });
+  }
 
   // ---------- Step 1: orphan recovery ----------
   let orphansRequeued = 0;

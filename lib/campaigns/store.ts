@@ -618,6 +618,7 @@ export interface LineCommercial {
   campaignName: string | null;
   company: string | null;
   auditId: string | null;
+  generationStatus: string | null;
   createdAt: string;
 }
 
@@ -632,12 +633,13 @@ export async function listLineCommercials(lineId: number, limit = 24): Promise<L
   const lim = Math.min(Math.max(1, Math.trunc(limit)), 100);
   const [rows] = await db.execute<(RowDataPacket & {
     id: number; asset_type: string; branded_status: string | null; campaign_id: number | null;
-    campaign_name: string | null; company: string | null; audit_id: string | null; created_at: string;
+    campaign_name: string | null; company: string | null; audit_id: string | null;
+    generation_status: string | null; created_at: string;
   })[]>(
     // A commercial belongs to a line either DIRECTLY (line-born: narrative_line_id)
     // or THROUGH a campaign in that line (campaign.lane_id). Match both.
     `SELECT g.id, g.asset_type, g.branded_status, g.campaign_id,
-            c.name AS campaign_name, l.company, l.audit_id, g.created_at
+            c.name AS campaign_name, l.company, l.audit_id, g.generation_status, g.created_at
        FROM grok_imagine_assets g
        LEFT JOIN campaigns c ON c.id = g.campaign_id
        LEFT JOIN leads l ON l.id = g.lead_id
@@ -654,8 +656,33 @@ export async function listLineCommercials(lineId: number, limit = 24): Promise<L
     campaignName: r.campaign_name,
     company: r.company,
     auditId: r.audit_id,
+    generationStatus: r.generation_status,
     createdAt: r.created_at
   }));
+}
+
+/**
+ * IDs of this line's VIDEO assets still 'running' (async render not yet polled
+ * to completion). Line-born commercials have no lead, so the per-lead GET route
+ * never resumes them — the caller uses these ids to resume the poll directly.
+ * Same attribution as listLineCommercials (line-born OR via a campaign in the line).
+ */
+export async function listLineRunningVideoAssetIds(lineId: number): Promise<number[]> {
+  if (!Number.isInteger(lineId) || lineId <= 0) return [];
+  const db = getAvDb();
+  const [rows] = await db.execute<(RowDataPacket & { id: number })[]>(
+    `SELECT g.id
+       FROM grok_imagine_assets g
+       LEFT JOIN campaigns c ON c.id = g.campaign_id
+      WHERE g.archived_at IS NULL
+        AND g.asset_type = 'video'
+        AND g.generation_status = 'running'
+        AND g.provider_request_id IS NOT NULL
+        AND (g.narrative_line_id = ? OR c.lane_id = ?)
+      LIMIT 12`,
+    [lineId, lineId]
+  );
+  return rows.map((r) => r.id);
 }
 
 export async function createCampaign(input: {

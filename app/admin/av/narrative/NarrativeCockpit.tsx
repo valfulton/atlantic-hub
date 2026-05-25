@@ -49,7 +49,13 @@ interface EngagementSummary {
   byChannel: Array<{ channel: string; impressions: number; engagements: number; clicks: number; conversions: number }>;
   recent: Array<{ id: number; channel: string; impressions: number; engagements: number; clicks: number; conversions: number; source: string; createdAt: string }>;
 }
-interface Commercial { id: number; assetType: string; brandedStatus: string | null; campaignName: string | null; company: string | null; }
+interface Commercial { id: number; assetType: string; brandedStatus: string | null; campaignName: string | null; company: string | null; generationStatus: string | null; }
+const GEN_STATUS_LABEL: Record<string, { label: string; fg: string }> = {
+  running: { label: '⏳ Rendering…', fg: '#fcd34d' },
+  queued: { label: '⏳ Queued…', fg: '#fcd34d' },
+  succeeded: { label: '✓ Ready', fg: '#6ee7b7' },
+  failed: { label: '✕ Failed', fg: '#fca5a5' }
+};
 interface LineFit {
   totalLeads: number;
   matchedCount: number;
@@ -776,6 +782,11 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
             {comms.map((c) => (
               <div key={c.id} style={{ border: '1px solid rgba(148,163,184,0.16)', borderRadius: 10, padding: 10, fontSize: 12, color: '#cbd5e1' }}>
                 <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{c.assetType}</div>
+                {c.generationStatus && GEN_STATUS_LABEL[c.generationStatus] && (
+                  <div style={{ color: GEN_STATUS_LABEL[c.generationStatus].fg, fontSize: 11, marginTop: 1 }}>
+                    {GEN_STATUS_LABEL[c.generationStatus].label}
+                  </div>
+                )}
                 {c.campaignName && <div style={{ color: '#94a3b8' }}>{c.campaignName}</div>}
                 {c.company && <div style={{ color: '#64748b' }}>{c.company}</div>}
                 {c.brandedStatus && <div style={{ color: '#6ee7b7', marginTop: 2 }}>{c.brandedStatus}</div>}

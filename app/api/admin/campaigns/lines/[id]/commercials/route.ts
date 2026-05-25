@@ -7,9 +7,11 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { listLineCommercials } from '@/lib/campaigns/store';
+import { listLineCommercials, listLineRunningVideoAssetIds } from '@/lib/campaigns/store';
+import { resumeRunningVideoAsset } from '@/lib/grok/discoverer';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const guard = await guardAdminRequest(req, { targetResource: '/api/admin/campaigns/lines/commercials:GET', tenantId: 'av' });
@@ -18,6 +20,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const lineId = Number.parseInt(params.id, 10);
   if (!Number.isFinite(lineId) || lineId <= 0) return NextResponse.json({ error: 'invalid line id' }, { status: 400 });
   try {
+    // Line-born videos render async and have NO lead, so the per-lead GET route
+    // never resumes them. Poll this line's still-running videos here so they flip
+    // to done/failed when the cockpit opens the line — no cron required.
+    const runningIds = await listLineRunningVideoAssetIds(lineId);
+    if (runningIds.length > 0) {
+      await Promise.allSettled(runningIds.map((id) => resumeRunningVideoAsset(id)));
+    }
     const commercials = await listLineCommercials(lineId);
     return NextResponse.json({ ok: true, commercials });
   } catch (err) {

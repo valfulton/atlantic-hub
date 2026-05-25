@@ -24,6 +24,7 @@ import { logEvent } from '@/lib/events/log';
 import { decryptToken } from '@/lib/social/encrypt';
 import { linkedInUploadMedia, xUploadImage } from '@/lib/social/media';
 import { markKeeper } from '@/lib/storage/provenance';
+import { getPublishingPause } from '@/lib/social/publishing_control';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export interface PublishResult {
@@ -67,6 +68,17 @@ export class OutboxRowNotFoundError extends Error {
  */
 export async function publishOutboxRow(outboxId: number): Promise<PublishResult> {
   const db = getAvDb();
+
+  // "Stop the presses": global pause blocks every publish path. We DON'T mark
+  // the row failed — it stays put and goes out once publishing resumes.
+  const pause = await getPublishingPause();
+  if (pause.paused) {
+    return {
+      outboxId, ok: false, status: 'failed', provider: null, providerPostId: null, providerUrl: null,
+      error: pause.reason ? `Publishing paused — ${pause.reason}` : 'Publishing is paused (stop the presses).'
+    };
+  }
+
   const [rows] = await db.execute<OutboxJoinRow[]>(
     `SELECT o.id, o.tenant_id, o.connection_id, o.asset_id, o.body_text, o.media_url, o.media_type,
             o.status AS outbox_status,
