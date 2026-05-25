@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TimelineItem, TimelineItemStatus } from '@/lib/pr/types';
 import { useCalendarSelection } from './CalendarSelection';
+import { celebrateGoLive } from '@/lib/ui/celebrate';
 
 const STATUS_STYLE: Record<TimelineItemStatus, { label: string; bg: string; fg: string }> = {
   draft: { label: 'Draft', bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1' },
@@ -124,6 +125,8 @@ export function TimelineEntry({ item }: { item: TimelineItem }) {
         setErr(json.error || `Publish failed (${res.status})`);
         return;
       }
+      // Real win — champagne pop. Only on a confirmed go-live.
+      celebrateGoLive(item.providerLabel || item.title);
       setMsg(json.providerUrl ? `Posted: ${json.providerUrl}` : 'Posted to the connected account.');
       setTimeout(() => {
         setOpen(false);
