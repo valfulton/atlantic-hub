@@ -62,7 +62,7 @@ export default function NewClientForm() {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mb-5 rounded-lg bg-brand/90 hover:bg-brand text-black font-medium text-sm px-4 py-2">
+      <button onClick={() => setOpen(true)} className="mb-5 rounded-lg bg-brand hover:opacity-90 text-black font-medium text-sm px-4 py-2">
         + New client
       </button>
     );
@@ -86,7 +86,7 @@ export default function NewClientForm() {
             <button onClick={() => navigator.clipboard?.writeText(done.magicLink)} className="shrink-0 rounded-lg border border-border bg-black/30 px-3 text-sm text-ink">Copy</button>
           </div>
           <div className="mt-4 flex gap-2">
-            {done.clientId && <a href={`/admin/av/clients/${done.clientId}`} className="rounded-lg bg-brand/90 hover:bg-brand text-black font-medium text-sm px-4 py-2">Open client</a>}
+            {done.clientId && <a href={`/admin/av/clients/${done.clientId}`} className="rounded-lg bg-brand hover:opacity-90 text-black font-medium text-sm px-4 py-2">Open client</a>}
             <button onClick={reset} className="rounded-lg border border-border bg-black/30 px-4 py-2 text-sm text-ink">Create another</button>
           </div>
         </div>
@@ -114,7 +114,7 @@ export default function NewClientForm() {
             Email the magic-link invite now
           </label>
           {err && <div className="mt-3 text-sm" style={{ color: '#fca5a5' }}>{err}</div>}
-          <button onClick={submit} disabled={busy || !f.email.trim()} className="mt-4 rounded-lg bg-brand/90 hover:bg-brand disabled:opacity-50 text-black font-medium text-sm px-5 py-2">
+          <button onClick={submit} disabled={busy || !f.email.trim()} className="mt-4 rounded-lg bg-brand hover:opacity-90 disabled:opacity-50 text-black font-medium text-sm px-5 py-2">
             {busy ? 'Creating…' : 'Create client'}
           </button>
           <span className="text-[11px] text-muted ml-3">Creates the account + hub, sets the tier/trial, and seeds a candidate line.</span>
