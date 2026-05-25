@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { Sidebar } from '@/components/Sidebar';
+import { IntelTicker } from '@/components/IntelTicker';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const [avEnabled, ebwEnabled] = await Promise.all([
@@ -15,7 +16,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-screen">
       <Sidebar showAv={showAv} showEbw={showEbw} />
-      <main className="flex-1 px-8 py-8 max-w-7xl">{children}</main>
+      <main className="flex-1 px-8 py-8 max-w-7xl">
+        {isOperator && <IntelTicker />}
+        {children}
+      </main>
     </div>
   );
 }
