@@ -8,6 +8,7 @@ import { LeadCampaigns } from './LeadCampaigns';
 import { SocialContentButton } from './SocialContentButton';
 import { RescoreButton } from './RescoreButton';
 import { AssignmentControl } from './AssignmentControl';
+import { MakeClientButton } from './MakeClientButton';
 import { AnimatedScoreReveal } from '@/components/AnimatedScoreReveal';
 
 export default async function AvLeadDetailPage({
@@ -57,6 +58,13 @@ export default async function AvLeadDetailPage({
             currentUserId={currentUserId}
           />
           <RescoreButton auditId={lead.auditId} />
+          <MakeClientButton
+            email={lead.email ?? null}
+            company={lead.company ?? null}
+            contactName={lead.contactName ?? null}
+            industry={lead.industry ?? null}
+            clientId={lead.clientId ?? null}
+          />
           <SocialContentButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
           <AnimatedScoreReveal

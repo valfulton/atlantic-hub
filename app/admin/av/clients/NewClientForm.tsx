@@ -19,11 +19,11 @@ export default function NewClientForm() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<{ clientId: number | null; magicLink: string; emailSent: boolean; lineSeeded: boolean; leadsLinked: number } | null>(null);
+  const [done, setDone] = useState<{ clientId: number | null; magicLink: string; emailSent: boolean; lineSeeded: boolean } | null>(null);
 
   const [f, setF] = useState({
     email: '', name: '', company: '', industry: '',
-    tier: 'scale' as Tier, trialDays: '30', sendInvite: false, linkLeads: true,
+    tier: 'scale' as Tier, trialDays: '30',
     // Creative-brief prefill (you fill as much as you can; the client approves/adds).
     key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
     message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
@@ -31,7 +31,7 @@ export default function NewClientForm() {
   });
   const set = (k: keyof typeof f, v: unknown) => setF((s) => ({ ...s, [k]: v }));
 
-  async function submit() {
+  async function submit(send: boolean) {
     if (!f.email.trim()) { setErr('Email is required.'); return; }
     setBusy(true); setErr(null); setDone(null);
     try {
@@ -40,7 +40,7 @@ export default function NewClientForm() {
         body: JSON.stringify({
           email: f.email.trim(), name: f.name.trim() || null, company: f.company.trim() || null,
           industry: f.industry.trim() || null, tier: f.tier,
-          trialDays: Number(f.trialDays) || null, sendInvite: f.sendInvite, linkLeadsByEmail: f.linkLeads,
+          trialDays: Number(f.trialDays) || null, sendInvite: send,
           key_message: f.key_message.trim() || undefined, target_audience: f.target_audience.trim() || undefined,
           why_advertise: f.why_advertise.trim() || undefined, goals: f.goals.trim() || undefined,
           audience_insights: f.audience_insights.trim() || undefined, message_support: f.message_support.trim() || undefined,
@@ -51,7 +51,7 @@ export default function NewClientForm() {
       });
       const j = await res.json();
       if (res.ok && j.ok) {
-        setDone({ clientId: j.clientId ?? null, magicLink: j.magicLink, emailSent: j.emailSent, lineSeeded: j.lineSeeded, leadsLinked: j.leadsLinked ?? 0 });
+        setDone({ clientId: j.clientId ?? null, magicLink: j.magicLink, emailSent: j.emailSent, lineSeeded: j.lineSeeded });
         router.refresh();
       } else {
         setErr(j.error || 'Could not create the client.');
@@ -66,7 +66,7 @@ export default function NewClientForm() {
   function reset() {
     setDone(null); setErr(null);
     setF({
-      email: '', name: '', company: '', industry: '', tier: 'scale', trialDays: '30', sendInvite: false, linkLeads: true,
+      email: '', name: '', company: '', industry: '', tier: 'scale', trialDays: '30',
       key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
       message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
       preferred_channels: '', timeline: ''
@@ -92,7 +92,6 @@ export default function NewClientForm() {
         <div>
           <p className="text-sm text-ink mb-2">
             Client created{done.lineSeeded ? ' with a seeded narrative line' : ''}.
-            {done.leadsLinked > 0 ? ` Linked ${done.leadsLinked} existing lead${done.leadsLinked === 1 ? '' : 's'} with this email.` : ''}
             {' '}{done.emailSent ? 'Magic-link invite emailed.' : 'No email sent — copy the link below to send when ready.'}
           </p>
           <label className={labelCls}>Magic link (valid 24h)</label>
@@ -135,19 +134,16 @@ export default function NewClientForm() {
             <div><label className={labelCls}>Preferred channels</label><input className={inputCls} value={f.preferred_channels} onChange={(e) => set('preferred_channels', e.target.value)} /></div>
             <div><label className={labelCls}>Seasonality / key dates</label><input className={inputCls} value={f.timeline} onChange={(e) => set('timeline', e.target.value)} /></div>
           </div>
-          <label className="mt-3 flex items-center gap-2 text-sm text-muted">
-            <input type="checkbox" checked={f.linkLeads} onChange={(e) => set('linkLeads', e.target.checked)} />
-            Connect existing leads that share this email (e.g. an imported lead)
-          </label>
-          <label className="mt-2 flex items-center gap-2 text-sm text-muted">
-            <input type="checkbox" checked={f.sendInvite} onChange={(e) => set('sendInvite', e.target.checked)} />
-            Email the magic-link invite now (off = save only; copy the link to send later)
-          </label>
           {err && <div className="mt-3 text-sm" style={{ color: '#fca5a5' }}>{err}</div>}
-          <button onClick={submit} disabled={busy || !f.email.trim()} className="mt-4 rounded-lg bg-brand hover:opacity-90 disabled:opacity-50 text-black font-medium text-sm px-5 py-2">
-            {busy ? 'Creating…' : 'Create client'}
-          </button>
-          <span className="text-[11px] text-muted ml-3">Creates the account + hub, sets the tier/trial, and seeds a candidate line.</span>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button onClick={() => submit(false)} disabled={busy || !f.email.trim()} className="rounded-lg bg-brand hover:opacity-90 disabled:opacity-50 text-brand-fg font-medium text-sm px-5 py-2">
+              {busy ? 'Saving…' : 'Save only'}
+            </button>
+            <button onClick={() => submit(true)} disabled={busy || !f.email.trim()} className="rounded-lg border border-border bg-black/30 hover:border-brand disabled:opacity-50 text-ink font-medium text-sm px-5 py-2">
+              {busy ? 'Saving…' : 'Save & send invite'}
+            </button>
+            <span className="text-[11px] text-muted">Save only = no email (copy the link after). Either way: creates the account + hub, sets tier/trial, seeds a candidate line.</span>
+          </div>
         </div>
       )}
     </div>

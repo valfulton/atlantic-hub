@@ -19,9 +19,7 @@ import { extractBriefSeedFromIntake } from '@/lib/client/intake_brief';
 import { createLane } from '@/lib/campaigns/store';
 import { sendEmail } from '@/lib/email/smtp';
 import { buildMagicLinkEmail } from '@/lib/email/magic-link-template';
-import { getAvDb } from '@/lib/db/av';
 import type { ClientTier } from '@/lib/client-portal/tiers';
-import type { ResultSetHeader } from 'mysql2';
 
 export interface CreateClientInput {
   email: string;
@@ -30,11 +28,9 @@ export interface CreateClientInput {
   industry?: string | null;
   tier?: ClientTier;          // default 'scale' (full package for testers)
   trialDays?: number | null;  // grant a trial window; null/0 = no expiry
-  sendInvite?: boolean;       // email the magic link (default true)
+  sendInvite?: boolean;       // email the magic link (operator chooses per create)
   /** Any creative-brief answers the operator entered (key_message, etc.). */
   intake?: Record<string, unknown>;
-  /** Link existing leads that share this email to the new client (default true). */
-  linkLeadsByEmail?: boolean;
 }
 
 export interface CreateClientResult {
@@ -44,7 +40,6 @@ export interface CreateClientResult {
   emailSent: boolean;
   lineSeeded: boolean;
   created: boolean;
-  leadsLinked: number;
 }
 
 export async function createClientFromOperator(input: CreateClientInput): Promise<CreateClientResult> {
@@ -88,22 +83,6 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { /* non-fatal: access can be set later from the detail page */ }
   }
 
-  // Link any EXISTING leads that share this email to the new client (default on),
-  // so leads already imported (e.g. via CSV) carry over without retyping and their
-  // audits/content scope to the client. Skips leads already owned by a client.
-  let leadsLinked = 0;
-  if (clientId && input.linkLeadsByEmail !== false) {
-    try {
-      const db = getAvDb();
-      const [res] = await db.execute<ResultSetHeader>(
-        `UPDATE leads SET client_id = ?, last_activity_at = NOW()
-          WHERE email = ? AND client_id IS NULL AND archived_at IS NULL`,
-        [clientId, email]
-      );
-      leadsLinked = res.affectedRows ?? 0;
-    } catch { /* non-fatal: linking can be done later */ }
-  }
-
   // Seed a candidate narrative line from whatever brief answers were entered.
   let lineSeeded = false;
   if (clientId) {
@@ -132,5 +111,5 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { emailSent = false; }
   }
 
-  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, created, leadsLinked };
+  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, created };
 }
