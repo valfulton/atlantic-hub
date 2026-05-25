@@ -15,7 +15,8 @@ export const runtime = 'nodejs';
 const TYPE_LABEL: Record<string, string> = {
   blog_article: 'Insight',
   seo_article: 'Guide',
-  own_brand_post: 'Note'
+  own_brand_post: 'Note',
+  press_release: 'Press release'
 };
 
 function formatDate(iso: string | null): string {

@@ -20,6 +20,8 @@ interface ReleaseRow extends RowDataPacket {
   tenant_id: string;
   lead_id: number | null;
   status: string;
+  title: string | null;
+  body_text: string | null;
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const db = getAvDb();
     const [rows] = await db.execute<ReleaseRow[]>(
-      `SELECT id, tenant_id, lead_id, status FROM press_releases WHERE id = ? LIMIT 1`,
+      `SELECT id, tenant_id, lead_id, status, title, body_text FROM press_releases WHERE id = ? LIMIT 1`,
       [id]
     );
     const rel = rows[0];
@@ -66,6 +68,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       `UPDATE press_releases SET status = ?, updated_at = NOW() WHERE id = ?`,
       [target, id]
     );
+
+    // PR -> NEWSROOM: when a release goes approved -> published, mirror it into
+    // content_artifacts as a published 'press_release' so it appears in the public
+    // newsroom. One-time (only on the approved->published hop) so re-publishing
+    // can't duplicate. Non-fatal: the release is published regardless.
+    if (target === 'published' && rel.status === 'approved') {
+      try {
+        await db.execute<ResultSetHeader>(
+          `INSERT INTO content_artifacts
+             (tenant_id, artifact_type, lead_id, opportunity_id, voice_mode, title, body_text,
+              meta_json, model, status, created_by_user_id, campaign_id)
+           VALUES (?, 'press_release', ?, NULL, 'client_voice', ?, ?, CAST(? AS JSON), NULL, 'published', ?, NULL)`,
+          [
+            rel.tenant_id,
+            rel.lead_id,
+            (rel.title ?? 'Press release').slice(0, 300),
+            rel.body_text ?? '',
+            JSON.stringify({ source: 'press_release', release_id: id }),
+            guard.actor.userId
+          ]
+        );
+      } catch (e) {
+        console.error('[pr:releases:newsroom-publish]', (e as Error).message);
+      }
+    }
 
     await logEvent({
       eventType: target === 'published' ? PR_EVENTS.releasePublished : PR_EVENTS.releaseApproved,

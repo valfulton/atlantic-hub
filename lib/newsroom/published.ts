@@ -24,7 +24,7 @@ import { DEFAULT_TENANT } from '@/lib/pr/types';
 import type { RowDataPacket } from 'mysql2';
 
 /** Artifact types that are safe to show publicly. */
-const PUBLIC_ARTIFACT_TYPES = ['blog_article', 'seo_article', 'own_brand_post'] as const;
+const PUBLIC_ARTIFACT_TYPES = ['blog_article', 'seo_article', 'own_brand_post', 'press_release'] as const;
 
 export interface NewsroomArticle {
   id: number;
