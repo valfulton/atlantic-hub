@@ -97,8 +97,6 @@ export default async function CampaignTimelinePage({
         seasonal campaigns onto the same view as those systems come online.
       </p>
 
-      <StopThePresses initial={pause} />
-
       <CelebrationSettings />
 
       <SchedulePostComposer channels={channels} />
@@ -117,6 +115,10 @@ export default async function CampaignTimelinePage({
           />
         </CalendarDnD>
       </CalendarSelectionProvider>
+
+      <div id="stop-the-presses" className="mt-8 pt-6 border-t border-border scroll-mt-6">
+        <StopThePresses initial={pause} />
+      </div>
     </div>
   );
 }

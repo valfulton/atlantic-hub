@@ -80,12 +80,15 @@ export const config = {
     '/client/dashboard/:path*',
     '/client/audit/:path*',
     '/client/leads/:path*',
+    '/client/intake/:path*',
     '/client/set-password',
     // Client portal APIs (protected)
     '/api/client/me',
     '/api/client/set-password',
     '/api/client/logout',
     '/api/client/discover',
+    '/api/client/intake-update',
+    '/api/client/ticker',
     // Client campaign actions (publish own approved content). Guarded so the
     // route receives x-ah-client-user-id and rejects anonymous callers.
     '/api/client/campaign/:path*'
