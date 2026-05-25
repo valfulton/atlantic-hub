@@ -9,6 +9,8 @@ import { SocialContentButton } from './SocialContentButton';
 import { RescoreButton } from './RescoreButton';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
+import { AssignToClientControl } from './AssignToClientControl';
+import { listClientAccounts } from '@/lib/av/clients_overview';
 import { AnimatedScoreReveal } from '@/components/AnimatedScoreReveal';
 
 export default async function AvLeadDetailPage({
@@ -25,6 +27,14 @@ export default async function AvLeadDetailPage({
   // Current admin user (from middleware headers) -- used by AssignmentControl
   // to show "Assign to me" and "Hand to <owner>" correctly.
   const currentUserId = parseInt(headers().get('x-ah-user-id') ?? '0', 10) || 0;
+
+  // Clients for the lead-handoff picker (assign this lead to a client's pipeline).
+  let clientOptions: { clientId: number; name: string }[] = [];
+  try {
+    clientOptions = (await listClientAccounts()).map((c) => ({ clientId: c.clientId, name: c.name }));
+  } catch {
+    /* non-fatal: handoff picker simply shows no clients */
+  }
 
   return (
     <div>
@@ -64,6 +74,11 @@ export default async function AvLeadDetailPage({
             contactName={lead.contactName ?? null}
             industry={lead.industry ?? null}
             clientId={lead.clientId ?? null}
+          />
+          <AssignToClientControl
+            auditId={lead.auditId}
+            clients={clientOptions}
+            currentClientId={lead.clientId ?? null}
           />
           <SocialContentButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
