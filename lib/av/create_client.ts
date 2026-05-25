@@ -19,7 +19,10 @@ import { extractBriefSeedFromIntake } from '@/lib/client/intake_brief';
 import { createLane } from '@/lib/campaigns/store';
 import { sendEmail } from '@/lib/email/smtp';
 import { buildMagicLinkEmail } from '@/lib/email/magic-link-template';
+import { getAvDb } from '@/lib/db/av';
+import { transitionLeadStatus } from '@/lib/leads/lifecycle';
 import type { ClientTier } from '@/lib/client-portal/tiers';
+import type { RowDataPacket } from 'mysql2';
 
 export interface CreateClientInput {
   email: string;
@@ -40,6 +43,8 @@ export interface CreateClientResult {
   emailSent: boolean;
   lineSeeded: boolean;
   created: boolean;
+  /** How many of this person's prospect leads were marked 'converted'. */
+  leadsConverted: number;
 }
 
 export async function createClientFromOperator(input: CreateClientInput): Promise<CreateClientResult> {
@@ -83,6 +88,28 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { /* non-fatal: access can be set later from the detail page */ }
   }
 
+  // This person is now a CLIENT, not a prospect: mark their existing lead(s)
+  // (matched by email) as 'converted' so they drop out of the active pipeline
+  // instead of lingering as a "new" lead. Skips already-terminal leads. We do
+  // NOT set the lead's client_id (that would make them their own prospect).
+  let leadsConverted = 0;
+  if (clientId) {
+    try {
+      const db = getAvDb();
+      const [leadRows] = await db.execute<(RowDataPacket & { id: number })[]>(
+        `SELECT id FROM leads
+          WHERE email = ? AND archived_at IS NULL
+            AND lead_status NOT IN ('converted', 'lost')
+          LIMIT 20`,
+        [email]
+      );
+      for (const lr of leadRows) {
+        const res = await transitionLeadStatus({ leadId: lr.id, toStatus: 'converted', actorUserId: null });
+        if (res) leadsConverted++;
+      }
+    } catch { /* non-fatal: lead can be marked converted manually */ }
+  }
+
   // Seed a candidate narrative line from whatever brief answers were entered.
   let lineSeeded = false;
   if (clientId) {
@@ -111,5 +138,5 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { emailSent = false; }
   }
 
-  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, created };
+  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, created, leadsConverted };
 }
