@@ -1,14 +1,17 @@
 /**
- * /admin/av/clients/[clientId]/preview
+ * /admin/av/clients/[client_id]/preview
  *
  * OPERATOR-ONLY preview of what a client sees on their dashboard, for a given
  * client_id — WITHOUT the client logging in. Solves the chicken-and-egg: val can
  * perfect a client's dashboard before sending their magic link.
  *
- * Read-only and safe: it reuses the same data functions as the real client
- * dashboard (getClientCreativeBrief + the audit query), scoped by client_id, and
- * the same presentational CreativeBrief component. It does NOT touch the live
+ * Read-only and safe: it reuses the same data function as the real client
+ * dashboard (getClientCreativeBrief) scoped by client_id, plus the audit query,
+ * and the same presentational CreativeBrief component. It does NOT touch the live
  * /client/dashboard page or any client auth.
+ *
+ * NOTE: this lives under [client_id] (param name client_id) to match the sibling
+ * client-detail route — Next.js forbids two different slug names at one path level.
  */
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
@@ -37,11 +40,11 @@ function auditPreview(text: string | null, maxChars = 480): string {
   return t.length <= maxChars ? t : t.slice(0, maxChars).replace(/\s+\S*$/, '') + '...';
 }
 
-export default async function ClientDashboardPreview({ params }: { params: { clientId: string } }) {
+export default async function ClientDashboardPreview({ params }: { params: { client_id: string } }) {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
   if (role === 'client_user') redirect('/admin');
 
-  const clientId = Number.parseInt(params.clientId, 10);
+  const clientId = Number.parseInt(params.client_id, 10);
   if (!Number.isFinite(clientId) || clientId <= 0) notFound();
 
   const db = getAvDb();
