@@ -8,6 +8,7 @@
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { celebrate } from '@/lib/ui/celebrate';
 
 interface Channel {
   id: number;
@@ -51,6 +52,7 @@ export function SchedulePostComposer({ channels }: { channels: Channel[] }) {
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j?.error || 'Could not schedule.');
       setMsg({ ok: true, text: when ? 'Scheduled — it’s on your calendar.' : 'Saved as a draft on the calendar.' });
+      celebrate(when ? 'Scheduled to your calendar' : 'Draft saved');
       setBody(''); setMediaUrl('');
       router.refresh();
     } catch (e) {

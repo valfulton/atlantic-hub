@@ -7,6 +7,7 @@ import { CalendarView, SKIN_KEYS, type SkinKey } from './CalendarView';
 import { CalendarSelectionProvider } from './CalendarSelection';
 import { StopThePresses } from './StopThePresses';
 import { SchedulePostComposer } from './SchedulePostComposer';
+import { CelebrationSettings } from './CelebrationSettings';
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
 
@@ -96,6 +97,8 @@ export default async function CampaignTimelinePage({
       </p>
 
       <StopThePresses initial={pause} />
+
+      <CelebrationSettings />
 
       <SchedulePostComposer channels={channels} />
 
