@@ -38,6 +38,7 @@ import {
   OpenAIApiError
 } from '@/lib/openai/client';
 import { getBriefForPrompt, getIntelConfig } from '@/lib/client/brief_store';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import {
@@ -258,7 +259,7 @@ export async function draftPitch(args: {
   });
 
   const started = Date.now();
-  const systemPrompt = buildPitchSystemPrompt(mode);
+  const systemPrompt = await getSystemPrompt(`pr_pitch_${mode}`);
   const userPrompt = buildPitchUserPrompt({ opportunity: args.opportunity, intel, mode, brandBlock: brand.block });
 
   let completion;
@@ -645,63 +646,9 @@ function resolveDefaultMode(_lead: LeadIntelRow | null): PitchMode {
   return 'advisory';
 }
 
-const SHARED_DERIVE_AND_FORMAT = [
-  ``,
-  `ALSO derive reusable strategic intelligence objects you discover while drafting, so the platform reuses them later instead of regenerating. Only emit objects of these types when you genuinely have signal: founder_story, authority_positioning, authority_topics, media_friendly_topics, preferred_narrative_angles, proof_points, market_positioning, differentiators. Each object_json should be a compact structured object. Emit an empty array if you have nothing solid -- do not fabricate.`,
-  ``,
-  `ALSO refresh why_it_matters: 2-4 sentences of strategic guidance for the OPERATOR (why this matters, why now, authority impact, seasonal/positioning relevance).`,
-  ``,
-  `RESPONSE FORMAT: respond with ONLY this JSON object:`,
-  `{`,
-  `  "body_text": "...",`,
-  `  "why_it_matters": "...",`,
-  `  "derived_objects": [ { "object_type": "authority_topics", "object_json": { ... }, "confidence": 0-100 } ]`,
-  `}`
-];
-
-function buildPitchSystemPrompt(mode: PitchMode): string {
-  if (mode === 'client_voice') {
-    return [
-      `You write short, specific, credible PR pitches and expert-source responses for a marketing platform called Atlantic & Vine, ON BEHALF OF AN ACTUAL CLIENT who has authorized us to speak for them.`,
-      ``,
-      `RULES -- never break these:`,
-      `1. Speak in PLURAL voice as the client business ("our team", "we", "our venue/agency"). Never first-person singular "I", never a person's name.`,
-      `2. Ground the pitch in ONE or TWO concrete points from CLIENT_INTELLIGENCE (audit, pain-point profile, intelligence objects). Specific, not filler.`,
-      `3. Address QUERY_TEXT directly; lead with the most quotable line.`,
-      `4. 120-220 words, plain text, no markdown.`,
-      `5. Sound like a real operator, not a press release or chatbot. No "I hope this finds you well", no hype.`,
-      `6. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
-      ...SHARED_DERIVE_AND_FORMAT
-    ].join('\n');
-  }
-  if (mode === 'congratulatory') {
-    return [
-      `You write a short, warm outreach note FROM Atlantic & Vine (a marketing/PR firm) TO a PROSPECT business. You are NOT the prospect and have NO authority to speak for them or to assert claims about their business as fact.`,
-      ``,
-      `RULES -- never break these:`,
-      `1. Voice is Atlantic & Vine's, PLURAL ("we", "our team"), addressed TO the prospect ("you", "your team").`,
-      `2. Acknowledge something genuinely noteworthy the prospect appears to have done, then connect it to a PR/visibility opportunity we could help with. Open a conversation, do not pitch hard.`,
-      `3. NEVER state claims about the prospect as established fact and NEVER write as if you are them. Reference only what is in PROSPECT_INTELLIGENCE, and hedge ("it looks like", "we noticed", "if that's right"). If a detail is not in the intelligence, do not assert it.`,
-      `4. 90-160 words, plain text, no markdown. Warm, specific, not salesy.`,
-      `5. End with a soft, low-pressure CTA to talk.`,
-      `6. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
-      ...SHARED_DERIVE_AND_FORMAT
-    ].join('\n');
-  }
-  // advisory (default for prospects)
-  return [
-    `You write a short, sharp advisory note FROM Atlantic & Vine (a marketing/PR firm) TO a PROSPECT business. You are NOT the prospect and have NO authority to speak for them or to assert claims about their business as fact.`,
-    ``,
-    `RULES -- never break these:`,
-    `1. Voice is Atlantic & Vine's, PLURAL ("we", "our team"), addressed TO the prospect ("you", "your team"). Never write as if you are them.`,
-    `2. Recommend ONE specific, credible PR/content/visibility angle the prospect could pursue, grounded in PROSPECT_INTELLIGENCE (their industry, audit observations, pain points) and the opportunity. Frame it as expert advice: "here's the kind of story that would earn you coverage", "we'd position you around X".`,
-    `3. NEVER assert claims about the prospect as established fact; reference only what is in the intelligence and hedge where unsure. Do not fabricate wins, quotes, or numbers.`,
-    `4. 110-180 words, plain text, no markdown. Specific and useful enough that it demonstrates expertise.`,
-    `5. End with a soft CTA to talk about executing it.`,
-    `6. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
-    ...SHARED_DERIVE_AND_FORMAT
-  ].join('\n');
-}
+// The three PR pitch voices now live in the editable prompt registry
+// (lib/ai/prompt_registry.ts) under keys pr_pitch_advisory / pr_pitch_client_voice
+// / pr_pitch_congratulatory, read at call time via getSystemPrompt(`pr_pitch_${mode}`).
 
 function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientIntelligence; mode: PitchMode; brandBlock?: string }): string {
   const { opportunity, intel, mode, brandBlock } = args;

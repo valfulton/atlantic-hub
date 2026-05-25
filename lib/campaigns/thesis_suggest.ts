@@ -16,16 +16,11 @@
 import { getLane } from '@/lib/campaigns/store';
 import { getLineLeadFit, type LineFit } from '@/lib/campaigns/line_fit';
 import { getBriefForPrompt } from '@/lib/client/brief_store';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { openaiChatCompletion, parseOpenAIJson } from '@/lib/openai/client';
 
 const MODEL = 'gpt-4o-mini';
 const HOW_MANY = 2; // fewer, sharper choices — operator was discarding >50% of 3.
-
-const SYSTEM = `You are a brand strategist for an AI-native marketing firm.
-A "narrative line" is a believable MARKET THESIS (not a slogan, not a tagline): one present-tense sentence asserting a shift in the market that a business can credibly lead and that its prospects already feel.
-Good: "Luxury retreats are becoming strategic executive performance assets." / "Local trades are winning on trust, not the lowest bid."
-Bad (reject these): generic categories ("Authority & Expertise"), hype ("We are the best"), or vague slogans ("Excellence delivered").
-Write theses that speak directly to the prospects' stated pains and the customer's edge. Plural/brand voice. ASCII only, no em-dashes.`;
 
 export interface ThesisSuggestion {
   thesis: string;
@@ -68,7 +63,8 @@ export async function buildThesisSuggestPrompt(
     `Return ONLY JSON: {"theses":[{"thesis":"...","why":"..."}]}`
   ].filter(Boolean).join('\n');
 
-  return { system: SYSTEM, user, needTerms: needTermsFromFit(fit), totalLeads: fit.totalLeads };
+  const system = await getSystemPrompt('thesis_suggester');
+  return { system, user, needTerms: needTermsFromFit(fit), totalLeads: fit.totalLeads };
 }
 
 export async function suggestThesesForLine(
