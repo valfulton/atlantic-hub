@@ -37,6 +37,7 @@ import {
   OpenAIKeyMissingError,
   OpenAIApiError
 } from '@/lib/openai/client';
+import { getBriefForPrompt } from '@/lib/client/brief_store';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import {
@@ -245,9 +246,17 @@ export async function draftPitch(args: {
   // else defaults to advisory outreach written TO them in A&V's voice.
   const mode: PitchMode = args.mode ?? resolveDefaultMode(intel.lead);
 
+  // Ground on the brand's OWN creative brief (its identity), so a pitch for a
+  // client / EBW / HH reads as that brand and not a generic Atlantic & Vine voice.
+  const brand = await getBriefForPrompt({
+    tenantId,
+    clientId: intel.lead?.client_id ?? null,
+    fallbackName: intel.lead?.company ?? null
+  });
+
   const started = Date.now();
   const systemPrompt = buildPitchSystemPrompt(mode);
-  const userPrompt = buildPitchUserPrompt({ opportunity: args.opportunity, intel, mode });
+  const userPrompt = buildPitchUserPrompt({ opportunity: args.opportunity, intel, mode, brandBlock: brand.block });
 
   let completion;
   try {
@@ -333,9 +342,15 @@ export async function draftRelease(args: {
     intel = await loadClientIntelligence(tenantId, null);
   }
 
+  const brand = await getBriefForPrompt({
+    tenantId,
+    clientId: intel.lead?.client_id ?? null,
+    fallbackName: intel.lead?.company ?? null
+  });
+
   const started = Date.now();
   const systemPrompt = buildReleaseSystemPrompt();
-  const userPrompt = buildReleaseUserPrompt({ announcement: args.announcement, intel });
+  const userPrompt = buildReleaseUserPrompt({ announcement: args.announcement, intel, brandBlock: brand.block });
 
   let completion;
   try {
@@ -685,9 +700,10 @@ function buildPitchSystemPrompt(mode: PitchMode): string {
   ].join('\n');
 }
 
-function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientIntelligence; mode: PitchMode }): string {
-  const { opportunity, intel, mode } = args;
+function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientIntelligence; mode: PitchMode; brandBlock?: string }): string {
+  const { opportunity, intel, mode, brandBlock } = args;
   const parts: string[] = [];
+  if (brandBlock && brandBlock.trim()) { parts.push(brandBlock.trim()); parts.push(``); }
   parts.push(`MODE: ${mode}${mode === 'client_voice' ? ' (write AS the client)' : ' (write TO the prospect as Atlantic & Vine -- do NOT claim anything as them)'}`);
   parts.push(`OPPORTUNITY_SOURCE: ${opportunity.source}`);
   if (opportunity.outlet) parts.push(`OUTLET: ${opportunity.outlet}`);
@@ -726,8 +742,9 @@ function buildReleaseSystemPrompt(): string {
   ].join('\n');
 }
 
-function buildReleaseUserPrompt(args: { announcement: string; intel: ClientIntelligence }): string {
+function buildReleaseUserPrompt(args: { announcement: string; intel: ClientIntelligence; brandBlock?: string }): string {
   const parts: string[] = [];
+  if (args.brandBlock && args.brandBlock.trim()) { parts.push(args.brandBlock.trim()); parts.push(``); }
   parts.push(`ANNOUNCEMENT (the win/launch to announce):`);
   parts.push(args.announcement.trim().slice(0, 4000));
   parts.push(``);

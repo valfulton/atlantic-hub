@@ -1,0 +1,214 @@
+/**
+ * lib/client/brief_store.ts
+ *
+ * The read/write layer for the editable Creative Brief (schema/045_creative_briefs.sql).
+ *
+ * ONE shape for everyone — the canonical 6-question brief payload (same keys as
+ * client_users.intake_payload), keyed by:
+ *   * a real client -> (tenant_id, client_id)
+ *   * a house brand -> (tenant_id, client_id = NULL)   e.g. 'av' / 'ebw' / 'hh'
+ *
+ * Why this exists: until now val's OWN brands had no intake record, so the thesis
+ * suggester and the PR drafter fell back to a hardcoded "Atlantic & Vine" label and
+ * generic grounding. getBriefForPrompt() gives both call sites a single grounded
+ * identity block to anchor on, so AV / EBW / HH each speak as themselves.
+ *
+ * Reuses extractBriefSeedFromIntake() so a brief_payload and an intake_payload are
+ * interchangeable. Never throws out of the read path — a missing brief degrades to
+ * "no brief on file yet" rather than blanking the caller.
+ */
+import { getAvDb } from '@/lib/db/av';
+import { extractBriefSeedFromIntake, type BriefSeed } from '@/lib/client/intake_brief';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+
+/** Display names for the house brands (client_id NULL). */
+export const HOUSE_BRAND_NAMES: Record<string, string> = {
+  av: 'Atlantic & Vine',
+  ebw: 'Events by Water',
+  hh: 'HunterHoney'
+};
+
+export type BriefPayload = Record<string, unknown>;
+
+interface BriefRow extends RowDataPacket {
+  brief_payload: string | BriefPayload | null;
+}
+
+interface IntakeRow extends RowDataPacket {
+  intake_payload: string | BriefPayload | null;
+}
+
+interface ClientNameRow extends RowDataPacket {
+  client_name: string | null;
+}
+
+function asPayload(raw: unknown): BriefPayload | null {
+  if (raw == null) return null;
+  let v: unknown = raw;
+  if (typeof v === 'string') {
+    try { v = JSON.parse(v); } catch { return null; }
+  }
+  return v && typeof v === 'object' ? (v as BriefPayload) : null;
+}
+
+/**
+ * Read the brief payload for a scope. Resolution order:
+ *   1. creative_briefs row for (tenant, client_id)  — the editable brief
+ *   2. for a real client only: that client's client_users.intake_payload (legacy
+ *      source, so existing clients still ground before they get a saved brief)
+ *   3. null (no brief on file yet)
+ */
+export async function getBriefPayload(
+  tenantId: string,
+  clientId: number | null
+): Promise<BriefPayload | null> {
+  const db = getAvDb();
+  try {
+    const [rows] = await db.execute<BriefRow[]>(
+      `SELECT brief_payload FROM creative_briefs
+        WHERE tenant_id = ? AND client_id <=> ?
+        ORDER BY updated_at DESC LIMIT 1`,
+      [tenantId, clientId]
+    );
+    const payload = asPayload(rows[0]?.brief_payload ?? null);
+    if (payload) return payload;
+  } catch (err) {
+    console.error('[brief_store:get]', (err as Error).message);
+  }
+
+  // Fall back to the client's intake answers (legacy source of truth).
+  if (clientId != null) {
+    try {
+      const [rows] = await db.execute<IntakeRow[]>(
+        `SELECT intake_payload FROM client_users
+          WHERE client_id = ? AND intake_payload IS NOT NULL
+          ORDER BY updated_at DESC LIMIT 1`,
+        [clientId]
+      );
+      return asPayload(rows[0]?.intake_payload ?? null);
+    } catch (err) {
+      console.error('[brief_store:get:intake_fallback]', (err as Error).message);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Upsert the brief payload for a scope. Emulated upsert (SELECT then UPDATE/INSERT)
+ * because MySQL does not dedupe NULL client_id in a unique index — same pattern as
+ * intelligence_objects in lib/pr/drafter.ts. Returns true on a successful write.
+ */
+export async function saveBriefPayload(
+  tenantId: string,
+  clientId: number | null,
+  payload: BriefPayload
+): Promise<boolean> {
+  const db = getAvDb();
+  const json = JSON.stringify(payload ?? {});
+  try {
+    const [rows] = await db.execute<(RowDataPacket & { id: number })[]>(
+      `SELECT id FROM creative_briefs
+        WHERE tenant_id = ? AND client_id <=> ? LIMIT 1`,
+      [tenantId, clientId]
+    );
+    if (rows[0]?.id) {
+      await db.execute<ResultSetHeader>(
+        `UPDATE creative_briefs
+            SET brief_payload = CAST(? AS JSON), updated_at = NOW()
+          WHERE id = ?`,
+        [json, rows[0].id]
+      );
+    } else {
+      await db.execute<ResultSetHeader>(
+        `INSERT INTO creative_briefs (tenant_id, client_id, brief_payload)
+         VALUES (?, ?, CAST(? AS JSON))`,
+        [tenantId, clientId, json]
+      );
+    }
+    return true;
+  } catch (err) {
+    console.error('[brief_store:save]', (err as Error).message);
+    return false;
+  }
+}
+
+/** The brief payload parsed into the canonical BriefSeed (and starter line seed). */
+export async function getBriefSeed(
+  tenantId: string,
+  clientId: number | null
+): Promise<BriefSeed | null> {
+  const payload = await getBriefPayload(tenantId, clientId);
+  if (!payload) return null;
+  return extractBriefSeedFromIntake(payload);
+}
+
+/** Resolve a human brand name for a scope: client_name for a client, else the house brand. */
+async function resolveBrandName(
+  tenantId: string,
+  clientId: number | null,
+  fallback?: string | null
+): Promise<string> {
+  if (clientId != null) {
+    try {
+      const db = getAvDb();
+      const [rows] = await db.execute<ClientNameRow[]>(
+        `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
+        [clientId]
+      );
+      const name = rows[0]?.client_name?.trim();
+      if (name) return name;
+    } catch (err) {
+      console.error('[brief_store:brandName]', (err as Error).message);
+    }
+  }
+  return (fallback && fallback.trim()) || HOUSE_BRAND_NAMES[tenantId] || 'this brand';
+}
+
+/**
+ * Build a grounded BRAND_IDENTITY block for an LLM prompt (thesis suggester, PR
+ * drafter). Returns the brand's real identity from its brief; when no brief is on
+ * file yet it says so explicitly, so the model grounds cautiously instead of
+ * inventing — and never mislabels EBW/HH as "Atlantic & Vine".
+ */
+export async function getBriefForPrompt(args: {
+  tenantId: string;
+  clientId: number | null;
+  fallbackName?: string | null;
+}): Promise<{ brandName: string; grounded: boolean; block: string; seed: BriefSeed | null }> {
+  const brandName = await resolveBrandName(args.tenantId, args.clientId, args.fallbackName);
+  const seed = await getBriefSeed(args.tenantId, args.clientId);
+
+  if (!seed) {
+    return {
+      brandName,
+      grounded: false,
+      seed: null,
+      block: [
+        `BRAND_IDENTITY:`,
+        `  BRAND: ${brandName}`,
+        `  (No creative brief on file yet for this brand — ground only in the brand name,`,
+        `   the narrative line's own fields, and what its leads need. Do not invent positioning.)`
+      ].join('\n')
+    };
+  }
+
+  const lines: string[] = [`BRAND_IDENTITY:`, `  BRAND: ${brandName}`];
+  const add = (label: string, v: string | null) => { if (v && v.trim()) lines.push(`  ${label}: ${v.trim()}`); };
+  add('WHY_WE_ADVERTISE', seed.whyAdvertise);
+  add('GOALS', seed.goals);
+  add('AUDIENCE', seed.audience);
+  add('AUDIENCE_INSIGHTS', seed.audienceInsights);
+  add('KEY_MESSAGE', seed.keyMessage);
+  add('PROOF_AND_SUPPORT', seed.messageSupport);
+  add('VOICE', seed.brandVoice);
+  add('DIFFERENTIATORS', seed.differentiators);
+  add('COMPETITORS', seed.competitors);
+
+  const grounded = lines.length > 2; // more than BRAND_IDENTITY + BRAND
+  if (!grounded) {
+    lines.push(`  (Brief exists but is mostly empty — ground cautiously; do not invent positioning.)`);
+  }
+
+  return { brandName, grounded, seed, block: lines.join('\n') };
+}

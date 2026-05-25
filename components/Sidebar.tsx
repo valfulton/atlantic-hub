@@ -21,6 +21,7 @@ const AV_NAV = [
   { href: '/admin/av/outreach', label: 'Outreach', section: 'sub' as const },
   { href: '/admin/pr', label: 'PR engine', section: 'sub' as const },
   { href: '/admin/av/narrative', label: 'Narrative lines', section: 'sub' as const },
+  { href: '/admin/av/brief', label: 'Creative brief', section: 'sub' as const },
   { href: '/admin/av/campaigns', label: 'Campaigns', section: 'sub' as const },
   { href: '/admin/av/content', label: 'Content & blog', section: 'sub' as const },
   { href: '/admin/av/commercials', label: 'Commercials', section: 'sub' as const },

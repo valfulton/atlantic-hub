@@ -15,6 +15,7 @@
  */
 import { getLane } from '@/lib/campaigns/store';
 import { getLineLeadFit, type LineFit } from '@/lib/campaigns/line_fit';
+import { getBriefForPrompt } from '@/lib/client/brief_store';
 import { openaiChatCompletion, parseOpenAIJson } from '@/lib/openai/client';
 
 const MODEL = 'gpt-4o-mini';
@@ -42,12 +43,18 @@ export async function buildThesisSuggestPrompt(
   if (!line) return null;
   const fit = await getLineLeadFit(lineId);
 
+  // Ground on the brand's OWN identity (its creative brief) instead of a hardcoded
+  // "Atlantic & Vine" label — so EBW / HH / each client account speak as themselves.
+  const brief = await getBriefForPrompt({ tenantId: line.tenantId, clientId: line.clientId });
+
   const painThemes = fit.needs.painThemes.map((p) => `${p.label} (${p.count})`).join(', ') || 'none recorded';
   const industries = fit.needs.industries.map((p) => p.label).join(', ') || 'mixed';
   const keywords = fit.needs.keywords.map((k) => k.label).join(', ') || 'none recorded';
 
   const user = [
-    `Brand/context: ${line.clientId ? 'a client account' : 'Atlantic & Vine (house brand)'} in tenant "${line.tenantId}".`,
+    brief.block,
+    ``,
+    `Tenant: "${line.tenantId}". This is ${line.clientId ? 'a client account' : "one of the firm's own house brands"}.`,
     line.thesis ? `Current working thesis (improve on it or offer alternatives): ${line.thesis}` : `No thesis yet.`,
     line.audience ? `Stated audience: ${line.audience}` : '',
     line.authorityAngle ? `Authority angle: ${line.authorityAngle}` : '',
@@ -57,7 +64,7 @@ export async function buildThesisSuggestPrompt(
     `- Industries: ${industries}`,
     `- Recurring words they use: ${keywords}`,
     ``,
-    `Propose ${HOW_MANY} distinct narrative-line theses that would genuinely serve these leads' needs and give this brand a defensible position. For each, add a one-line "why" naming the lead need it answers.`,
+    `Propose ${HOW_MANY} distinct narrative-line theses that speak AS ${brief.brandName}, would genuinely serve these leads' needs, and give this brand a defensible position. For each, add a one-line "why" naming the lead need it answers.`,
     `Return ONLY JSON: {"theses":[{"thesis":"...","why":"..."}]}`
   ].filter(Boolean).join('\n');
 
