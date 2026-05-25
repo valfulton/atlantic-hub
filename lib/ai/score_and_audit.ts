@@ -32,6 +32,7 @@ import {
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -102,36 +103,9 @@ function hasMinimumData(lead: LeadRow): boolean {
   return hasRealEmail || hasWebsite || hasIndustry;
 }
 
-const SYSTEM_INSTRUCTIONS = `You are a senior B2B marketing strategist working for Atlantic & Vine, an AI-native marketing intelligence platform. You score and audit prospective leads for the operator.
-
-Your output is ALWAYS valid JSON matching this exact shape:
-{
-  "ai_score": <integer 0-100>,
-  "ai_score_band": "hot" | "warm" | "cool",
-  "ai_score_reason": "<one or two crisp sentences explaining the score>",
-  "ai_score_breakdown": {
-    "fit": <integer 0-100>,
-    "intent": <integer 0-100>,
-    "reachability": <integer 0-100>,
-    "icp_match": <integer 0-100>
-  },
-  "audit_content": "<markdown strategic marketing audit, 300-600 words>"
-}
-
-Scoring rubric:
-- fit:          how well their business matches an Atlantic & Vine offering (lead-gen, audits, AI content, websites)
-- intent:       evidence they may be actively looking for help (recent activity, growth signals, gaps)
-- reachability: how easy it will be to actually contact a decision-maker (real email, phone, website, named contact)
-- icp_match:    proximity to ideal customer profile (service business, SMB, owner-operated, not yet using AI)
-
-Band thresholds:
-- hot:  ai_score >= 75 -- pursue this week
-- warm: 50 <= ai_score < 75 -- nurture, drip outreach
-- cool: ai_score < 50 -- low priority, queue for batch outreach only
-
-The audit_content is the deliverable the operator may share with this prospect. Write it as a real strategic marketing audit -- 4-6 short sections in markdown with H2/H3 headers, addressing their likely positioning gap, content gap, conversion gap, and one specific recommended next step. No filler. No fake stats. No promises Atlantic & Vine cannot keep. Plural voice ("our team", "we recommend"). Never use the founder's name. Never use em-dashes or smart quotes -- ASCII only.
-
-Never wrap the JSON in markdown code fences. Return JSON only.`;
+// The audit system prompt now lives in the editable prompt registry under the key
+// 'av_lead_audit' (lib/ai/prompt_registry.ts) so val can view/tune it without a
+// deploy. It's read at call time via getSystemPrompt('av_lead_audit').
 
 function buildUserPrompt(lead: LeadRow, briefContext?: string | null): string {
   const lines: string[] = [];
@@ -252,11 +226,13 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
     /* non-fatal: audit proceeds without the brief context */
   }
 
+  const systemPrompt = await getSystemPrompt('av_lead_audit');
+
   let completion;
   try {
     completion = await openaiChatCompletion(
       [
-        { role: 'system', content: SYSTEM_INSTRUCTIONS },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: buildUserPrompt(lead, briefContext) }
       ],
       { json: true, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, model: MODEL }
