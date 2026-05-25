@@ -11,6 +11,7 @@ import {
   type PrSource
 } from '@/lib/pr/types';
 import { ArtifactsSection } from './ArtifactsSection';
+import { celebrateGoLive } from '@/lib/ui/celebrate';
 
 type VoiceChoice = 'auto' | PitchMode;
 
@@ -512,6 +513,8 @@ export function PrDesk() {
     setBatchMsg(
       `Posted ${ok} of ${pending.length}${failed ? ` -- ${failed} failed${lastError ? `: ${lastError}` : ''}` : '. They are live on the connected account.'}`
     );
+    // Real win — champagne pop when at least one went live.
+    if (ok > 0) celebrateGoLive(ok === 1 ? undefined : `${ok} posts`);
     setBatchProgress(null);
     setBatchRunning(null);
   }, [queued]);
@@ -643,6 +646,7 @@ export function PrDesk() {
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || 'publish failed');
+      celebrateGoLive();
       setQueued((q) => ({ ...q, [oppId]: { outboxId, published: true } }));
       setOrchestrateMsg((m) => ({
         ...m,
