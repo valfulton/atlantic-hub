@@ -24,6 +24,7 @@ import PortalHeader from '@/app/client/_components/PortalHeader';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import WaveDivider from '@/app/_components/WaveDivider';
 import DiscoverPanel from './DiscoverPanel';
+import ClientLeadReject from '@/app/client/_components/ClientLeadReject';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -188,6 +189,10 @@ export default async function ClientLeadsPage() {
                       Website &rarr;
                     </a>
                   )}
+                </div>
+
+                <div className="mt-auto pt-3 flex justify-end">
+                  <ClientLeadReject leadId={l.id} />
                 </div>
               </li>
             ))}

@@ -89,6 +89,7 @@ export const config = {
     '/api/client/discover',
     '/api/client/intake-update',
     '/api/client/ticker',
+    '/api/client/leads/reject',
     // Client campaign actions (publish own approved content). Guarded so the
     // route receives x-ah-client-user-id and rejects anonymous callers.
     '/api/client/campaign/:path*'
