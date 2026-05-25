@@ -30,6 +30,24 @@ export const HOUSE_BRAND_NAMES: Record<string, string> = {
 
 export type BriefPayload = Record<string, unknown>;
 
+/**
+ * How a brand uses the PR / news intel — drives matching + default voice.
+ *   self_promotion: win visibility FOR this brand (speak AS them).
+ *   work_leads:     use intel to approach THEIR OWN prospects (reach out TO a lead).
+ *   both:           either, depending on the opportunity.
+ */
+export type IntelPosture = 'self_promotion' | 'work_leads' | 'both';
+/** The PR pitch voice (mirrors lib/pr/types PitchMode). */
+export type IntelVoice = 'client_voice' | 'advisory' | 'congratulatory';
+
+export interface IntelConfig {
+  posture: IntelPosture | null;
+  defaultVoice: IntelVoice | null;
+}
+
+const POSTURES: IntelPosture[] = ['self_promotion', 'work_leads', 'both'];
+const VOICES: IntelVoice[] = ['client_voice', 'advisory', 'congratulatory'];
+
 interface BriefRow extends RowDataPacket {
   brief_payload: string | BriefPayload | null;
 }
@@ -131,6 +149,21 @@ export async function saveBriefPayload(
     console.error('[brief_store:save]', (err as Error).message);
     return false;
   }
+}
+
+/**
+ * The PR intel posture + default voice for a scope, read from the brief payload.
+ * Both null when unset (caller falls back to its own default). Editable any time
+ * in the Creative Brief editor — val can change a brand's voice whenever.
+ */
+export async function getIntelConfig(tenantId: string, clientId: number | null): Promise<IntelConfig> {
+  const payload = await getBriefPayload(tenantId, clientId);
+  const rawPosture = payload?.['intel_posture'];
+  const rawVoice = payload?.['default_voice'];
+  return {
+    posture: POSTURES.includes(rawPosture as IntelPosture) ? (rawPosture as IntelPosture) : null,
+    defaultVoice: VOICES.includes(rawVoice as IntelVoice) ? (rawVoice as IntelVoice) : null
+  };
 }
 
 /** The brief payload parsed into the canonical BriefSeed (and starter line seed). */

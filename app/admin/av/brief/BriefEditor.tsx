@@ -38,6 +38,20 @@ const EXTRAS: { key: string; label: string; placeholder: string }[] = [
 
 const ALL_KEYS = [...QUESTIONS.map((q) => q.key), ...EXTRAS.map((e) => e.key)];
 
+// How this brand uses the PR / news intel — drives matching + default pitch voice.
+const POSTURE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Not set' },
+  { value: 'self_promotion', label: 'Win PR for this brand (speak as them)' },
+  { value: 'work_leads', label: "Use intel to work their own leads (reach out to prospects)" },
+  { value: 'both', label: 'Both' }
+];
+const VOICE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Auto (safe default — advisory)' },
+  { value: 'client_voice', label: 'Speak AS the brand (client voice)' },
+  { value: 'advisory', label: 'Reach out TO a prospect (advisory)' },
+  { value: 'congratulatory', label: 'Warm congratulations note' }
+];
+
 type Payload = Record<string, string>;
 
 export function BriefEditor({ customers }: { customers: Customer[] }) {
@@ -46,6 +60,10 @@ export function BriefEditor({ customers }: { customers: Customer[] }) {
   const active = scopes.find((s) => s.key === activeKey) ?? scopes[0];
 
   const [payload, setPayload] = useState<Payload>({});
+  // Full stored payload (incl. keys this editor doesn't render) so a save never drops them.
+  const [rawPayload, setRawPayload] = useState<Record<string, unknown>>({});
+  const [posture, setPosture] = useState<string>('');
+  const [voice, setVoice] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -67,6 +85,9 @@ export function BriefEditor({ customers }: { customers: Customer[] }) {
       const src = (data.payload ?? {}) as Record<string, unknown>;
       for (const k of ALL_KEYS) incoming[k] = typeof src[k] === 'string' ? (src[k] as string) : '';
       setPayload(incoming);
+      setRawPayload(src);
+      setPosture(typeof src['intel_posture'] === 'string' ? (src['intel_posture'] as string) : '');
+      setVoice(typeof src['default_voice'] === 'string' ? (src['default_voice'] as string) : '');
       setPromptBlock(typeof data.promptBlock === 'string' ? data.promptBlock : '');
       setGrounded(!!data.grounded);
       setBrandName(typeof data.brandName === 'string' ? data.brandName : scope.label);
@@ -94,10 +115,12 @@ export function BriefEditor({ customers }: { customers: Customer[] }) {
     setSaving(true);
     setMsg(null);
     try {
+      // Merge edits over the full stored payload so unrendered keys survive.
+      const merged: Record<string, unknown> = { ...rawPayload, ...payload, intel_posture: posture, default_voice: voice };
       const res = await fetch('/api/admin/av/brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId: active.tenantId, clientId: active.clientId, payload })
+        body: JSON.stringify({ tenantId: active.tenantId, clientId: active.clientId, payload: merged })
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || 'Save failed.');
@@ -192,6 +215,41 @@ export function BriefEditor({ customers }: { customers: Customer[] }) {
                 />
               </label>
             ))}
+          </div>
+
+          {/* How this brand uses PR — drives matching + default pitch voice. */}
+          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
+            <div className="text-xs uppercase tracking-wide text-amber-300/70">How this brand uses PR / news intel</div>
+            <p className="text-[11px] text-white/45">
+              Sets the default for matched opportunities. You can change it any time, and still
+              override the voice on an individual pitch.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-xs uppercase tracking-wide text-white/50">Intel posture</span>
+                <select
+                  className={ta + ' mt-1'}
+                  value={posture}
+                  onChange={(e) => { setPosture(e.target.value); setDirty(true); setMsg(null); }}
+                >
+                  {POSTURE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value} className="bg-[#0c1322]">{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs uppercase tracking-wide text-white/50">Default PR voice</span>
+                <select
+                  className={ta + ' mt-1'}
+                  value={voice}
+                  onChange={(e) => { setVoice(e.target.value); setDirty(true); setMsg(null); }}
+                >
+                  {VOICE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value} className="bg-[#0c1322]">{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
 
           {/* Save + inline feedback (kept next to the button on purpose) */}

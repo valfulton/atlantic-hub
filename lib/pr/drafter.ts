@@ -37,7 +37,7 @@ import {
   OpenAIKeyMissingError,
   OpenAIApiError
 } from '@/lib/openai/client';
-import { getBriefForPrompt } from '@/lib/client/brief_store';
+import { getBriefForPrompt, getIntelConfig } from '@/lib/client/brief_store';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import {
@@ -241,16 +241,19 @@ export async function draftPitch(args: {
     intel = await loadClientIntelligence(tenantId, null);
   }
 
-  // Resolve voice. CRITICAL: never write claims AS a prospect. Only an actual
-  // client (we are authorized to speak for them) gets client_voice; everyone
-  // else defaults to advisory outreach written TO them in A&V's voice.
-  const mode: PitchMode = args.mode ?? resolveDefaultMode(intel.lead);
+  // Resolve voice. Priority: (1) an explicit mode the operator passed for this
+  // pitch, (2) the brand's CONFIGURED default voice from its brief (val sets this
+  // per client and can change it any time), (3) the safe fallback (advisory — never
+  // write claims AS a prospect unless explicitly told to).
+  const clientId = intel.lead?.client_id ?? null;
+  const intelCfg = await getIntelConfig(tenantId, clientId);
+  const mode: PitchMode = args.mode ?? intelCfg.defaultVoice ?? resolveDefaultMode(intel.lead);
 
   // Ground on the brand's OWN creative brief (its identity), so a pitch for a
   // client / EBW / HH reads as that brand and not a generic Atlantic & Vine voice.
   const brand = await getBriefForPrompt({
     tenantId,
-    clientId: intel.lead?.client_id ?? null,
+    clientId,
     fallbackName: intel.lead?.company ?? null
   });
 
