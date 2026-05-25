@@ -6,6 +6,28 @@ import { getImportantDatesForWindow } from '@/lib/calendar/important_dates';
 import { CalendarView, SKIN_KEYS, type SkinKey } from './CalendarView';
 import { CalendarSelectionProvider } from './CalendarSelection';
 import { StopThePresses } from './StopThePresses';
+import { SchedulePostComposer } from './SchedulePostComposer';
+import { getAvDb } from '@/lib/db/av';
+import type { RowDataPacket } from 'mysql2';
+
+interface ChannelRow extends RowDataPacket {
+  id: number;
+  provider: string;
+  display_name: string | null;
+  tenant_id: string;
+}
+
+async function fetchActiveChannels(): Promise<{ id: number; provider: string; displayName: string | null; tenantId: string }[]> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<ChannelRow[]>(
+      `SELECT id, provider, display_name, tenant_id FROM social_connections WHERE status = 'active' ORDER BY tenant_id, provider`
+    );
+    return rows.map((r) => ({ id: r.id, provider: r.provider, displayName: r.display_name, tenantId: r.tenant_id }));
+  } catch {
+    return [];
+  }
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -37,11 +59,12 @@ export default async function CampaignTimelinePage({
   const skin: SkinKey = (SKIN_KEYS as string[]).includes(searchParams.skin ?? '') ? (searchParams.skin as SkinKey) : 'midnight';
 
   const window = computeWindow(view, anchor);
-  const [items, tenants, pause, importantDates] = await Promise.all([
+  const [items, tenants, pause, importantDates, channels] = await Promise.all([
     fetchTimelineItems({ from: toIso(window.gridStart), to: toIso(window.gridEnd), tenant }),
     fetchTimelineTenants(),
     getPublishingPause(),
-    getImportantDatesForWindow({ tenant, fromIso: toIso(window.gridStart), toIso: toIso(window.gridEnd) })
+    getImportantDatesForWindow({ tenant, fromIso: toIso(window.gridStart), toIso: toIso(window.gridEnd) }),
+    fetchActiveChannels()
   ]);
 
   return (
@@ -73,6 +96,8 @@ export default async function CampaignTimelinePage({
       </p>
 
       <StopThePresses initial={pause} />
+
+      <SchedulePostComposer channels={channels} />
 
       <CalendarSelectionProvider>
         <CalendarView
