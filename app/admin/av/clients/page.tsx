@@ -66,6 +66,9 @@ export default async function ClientsPage() {
                       {c.industry || c.slug}
                       {!c.enabled && <span style={{ color: '#fca5a5' }}> · disabled</span>}
                     </div>
+                    <Link href={`/admin/av/clients/${c.clientId}/preview`} className="text-[11px] text-brand hover:underline">
+                      Preview their dashboard →
+                    </Link>
                   </td>
                   <td className="px-4 py-3 capitalize text-muted">{c.planTier}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-ink">{c.leadCount}</td>
