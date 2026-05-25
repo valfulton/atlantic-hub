@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
       tier: typeof body.tier === 'string' && TIERS.includes(body.tier as ClientTier) ? (body.tier as ClientTier) : undefined,
       trialDays: typeof body.trialDays === 'number' ? body.trialDays : null,
       sendInvite: body.sendInvite !== false,
+      linkLeadsByEmail: body.linkLeadsByEmail !== false,
       intake
     });
     return NextResponse.json({ ok: true, ...result });

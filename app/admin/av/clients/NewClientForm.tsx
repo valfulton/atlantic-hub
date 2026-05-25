@@ -19,12 +19,15 @@ export default function NewClientForm() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<{ clientId: number | null; magicLink: string; emailSent: boolean; lineSeeded: boolean } | null>(null);
+  const [done, setDone] = useState<{ clientId: number | null; magicLink: string; emailSent: boolean; lineSeeded: boolean; leadsLinked: number } | null>(null);
 
   const [f, setF] = useState({
     email: '', name: '', company: '', industry: '',
-    tier: 'scale' as Tier, trialDays: '30', sendInvite: true,
-    key_message: '', target_audience: ''
+    tier: 'scale' as Tier, trialDays: '30', sendInvite: false, linkLeads: true,
+    // Creative-brief prefill (you fill as much as you can; the client approves/adds).
+    key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
+    message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
+    preferred_channels: '', timeline: ''
   });
   const set = (k: keyof typeof f, v: unknown) => setF((s) => ({ ...s, [k]: v }));
 
@@ -37,13 +40,18 @@ export default function NewClientForm() {
         body: JSON.stringify({
           email: f.email.trim(), name: f.name.trim() || null, company: f.company.trim() || null,
           industry: f.industry.trim() || null, tier: f.tier,
-          trialDays: Number(f.trialDays) || null, sendInvite: f.sendInvite,
-          key_message: f.key_message.trim() || undefined, target_audience: f.target_audience.trim() || undefined
+          trialDays: Number(f.trialDays) || null, sendInvite: f.sendInvite, linkLeadsByEmail: f.linkLeads,
+          key_message: f.key_message.trim() || undefined, target_audience: f.target_audience.trim() || undefined,
+          why_advertise: f.why_advertise.trim() || undefined, goals: f.goals.trim() || undefined,
+          audience_insights: f.audience_insights.trim() || undefined, message_support: f.message_support.trim() || undefined,
+          differentiators: f.differentiators.trim() || undefined, competitors: f.competitors.trim() || undefined,
+          brand_voice: f.brand_voice.trim() || undefined, brand_colors: f.brand_colors.trim() || undefined,
+          preferred_channels: f.preferred_channels.trim() || undefined, timeline: f.timeline.trim() || undefined
         })
       });
       const j = await res.json();
       if (res.ok && j.ok) {
-        setDone({ clientId: j.clientId ?? null, magicLink: j.magicLink, emailSent: j.emailSent, lineSeeded: j.lineSeeded });
+        setDone({ clientId: j.clientId ?? null, magicLink: j.magicLink, emailSent: j.emailSent, lineSeeded: j.lineSeeded, leadsLinked: j.leadsLinked ?? 0 });
         router.refresh();
       } else {
         setErr(j.error || 'Could not create the client.');
@@ -57,7 +65,12 @@ export default function NewClientForm() {
 
   function reset() {
     setDone(null); setErr(null);
-    setF({ email: '', name: '', company: '', industry: '', tier: 'scale', trialDays: '30', sendInvite: true, key_message: '', target_audience: '' });
+    setF({
+      email: '', name: '', company: '', industry: '', tier: 'scale', trialDays: '30', sendInvite: false, linkLeads: true,
+      key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
+      message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
+      preferred_channels: '', timeline: ''
+    });
   }
 
   if (!open) {
@@ -78,7 +91,9 @@ export default function NewClientForm() {
       {done ? (
         <div>
           <p className="text-sm text-ink mb-2">
-            Client created{done.lineSeeded ? ' with a seeded narrative line' : ''}. {done.emailSent ? 'Magic-link invite emailed.' : 'Email not sent — copy the link below.'}
+            Client created{done.lineSeeded ? ' with a seeded narrative line' : ''}.
+            {done.leadsLinked > 0 ? ` Linked ${done.leadsLinked} existing lead${done.leadsLinked === 1 ? '' : 's'} with this email.` : ''}
+            {' '}{done.emailSent ? 'Magic-link invite emailed.' : 'No email sent — copy the link below to send when ready.'}
           </p>
           <label className={labelCls}>Magic link (valid 24h)</label>
           <div className="flex gap-2">
@@ -105,13 +120,28 @@ export default function NewClientForm() {
             </div>
             <div><label className={labelCls}>Trial days (blank = permanent)</label><input className={inputCls} inputMode="numeric" value={f.trialDays} onChange={(e) => set('trialDays', e.target.value)} /></div>
           </div>
-          <div className="mt-3 grid sm:grid-cols-2 gap-3">
-            <div><label className={labelCls}>Key message (seeds their line&apos;s thesis)</label><input className={inputCls} value={f.key_message} onChange={(e) => set('key_message', e.target.value)} placeholder="If they remember one thing…" /></div>
+          <div className="mt-4 text-[11px] uppercase tracking-[0.1em] text-muted">Creative brief — prefill as much as you can (they approve / add the rest)</div>
+          <div className="mt-2 grid sm:grid-cols-2 gap-3">
+            <div><label className={labelCls}>Key message (seeds their thesis)</label><input className={inputCls} value={f.key_message} onChange={(e) => set('key_message', e.target.value)} placeholder="If they remember one thing…" /></div>
             <div><label className={labelCls}>Target audience</label><input className={inputCls} value={f.target_audience} onChange={(e) => set('target_audience', e.target.value)} placeholder="Who they want to reach" /></div>
+            <div><label className={labelCls}>Why advertise</label><input className={inputCls} value={f.why_advertise} onChange={(e) => set('why_advertise', e.target.value)} /></div>
+            <div><label className={labelCls}>Goals</label><input className={inputCls} value={f.goals} onChange={(e) => set('goals', e.target.value)} /></div>
+            <div><label className={labelCls}>Audience insights</label><input className={inputCls} value={f.audience_insights} onChange={(e) => set('audience_insights', e.target.value)} /></div>
+            <div><label className={labelCls}>Proof / support</label><input className={inputCls} value={f.message_support} onChange={(e) => set('message_support', e.target.value)} /></div>
+            <div><label className={labelCls}>Differentiators</label><input className={inputCls} value={f.differentiators} onChange={(e) => set('differentiators', e.target.value)} /></div>
+            <div><label className={labelCls}>Competitors</label><input className={inputCls} value={f.competitors} onChange={(e) => set('competitors', e.target.value)} /></div>
+            <div><label className={labelCls}>Brand voice</label><input className={inputCls} value={f.brand_voice} onChange={(e) => set('brand_voice', e.target.value)} /></div>
+            <div><label className={labelCls}>Brand colors</label><input className={inputCls} value={f.brand_colors} onChange={(e) => set('brand_colors', e.target.value)} /></div>
+            <div><label className={labelCls}>Preferred channels</label><input className={inputCls} value={f.preferred_channels} onChange={(e) => set('preferred_channels', e.target.value)} /></div>
+            <div><label className={labelCls}>Seasonality / key dates</label><input className={inputCls} value={f.timeline} onChange={(e) => set('timeline', e.target.value)} /></div>
           </div>
           <label className="mt-3 flex items-center gap-2 text-sm text-muted">
+            <input type="checkbox" checked={f.linkLeads} onChange={(e) => set('linkLeads', e.target.checked)} />
+            Connect existing leads that share this email (e.g. an imported lead)
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={f.sendInvite} onChange={(e) => set('sendInvite', e.target.checked)} />
-            Email the magic-link invite now
+            Email the magic-link invite now (off = save only; copy the link to send later)
           </label>
           {err && <div className="mt-3 text-sm" style={{ color: '#fca5a5' }}>{err}</div>}
           <button onClick={submit} disabled={busy || !f.email.trim()} className="mt-4 rounded-lg bg-brand hover:opacity-90 disabled:opacity-50 text-black font-medium text-sm px-5 py-2">

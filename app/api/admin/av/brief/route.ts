@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
-import { getBriefPayload, saveBriefPayload, getBriefForPrompt, type BriefPayload } from '@/lib/client/brief_store';
+import { getBriefPayload, saveBriefPayload, getBriefForPrompt, listBriefVersions, restoreBriefVersion, type BriefPayload } from '@/lib/client/brief_store';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -36,6 +36,16 @@ export async function GET(req: NextRequest) {
   const tenantId = (url.searchParams.get('tenantId') || 'av').toLowerCase();
   if (!KNOWN_TENANTS.has(tenantId)) return NextResponse.json({ error: 'unknown tenant' }, { status: 400 });
   const clientId = parseClientId(url.searchParams.get('clientId'));
+
+  // History view: list restore points for this scope.
+  if (url.searchParams.get('history')) {
+    try {
+      const versions = await listBriefVersions(tenantId, clientId);
+      return NextResponse.json({ ok: true, tenantId, clientId, versions });
+    } catch (err) {
+      return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
+    }
+  }
 
   try {
     const [payload, prompt] = await Promise.all([
@@ -68,13 +78,33 @@ export async function POST(req: NextRequest) {
   const tenantId = (typeof body.tenantId === 'string' ? body.tenantId : 'av').toLowerCase();
   if (!KNOWN_TENANTS.has(tenantId)) return NextResponse.json({ error: 'unknown tenant' }, { status: 400 });
   const clientId = parseClientId(body.clientId);
+  const changedBy = (guard.actor as { email?: string }).email ?? null;
+
+  // Restore a prior version (restore point).
+  if ((body as { action?: unknown }).action === 'restore') {
+    const versionId = Number.parseInt(String((body as { versionId?: unknown }).versionId ?? ''), 10);
+    if (!Number.isFinite(versionId) || versionId <= 0) {
+      return NextResponse.json({ error: 'valid versionId required' }, { status: 400 });
+    }
+    try {
+      const ok = await restoreBriefVersion(tenantId, clientId, versionId, changedBy);
+      if (!ok) return NextResponse.json({ error: 'restore failed' }, { status: 500 });
+      const [payload, prompt] = await Promise.all([
+        getBriefPayload(tenantId, clientId),
+        getBriefForPrompt({ tenantId, clientId })
+      ]);
+      return NextResponse.json({ ok: true, tenantId, clientId, payload: payload ?? {}, brandName: prompt.brandName, grounded: prompt.grounded });
+    } catch (err) {
+      return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
+    }
+  }
 
   if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
     return NextResponse.json({ error: 'payload must be an object' }, { status: 400 });
   }
 
   try {
-    const ok = await saveBriefPayload(tenantId, clientId, body.payload as BriefPayload);
+    const ok = await saveBriefPayload(tenantId, clientId, body.payload as BriefPayload, { changedBy, source: 'operator' });
     if (!ok) return NextResponse.json({ error: 'save failed' }, { status: 500 });
     const prompt = await getBriefForPrompt({ tenantId, clientId });
     return NextResponse.json({ ok: true, tenantId, clientId, brandName: prompt.brandName, grounded: prompt.grounded });

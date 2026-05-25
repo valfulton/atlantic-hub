@@ -71,6 +71,8 @@ export function BriefEditor({ customers }: { customers: Customer[] }) {
   const [promptBlock, setPromptBlock] = useState<string>('');
   const [grounded, setGrounded] = useState<boolean>(false);
   const [brandName, setBrandName] = useState<string>(active?.label ?? '');
+  const [versions, setVersions] = useState<{ id: number; source: string; changedBy: string | null; createdAt: string }[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const loadBrief = useCallback(async (scope: Customer) => {
     setLoading(true);
@@ -127,6 +129,45 @@ export function BriefEditor({ customers }: { customers: Customer[] }) {
       setMsg({ ok: true, text: 'Saved — grounding refreshed below.' });
       setDirty(false);
       await loadBrief(active); // re-pull so the prompt block reflects the new brief
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!active) return;
+    setHistoryLoading(true);
+    try {
+      const params = new URLSearchParams({ tenantId: active.tenantId, history: '1' });
+      if (active.clientId != null) params.set('clientId', String(active.clientId));
+      const res = await fetch(`/api/admin/av/brief?${params.toString()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok) setVersions(data.versions ?? []);
+    } catch {
+      /* non-fatal */
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const restoreVersion = async (versionId: number) => {
+    if (!active) return;
+    if (!window.confirm('Restore this version? Your current brief is snapshotted first, so you can undo this too.')) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch('/api/admin/av/brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: active.tenantId, clientId: active.clientId, action: 'restore', versionId })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || 'Restore failed.');
+      setMsg({ ok: true, text: 'Restored — and your previous version was saved as a new restore point.' });
+      await loadBrief(active);
+      await loadHistory();
     } catch (err) {
       setMsg({ ok: false, text: (err as Error).message });
     } finally {
@@ -279,6 +320,42 @@ export function BriefEditor({ customers }: { customers: Customer[] }) {
             <pre className="px-3 pb-3 text-[11px] leading-relaxed text-white/70 whitespace-pre-wrap break-words">
               {promptBlock || '(nothing yet — fill the brief above and save)'}
             </pre>
+          </details>
+
+          {/* Version history — restore points. Nothing is ever overwritten beyond recovery. */}
+          <details
+            className="rounded-md border border-white/10 bg-black/20"
+            onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) loadHistory(); }}
+          >
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs text-white/60">
+              Version history &amp; restore points — open to view
+            </summary>
+            <div className="px-3 pb-3 space-y-2">
+              {historyLoading ? (
+                <div className="text-[11px] text-white/40">Loading history…</div>
+              ) : versions.length === 0 ? (
+                <div className="text-[11px] text-white/40">No earlier versions yet. The first save here creates your first restore point.</div>
+              ) : (
+                versions.map((v) => (
+                  <div key={v.id} className="flex items-center justify-between gap-3 rounded border border-white/10 px-3 py-2">
+                    <div className="text-[11px] text-white/70">
+                      <span className="text-white/90">{new Date(v.createdAt).toLocaleString()}</span>
+                      <span className="ml-2 text-white/40">
+                        {v.source === 'client_intake' ? 'client edit' : v.source === 'restore' ? 'restore' : 'you'}
+                        {v.changedBy ? ` · ${v.changedBy}` : ''}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => restoreVersion(v.id)}
+                      disabled={saving}
+                      className="shrink-0 rounded border border-white/20 px-2.5 py-1 text-[11px] text-white/80 hover:text-white hover:border-white/40 disabled:opacity-50"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </details>
         </>
       )}

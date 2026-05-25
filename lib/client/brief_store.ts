@@ -120,11 +120,16 @@ export async function getBriefPayload(
 export async function saveBriefPayload(
   tenantId: string,
   clientId: number | null,
-  payload: BriefPayload
+  payload: BriefPayload,
+  opts: { changedBy?: string | null; source?: string } = {}
 ): Promise<boolean> {
   const db = getAvDb();
   const json = JSON.stringify(payload ?? {});
   try {
+    // Snapshot the CURRENT effective payload as a restore point BEFORE overwriting,
+    // so nothing is ever lost (covers operator edits and client resubmissions).
+    await snapshotBriefVersion(tenantId, clientId, opts.source ?? 'operator', opts.changedBy ?? null);
+
     const [rows] = await db.execute<(RowDataPacket & { id: number })[]>(
       `SELECT id FROM creative_briefs
         WHERE tenant_id = ? AND client_id <=> ? LIMIT 1`,
@@ -147,6 +152,89 @@ export async function saveBriefPayload(
     return true;
   } catch (err) {
     console.error('[brief_store:save]', (err as Error).message);
+    return false;
+  }
+}
+
+export interface BriefVersion {
+  id: number;
+  source: string;
+  changedBy: string | null;
+  createdAt: string;
+  payload: BriefPayload | null;
+}
+
+/**
+ * Write a restore-point snapshot of the CURRENT effective payload for a scope.
+ * No-op if there's nothing to snapshot. Never throws (versioning must not block a save).
+ */
+export async function snapshotBriefVersion(
+  tenantId: string,
+  clientId: number | null,
+  source: string,
+  changedBy: string | null
+): Promise<void> {
+  try {
+    const current = await getBriefPayload(tenantId, clientId);
+    if (!current || Object.keys(current).length === 0) return;
+    const db = getAvDb();
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO creative_brief_versions (tenant_id, client_id, brief_payload, source, changed_by)
+       VALUES (?, ?, CAST(? AS JSON), ?, ?)`,
+      [tenantId, clientId, JSON.stringify(current), source.slice(0, 24), changedBy]
+    );
+  } catch (err) {
+    console.error('[brief_store:snapshot]', (err as Error).message);
+  }
+}
+
+/** List restore points for a scope, newest first. */
+export async function listBriefVersions(tenantId: string, clientId: number | null): Promise<BriefVersion[]> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { id: number; source: string; changed_by: string | null; created_at: string; brief_payload: string | BriefPayload | null })[]>(
+      `SELECT id, source, changed_by, created_at, brief_payload
+         FROM creative_brief_versions
+        WHERE tenant_id = ? AND client_id <=> ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 50`,
+      [tenantId, clientId]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      source: r.source,
+      changedBy: r.changed_by,
+      createdAt: typeof r.created_at === 'string' ? r.created_at : String(r.created_at),
+      payload: asPayload(r.brief_payload)
+    }));
+  } catch (err) {
+    console.error('[brief_store:listVersions]', (err as Error).message);
+    return [];
+  }
+}
+
+/**
+ * Restore a prior version: snapshots the current payload first (so restore is itself
+ * reversible), then writes the version's payload back as the live brief.
+ */
+export async function restoreBriefVersion(
+  tenantId: string,
+  clientId: number | null,
+  versionId: number,
+  changedBy: string | null
+): Promise<boolean> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { brief_payload: string | BriefPayload | null })[]>(
+      `SELECT brief_payload FROM creative_brief_versions
+        WHERE id = ? AND tenant_id = ? AND client_id <=> ? LIMIT 1`,
+      [versionId, tenantId, clientId]
+    );
+    const payload = asPayload(rows[0]?.brief_payload ?? null);
+    if (!payload) return false;
+    return await saveBriefPayload(tenantId, clientId, payload, { changedBy, source: 'restore' });
+  } catch (err) {
+    console.error('[brief_store:restore]', (err as Error).message);
     return false;
   }
 }
