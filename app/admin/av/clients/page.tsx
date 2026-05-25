@@ -2,10 +2,23 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { listClientAccounts, type ClientAccountSummary } from '@/lib/av/clients_overview';
+import { getAvDb } from '@/lib/db/av';
 import NewClientForm from './NewClientForm';
+import ConvertLeadToClient from './ConvertLeadToClient';
+import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+interface ConvertibleRow extends RowDataPacket {
+  audit_id: string;
+  company: string;
+  contact_name: string | null;
+  email: string;
+  industry: string | null;
+  ai_score: number | string | null;
+  ai_score_band: string | null;
+}
 
 /**
  * /admin/av/clients -- operator-only roster of every client hub.
@@ -26,6 +39,31 @@ export default async function ClientsPage() {
     failed = true;
   }
 
+  // Active leads available to convert into a client (no retyping — their info carries over).
+  let convertible: { auditId: string; company: string; contactName: string | null; email: string; industry: string | null; score: number | null; band: string | null }[] = [];
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<ConvertibleRow[]>(
+      `SELECT audit_id, company, contact_name, email, industry, ai_score, ai_score_band
+         FROM leads
+        WHERE archived_at IS NULL AND email IS NOT NULL AND email <> ''
+          AND lead_status NOT IN ('converted', 'lost')
+        ORDER BY (ai_score IS NULL), ai_score DESC, id DESC
+        LIMIT 200`
+    );
+    convertible = rows.map((r) => ({
+      auditId: r.audit_id,
+      company: r.company,
+      contactName: r.contact_name,
+      email: r.email,
+      industry: r.industry,
+      score: r.ai_score == null ? null : Number(r.ai_score),
+      band: r.ai_score_band
+    }));
+  } catch {
+    /* non-fatal: convert picker shows an empty state */
+  }
+
   return (
     <div className="max-w-5xl">
       <h1 className="text-3xl font-semibold tracking-tight mb-1">Clients</h1>
@@ -34,7 +72,10 @@ export default async function ClientsPage() {
         review their leads, discovery activity, and any errors.
       </p>
 
-      <NewClientForm />
+      <div className="flex flex-wrap items-start">
+        <NewClientForm />
+        <ConvertLeadToClient leads={convertible} />
+      </div>
 
       {failed ? (
         <div className="rounded-2xl border border-border bg-surface p-6 text-muted">Could not load clients right now.</div>
