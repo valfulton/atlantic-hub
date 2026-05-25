@@ -11,8 +11,7 @@
  * from the header. Talks to /api/admin/campaigns/lanes and
  * /api/admin/campaigns/lines/[id]/{engagement,commercials}.
  */
-import { useCallback, useEffect, useState } from 'react';
-import { SuggestInput, SuggestTextarea } from '@/components/SuggestField';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 type LineState = 'candidate' | 'active' | 'reinforcing' | 'retiring';
 
@@ -468,6 +467,21 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
   );
 }
 
+/** A collapsible sub-section (native <details>) so the open line isn't a wall.
+ *  The summary shows a one-line hint so you get the signal without expanding. */
+function Collapsible({ title, hint, defaultOpen = false, children }: { title: string; hint?: string; defaultOpen?: boolean; children: ReactNode }) {
+  return (
+    <details open={defaultOpen} style={{ marginTop: 14, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
+      <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{title}</span>
+        {hint && <span style={{ fontSize: 11, color: '#64748b' }}>{hint}</span>}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#475569' }}>expand</span>
+      </summary>
+      <div style={{ marginTop: 10 }}>{children}</div>
+    </details>
+  );
+}
+
 function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
@@ -481,10 +495,13 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
   const sm = saveMsg[id];
   const isDirty = !!dirty[id];
 
-  const field = (label: string, key: keyof Line, suggestion: string) => (
+  // Plain input with the example as a faint placeholder — the old per-field
+  // "Use:" chips showed the same generic suggestion on every line (noise); the
+  // line-specific smart suggestions live in "Your leads" + the thesis suggester.
+  const field = (label: string, key: keyof Line, example: string) => (
     <div>
       <label style={labelStyle}>{label}</label>
-      <SuggestInput value={(d[key] as string) ?? ''} onChange={(v) => patchField(id, key, v)} suggestion={suggestion} ariaLabel={label} />
+      <input style={inputStyle} placeholder={example} value={(d[key] as string) ?? ''} onChange={(e) => patchField(id, key, e.target.value)} aria-label={label} />
     </div>
   );
   const listField = (label: string, key: 'proofPoints' | 'doSay' | 'dontSay', placeholder: string) => (
@@ -498,7 +515,13 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
     <div style={{ marginTop: 12, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
       <div>
         <label style={labelStyle}>Thesis — the believable market thesis, one sentence</label>
-        <SuggestTextarea value={d.thesis ?? ''} onChange={(v) => patchField(id, 'thesis', v)} suggestion="Luxury retreats are becoming strategic executive performance assets." ariaLabel="Thesis" />
+        <textarea
+          style={{ ...inputStyle, minHeight: 52 }}
+          placeholder="e.g. Luxury retreats are becoming strategic executive performance assets."
+          value={d.thesis ?? ''}
+          onChange={(e) => patchField(id, 'thesis', e.target.value)}
+          aria-label="Thesis"
+        />
         <div style={{ marginTop: 6 }}>
           {/* Step 1 — see the prompt before spending anything. */}
           {!tp && (
@@ -564,7 +587,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
       </div>
       <div>
         <label style={labelStyle}>Conversion signal — the moment that means it&apos;s working</label>
-        <SuggestInput value={d.conversionSignal ?? ''} onChange={(v) => patchField(id, 'conversionSignal', v)} suggestion="retreat inquiry after commercial view" ariaLabel="Conversion signal" />
+        <input style={inputStyle} placeholder="e.g. retreat inquiry after commercial view" value={d.conversionSignal ?? ''} onChange={(e) => patchField(id, 'conversionSignal', e.target.value)} aria-label="Conversion signal" />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         {listField('Proof points', 'proofPoints', 'stat / quote / result')}
@@ -583,44 +606,11 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
         {!sm && isDirty && <span style={{ fontSize: 12, color: '#fcd34d' }}>Unsaved changes — click Save line</span>}
       </div>
 
-      {/* What your leads need — shape the line toward the pipeline it has to convert */}
-      {lf && lf.totalLeads > 0 && (lf.needs.painThemes.length > 0 || lf.needs.industries.length > 0 || lf.needs.keywords.length > 0) && (
-        <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>What your leads need</div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-            Drawn from this customer&apos;s {lf.totalLeads} leads. Click any chip to drop it into the line&apos;s audience, then shape the thesis to serve it.
-          </div>
-          {([
-            { label: 'Pain themes', items: lf.needs.painThemes },
-            { label: 'Industries', items: lf.needs.industries },
-            { label: 'Recurring words', items: lf.needs.keywords }
-          ] as const).map((group) => group.items.length > 0 && (
-            <div key={group.label} style={{ marginBottom: 6 }}>
-              <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, color: '#475569', marginRight: 6 }}>{group.label}:</span>
-              {group.items.map((it) => (
-                <button
-                  key={it.label}
-                  type="button"
-                  onClick={() => {
-                    const cur = (d.audience ?? '').trim();
-                    const already = cur.toLowerCase().split(/\s*,\s*/).includes(it.label.toLowerCase());
-                    if (already) return;
-                    patchField(id, 'audience', cur ? `${cur}, ${it.label}` : it.label);
-                  }}
-                  title="Click to add to Audience"
-                  style={{ display: 'inline-block', margin: '2px 4px 2px 0', padding: '2px 9px', borderRadius: 999, border: '1px solid rgba(96,165,250,0.3)', background: 'rgba(96,165,250,0.08)', color: '#bfdbfe', fontSize: 11, cursor: 'pointer' }}
-                >
-                  {it.label} {it.count > 1 && <span style={{ color: '#64748b' }}>×{it.count}</span>}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Lead fit — how many of this owner's leads the line speaks to (defend the push order) */}
-      <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>Lead fit — who this line serves</div>
+      {/* Your leads — fit + what they need, merged into one place (was two blocks). */}
+      <Collapsible
+        title="Your leads"
+        hint={lf ? (lf.totalLeads === 0 ? 'no leads yet' : `maps to ${lf.matchedCount} of ${lf.totalLeads} · ${lf.bands.hot} hot`) : 'checking…'}
+      >
         {!lf ? (
           <div style={{ fontSize: 12, color: '#64748b' }}>Checking your pipeline…</div>
         ) : lf.totalLeads === 0 ? (
@@ -634,10 +624,42 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
               )}
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-              Use this to defend the push order — lead with the line that reaches the most (and hottest) leads. (Themed match; gets smarter over time.)
+              Defend the push order — lead with the line that reaches the most (and hottest) leads.
             </div>
+
+            {(lf.needs.painThemes.length > 0 || lf.needs.industries.length > 0 || lf.needs.keywords.length > 0) && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>What they need — click a chip to add it to Audience:</div>
+                {([
+                  { label: 'Pain themes', items: lf.needs.painThemes },
+                  { label: 'Industries', items: lf.needs.industries },
+                  { label: 'Recurring words', items: lf.needs.keywords }
+                ] as const).map((group) => group.items.length > 0 && (
+                  <div key={group.label} style={{ marginBottom: 6 }}>
+                    <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, color: '#475569', marginRight: 6 }}>{group.label}:</span>
+                    {group.items.map((it) => (
+                      <button
+                        key={it.label}
+                        type="button"
+                        onClick={() => {
+                          const cur = (d.audience ?? '').trim();
+                          const already = cur.toLowerCase().split(/\s*,\s*/).includes(it.label.toLowerCase());
+                          if (already) return;
+                          patchField(id, 'audience', cur ? `${cur}, ${it.label}` : it.label);
+                        }}
+                        title="Click to add to Audience"
+                        style={{ display: 'inline-block', margin: '2px 4px 2px 0', padding: '2px 9px', borderRadius: 999, border: '1px solid rgba(96,165,250,0.3)', background: 'rgba(96,165,250,0.08)', color: '#bfdbfe', fontSize: 11, cursor: 'pointer' }}
+                      >
+                        {it.label} {it.count > 1 && <span style={{ color: '#64748b' }}>×{it.count}</span>}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {lf.top.length > 0 && (
-              <ul style={{ marginTop: 8, listStyle: 'none', padding: 0 }}>
+              <ul style={{ marginTop: 10, listStyle: 'none', padding: 0 }}>
                 {lf.top.map((t) => (
                   <li key={t.leadId} style={{ fontSize: 12, color: '#cbd5e1', padding: '3px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{t.company}</span>
@@ -649,11 +671,10 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
             )}
           </>
         )}
-      </div>
+      </Collapsible>
 
       {/* Engagement */}
-      <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>Engagement (the learning loop)</div>
+      <Collapsible title="Engagement (the learning loop)" hint={summary ? `${summary.entryCount} entries · ${(summary.engagementRate * 100).toFixed(1)}% rate` : 'no readings yet'}>
         {summary ? (
           <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#cbd5e1', marginBottom: 10, flexWrap: 'wrap' }}>
             <span>{summary.impressions.toLocaleString()} impressions</span>
@@ -721,10 +742,10 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
           <button onClick={() => pullSocials(id)} style={btnGhost} title="Auto-pull from connected socials (coming with the social accounts work)">Pull from socials</button>
         </div>
         {pullMsg && <div style={{ fontSize: 12, color: '#fcd34d', marginTop: 8 }}>{pullMsg}</div>}
-      </div>
+      </Collapsible>
 
-      {/* Commercial prompt — born from the line, no lead, editable before generating */}
-      <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
+      {/* Commercials — make one from the line + see what's tied to it (merged into one section). */}
+      <Collapsible title="Commercials" hint={comms.length > 0 ? `${comms.length} on this line` : 'make one from this line'}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>Commercial from this line</div>
         <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
           Auto-drafts a prompt from this line&apos;s thesis, audience, emotional driver &amp; authority angle — with voiceover + imagery direction baked in. Edit it freely; nothing generates yet.
@@ -768,11 +789,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
             {gen?.msg && <div style={{ fontSize: 12, color: gen.msg.toLowerCase().includes('fail') ? '#fca5a5' : '#6ee7b7', marginTop: 8 }}>{gen.msg}</div>}
           </div>
         )}
-      </div>
-
-      {/* Existing commercials tied to this line */}
-      <div style={{ marginTop: 16, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>Commercials on this line</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', margin: '16px 0 6px' }}>Commercials on this line</div>
         {comms.length === 0 ? (
           <div style={{ fontSize: 12, color: '#64748b' }}>
             No commercials tied to this line yet.
@@ -794,7 +811,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
             ))}
           </div>
         )}
-      </div>
+      </Collapsible>
     </div>
   );
 }
