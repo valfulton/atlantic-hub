@@ -1,8 +1,11 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { fetchTimelineItems, fetchTimelineTenants } from './timeline';
+import { getPublishingPause } from '@/lib/social/publishing_control';
+import { getImportantDatesForWindow } from '@/lib/calendar/important_dates';
 import { CalendarView, SKIN_KEYS, type SkinKey } from './CalendarView';
 import { CalendarSelectionProvider } from './CalendarSelection';
+import { StopThePresses } from './StopThePresses';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,9 +37,11 @@ export default async function CampaignTimelinePage({
   const skin: SkinKey = (SKIN_KEYS as string[]).includes(searchParams.skin ?? '') ? (searchParams.skin as SkinKey) : 'midnight';
 
   const window = computeWindow(view, anchor);
-  const [items, tenants] = await Promise.all([
+  const [items, tenants, pause, importantDates] = await Promise.all([
     fetchTimelineItems({ from: toIso(window.gridStart), to: toIso(window.gridEnd), tenant }),
-    fetchTimelineTenants()
+    fetchTimelineTenants(),
+    getPublishingPause(),
+    getImportantDatesForWindow({ tenant, fromIso: toIso(window.gridStart), toIso: toIso(window.gridEnd) })
   ]);
 
   return (
@@ -67,6 +72,8 @@ export default async function CampaignTimelinePage({
         seasonal campaigns onto the same view as those systems come online.
       </p>
 
+      <StopThePresses initial={pause} />
+
       <CalendarSelectionProvider>
         <CalendarView
           view={view}
@@ -76,6 +83,7 @@ export default async function CampaignTimelinePage({
           tenant={tenant}
           tenants={tenants}
           skin={skin}
+          importantDates={importantDates}
         />
       </CalendarSelectionProvider>
     </div>

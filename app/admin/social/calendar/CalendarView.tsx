@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { holidayMap } from '@/lib/calendar/holidays';
+import { KIND_EMOJI, type ImportantDate } from '@/lib/calendar/important_dates';
 import type { TimelineItem, TimelineItemStatus } from '@/lib/pr/types';
 import { TimelineEntry } from './TimelineEntry';
+import { AddImportantDate } from './AddImportantDate';
 
 interface CalWindow {
   gridStart: Date;
@@ -18,6 +20,7 @@ interface Props {
   tenant: string | null;
   tenants: string[];
   skin: SkinKey;
+  importantDates: ImportantDate[];
 }
 
 // ---- skins: selectable palettes for the grid ------------------------------
@@ -45,9 +48,17 @@ const STATUS_STYLE: Record<TimelineItemStatus, { label: string; bg: string; fg: 
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function CalendarView({ view, anchor, window, items, tenant, tenants, skin }: Props) {
+export function CalendarView({ view, anchor, window, items, tenant, tenants, skin, importantDates }: Props) {
   const sk = SKINS[skin] ?? SKINS.midnight;
   const today = startOfDay(new Date());
+
+  // Client important dates (birthdays, busy seasons…) bucketed by ISO day.
+  const datesByDay = new Map<string, ImportantDate[]>();
+  for (const d of importantDates) {
+    const arr = datesByDay.get(d.iso) ?? [];
+    arr.push(d);
+    datesByDay.set(d.iso, arr);
+  }
   const cellCount = view === 'week' ? 7 : 42;
   const cells: Date[] = [];
   for (let i = 0; i < cellCount; i++) cells.push(addDays(window.gridStart, i));
@@ -106,6 +117,11 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants, ski
         ))}
       </div>
 
+      {/* add a client important date (recurs yearly, layers onto the grid) */}
+      <div className="mb-4">
+        <AddImportantDate tenant={tenant} />
+      </div>
+
       {/* weekday header */}
       <div className="grid grid-cols-7 gap-px mb-px">
         {WEEKDAYS.map((w) => (
@@ -153,6 +169,16 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants, ski
                   {holidays.get(key)!.emoji} {holidays.get(key)!.name}
                 </div>
               )}
+              {datesByDay.get(key)?.map((d, i) => (
+                <div
+                  key={i}
+                  className="text-[10px] mb-1 truncate rounded px-1 py-0.5"
+                  title={d.label}
+                  style={{ color: '#fda4af', background: 'rgba(244,63,94,0.12)' }}
+                >
+                  {KIND_EMOJI[d.kind] ?? '📌'} {d.label}
+                </div>
+              ))}
               <div className="space-y-1">
                 {dayItems.slice(0, view === 'week' ? 12 : 4).map((it) => (
                   <TimelineEntry key={it.id} item={it} />
