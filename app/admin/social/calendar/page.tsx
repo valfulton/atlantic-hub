@@ -8,6 +8,7 @@ import { CalendarSelectionProvider } from './CalendarSelection';
 import { StopThePresses } from './StopThePresses';
 import { SchedulePostComposer } from './SchedulePostComposer';
 import { CelebrationSettings } from './CelebrationSettings';
+import { CalendarDnD } from './CalendarDnD';
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
 
@@ -103,16 +104,18 @@ export default async function CampaignTimelinePage({
       <SchedulePostComposer channels={channels} />
 
       <CalendarSelectionProvider>
-        <CalendarView
-          view={view}
-          anchor={anchor}
-          window={window}
-          items={items}
-          tenant={tenant}
-          tenants={tenants}
-          skin={skin}
-          importantDates={importantDates}
-        />
+        <CalendarDnD>
+          <CalendarView
+            view={view}
+            anchor={anchor}
+            window={window}
+            items={items}
+            tenant={tenant}
+            tenants={tenants}
+            skin={skin}
+            importantDates={importantDates}
+          />
+        </CalendarDnD>
       </CalendarSelectionProvider>
     </div>
   );

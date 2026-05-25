@@ -142,6 +142,7 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants, ski
           return (
             <div
               key={key}
+              data-cal-date={key}
               className="p-1.5 align-top"
               style={{
                 background: inPeriod ? sk.cellIn : sk.cellOut,
@@ -180,9 +181,25 @@ export function CalendarView({ view, anchor, window, items, tenant, tenants, ski
                 </div>
               ))}
               <div className="space-y-1">
-                {dayItems.slice(0, view === 'week' ? 12 : 4).map((it) => (
-                  <TimelineEntry key={it.id} item={it} />
-                ))}
+                {dayItems.slice(0, view === 'week' ? 12 : 4).map((it) =>
+                  it.type === 'social' && it.outboxId != null ? (
+                    <div key={it.id} className="flex items-start gap-1">
+                      <span
+                        data-outbox-id={it.outboxId}
+                        draggable
+                        title="Drag to another day to reschedule"
+                        className="shrink-0 cursor-grab select-none text-muted/70 text-[11px] leading-tight pt-1"
+                      >
+                        ⠿
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <TimelineEntry item={it} />
+                      </div>
+                    </div>
+                  ) : (
+                    <TimelineEntry key={it.id} item={it} />
+                  )
+                )}
                 {dayItems.length > (view === 'week' ? 12 : 4) && (
                   <div className="text-[10px] text-muted px-1">+{dayItems.length - (view === 'week' ? 12 : 4)} more</div>
                 )}
