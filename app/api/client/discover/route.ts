@@ -25,6 +25,7 @@ import {
   icpToApolloFilters,
   suggestIcpFromIntake
 } from '@/lib/client/icp';
+import { getBriefPayload } from '@/lib/client/brief_store';
 import { runDiscoveryBatch } from '@/lib/apollo/discoverer';
 import { runPlacesDiscoveryBatch } from '@/lib/google_places/discoverer';
 import { logEvent } from '@/lib/events/log';
@@ -92,12 +93,11 @@ export async function GET(req: NextRequest) {
     // the panel isn't blank — clients already told us their industry at intake.
     if (!hasUsableIcp(icp) && !icp.description) {
       try {
-        const db = getAvDb();
-        const [rows] = await db.execute<(RowDataPacket & { intake_payload: unknown })[]>(
-          `SELECT intake_payload FROM client_users WHERE client_user_id = ? LIMIT 1`,
-          [user.client_user_id]
-        );
-        const suggested = suggestIcpFromIntake(rows[0]?.intake_payload);
+        // Seed from the UNIFIED brief (operator prefill + client edits via
+        // /client/intake), not just the raw intake row, so the discovery ICP
+        // reflects the latest details and now maps geography + company size too.
+        const briefPayload = await getBriefPayload('av', clientId);
+        const suggested = suggestIcpFromIntake(briefPayload);
         if (hasUsableIcp(suggested) || suggested.description) icp = suggested;
       } catch {
         /* non-fatal: leave the empty ICP */

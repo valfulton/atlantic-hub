@@ -150,13 +150,53 @@ export function suggestIcpFromIntake(raw: unknown): ClientIcp {
     p = null;
   }
   if (!p || typeof p !== 'object') return { ...EMPTY_ICP };
-  const industries: string[] = [];
-  if (typeof p.industry === 'string' && p.industry.trim()) industries.push(p.industry.trim());
-  const note =
-    (typeof p.message === 'string' && p.message.trim()) ||
-    (typeof p.challenge === 'string' && p.challenge.trim()) ||
-    '';
-  return { ...EMPTY_ICP, industries, description: note ? note.slice(0, 2000) : '' };
+
+  // First non-empty string among several possible field names (the live intake
+  // form, the operator brief, and the canonical brief all use different names).
+  const pick = (...keys: string[]): string => {
+    for (const k of keys) {
+      const v = (p as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return '';
+  };
+  // Split a freeform field into list items on commas / semicolons / newlines.
+  const list = (s: string): string[] =>
+    s ? s.split(/[\n;,]+/).map((x) => x.trim()).filter(Boolean).slice(0, 8) : [];
+
+  // Industries / keyword tags: the client's industry + any explicit keywords.
+  const industries = Array.from(new Set([
+    ...list(pick('industry')),
+    ...list(pick('keywords', 'target_keywords'))
+  ]));
+
+  // Geographies: the intake's geo focus (the form captures geo_focus).
+  const geographies = list(pick('geo_focus', 'geographies', 'location', 'target_geographies'));
+
+  // Company size: parse a band like "10-50", "50+", "200 employees".
+  let companySizeMin: number | null = null;
+  let companySizeMax: number | null = null;
+  const sizeStr = pick('company_size', 'target_company_size', 'companySize');
+  if (sizeStr) {
+    const nums = (sizeStr.match(/\d[\d,]*/g) || []).map((n) => clampSize(n.replace(/,/g, ''))).filter((n): n is number => n != null);
+    if (nums.length >= 2) { companySizeMin = Math.min(nums[0], nums[1]); companySizeMax = Math.max(nums[0], nums[1]); }
+    else if (nums.length === 1) { companySizeMin = nums[0]; }
+  }
+
+  // Description: the richest signal we have for who they want to reach.
+  const description = pick(
+    'key_message', 'target_audience', 'ideal_client', 'audience_insights',
+    'business_description', 'message', 'challenge'
+  );
+
+  return {
+    ...EMPTY_ICP,
+    industries,
+    geographies,
+    companySizeMin,
+    companySizeMax,
+    description: description ? description.slice(0, 2000) : ''
+  };
 }
 
 /** Does this ICP have enough to run a discovery search? */
