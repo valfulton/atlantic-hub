@@ -3,8 +3,20 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getClientAccountDetail } from '@/lib/av/clients_overview';
 import { getClientAccessState } from '@/lib/av/client_access';
+import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
+import AssignLeadsPanel from './AssignLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
+import type { RowDataPacket } from 'mysql2';
+
+interface UnassignedRow extends RowDataPacket {
+  audit_id: string;
+  company: string;
+  industry: string | null;
+  email: string | null;
+  ai_score: number | string | null;
+  ai_score_band: string | null;
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,6 +40,29 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
   const access = await getClientAccessState(clientId);
   const currentTier = (d.members[0]?.tier as ClientTier) || 'sprint';
+
+  // Unassigned leads available to hand to this client (bulk handoff #79).
+  let unassigned: { auditId: string; company: string; industry: string | null; email: string | null; score: number | null; band: string | null }[] = [];
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<UnassignedRow[]>(
+      `SELECT audit_id, company, industry, email, ai_score, ai_score_band
+         FROM leads
+        WHERE client_id IS NULL AND archived_at IS NULL
+        ORDER BY (ai_score IS NULL), ai_score DESC, id DESC
+        LIMIT 60`
+    );
+    unassigned = rows.map((r) => ({
+      auditId: r.audit_id,
+      company: r.company,
+      industry: r.industry,
+      email: r.email,
+      score: r.ai_score == null ? null : Number(r.ai_score),
+      band: r.ai_score_band
+    }));
+  } catch {
+    /* non-fatal: panel shows an empty state */
+  }
 
   const icpBits = [
     d.icp.industries.length ? `Industries: ${d.icp.industries.join(', ')}` : null,
@@ -128,6 +163,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           </ul>
         )}
       </div>
+
+      {/* Bulk lead handoff: assign unassigned prospects to this client. */}
+      <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />
 
       {/* Their pipeline */}
       <div className="rounded-2xl border border-border bg-surface p-4">

@@ -70,6 +70,39 @@ function clampSize(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
 }
 
+// Words that don't help as a search keyword tag on their own.
+const KW_STOP = new Set([
+  'the', 'a', 'an', 'and', 'or', 'for', 'with', 'who', 'that', 'this', 'their', 'your', 'our',
+  'to', 'of', 'in', 'on', 'are', 'is', 'we', 'they', 'them', 'us', 'people', 'clients', 'customers',
+  'businesses', 'companies', 'owners', 'looking', 'want', 'need', 'like', 'such', 'etc', 'any', 'all',
+  'who', 'whose', 'mainly', 'mostly', 'typically', 'usually', 'ideal', 'target'
+]);
+
+/**
+ * Turn a freeform "ideal customer" description into a handful of clean search
+ * keyword tags. Clients often list types ("boutique hotels, wedding venues and
+ * yacht clubs"); we split on list separators + "and", drop stopword-only or
+ * over-long fragments, and keep the tight phrases that make good Apollo tags.
+ */
+function keywordTagsFromText(text: string): string[] {
+  if (!text) return [];
+  const parts = text
+    .toLowerCase()
+    .replace(/\b(and|&|as well as|including|like|such as)\b/g, ',')
+    .split(/[,;/\n.]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  for (const raw of parts) {
+    const words = raw.split(/\s+/).filter((w) => w.length > 1 && !KW_STOP.has(w));
+    if (words.length === 0 || words.length > 4) continue; // skip empties + long clauses
+    const tag = words.join(' ').trim();
+    if (tag.length >= 3 && !out.includes(tag)) out.push(tag);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+
 /** Read the client's saved ICP, or EMPTY_ICP if none. */
 export async function getClientIcp(clientId: number): Promise<ClientIcp> {
   if (!clientId || clientId <= 0) return { ...EMPTY_ICP };
@@ -164,11 +197,16 @@ export function suggestIcpFromIntake(raw: unknown): ClientIcp {
   const list = (s: string): string[] =>
     s ? s.split(/[\n;,]+/).map((x) => x.trim()).filter(Boolean).slice(0, 8) : [];
 
-  // Industries / keyword tags: the client's industry + any explicit keywords.
+  // Industries / keyword tags. Clients describe who they want to attract in
+  // prose ("boutique hotels, wedding venues, yacht clubs and event planners"),
+  // so we turn that into real search keyword tags — not just a note — alongside
+  // their industry. This is what makes auto-found leads actually on-target.
+  const idealText = pick('ideal_client', 'target_audience', 'target_customer', 'ideal_customer');
   const industries = Array.from(new Set([
     ...list(pick('industry')),
-    ...list(pick('keywords', 'target_keywords'))
-  ]));
+    ...list(pick('keywords', 'target_keywords')),
+    ...keywordTagsFromText(idealText)
+  ])).slice(0, 10);
 
   // Geographies: the intake's geo focus (the form captures geo_focus).
   const geographies = list(pick('geo_focus', 'geographies', 'location', 'target_geographies'));
