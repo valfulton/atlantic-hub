@@ -32,11 +32,13 @@ export default function DiscoverPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-1">Discover leads</h1>
+      <h1 className="text-2xl font-semibold mb-1">Find new leads</h1>
       <p className="text-sm text-muted mb-5">
-        Four sources, one leads table. All discoveries dedup by domain across sources and
-        auto-tag <code className="bg-surface px-1 rounded">target_business</code> (AV / EBW /
-        Both) by industry. Leads land at{' '}
+        Pulls <strong>brand-new leads</strong> into your pipeline (this is not Enrich — Enrich only
+        fills contact details on leads you already have). Four sources, one leads table. All
+        discoveries dedup by domain across sources and auto-tag{' '}
+        <code className="bg-surface px-1 rounded">target_business</code> (AV / EBW / Both) by
+        industry. Leads land at{' '}
         <Link href="/admin/av" className="text-brand hover:underline">
           /admin/av
         </Link>

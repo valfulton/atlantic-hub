@@ -31,7 +31,7 @@ import {
   OpenAIApiError
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
-import { extractBriefSeedFromIntake } from '@/lib/client/intake_brief';
+import { getBriefSeed } from '@/lib/client/brief_store';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -73,6 +73,7 @@ interface LeadRow extends RowDataPacket {
   target_business: 'av' | 'ebw' | 'both';
   source_type: string;
   challenge: string | null;
+  client_id: number | null;
 }
 
 interface AiScorePayload {
@@ -175,7 +176,7 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
 
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website,
-            industry, target_business, source_type, challenge
+            industry, target_business, source_type, challenge, client_id
        FROM leads
       WHERE id = ?
         AND archived_at IS NULL
@@ -219,21 +220,17 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
     };
   }
 
-  // If this lead belongs to a client account (matched by their real email),
-  // ground the audit in the client's OWN intake/brief answers instead of
-  // guessing. Prospect leads (no matching client_user) get no brief context, so
-  // their audit is unchanged. Non-fatal: the audit still runs without it.
+  // If this lead BELONGS TO a client account, ground the audit in that client's
+  // OWN brief/intake answers. Scoped strictly by lead.client_id (NOT email) — a
+  // prior email-match here cross-contaminated test accounts that shared an email
+  // (e.g. valrealestate pulling Chef Alex Forsythe's intake). Prospect leads
+  // (client_id NULL) get NO brief context, so their audit is unchanged.
+  // Non-fatal: the audit still runs without it.
   let briefContext: string | null = null;
   try {
-    if (lead.email && !/^(prospect|apollo|noemail)\+/i.test(lead.email)) {
-      const [cuRows] = await db.execute<(RowDataPacket & { intake_payload: unknown })[]>(
-        `SELECT intake_payload FROM client_users
-          WHERE email = ? AND archived_at IS NULL
-          ORDER BY client_user_id DESC LIMIT 1`,
-        [lead.email]
-      );
-      if (cuRows[0]?.intake_payload) {
-        const seed = extractBriefSeedFromIntake(cuRows[0].intake_payload);
+    if (lead.client_id != null) {
+      const seed = await getBriefSeed('av', lead.client_id);
+      if (seed) {
         const parts: string[] = [];
         if (seed.whyAdvertise) parts.push(`Why they advertise: ${seed.whyAdvertise}`);
         if (seed.goals) parts.push(`Their 90-day goals: ${seed.goals}`);
@@ -246,7 +243,7 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
         if (seed.competitors) parts.push(`Competitors they named: ${seed.competitors}`);
         if (parts.length) {
           briefContext =
-            'The client completed an intake brief in their own words. Ground the audit in these and do not contradict them:\n- ' +
+            'This lead belongs to a client who completed an intake brief in their own words. Ground the audit in these and do not contradict them:\n- ' +
             parts.join('\n- ');
         }
       }
