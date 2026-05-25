@@ -330,7 +330,8 @@ export type TimelineItemType =
   | 'pr_release'
   | 'outreach'
   | 'commercial'
-  | 'launch';
+  | 'launch'
+  | 'content';
 
 export type TimelineItemStatus =
   | 'draft'

@@ -86,7 +86,10 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
           <span className="font-semibold">Operator preview</span> — this is what{' '}
           <span className="font-semibold">{clientName}</span> sees on their dashboard. Read-only.
         </span>
-        <Link href={`/admin/av/clients/${clientId}`} className="shrink-0 text-amber-100 hover:underline">Back to client</Link>
+        <span className="shrink-0 flex items-center gap-4">
+          <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-amber-100 hover:underline">Edit creative brief →</Link>
+          <Link href={`/admin/av/clients/${clientId}`} className="text-amber-100 hover:underline">Back to client</Link>
+        </span>
       </div>
 
       <main className="max-w-6xl mx-auto">

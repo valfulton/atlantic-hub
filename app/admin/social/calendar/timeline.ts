@@ -13,6 +13,7 @@
  * Server-only (uses getAvDb). Owner/staff surfaces read this.
  */
 import { getAvDb } from '@/lib/db/av';
+import { articleSlug } from '@/lib/newsroom/published';
 import type { RowDataPacket } from 'mysql2';
 import type { TimelineItem, TimelineItemStatus } from '@/lib/pr/types';
 
@@ -115,7 +116,69 @@ export async function fetchTimelineItems(opts: {
     vals
   );
 
-  return rows.map(mapOutbox);
+  const social = rows.map(mapOutbox);
+
+  // Also surface PUBLISHED owned content (blogs, guides, own-brand posts, press
+  // releases) on the timeline, anchored to their publish date, so the calendar
+  // shows everything that went out — not just social. Read-only (no outboxId);
+  // links to the public newsroom. client_deliverable (private) is excluded.
+  const content = await fetchContentItems(opts);
+
+  return [...social, ...content].sort((a, b) => (a.when < b.when ? -1 : a.when > b.when ? 1 : 0));
+}
+
+interface ContentRow extends RowDataPacket {
+  id: number;
+  tenant_id: string;
+  artifact_type: string;
+  title: string | null;
+  body_text: string | null;
+  updated_at: string;
+}
+
+const CONTENT_TYPE_LABEL: Record<string, string> = {
+  blog_article: 'Blog',
+  seo_article: 'Guide',
+  own_brand_post: 'Post',
+  press_release: 'Press release'
+};
+
+/** Published owned content artifacts -> read-only timeline items by publish date. */
+async function fetchContentItems(opts: { from: string; to: string; tenant?: string | null }): Promise<TimelineItem[]> {
+  const db = getAvDb();
+  const where: string[] = [
+    "a.status = 'published'",
+    "a.artifact_type IN ('blog_article','seo_article','own_brand_post','press_release')",
+    'a.updated_at >= ?',
+    'a.updated_at < ?'
+  ];
+  const vals: unknown[] = [opts.from, opts.to];
+  if (opts.tenant) { where.push('a.tenant_id = ?'); vals.push(opts.tenant); }
+
+  const [rows] = await db.execute<ContentRow[]>(
+    `SELECT a.id, a.tenant_id, a.artifact_type, a.title, a.body_text, a.updated_at
+       FROM content_artifacts a
+      WHERE ${where.join(' AND ')}
+      ORDER BY a.updated_at ASC
+      LIMIT 1000`,
+    vals
+  );
+
+  return rows.map((r) => {
+    const title = (r.title && r.title.trim()) || 'Untitled';
+    const label = CONTENT_TYPE_LABEL[r.artifact_type] ?? 'Content';
+    return {
+      id: `content:${r.id}`,
+      when: r.updated_at,
+      type: r.artifact_type === 'press_release' ? 'pr_release' : 'content',
+      status: 'published',
+      tenant: r.tenant_id,
+      leadId: null,
+      title: `${label}: ${title}`,
+      link: `/newsroom/${articleSlug(title, r.id)}`,
+      bodyText: r.body_text
+    } satisfies TimelineItem;
+  });
 }
 
 /** Distinct tenants present in social_outbox, for the filter chips. */
