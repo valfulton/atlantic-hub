@@ -54,9 +54,10 @@ const VOICE_OPTIONS: { value: string; label: string }[] = [
 
 type Payload = Record<string, string>;
 
-export function BriefEditor({ customers }: { customers: Customer[] }) {
+export function BriefEditor({ customers, initialKey }: { customers: Customer[]; initialKey?: string }) {
   const scopes = customers.length ? customers : BRAND_FALLBACK;
-  const [activeKey, setActiveKey] = useState<string>(scopes[0]?.key ?? 'av:house');
+  const defaultKey = (initialKey && scopes.some((s) => s.key === initialKey) ? initialKey : null) ?? scopes[0]?.key ?? 'av:house';
+  const [activeKey, setActiveKey] = useState<string>(defaultKey);
   const active = scopes.find((s) => s.key === activeKey) ?? scopes[0];
 
   const [payload, setPayload] = useState<Payload>({});

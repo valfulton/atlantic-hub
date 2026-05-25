@@ -90,6 +90,12 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         </div>
       </div>
 
+      {/* Quick links into this client's brief + dashboard preview. */}
+      <div className="flex flex-wrap gap-4 mb-5 text-sm">
+        <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-brand hover:underline">Edit creative brief →</Link>
+        <Link href={`/admin/av/clients/${clientId}/preview`} className="text-brand hover:underline">Preview their dashboard →</Link>
+      </div>
+
       {/* Access & tier controls */}
       <AccessControls clientId={clientId} initialState={access} currentTier={currentTier} />
 

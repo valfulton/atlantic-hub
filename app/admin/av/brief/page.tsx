@@ -13,7 +13,11 @@ export const dynamic = 'force-dynamic';
  * see exactly how it grounds the thesis + PR prompts. Until now the own-brand
  * brief was missing, so those prompts fell back to a hardcoded label. Owner + staff.
  */
-export default async function BriefPage() {
+export default async function BriefPage({
+  searchParams
+}: {
+  searchParams?: { clientId?: string; tenant?: string };
+}) {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
   if (role === 'client_user') redirect('/admin');
 
@@ -23,6 +27,12 @@ export default async function BriefPage() {
   } catch {
     /* render with the 3 brands at minimum (editor falls back) */
   }
+
+  // Deep-link: open straight to a client's (or brand's) brief. Scope key matches
+  // lineOwnerKey(): `${tenant}:${clientId|'house'}`.
+  const tenant = (searchParams?.tenant || 'av').toLowerCase();
+  const cid = searchParams?.clientId && /^\d+$/.test(searchParams.clientId) ? searchParams.clientId : null;
+  const initialKey = cid ? `${tenant}:${cid}` : undefined;
 
   return (
     <div className="max-w-3xl">
@@ -45,7 +55,7 @@ export default async function BriefPage() {
         and the thesis suggester and PR drafter speak <em>as that brand</em> instead of a generic voice.
         The grounding block at the bottom shows exactly what the prompts will see.
       </p>
-      <BriefEditor customers={customers} />
+      <BriefEditor customers={customers} initialKey={initialKey} />
     </div>
   );
 }
