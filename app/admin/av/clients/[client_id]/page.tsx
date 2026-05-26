@@ -7,6 +7,7 @@ import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
 import ExtractIntelButton from './ExtractIntelButton';
+import FindLeadsForClient from './FindLeadsForClient';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
@@ -186,6 +187,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           </ul>
         )}
       </div>
+
+      {/* Find leads scoped to THIS client (their hub only — never the AV pipeline). */}
+      <FindLeadsForClient clientId={clientId} clientName={d.name} />
 
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}
       <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />
