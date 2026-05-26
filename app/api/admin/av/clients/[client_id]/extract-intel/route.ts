@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { extractIntakeIntelligence } from '@/lib/client/intake_extract';
+import { proposeLinesFromIntake } from '@/lib/campaigns/propose_lines';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -23,7 +24,20 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   try {
     const result = await extractIntakeIntelligence({ clientId, actorUserId: null });
-    return NextResponse.json(result);
+
+    // Auto-propose narrative-line candidates from the same intake (skips if the
+    // client already has lines, so re-running never spams duplicates).
+    let linesProposed = 0;
+    if (result.reason !== 'no_intake') {
+      try {
+        const p = await proposeLinesFromIntake({ clientId });
+        linesProposed = p.proposed;
+      } catch {
+        /* non-fatal: extraction still succeeded */
+      }
+    }
+
+    return NextResponse.json({ ...result, linesProposed });
   } catch (err) {
     return NextResponse.json({ error: 'extraction failed', errorClass: (err as Error).name }, { status: 500 });
   }

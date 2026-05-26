@@ -27,7 +27,10 @@ export default function ExtractIntelButton({ clientId }: { clientId: number }) {
         setMsg('Ran, but found nothing solid enough to extract. Add more intake detail and try again.');
       } else {
         setTone('ok');
-        setMsg(`Extracted ${j.written} intelligence object${j.written === 1 ? '' : 's'}: ${(j.objectTypes || []).join(', ')}.`);
+        const lines = j.linesProposed
+          ? ` Proposed ${j.linesProposed} narrative line${j.linesProposed === 1 ? '' : 's'} (candidates) — review on Narrative lines.`
+          : '';
+        setMsg(`Extracted ${j.written} intelligence object${j.written === 1 ? '' : 's'}: ${(j.objectTypes || []).join(', ')}.${lines}`);
       }
     } catch {
       setTone('err');
