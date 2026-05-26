@@ -131,7 +131,7 @@ export async function parseOpportunity(args: {
   const candidates = await loadCandidateLeads();
   const started = Date.now();
 
-  const systemPrompt = buildParseSystemPrompt();
+  const systemPrompt = await getSystemPrompt('pr_opportunity_parse');
   const userPrompt = buildParseUserPrompt({
     rawText: args.rawText,
     sourceHint: args.sourceHint ?? null,
@@ -353,7 +353,7 @@ export async function draftRelease(args: {
   });
 
   const started = Date.now();
-  const systemPrompt = buildReleaseSystemPrompt();
+  const systemPrompt = await getSystemPrompt('pr_release');
   const userPrompt = buildReleaseUserPrompt({ announcement: args.announcement, intel, brandBlock: brand.block });
 
   let completion;
@@ -581,35 +581,6 @@ async function loadObjectSummaries(tenantId: string, leadId: number | null): Pro
 // Internal: prompt construction
 // ===========================================================================
 
-function buildParseSystemPrompt(): string {
-  return [
-    `You are the intake parser for a PR / narrative intelligence desk run by a marketing platform called Atlantic & Vine.`,
-    `You convert a pasted or forwarded journalist request / media query / community post into ONE structured opportunity record, and you provide a sharp strategic read on why it matters.`,
-    ``,
-    `RULES:`,
-    `1. Infer the SOURCE from this set only: qwoted, featured, sourcebottle, help_a_b2b_writer, reddit, linkedin, podcast, manual, other. If unsure, use other.`,
-    `2. Extract outlet and journalist name only if explicitly present; otherwise null.`,
-    `3. query_text: a clean, faithful restatement of what the journalist/poster is asking for. Do not embellish.`,
-    `4. topic_tags: 3-8 short lowercase tags (e.g. "ai", "hospitality", "smb-marketing", "seasonal", "founder-quote").`,
-    `5. deadline: if an explicit deadline/date is stated, return ISO 8601 (YYYY-MM-DD or full datetime). Otherwise null. Never invent one.`,
-    `6. matched_lead_id: from the CANDIDATE_CLIENTS list, pick the single best-fit client id for this opportunity (industry / topic relevance). If none fit, null. Only return an id that appears in the list.`,
-    `7. why_it_matters: 2-4 sentences of real strategic guidance for the operator. Cover: why this matters, why now, the likely strategic value, expected authority impact, and any relationship to seasonal timing or the client's positioning. Be specific and confidence-building, never generic. Example tone: "Aligns with this client's AI hospitality positioning; a high-authority backlink before summer booking season."`,
-    `8. Never mention pricing, dollar amounts, or any per-unit AI/API cost.`,
-    ``,
-    `RESPONSE FORMAT: respond with ONLY this JSON object:`,
-    `{`,
-    `  "source": "...",`,
-    `  "outlet": "..." | null,`,
-    `  "journalist": "..." | null,`,
-    `  "query_text": "...",`,
-    `  "topic_tags": ["..."],`,
-    `  "deadline": "YYYY-MM-DD" | null,`,
-    `  "matched_lead_id": 123 | null,`,
-    `  "why_it_matters": "..."`,
-    `}`
-  ].join('\n');
-}
-
 function buildParseUserPrompt(args: {
   rawText: string;
   sourceHint: PrSource | null;
@@ -668,28 +639,6 @@ function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientI
   parts.push(``);
   parts.push(`Now produce the JSON object specified.`);
   return parts.join('\n');
-}
-
-function buildReleaseSystemPrompt(): string {
-  return [
-    `You write professional press releases for clients of a marketing platform called Atlantic & Vine.`,
-    ``,
-    `RULES:`,
-    `1. PLURAL voice on behalf of the client business. Never first-person singular, never a founder's personal name as signatory.`,
-    `2. Standard release structure in plain text: a strong headline-style title (returned separately), a dateline-style opening paragraph, 2-4 body paragraphs, and a short boilerplate "About" paragraph. No markdown.`,
-    `3. Ground specifics in CLIENT_INTELLIGENCE where available; otherwise keep claims accurate and modest.`,
-    `4. Title: 6-14 words, concrete, no clickbait.`,
-    `5. Never mention pricing, dollar amounts, or any per-unit AI/API cost. Never state it was AI-generated.`,
-    ``,
-    `ALSO derive reusable strategic intelligence objects (same type list and rules as the pitch drafter): founder_story, authority_positioning, authority_topics, media_friendly_topics, preferred_narrative_angles, proof_points, market_positioning, differentiators. Empty array if no solid signal.`,
-    ``,
-    `RESPONSE FORMAT: respond with ONLY this JSON object:`,
-    `{`,
-    `  "title": "...",`,
-    `  "body_text": "...",`,
-    `  "derived_objects": [ { "object_type": "proof_points", "object_json": { ... }, "confidence": 0-100 } ]`,
-    `}`
-  ].join('\n');
 }
 
 function buildReleaseUserPrompt(args: { announcement: string; intel: ClientIntelligence; brandBlock?: string }): string {

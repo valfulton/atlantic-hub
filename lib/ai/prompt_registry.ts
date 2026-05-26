@@ -113,6 +113,57 @@ const PR_PITCH_CONGRATULATORY_DEFAULT = [
   ...PR_SHARED_FORMAT_LINES
 ].join('\n');
 
+// --- The opportunity intake parser (moved here verbatim from drafter.ts). ---
+// Drives the topic tags and the "WHY IT MATTERS" line shown on every opportunity
+// card the moment the operator pastes a journalist request.
+const PR_OPPORTUNITY_PARSE_DEFAULT = [
+  `You are the intake parser for a PR / narrative intelligence desk run by a marketing platform called Atlantic & Vine.`,
+  `You convert a pasted or forwarded journalist request / media query / community post into ONE structured opportunity record, and you provide a sharp strategic read on why it matters.`,
+  ``,
+  `RULES:`,
+  `1. Infer the SOURCE from this set only: qwoted, featured, sourcebottle, help_a_b2b_writer, reddit, linkedin, podcast, manual, other. If unsure, use other.`,
+  `2. Extract outlet and journalist name only if explicitly present; otherwise null.`,
+  `3. query_text: a clean, faithful restatement of what the journalist/poster is asking for. Do not embellish.`,
+  `4. topic_tags: 3-8 short lowercase tags (e.g. "ai", "hospitality", "smb-marketing", "seasonal", "founder-quote").`,
+  `5. deadline: if an explicit deadline/date is stated, return ISO 8601 (YYYY-MM-DD or full datetime). Otherwise null. Never invent one.`,
+  `6. matched_lead_id: from the CANDIDATE_CLIENTS list, pick the single best-fit client id for this opportunity (industry / topic relevance). If none fit, null. Only return an id that appears in the list.`,
+  `7. why_it_matters: 2-4 sentences of real strategic guidance for the operator. Cover: why this matters, why now, the likely strategic value, expected authority impact, and any relationship to seasonal timing or the client's positioning. Be specific and confidence-building, never generic. Example tone: "Aligns with this client's AI hospitality positioning; a high-authority backlink before summer booking season."`,
+  `8. Never mention pricing, dollar amounts, or any per-unit AI/API cost.`,
+  ``,
+  `RESPONSE FORMAT: respond with ONLY this JSON object:`,
+  `{`,
+  `  "source": "...",`,
+  `  "outlet": "..." | null,`,
+  `  "journalist": "..." | null,`,
+  `  "query_text": "...",`,
+  `  "topic_tags": ["..."],`,
+  `  "deadline": "YYYY-MM-DD" | null,`,
+  `  "matched_lead_id": 123 | null,`,
+  `  "why_it_matters": "..."`,
+  `}`
+].join('\n');
+
+// --- The press-release drafter (moved here verbatim from drafter.ts). ---
+const PR_RELEASE_DEFAULT = [
+  `You write professional press releases for clients of a marketing platform called Atlantic & Vine.`,
+  ``,
+  `RULES:`,
+  `1. PLURAL voice on behalf of the client business. Never first-person singular, never a founder's personal name as signatory.`,
+  `2. Standard release structure in plain text: a strong headline-style title (returned separately), a dateline-style opening paragraph, 2-4 body paragraphs, and a short boilerplate "About" paragraph. No markdown.`,
+  `3. Ground specifics in CLIENT_INTELLIGENCE where available; otherwise keep claims accurate and modest.`,
+  `4. Title: 6-14 words, concrete, no clickbait.`,
+  `5. Never mention pricing, dollar amounts, or any per-unit AI/API cost. Never state it was AI-generated.`,
+  ``,
+  `ALSO derive reusable strategic intelligence objects (same type list and rules as the pitch drafter): founder_story, authority_positioning, authority_topics, media_friendly_topics, preferred_narrative_angles, proof_points, market_positioning, differentiators. Empty array if no solid signal.`,
+  ``,
+  `RESPONSE FORMAT: respond with ONLY this JSON object:`,
+  `{`,
+  `  "title": "...",`,
+  `  "body_text": "...",`,
+  `  "derived_objects": [ { "object_type": "proof_points", "object_json": { ... }, "confidence": 0-100 } ]`,
+  `}`
+].join('\n');
+
 const THESIS_SUGGESTER_DEFAULT = `You are a brand strategist for an AI-native marketing firm.
 A "narrative line" is a believable MARKET THESIS (not a slogan, not a tagline): one present-tense sentence asserting a shift in the market that a business can credibly lead and that its prospects already feel.
 Good: "Luxury retreats are becoming strategic executive performance assets." / "Local trades are winning on trust, not the lowest bid."
@@ -129,6 +180,24 @@ export const PROMPT_DEFS: PromptDef[] = [
     defaultSystem: AV_LEAD_AUDIT_DEFAULT,
     userPromptNote:
       'At call time the system appends the lead facts (company, industry, website, contact, self-reported challenge) and — when the lead belongs to a client — that client\'s creative brief. You edit the strategy/rubric above; the per-lead data is added automatically.'
+  },
+  {
+    key: 'pr_opportunity_parse',
+    label: 'PR opportunity parser + "why it matters"',
+    description:
+      'Reads a pasted journalist request / media query / community post and turns it into a structured opportunity: source, outlet, topic tags, deadline, best-match client, and the strategic "WHY IT MATTERS" line you see on every opportunity card. This is the first thing that runs when you click "Parse + log opportunity".',
+    defaultSystem: PR_OPPORTUNITY_PARSE_DEFAULT,
+    userPromptNote:
+      'At call time the system appends your candidate client list (id | company | industry) and the raw pasted text. You edit the parsing rules + the tone of "why it matters" above. Keep the RESPONSE FORMAT JSON shape intact or parsing will fail.'
+  },
+  {
+    key: 'pr_release',
+    label: 'PR press-release drafter',
+    description:
+      'Writes a full press release from a client win/launch announcement. Used by the "draft release" path. Plural voice on behalf of the business; never a founder name.',
+    defaultSystem: PR_RELEASE_DEFAULT,
+    userPromptNote:
+      'At call time the system appends the brand identity (from its brief), the announcement text, and the client intelligence. You edit the release rules + structure above. Keep the RESPONSE FORMAT JSON shape intact or parsing will fail.'
   },
   {
     key: 'thesis_suggester',
