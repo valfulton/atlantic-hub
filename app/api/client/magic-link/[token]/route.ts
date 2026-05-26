@@ -17,7 +17,6 @@ import { randomUUID } from 'crypto';
 import { extractClientIp, writeAuditRow } from '@/lib/audit';
 import {
   findClientUserByMagicToken,
-  consumeMagicToken,
   markClientUserLoggedIn
 } from '@/lib/auth/client-user';
 import { signClientSessionJwt } from '@/lib/auth/client-jwt';
@@ -27,8 +26,19 @@ import { clientMayAccessHub } from '@/lib/client/intake_gate';
 
 export const runtime = 'nodejs';
 
+/**
+ * The PUBLIC production origin to redirect to. Netlify can serve the function on
+ * a deploy-specific host (e.g. <hash>--atlantic-hub.netlify.app), and building a
+ * redirect from req.url would send the client THERE — where the just-set session
+ * cookie (scoped to the production host) is NOT sent, so middleware bounces them
+ * to /client/login. Always redirect to the canonical origin so the cookie holds.
+ */
+function portalOrigin(req: NextRequest): string {
+  return process.env.MAGIC_LINK_BASE_URL?.replace(/\/+$/, '') || req.nextUrl.origin;
+}
+
 function loginRedirect(req: NextRequest, reason: string): NextResponse {
-  const url = new URL('/client/login', req.url);
+  const url = new URL('/client/login', portalOrigin(req));
   url.searchParams.set('error', reason);
   return NextResponse.redirect(url);
 }
@@ -67,8 +77,11 @@ export async function GET(
       return loginRedirect(req, 'invalid_link');
     }
 
-    // Single-use: clear the token immediately.
-    await consumeMagicToken(user.client_user_id);
+    // NOT single-use: the token stays valid until it expires (24h). Single-use
+    // was causing links to die on the first touch (a test click, a mis-click, or
+    // the client clicking twice) — so the real click landed on "invalid link".
+    // For trusted onboarding a 24h reusable link is the right tradeoff; regenerate
+    // to invalidate early.
 
     // Sign + set session cookie.
     const sessionId = randomUUID();
@@ -114,7 +127,7 @@ export async function GET(
     } else {
       target = '/client/dashboard';
     }
-    return NextResponse.redirect(new URL(target, req.url));
+    return NextResponse.redirect(new URL(target, portalOrigin(req)));
   } catch (err) {
     await writeAuditRow({
       targetResource: '/api/client/magic-link',
