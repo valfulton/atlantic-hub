@@ -8,6 +8,7 @@
  * hub always feels alive. Operator-only.
  */
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 interface TickerItem {
   id: number;
@@ -33,9 +34,16 @@ function headline(it: TickerItem): string {
 }
 
 export function IntelTicker() {
+  const pathname = usePathname();
   const [items, setItems] = useState<TickerItem[]>([]);
   const [idx, setIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+
+  // On the operator's "preview their dashboard" route we want a FAITHFUL view of
+  // exactly what the client sees — and a client never sees this hub-wide operator
+  // ticker. Hide it on preview so val isn't confused by other brands' intel
+  // (e.g. Events by Water) appearing above a client's dashboard.
+  const onClientPreview = !!pathname && pathname.includes('/clients/') && pathname.endsWith('/preview');
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +65,7 @@ export function IntelTicker() {
     return () => clearInterval(rot);
   }, [items.length]);
 
-  if (dismissed) return null;
+  if (dismissed || onClientPreview) return null;
 
   const cur = items[idx % Math.max(1, items.length)];
 
