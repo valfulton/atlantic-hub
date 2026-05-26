@@ -8,6 +8,7 @@
  */
 import Link from 'next/link';
 import { formatUsd, type RepDashboard, type RepLead, type TargetBrand } from '@/lib/sales/rep_dashboard';
+import { QuickLogCall } from './QuickLogCall';
 
 const AMBER = 'linear-gradient(120deg,#FF9C5B,#FFC73D)';
 
@@ -263,25 +264,24 @@ function LeadRowCard({ lead }: { lead: RepLead }) {
           )}
         </div>
       </div>
-      {(lead.phone || lead.email) && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {lead.phone && (
-            <a href={`tel:${lead.phone.replace(/[^0-9+]/g, '')}`} className="text-[11px] px-2 py-1 rounded-md border border-border text-ink hover:border-brand">
-              📞 Call
-            </a>
-          )}
-          {lead.email && (
-            <a href={`mailto:${lead.email}`} className="text-[11px] px-2 py-1 rounded-md border border-border text-ink hover:border-brand">
-              ✉ Email
-            </a>
-          )}
-          {lead.auditId && (
-            <Link href={`/admin/av/${lead.auditId}`} className="text-[11px] px-2 py-1 rounded-md text-[#1a1207] font-medium" style={{ background: AMBER }}>
-              Open lead →
-            </Link>
-          )}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2 mt-2">
+        {lead.phone && (
+          <a href={`tel:${lead.phone.replace(/[^0-9+]/g, '')}`} className="text-[11px] px-2 py-1 rounded-md border border-border text-ink hover:border-brand">
+            📞 Call
+          </a>
+        )}
+        {lead.email && (
+          <a href={`mailto:${lead.email}`} className="text-[11px] px-2 py-1 rounded-md border border-border text-ink hover:border-brand">
+            ✉ Email
+          </a>
+        )}
+        {lead.auditId && <QuickLogCall auditId={lead.auditId} />}
+        {lead.auditId && (
+          <Link href={`/admin/av/${lead.auditId}`} className="text-[11px] px-2 py-1 rounded-md text-[#1a1207] font-medium" style={{ background: AMBER }}>
+            Open lead →
+          </Link>
+        )}
+      </div>
     </li>
   );
 }
