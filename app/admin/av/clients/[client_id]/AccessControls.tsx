@@ -8,7 +8,11 @@
 import { useState } from 'react';
 
 type Tier = 'audit_only' | 'sprint' | 'momentum' | 'scale';
-interface State { enabled: boolean; accessUntil: string | null; active: boolean; expired: boolean; planTier: string | null; }
+interface State { enabled: boolean; accessUntil: string | null; active: boolean; expired: boolean; planTier: string | null; leadMonthlyCap: number | null; }
+
+// Tier defaults (mirror app/api/client/discover/route.ts) so the operator sees
+// what a NULL override falls back to.
+const TIER_DEFAULT_CAP: Record<Tier, number> = { audit_only: 0, sprint: 150, momentum: 500, scale: 1500 };
 
 const TIERS: Tier[] = ['audit_only', 'sprint', 'momentum', 'scale'];
 
@@ -21,6 +25,7 @@ export default function AccessControls({ clientId, initialState, currentTier }: 
   const [tier, setTier] = useState<Tier>(currentTier);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [capInput, setCapInput] = useState<string>(initialState.leadMonthlyCap != null ? String(initialState.leadMonthlyCap) : '');
 
   async function send(body: Record<string, unknown>, note: string) {
     setBusy(true); setMsg(null);
@@ -29,7 +34,11 @@ export default function AccessControls({ clientId, initialState, currentTier }: 
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
       });
       const j = await res.json();
-      if (res.ok && j.state) { setState(j.state); setMsg(note); }
+      if (res.ok && j.state) {
+        setState(j.state);
+        setCapInput(j.state.leadMonthlyCap != null ? String(j.state.leadMonthlyCap) : '');
+        setMsg(note);
+      }
       else setMsg(j.error || 'Could not update.');
     } catch { setMsg('Could not update.'); }
     finally { setBusy(false); }
@@ -64,6 +73,48 @@ export default function AccessControls({ clientId, initialState, currentTier }: 
           ? <button style={{ ...btn, color: '#fca5a5' }} disabled={busy} onClick={() => send({ enabled: false }, 'Access revoked.')}>Disable / revoke</button>
           : <button style={btn} disabled={busy} onClick={() => send({ enabled: true }, 'Access restored.')}>Enable</button>}
       </div>
+
+      {/* Rails, not blockers: per-account monthly lead-discovery cap. Blank = the
+          tier default; a number raises (or tightens) just this account. */}
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(148,163,184,0.15)' }}>
+        <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 5 }}>
+          Monthly lead cap{' '}
+          <span style={{ color: '#64748b' }}>
+            (blank = tier default, {TIER_DEFAULT_CAP[tier]}/mo · current: {state.leadMonthlyCap != null ? `${state.leadMonthlyCap}/mo (custom)` : `${TIER_DEFAULT_CAP[tier]}/mo (default)`})
+          </span>
+        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            type="number"
+            min={0}
+            step={10}
+            value={capInput}
+            placeholder={`${TIER_DEFAULT_CAP[tier]}`}
+            onChange={(e) => setCapInput(e.target.value)}
+            disabled={busy}
+            style={{ ...sel, width: 110 }}
+          />
+          <button
+            style={btnPrimary}
+            disabled={busy}
+            onClick={() => {
+              const n = Number.parseInt(capInput, 10);
+              if (!Number.isFinite(n) || n < 0) { setMsg('Enter a number ≥ 0 (or clear to use the tier default).'); return; }
+              send({ leadMonthlyCap: n }, `Lead cap set to ${n}/mo for this account.`);
+            }}
+          >
+            Set cap
+          </button>
+          <button
+            style={btn}
+            disabled={busy}
+            onClick={() => { setCapInput(''); send({ leadMonthlyCap: null }, 'Reset to the tier default.'); }}
+          >
+            Use tier default
+          </button>
+        </div>
+      </div>
+
       {busy && <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>Saving…</div>}
       {msg && !busy && <div style={{ fontSize: 12, color: '#bfdbfe', marginTop: 8 }}>{msg}</div>}
     </div>

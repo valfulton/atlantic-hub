@@ -29,6 +29,7 @@ import { getBriefPayload } from '@/lib/client/brief_store';
 import { runDiscoveryBatch } from '@/lib/apollo/discoverer';
 import { runPlacesDiscoveryBatch } from '@/lib/google_places/discoverer';
 import { logEvent } from '@/lib/events/log';
+import { getClientLeadCapOverride } from '@/lib/av/client_access';
 import { getAvDb } from '@/lib/db/av';
 import type { ClientIcp } from '@/lib/client/icp';
 import type { RowDataPacket } from 'mysql2';
@@ -51,6 +52,17 @@ export const maxDuration = 60;
 /** Results pulled per run + monthly discovered-lead cap, by tier. */
 const TIER_PER_RUN: Record<ClientUserTier, number> = { audit_only: 0, sprint: 12, momentum: 20, scale: 25 };
 const TIER_MONTHLY_CAP: Record<ClientUserTier, number> = { audit_only: 0, sprint: 150, momentum: 500, scale: 1500 };
+
+/**
+ * Effective monthly cap = the per-account override if val has set one, else the
+ * tier default. Rails, not blockers: the override lets her raise (or tighten) a
+ * free/comped account without changing its tier. audit_only stays at 0 (the
+ * upgrade gate handles that case before we ever get here).
+ */
+function effectiveMonthlyCap(tier: ClientUserTier, override: number | null): number {
+  if (tier === 'audit_only') return 0;
+  return override != null ? override : TIER_MONTHLY_CAP[tier];
+}
 
 async function monthlyUsage(clientId: number): Promise<number> {
   const db = getAvDb();
@@ -88,6 +100,8 @@ export async function GET(req: NextRequest) {
   try {
     let icp = await getClientIcp(clientId);
     const used = await monthlyUsage(clientId);
+    const capOverride = await getClientLeadCapOverride(clientId);
+    const monthlyCap = effectiveMonthlyCap(user.tier, capOverride);
 
     // First time (no saved ICP yet): pre-fill from their intake submission so
     // the panel isn't blank — clients already told us their industry at intake.
@@ -108,7 +122,7 @@ export async function GET(req: NextRequest) {
       icp,
       tier: user.tier,
       locked: user.tier === 'audit_only',
-      usage: { usedThisMonth: used, monthlyCap: TIER_MONTHLY_CAP[user.tier], perRun: TIER_PER_RUN[user.tier] }
+      usage: { usedThisMonth: used, monthlyCap, perRun: TIER_PER_RUN[user.tier] }
     });
   } catch (err) {
     console.error('[client:discover:get]', (err as Error).message);
@@ -145,7 +159,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cap = TIER_MONTHLY_CAP[user.tier];
+    const capOverride = await getClientLeadCapOverride(clientId);
+    const cap = effectiveMonthlyCap(user.tier, capOverride);
     const used = await monthlyUsage(clientId);
     if (used >= cap) {
       return NextResponse.json(

@@ -5,7 +5,8 @@
  *   { tier?: 'audit_only'|'sprint'|'momentum'|'scale',
  *     enabled?: boolean,
  *     grantDays?: number,          // grant/extend a trial window from today
- *     accessUntil?: 'YYYY-MM-DD'|null }
+ *     accessUntil?: 'YYYY-MM-DD'|null,
+ *     leadMonthlyCap?: number|null } // per-account discovery cap; null = tier default
  *
  * Owner + staff only (operator). Returns the resulting access state.
  */
@@ -37,7 +38,13 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       tier: typeof body.tier === 'string' && TIERS.includes(body.tier as ClientTier) ? (body.tier as ClientTier) : undefined,
       enabled: typeof body.enabled === 'boolean' ? body.enabled : undefined,
       grantDays: typeof body.grantDays === 'number' ? body.grantDays : undefined,
-      accessUntil: body.accessUntil === null ? null : (typeof body.accessUntil === 'string' ? body.accessUntil : undefined)
+      accessUntil: body.accessUntil === null ? null : (typeof body.accessUntil === 'string' ? body.accessUntil : undefined),
+      leadMonthlyCap:
+        body.leadMonthlyCap === null
+          ? null
+          : typeof body.leadMonthlyCap === 'number' && Number.isFinite(body.leadMonthlyCap) && body.leadMonthlyCap >= 0
+            ? Math.trunc(body.leadMonthlyCap)
+            : undefined
     });
     return NextResponse.json({ ok: true, state });
   } catch (err) {
