@@ -248,7 +248,7 @@ export async function draftPitch(args: {
   // write claims AS a prospect unless explicitly told to).
   const clientId = intel.lead?.client_id ?? null;
   const intelCfg = await getIntelConfig(tenantId, clientId);
-  const mode: PitchMode = args.mode ?? intelCfg.defaultVoice ?? resolveDefaultMode(intel.lead);
+  const mode: PitchMode = args.mode ?? intelCfg.defaultVoice ?? resolveDefaultMode(args.opportunity.source);
 
   // Ground on the brand's OWN creative brief (its identity), so a pitch for a
   // client / EBW / HH reads as that brand and not a generic Atlantic & Vine voice.
@@ -549,7 +549,23 @@ export async function loadClientIntelligence(
     [leadId]
   );
   const lead = rows[0] ?? null;
-  const objectSummaries = await loadObjectSummaries(tenantId, leadId);
+  let objectSummaries = await loadObjectSummaries(tenantId, leadId);
+
+  // Fold in the owning CLIENT's extracted intake intelligence. Intake extraction
+  // (lib/client/intake_extract.ts) writes canonical objects under tenant
+  // `client:<id>`; a pitch for this client's lead should be grounded in what the
+  // client told us at intake (authority topics, media hooks, proof points, etc.).
+  // Constitution tenancy: client-scoped intelligence lives under `client:<id>`.
+  if (lead?.client_id) {
+    try {
+      const clientSummaries = (await loadObjectSummaries(`client:${lead.client_id}`, null)).map((s) =>
+        s.replace(/^\[tenant\]/, '[client intake]')
+      );
+      if (clientSummaries.length) objectSummaries = [...clientSummaries, ...objectSummaries];
+    } catch {
+      /* non-fatal: degrade to lead/tenant intelligence only */
+    }
+  }
 
   const hasAudit = !!(lead?.audit_content && lead.audit_content.length > 50);
   const hasPain = !!lead?.pain_point_profile;
@@ -605,16 +621,23 @@ function buildParseUserPrompt(args: {
 }
 
 /**
- * Decide the default voice. CRITICAL data-model note: a lead is essentially
- * NEVER the client -- `leads.client_id` points to the client account the lead
- * BELONGS TO, and the lead itself is a prospect. So we always default to
- * advisory outreach (A&V's voice, written TO the prospect). `client_voice`
- * (writing as the business, to publish on their behalf) is a deliberate manual
- * choice the operator makes only when they are genuinely producing content for
- * an actual client account -- it is never auto-selected.
+ * Decide the default voice from the opportunity SOURCE.
+ *
+ * - A genuine media request (a journalist query, podcast call, community ask
+ *   pulled from qwoted / featured / sourcebottle / help_a_b2b_writer / reddit /
+ *   linkedin / podcast) wants a QUOTABLE expert response in the brand/client's
+ *   voice -- exactly what the desk promises. -> client_voice.
+ * - Internal "ideas from your data" are stored with source 'manual', and 'other'
+ *   is the catch-all; both are OUTREACH angles to a prospect. -> advisory
+ *   (Atlantic & Vine's voice, written TO the prospect).
+ *
+ * This is only the DEFAULT. It is overridden by (1) an explicit per-draft Voice
+ * the operator picks, and (2) a brand's configured default voice on its brief.
+ * Keep this in sync with defaultModeForSource() in app/admin/pr/PrDesk.tsx, which
+ * mirrors it so the "edit this voice's prompt" link points at the right prompt.
  */
-function resolveDefaultMode(_lead: LeadIntelRow | null): PitchMode {
-  return 'advisory';
+function resolveDefaultMode(source: PrSource): PitchMode {
+  return source === 'manual' || source === 'other' ? 'advisory' : 'client_voice';
 }
 
 // The three PR pitch voices now live in the editable prompt registry
