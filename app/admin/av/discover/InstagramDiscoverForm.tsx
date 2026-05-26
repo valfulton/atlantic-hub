@@ -36,9 +36,10 @@ interface BatchResponse {
   detail?: string;
 }
 
-export function InstagramDiscoverForm() {
+export function InstagramDiscoverForm({ clients = [] }: { clients?: { clientId: number; name: string }[] }) {
   const router = useRouter();
   const [raw, setRaw] = useState('');
+  const [destClientId, setDestClientId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BatchResponse | null>(null);
@@ -68,7 +69,7 @@ export function InstagramDiscoverForm() {
       const res = await fetch('/api/admin/av/discover/instagram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernames })
+        body: JSON.stringify({ usernames, clientId: destClientId ? Number(destClientId) : undefined })
       });
       const json: BatchResponse = await res.json();
       if (!res.ok) {
@@ -103,6 +104,23 @@ export function InstagramDiscoverForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="pb-3 border-b border-border">
+          <label className="block text-xs uppercase tracking-wider text-muted mb-1">Send pulled leads to</label>
+          <select
+            value={destClientId}
+            onChange={(e) => setDestClientId(e.target.value)}
+            className="w-full md:w-96 px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm"
+            style={inputStyle}
+          >
+            <option value="">Atlantic &amp; Vine (my pipeline)</option>
+            {clients.map((c) => (
+              <option key={c.clientId} value={String(c.clientId)}>{c.name} (their hub)</option>
+            ))}
+          </select>
+          <div className="text-[11px] text-muted mt-1">
+            Pick a client to send these straight into their hub. Default keeps them in your AV pipeline.
+          </div>
+        </div>
         <div>
           <label className="block text-xs uppercase tracking-wider text-muted mb-1">
             Instagram handles{' '}

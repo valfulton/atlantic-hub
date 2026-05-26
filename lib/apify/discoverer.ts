@@ -62,7 +62,7 @@ export interface InstagramDiscoverBatchResult {
 
 const IG_PREFIX = 'ig:';
 
-async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<InstagramDiscoverResult> {
+async function insertOneProfile(db: Pool, prof: InstagramProfile, clientId: number | null = null): Promise<InstagramDiscoverResult> {
   const company = prof.fullName || prof.username;
   const bioContact = extractContactFromBio(prof.biography);
 
@@ -95,7 +95,7 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<Insta
   const domain = normalizeDomain(website);
   const industry = instagramCategoryToIndustry(prof.businessCategoryName);
   const targetBusiness: TargetBusiness = inferTargetBusinessFromRaw(prof.businessCategoryName);
-  const dedupKey = `${IG_PREFIX}${prof.username}`;
+  const dedupKey = clientId && clientId > 0 ? `c${clientId}:${IG_PREFIX}${prof.username}` : `${IG_PREFIX}${prof.username}`;
   const auditId = randomUUID();
 
   // Dedup by IG handle first (re-running the same search shouldn't dupe)
@@ -168,9 +168,9 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<Insta
       `INSERT INTO leads (
          audit_id, company, email, phone, website, normalized_domain,
          industry, lead_status, source_type, target_business, source_payload,
-         apollo_person_id, last_activity_at
+         apollo_person_id, client_id, last_activity_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, ?, NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, ?, ?, NOW())`,
       [
         auditId,
         company,
@@ -181,7 +181,8 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<Insta
         industry,
         targetBusiness,
         JSON.stringify(sourcePayload),
-        dedupKey
+        dedupKey,
+        clientId
       ]
     );
     const newLeadId = result.insertId;
@@ -223,13 +224,13 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile): Promise<Insta
   }
 }
 
-export async function runInstagramDiscoveryBatch(usernames: string[]): Promise<InstagramDiscoverBatchResult> {
+export async function runInstagramDiscoveryBatch(usernames: string[], opts: { clientId?: number | null } = {}): Promise<InstagramDiscoverBatchResult> {
   const db = getAvDb();
   const profiles = await apifyInstagramProfiles(usernames);
   const seen = new Set<string>(profiles.map((p) => p.username));
   const results: InstagramDiscoverResult[] = [];
   for (const prof of profiles) {
-    results.push(await insertOneProfile(db, prof));
+    results.push(await insertOneProfile(db, prof, opts.clientId ?? null));
   }
   // Any input usernames not in profiles array → profile_not_found.
   for (const raw of usernames) {

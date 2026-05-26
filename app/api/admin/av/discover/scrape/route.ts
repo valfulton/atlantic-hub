@@ -127,6 +127,10 @@ async function handleNewMode(payload: Record<string, unknown>) {
   const industryRaw = typeof payload.industry === 'string' ? payload.industry.trim() : null;
   const tbInput = typeof payload.targetBusiness === 'string' ? payload.targetBusiness : null;
   const explicitTarget: TargetBusiness | null = tbInput && isTargetBusiness(tbInput) ? tbInput : null;
+  const destClientId =
+    typeof payload.clientId === 'number' && Number.isInteger(payload.clientId) && payload.clientId > 0
+      ? payload.clientId
+      : null;
 
   const scraped = await scrapeContactPage(websiteUrl);
   if (!scraped.email && !scraped.phone) {
@@ -177,9 +181,9 @@ async function handleNewMode(payload: Record<string, unknown>) {
   const [result] = await db.execute<ResultSetHeader>(
     `INSERT INTO leads (
        audit_id, company, email, phone, website, normalized_domain,
-       industry, lead_status, source_type, target_business, source_payload, last_activity_at
+       industry, lead_status, source_type, target_business, source_payload, client_id, last_activity_at
      )
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, NOW())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, ?, NOW())`,
     [
       auditId,
       company,
@@ -189,7 +193,8 @@ async function handleNewMode(payload: Record<string, unknown>) {
       domain,
       industryRaw,
       targetBusiness,
-      JSON.stringify(sourcePayload)
+      JSON.stringify(sourcePayload),
+      destClientId
     ]
   );
 

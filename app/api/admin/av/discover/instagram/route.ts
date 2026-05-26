@@ -62,8 +62,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const destClientId =
+    typeof payload.clientId === 'number' && Number.isInteger(payload.clientId) && payload.clientId > 0
+      ? payload.clientId
+      : null;
+
   try {
-    const batch = await runInstagramDiscoveryBatch(usernames);
+    const batch = await runInstagramDiscoveryBatch(usernames, { clientId: destClientId });
     return NextResponse.json({
       source: 'instagram',
       inputCount: usernames.length,

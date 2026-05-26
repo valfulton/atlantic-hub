@@ -85,8 +85,8 @@ export default async function DiscoverPage({
       )}
 
       {source === 'places' && <PlacesDiscoverForm clients={clients} />}
-      {source === 'instagram' && <InstagramDiscoverForm />}
-      {source === 'scrape' && <ScrapeDiscoverForm />}
+      {source === 'instagram' && <InstagramDiscoverForm clients={clients} />}
+      {source === 'scrape' && <ScrapeDiscoverForm clients={clients} />}
     </div>
   );
 }
