@@ -96,9 +96,18 @@ export async function GET(
       statusCode: 200
     });
 
+    // Optional landing override: an operator can issue a link that drops the
+    // client on a specific page (e.g. their pre-filled intake) via ?next=/client/...
+    // Whitelist to internal client paths only (no open redirect).
+    const nextParam = req.nextUrl.searchParams.get('next');
+    const safeNext =
+      nextParam && /^\/client\/[a-z0-9/_-]*$/i.test(nextParam) && !nextParam.includes('//')
+        ? nextParam
+        : null;
+
     const needsPassword = !user.password_hash;
     const dest = new URL(
-      needsPassword ? '/client/set-password?welcome=1' : '/client/dashboard',
+      safeNext ?? (needsPassword ? '/client/set-password?welcome=1' : '/client/dashboard'),
       req.url
     );
     return NextResponse.redirect(dest);

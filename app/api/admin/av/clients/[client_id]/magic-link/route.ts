@@ -28,9 +28,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const clientId = Number.parseInt(params.client_id, 10);
   if (!Number.isFinite(clientId) || clientId <= 0) return NextResponse.json({ error: 'invalid client id' }, { status: 400 });
 
-  let body: { send?: unknown } = {};
+  let body: { send?: unknown; dest?: unknown } = {};
   try { body = await req.json(); } catch { /* default: no email */ }
   const send = body.send === true;
+  // Where the link lands the client. Default to their intake (review/complete
+  // their pre-filled details) — that's the pre-narrative-line step.
+  const dest = body.dest === 'dashboard' ? 'dashboard' : 'intake';
 
   try {
     const db = getAvDb();
@@ -52,7 +55,8 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       [token, expiresAt, user.client_user_id]
     );
 
-    const link = buildMagicLinkUrl(token);
+    const base = buildMagicLinkUrl(token);
+    const link = dest === 'intake' ? `${base}?next=${encodeURIComponent('/client/intake')}` : base;
     let emailSent = false;
     if (send) {
       try {
@@ -69,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
     }
 
-    return NextResponse.json({ ok: true, link, email: user.email, expiresInHours: MAGIC_TOKEN_TTL_HOURS, emailSent });
+    return NextResponse.json({ ok: true, link, email: user.email, expiresInHours: MAGIC_TOKEN_TTL_HOURS, emailSent, dest });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }
