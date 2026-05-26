@@ -8,6 +8,7 @@ import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
 import ExtractIntelButton from './ExtractIntelButton';
 import FindLeadsForClient from './FindLeadsForClient';
+import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
@@ -194,27 +195,20 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}
       <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />
 
-      {/* Their pipeline */}
+      {/* Their pipeline — with per-row Delete to clear strays. */}
       <div className="rounded-2xl border border-border bg-surface p-4">
         <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-3">Their pipeline</div>
-        {d.leads.length === 0 ? (
-          <p className="text-sm text-muted">No leads yet.</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {d.leads.slice(0, 30).map((l) => (
-              <li key={l.id} className="py-2 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm text-ink truncate">{l.company}</div>
-                  <div className="text-[11px] text-muted">{l.industry || '—'}{l.contactName ? ` · ${l.contactName}` : ''}</div>
-                </div>
-                <div className="text-sm tabular-nums text-ink shrink-0">
-                  {l.score !== null ? Math.round(l.score) : '—'}
-                  {l.band && <span className="text-[10px] uppercase tracking-[0.12em] text-muted ml-2">{l.band}</span>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ClientPipelineList
+          clientId={clientId}
+          leads={d.leads.slice(0, 30).map((l) => ({
+            id: l.id,
+            company: l.company,
+            industry: l.industry,
+            contactName: l.contactName,
+            score: l.score,
+            band: l.band
+          }))}
+        />
       </div>
     </div>
   );
