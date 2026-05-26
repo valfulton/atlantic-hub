@@ -392,11 +392,21 @@ export async function runDiscoveryBatch(opts: {
    * operator pipeline (unchanged behavior).
    */
   clientId?: number | null;
+  /**
+   * Company-type terms to EXCLUDE. Apollo has no negative-keyword filter, so we
+   * drop any org whose name / industry / description matches a term BEFORE
+   * inserting it (e.g. a benefits broker excluding "hospital", "health system").
+   * Omit for unfiltered discovery (unchanged behavior).
+   */
+  excludeIndustries?: string[];
 }): Promise<DiscoverBatchSummary> {
   const triggerSource = opts.triggerSource;
   const monthlyCeiling = opts.monthlyCeiling ?? DEFAULT_MONTHLY_SEARCH_CEILING;
   const actorUserId = opts.actorUserId ?? null;
   const clientId = opts.clientId ?? null;
+  const excludeTerms = (opts.excludeIndustries ?? [])
+    .map((t) => (t || '').trim().toLowerCase())
+    .filter((t) => t.length > 0);
 
   const usedThisMonth = await getMonthlySearchUsage();
   const remaining = Math.max(0, monthlyCeiling - usedThisMonth);
@@ -486,6 +496,12 @@ export async function runDiscoveryBatch(opts: {
   let insertFailed = 0;
 
   for (const org of orgs) {
+    // Drop off-target orgs (excluded industries) before spending any insert /
+    // top-people calls. Matches against name + industry + short description.
+    if (excludeTerms.length > 0) {
+      const hay = [org.name, org.industry, org.short_description].filter(Boolean).join(' ').toLowerCase();
+      if (excludeTerms.some((t) => hay.includes(t))) continue;
+    }
     const orgResults = await discoverPeopleForOrg(org, clientId);
     for (const r of orgResults) {
       results.push(r);

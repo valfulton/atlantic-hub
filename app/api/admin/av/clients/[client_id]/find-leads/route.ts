@@ -113,6 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         filters: icpToApolloFilters(icp, { perPage: budget }),
         triggerSource: 'manual',
         clientId,
+        excludeIndustries: icp.excludedIndustries,
         actorUserId: guard.actor.userId ?? null
       });
       inserted += summary.inserted;

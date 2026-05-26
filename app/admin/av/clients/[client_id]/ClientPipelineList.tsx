@@ -8,9 +8,11 @@
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface PipelineLead {
   id: number;
+  auditId: string | null;
   company: string;
   industry: string | null;
   contactName: string | null;
@@ -53,7 +55,13 @@ export default function ClientPipelineList({ clientId, leads }: { clientId: numb
       {list.map((l) => (
         <li key={l.id} className="py-2 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm text-ink truncate">{l.company}</div>
+            {l.auditId ? (
+              <Link href={`/admin/av/${l.auditId}`} className="text-sm text-ink truncate hover:text-brand hover:underline">
+                {l.company}
+              </Link>
+            ) : (
+              <div className="text-sm text-ink truncate">{l.company}</div>
+            )}
             <div className="text-[11px] text-muted">{l.industry || '—'}{l.contactName ? ` · ${l.contactName}` : ''}</div>
           </div>
           <div className="flex items-center gap-3 shrink-0">

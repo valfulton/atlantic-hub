@@ -158,17 +158,20 @@ async function logLeadEvent(
  * Filters in SQL where cheap; applies the placeholder-email regex in JS
  * because MySQL regex syntax varies across versions.
  */
-async function findCandidates(limit: number): Promise<LeadRow[]> {
+async function findCandidates(limit: number, clientId?: number | null): Promise<LeadRow[]> {
   const db = getAvDb();
+  const scoped = clientId != null && clientId > 0;
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, company, contact_name, email, website, enrichment_status, client_id
        FROM leads
       WHERE archived_at IS NULL
+        ${scoped ? 'AND client_id = ?' : ''}
         AND (enrichment_status IS NULL
              OR enrichment_status NOT IN ('enriched','failed_permanent','in_progress'))
         AND website IS NOT NULL AND website != ''
       ORDER BY ai_score DESC, id ASC
-      LIMIT 500`
+      LIMIT 500`,
+    scoped ? [clientId] : []
   );
 
   const filtered = rows.filter((r) => {
@@ -381,10 +384,13 @@ export async function runEnrichmentBatch(opts: {
   limit?: number;
   triggerSource: EnrichmentTriggerSource;
   monthlyCeiling?: number;
+  /** When set, only enrich leads belonging to this client's hub. */
+  clientId?: number | null;
 } = { triggerSource: 'manual' }): Promise<EnrichmentBatchSummary> {
   const limit = Math.max(1, Math.min(50, opts.limit ?? 5));
   const monthlyCeiling = opts.monthlyCeiling ?? DEFAULT_MONTHLY_CREDIT_CEILING;
   const triggerSource = opts.triggerSource;
+  const clientId = opts.clientId ?? null;
 
   const usedThisMonth = await getMonthlyCreditUsage();
   const remaining = Math.max(0, monthlyCeiling - usedThisMonth);
@@ -407,7 +413,7 @@ export async function runEnrichmentBatch(opts: {
   }
 
   const effectiveLimit = Math.min(limit, remaining);
-  const candidates = await findCandidates(effectiveLimit);
+  const candidates = await findCandidates(effectiveLimit, clientId);
 
   if (candidates.length === 0) {
     return {

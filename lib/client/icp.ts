@@ -25,6 +25,9 @@ export interface ClientIcp {
   geographies: string[];
   /** Locations to exclude. */
   excludeGeographies: string[];
+  /** Industries / company-type keywords to EXCLUDE from results (post-filter:
+   *  Apollo has no negative-keyword filter, so we drop matches after fetch). */
+  excludedIndustries: string[];
   /** Company size band (employees). */
   companySizeMin: number | null;
   companySizeMax: number | null;
@@ -36,6 +39,7 @@ export const EMPTY_ICP: ClientIcp = {
   industries: [],
   geographies: [],
   excludeGeographies: [],
+  excludedIndustries: [],
   companySizeMin: null,
   companySizeMax: null,
   description: ''
@@ -45,6 +49,7 @@ interface IcpRow extends RowDataPacket {
   target_industries: unknown;
   target_geographies: unknown;
   excluded_topics: unknown;
+  excluded_industries: unknown;
   target_company_size_min: number | null;
   target_company_size_max: number | null;
   description: string | null;
@@ -108,7 +113,7 @@ export async function getClientIcp(clientId: number): Promise<ClientIcp> {
   if (!clientId || clientId <= 0) return { ...EMPTY_ICP };
   const db = getAvDb();
   const [rows] = await db.execute<IcpRow[]>(
-    `SELECT target_industries, target_geographies, excluded_topics,
+    `SELECT target_industries, target_geographies, excluded_topics, excluded_industries,
             target_company_size_min, target_company_size_max, description
        FROM client_icps WHERE client_id = ? LIMIT 1`,
     [clientId]
@@ -119,6 +124,7 @@ export async function getClientIcp(clientId: number): Promise<ClientIcp> {
     industries: asStringArray(r.target_industries),
     geographies: asStringArray(r.target_geographies),
     excludeGeographies: asStringArray(r.excluded_topics),
+    excludedIndustries: asStringArray(r.excluded_industries),
     companySizeMin: clampSize(r.target_company_size_min),
     companySizeMax: clampSize(r.target_company_size_max),
     description: typeof r.description === 'string' ? r.description : ''
@@ -132,6 +138,7 @@ export function normalizeIcp(raw: Record<string, unknown> | null | undefined): C
     industries: asStringArray(r.industries),
     geographies: asStringArray(r.geographies),
     excludeGeographies: asStringArray(r.excludeGeographies),
+    excludedIndustries: asStringArray(r.excludedIndustries),
     companySizeMin: clampSize(r.companySizeMin),
     companySizeMax: clampSize(r.companySizeMax),
     description: typeof r.description === 'string' ? r.description.slice(0, 2000) : ''
@@ -144,13 +151,14 @@ export async function saveClientIcp(clientId: number, icp: ClientIcp, userId?: n
   const db = getAvDb();
   await db.execute<ResultSetHeader>(
     `INSERT INTO client_icps
-       (client_id, target_industries, target_geographies, excluded_topics,
+       (client_id, target_industries, target_geographies, excluded_topics, excluded_industries,
         target_company_size_min, target_company_size_max, description, updated_by_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        target_industries = VALUES(target_industries),
        target_geographies = VALUES(target_geographies),
        excluded_topics = VALUES(excluded_topics),
+       excluded_industries = VALUES(excluded_industries),
        target_company_size_min = VALUES(target_company_size_min),
        target_company_size_max = VALUES(target_company_size_max),
        description = VALUES(description),
@@ -160,6 +168,7 @@ export async function saveClientIcp(clientId: number, icp: ClientIcp, userId?: n
       JSON.stringify(icp.industries),
       JSON.stringify(icp.geographies),
       JSON.stringify(icp.excludeGeographies),
+      JSON.stringify(icp.excludedIndustries),
       icp.companySizeMin,
       icp.companySizeMax,
       icp.description || null,
@@ -267,4 +276,19 @@ export function icpToApolloFilters(
     page: opts.page && opts.page > 0 ? Math.floor(opts.page) : 1,
     perPage: opts.perPage && opts.perPage > 0 ? Math.min(100, Math.floor(opts.perPage)) : 10
   };
+}
+
+/**
+ * Post-filter helper: true if a company's text (name / industry / description)
+ * matches any of the ICP's excluded-industry terms. Apollo has no negative
+ * keyword filter, so discovery uses this to drop off-target results (e.g. a
+ * benefits broker excluding "hospital", "health system", "insurance carrier").
+ */
+export function matchesExcludedIndustry(text: string | null | undefined, icp: ClientIcp): boolean {
+  if (!text || !icp.excludedIndustries || icp.excludedIndustries.length === 0) return false;
+  const hay = text.toLowerCase();
+  return icp.excludedIndustries.some((term) => {
+    const t = (term || '').trim().toLowerCase();
+    return t.length > 0 && hay.includes(t);
+  });
 }

@@ -11,7 +11,10 @@ import MagicLinkButton from './MagicLinkButton';
 import PortalAccessToggle from './PortalAccessToggle';
 import PrefilledIntakeLink from './PrefilledIntakeLink';
 import FindLeadsForClient from './FindLeadsForClient';
+import IcpEditor from './IcpEditor';
+import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import { getBriefPayload } from '@/lib/client/brief_store';
+import { getClientIcp } from '@/lib/client/icp';
 import { signIntakeShareToken } from '@/lib/auth/intake-share';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
@@ -48,6 +51,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   if (!d) notFound();
 
   const access = await getClientAccessState(clientId);
+  const icp = await getClientIcp(clientId);
   const currentTier = (d.members[0]?.tier as ClientTier) || 'sprint';
 
   // Current intake-gate override (portal_full_access) for the toggle.
@@ -215,11 +219,17 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         )}
       </div>
 
+      {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
+      <IcpEditor clientId={clientId} initial={icp} />
+
       {/* Find leads scoped to THIS client (their hub only — never the AV pipeline). */}
       <FindLeadsForClient clientId={clientId} clientName={d.name} />
 
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}
       <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />
+
+      {/* Enrich this client's leads on their behalf (Hunter contact details). */}
+      <EnrichClientLeadsButton clientId={clientId} clientName={d.name} />
 
       {/* Their pipeline — with per-row Delete to clear strays. */}
       <div className="rounded-2xl border border-border bg-surface p-4">
@@ -228,6 +238,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           clientId={clientId}
           leads={d.leads.slice(0, 30).map((l) => ({
             id: l.id,
+            auditId: l.auditId,
             company: l.company,
             industry: l.industry,
             contactName: l.contactName,
