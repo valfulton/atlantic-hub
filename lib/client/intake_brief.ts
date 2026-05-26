@@ -59,7 +59,11 @@ export function extractBriefSeedFromIntake(intakePayload: unknown): BriefSeed {
   const messageSupport = pick(o, ['message_support', 'proof_points', 'press_awards', 'client_results']);
   const differentiators = pick(o, ['differentiators', 'market_position']);
   const brandVoice = pick(o, ['brand_voice']);
-  const timeline = pick(o, ['timeline', 'busy_seasons', 'key_dates']);
+  // Seasonality = busy seasons / key dates. The intake form's `timeline` field
+  // means PROJECT timeline ("6 weeks"), NOT seasonality, so the real seasonality
+  // fields win; raw `timeline` is only a last-resort fallback (the brief editor
+  // historically used that key for seasonality).
+  const timeline = pick(o, ['busy_seasons', 'key_dates', 'timeline']);
   const channels = pick(o, ['preferred_channels', 'content_platforms']);
   const company = str(o, 'company');
 
