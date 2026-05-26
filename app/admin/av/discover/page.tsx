@@ -3,6 +3,9 @@ import { DiscoverForm } from './DiscoverForm';
 import { PlacesDiscoverForm } from './PlacesDiscoverForm';
 import { InstagramDiscoverForm } from './InstagramDiscoverForm';
 import { ScrapeDiscoverForm } from './ScrapeDiscoverForm';
+import { listClientAccounts } from '@/lib/av/clients_overview';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Unified discovery page. URL-driven tab selection (?source=apollo|places|
@@ -22,13 +25,19 @@ const TABS: Array<{ id: Source; label: string; subtitle: string }> = [
   { id: 'scrape', label: 'Website scrape', subtitle: 'Paste a URL, pull contact info' }
 ];
 
-export default function DiscoverPage({
+export default async function DiscoverPage({
   searchParams
 }: {
   searchParams?: { source?: string };
 }) {
   const sourceRaw = searchParams?.source ?? '';
   const source: Source = (TABS.find((t) => t.id === sourceRaw)?.id ?? 'apollo') as Source;
+
+  // Clients for the "send pulled leads to" destination dropdown.
+  const clients = (await listClientAccounts().catch(() => [])).map((c) => ({
+    clientId: c.clientId,
+    name: c.name
+  }));
 
   return (
     <div>
@@ -71,11 +80,11 @@ export default function DiscoverPage({
             Apollo organizations/search → top-people lookup → inserts as leads. Strong for
             B2B/agency targets; weak coverage for USVI hospitality (use Places or IG for those).
           </p>
-          <DiscoverForm />
+          <DiscoverForm clients={clients} />
         </div>
       )}
 
-      {source === 'places' && <PlacesDiscoverForm />}
+      {source === 'places' && <PlacesDiscoverForm clients={clients} />}
       {source === 'instagram' && <InstagramDiscoverForm />}
       {source === 'scrape' && <ScrapeDiscoverForm />}
     </div>

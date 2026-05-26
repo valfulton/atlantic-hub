@@ -70,8 +70,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Optional destination: stamp results to a client's hub instead of the AV pipeline.
+  const destClientId =
+    typeof payload.clientId === 'number' && Number.isInteger(payload.clientId) && payload.clientId > 0
+      ? payload.clientId
+      : null;
+
   try {
-    const batch = await runPlacesDiscoveryBatch(filters);
+    const batch = await runPlacesDiscoveryBatch(filters, { clientId: destClientId });
     return NextResponse.json({
       source: 'google_places',
       resultsCount: batch.resultsCount,

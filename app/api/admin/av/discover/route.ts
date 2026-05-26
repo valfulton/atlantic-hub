@@ -82,11 +82,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Optional destination: when a client id is supplied, stamp the discovered
+  // leads to that client's hub instead of the operator AV pipeline.
+  const destClientId =
+    typeof payload.clientId === 'number' && Number.isInteger(payload.clientId) && payload.clientId > 0
+      ? payload.clientId
+      : null;
+
   try {
     const summary = await runDiscoveryBatch({
       filters,
       triggerSource: 'manual',
-      actorUserId: guard.actor.userId
+      actorUserId: guard.actor.userId,
+      clientId: destClientId
     });
     return NextResponse.json(summary);
   } catch (err) {
