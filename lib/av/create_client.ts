@@ -71,6 +71,21 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     intakePayload
   });
 
+  // The operator's name is AUTHORITATIVE. upsertClientUserForIntake only fills a
+  // blank display_name (COALESCE), so a pre-existing blank/stale row would leave
+  // display_name empty -- and ensureClientHub would then name the account from the
+  // email handle (e.g. "skipk79"). Force the provided name on so the account reads
+  // as the real "First Last" everywhere.
+  if (displayName && row.display_name !== displayName) {
+    try {
+      const db = getAvDb();
+      await db.execute(`UPDATE client_users SET display_name = ? WHERE client_user_id = ?`, [displayName, row.client_user_id]);
+      row.display_name = displayName;
+    } catch {
+      /* non-fatal: the account editor can fix the name */
+    }
+  }
+
   // Stand up their hub (clients row + client_id link).
   let clientId: number | null = row.client_id;
   if (!clientId) {

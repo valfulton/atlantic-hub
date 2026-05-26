@@ -10,6 +10,7 @@ import { RescoreButton } from './RescoreButton';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
 import { AssignToClientControl } from './AssignToClientControl';
+import ArchiveLeadButton from './ArchiveLeadButton';
 import { listClientAccounts } from '@/lib/av/clients_overview';
 import { AnimatedScoreReveal } from '@/components/AnimatedScoreReveal';
 
@@ -81,6 +82,7 @@ export default async function AvLeadDetailPage({
             currentClientId={lead.clientId ?? null}
           />
           <SocialContentButton auditId={lead.auditId} />
+          <ArchiveLeadButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
           <AnimatedScoreReveal
             score={lead.aiCombinedScore ?? lead.aiScore}
