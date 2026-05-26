@@ -5,7 +5,7 @@ interface PortalHeaderProps {
   displayName: string | null;
   email: string;
   tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
-  active: 'dashboard' | 'audit' | 'leads';
+  active: 'dashboard' | 'audit' | 'leads' | 'details';
 }
 
 const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
@@ -86,6 +86,17 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
             }`}
           >
             Your Audit
+          </a>
+          <a
+            href="/client/intake"
+            aria-current={active === 'details' ? 'page' : undefined}
+            className={`px-3 py-1.5 rounded-md text-sm ${
+              active === 'details'
+                ? 'bg-surface-2 text-ink'
+                : 'text-muted hover:text-ink hover:bg-surface-2'
+            }`}
+          >
+            Your Details
           </a>
         </nav>
 
