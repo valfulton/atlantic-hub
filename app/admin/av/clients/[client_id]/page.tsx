@@ -9,8 +9,10 @@ import AccountInfoEditor from './AccountInfoEditor';
 import ExtractIntelButton from './ExtractIntelButton';
 import MagicLinkButton from './MagicLinkButton';
 import PortalAccessToggle from './PortalAccessToggle';
+import PrefilledIntakeLink from './PrefilledIntakeLink';
 import FindLeadsForClient from './FindLeadsForClient';
 import { getBriefPayload } from '@/lib/client/brief_store';
+import { signIntakeShareToken } from '@/lib/auth/intake-share';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
@@ -54,6 +56,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
     const bp = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
     portalFullAccess = bp?.portal_full_access === true;
   } catch { /* default: intake required */ }
+
+  // Prefilled-intake share link -> the live website intake form, prefilled via token.
+  const intakeShareUrl = `https://atlanticandvine.netlify.app/client-intake?t=${await signIntakeShareToken(clientId)}`;
 
   // Unassigned leads available to hand to this client (bulk handoff #79).
   let unassigned: { auditId: string; company: string; industry: string | null; email: string | null; score: number | null; band: string | null }[] = [];
@@ -111,7 +116,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <Link href={`/admin/av/clients/${clientId}/preview`} className="text-brand hover:underline">Preview their dashboard →</Link>
       </div>
 
-      {/* Generate / re-issue this client's magic-link (originals expire in 24h). */}
+      {/* No-login prefilled intake link — the "just send it" link. */}
+      <PrefilledIntakeLink url={intakeShareUrl} />
+
+      {/* Generate / re-issue this client's magic-link (full portal login). */}
       <div className="mb-5">
         <MagicLinkButton clientId={clientId} />
       </div>
