@@ -8,6 +8,7 @@ import { CoachCallsButton } from './CoachCallsButton';
 import { LeadOfTheDay } from '@/components/LeadOfTheDay';
 import { HotLeadConfetti } from '@/components/HotLeadConfetti';
 import { PipelineValueCard } from '@/components/PipelineValueCard';
+import { listClientAccounts } from '@/lib/av/clients_overview';
 
 interface Stats {
   total: number;
@@ -50,6 +51,7 @@ export default async function AvPage({
     target?: string;
     assignedTo?: string;
     handedToOwner?: string;
+    client?: string;
   };
 }) {
   const stageParam = STAGES.includes(searchParams?.stage as (typeof STAGES)[number])
@@ -87,6 +89,12 @@ export default async function AvPage({
       : '';
   const handedToOwnerParam =
     searchParams?.handedToOwner === 'true' ? 'true' : '';
+  const clientParam =
+    searchParams?.client === 'unassigned'
+      ? 'unassigned'
+      : /^\d+$/.test(searchParams?.client ?? '')
+      ? (searchParams!.client as string)
+      : '';
 
   const queryParts: [string, string][] = [];
   if (stageParam) queryParts.push(['stage', stageParam]);
@@ -96,6 +104,7 @@ export default async function AvPage({
   if (dataQs) queryParts.push(['data', dataQs]);
   if (assignedToParam) queryParts.push(['assignedTo', assignedToParam]);
   if (handedToOwnerParam) queryParts.push(['handedToOwner', handedToOwnerParam]);
+  if (clientParam) queryParts.push(['client', clientParam]);
   queryParts.push(['sort', sortParam]);
   queryParts.push(['direction', directionParam]);
   const leadsQs = '?' + new URLSearchParams(queryParts).toString();
@@ -106,6 +115,7 @@ export default async function AvPage({
     if (stageParam) qp.set('stage', stageParam);
     if (sourceParam) qp.set('source_type', sourceParam);
     if (enrichmentParam) qp.set('enrichment', enrichmentParam);
+    if (clientParam) qp.set('client', clientParam);
     if (dataQs) qp.set('data', dataQs);
     qp.set('sort', sortParam);
     qp.set('direction', directionParam);
@@ -124,6 +134,7 @@ export default async function AvPage({
     if (sourceParam) qp.set('source_type', sourceParam);
     if (enrichmentParam) qp.set('enrichment', enrichmentParam);
     if (targetParam) qp.set('target', targetParam);
+    if (clientParam) qp.set('client', clientParam);
     qp.set('sort', sortParam);
     qp.set('direction', directionParam);
     if (next.size > 0) qp.set('data', Array.from(next).join(','));
@@ -142,6 +153,9 @@ export default async function AvPage({
   const { leads }: { leads: AvLead[] } = leadsRes.ok
     ? await leadsRes.json()
     : { leads: [] };
+
+  // Client list for the "by client" filter dropdown.
+  const clientAccounts = await listClientAccounts().catch(() => []);
 
   const activeInPipeline = stats.byStage.contacted + stats.byStage.qualified;
 
@@ -219,6 +233,19 @@ export default async function AvPage({
           <option value="failed_no_results">Hunter found nothing</option>
           <option value="failed_permanent">Stopped (manual)</option>
         </select>
+        <select
+          name="client"
+          defaultValue={clientParam}
+          className="text-sm bg-surface border border-border rounded-md px-3 py-1.5 text-ink"
+        >
+          <option value="">All clients + AV</option>
+          <option value="unassigned">Your AV pipeline (unassigned)</option>
+          {clientAccounts.map((c) => (
+            <option key={c.clientId} value={String(c.clientId)}>
+              {c.name}
+            </option>
+          ))}
+        </select>
         {/* Preserve current sort + data + target filters when filtering */}
         <input type="hidden" name="sort" value={sortParam} />
         <input type="hidden" name="direction" value={directionParam} />
@@ -230,7 +257,7 @@ export default async function AvPage({
         >
           Filter
         </button>
-        {(stageParam || sourceParam || enrichmentParam || dataParam.length > 0 || targetParam) && (
+        {(stageParam || sourceParam || enrichmentParam || dataParam.length > 0 || targetParam || clientParam) && (
           <Link href="/admin/av" className="text-xs text-muted hover:text-ink">
             Clear filters
           </Link>

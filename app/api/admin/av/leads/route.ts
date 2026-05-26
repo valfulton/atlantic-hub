@@ -114,6 +114,7 @@ export async function GET(req: NextRequest) {
   const directionRaw = (url.searchParams.get('direction') ?? 'desc').toLowerCase();
   const assignedToRaw = url.searchParams.get('assignedTo') ?? '';
   const handedToOwnerRaw = url.searchParams.get('handedToOwner') ?? '';
+  const clientRaw = url.searchParams.get('client') ?? '';
 
   const stageFilter = VALID_STAGES.has(stageRaw) ? stageRaw : null;
   const sourceFilter = VALID_SOURCES.has(sourceRaw) ? sourceRaw : null;
@@ -146,6 +147,14 @@ export async function GET(req: NextRequest) {
         conditions.push('enrichment_status = ?');
         params.push(enrichmentFilter);
       }
+    }
+    // Client filter: a numeric id scopes to that client's hub; 'unassigned'
+    // shows the operator's own pipeline (leads with no client_id).
+    if (clientRaw === 'unassigned') {
+      conditions.push('client_id IS NULL');
+    } else if (/^\d+$/.test(clientRaw)) {
+      conditions.push('client_id = ?');
+      params.push(clientRaw);
     }
     if (targetFilter) {
       // 'av' filter shows av + both; 'ebw' filter shows ebw + both; 'both'
