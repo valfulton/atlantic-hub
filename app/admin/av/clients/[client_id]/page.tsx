@@ -6,6 +6,7 @@ import { getClientAccessState } from '@/lib/av/client_access';
 import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
+import ExtractIntelButton from './ExtractIntelButton';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
@@ -95,6 +96,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       <div className="flex flex-wrap gap-4 mb-5 text-sm">
         <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-brand hover:underline">Edit creative brief →</Link>
         <Link href={`/admin/av/clients/${clientId}/preview`} className="text-brand hover:underline">Preview their dashboard →</Link>
+      </div>
+
+      {/* Intake -> canonical intelligence (one visible-prompt pass). */}
+      <div className="mb-5">
+        <ExtractIntelButton clientId={clientId} />
       </div>
 
       {/* Account info editor (name / industry / contact) — no SQL needed. */}

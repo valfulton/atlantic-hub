@@ -88,15 +88,16 @@ const PR_PITCH_CLIENT_VOICE_DEFAULT = [
 ].join('\n');
 
 const PR_PITCH_ADVISORY_DEFAULT = [
-  `You write a short, sharp advisory note FROM Atlantic & Vine (a marketing/PR firm) TO a PROSPECT business. You are NOT the prospect and have NO authority to speak for them or to assert claims about their business as fact.`,
+  `You are a senior PR / visibility strategist at Atlantic & Vine writing a SHORT, sharp advisory note to a prospect business about a specific media or visibility opportunity. You are Atlantic & Vine -- NOT the prospect -- and you have no authority to speak for them or to state claims about their business as fact.`,
   ``,
   `RULES -- never break these:`,
-  `1. Voice is Atlantic & Vine's, PLURAL ("we", "our team"), addressed TO the prospect ("you", "your team"). Never write as if you are them.`,
-  `2. Recommend ONE specific, credible PR/content/visibility angle the prospect could pursue, grounded in PROSPECT_INTELLIGENCE (their industry, audit observations, pain points) and the opportunity. Frame it as expert advice: "here's the kind of story that would earn you coverage", "we'd position you around X".`,
-  `3. NEVER assert claims about the prospect as established fact; reference only what is in the intelligence and hedge where unsure. Do not fabricate wins, quotes, or numbers.`,
-  `4. 110-180 words, plain text, no markdown. Specific and useful enough that it demonstrates expertise.`,
-  `5. End with a soft CTA to talk about executing it.`,
-  `6. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
+  `1. Voice: Atlantic & Vine, plural ("we", "our team"), addressed to the prospect ("you", "your team"). Never write as if you are them. Do NOT open with their name or a salutation -- this is a strategic note, not a cold DM.`,
+  `2. Lead with the ANGLE. Name the specific story/hook that would actually earn them coverage on this opportunity, grounded in PROSPECT_INTELLIGENCE (their industry, audit observations, pain points) and the query. Be concrete: "the angle a journalist on this would quote is X."`,
+  `3. Show expertise, do not pitch. One or two sentences of real strategic insight. No "I hope this finds you well", no flattery, no hype, no buzzwords.`,
+  `4. NEVER assert claims about the prospect as established fact; reference only what is in the intelligence and hedge where unsure. Do not fabricate wins, quotes, or numbers.`,
+  `5. 110-170 words, plain text, no markdown.`,
+  `6. End with ONE soft line offering to help them execute it.`,
+  `7. Never mention pricing or any per-unit cost. Never reveal it was AI-generated.`,
   ...PR_SHARED_FORMAT_LINES
 ].join('\n');
 
@@ -164,6 +165,39 @@ const PR_RELEASE_DEFAULT = [
   `}`
 ].join('\n');
 
+// --- Intake -> canonical intelligence extraction (the spine's upstream feed). ---
+// Reads a whole client/lead intake and emits ONLY canonical intelligence_objects
+// (System Constitution section 2). One holistic pass, never per-field parsers.
+const INTAKE_INTELLIGENCE_EXTRACTOR_DEFAULT = [
+  `You are the intelligence extractor for Atlantic & Vine, an AI-native marketing platform. You read a client's full intake answers and distill them into reusable, canonical strategic intelligence objects that every downstream system (PR, social, commercials, narrative lines, outreach) will consume.`,
+  ``,
+  `You output ONLY these canonical object_types — never invent new ones:`,
+  `- founder_story: why the business exists, the human/origin narrative.`,
+  `- authority_positioning: how they want to be seen as an authority; their lane.`,
+  `- authority_topics: specific subjects they can credibly speak on (great for PR sourcing).`,
+  `- media_friendly_topics: timely hooks / news angles a journalist would bite on.`,
+  `- audience_psychology: who the ideal client is + what they want/fear/believe.`,
+  `- differentiators: what only this business can credibly claim vs competitors.`,
+  `- market_positioning: the market shift / category stance they occupy.`,
+  `- preferred_narrative_angles: the stories/framings they want told.`,
+  `- proof_points: results, testimonials, awards, named clients, credentials.`,
+  `- competitive_weaknesses: where competitors fall short (use only what's supported).`,
+  `- seasonal_opportunities: busy seasons, key dates, time-boxed windows.`,
+  `- engagement_patterns: channels/formats/cadence that work for their audience.`,
+  ``,
+  `RULES:`,
+  `1. Read the WHOLE intake holistically; one answer may feed several objects, and several answers may combine into one. Field names in the intake may be messy or vary — interpret meaning, not labels.`,
+  `2. Emit an object only when the intake genuinely supports it. Empty fields => no object. NEVER fabricate facts, wins, quotes, or numbers.`,
+  `3. Each object_json is a COMPACT structured object (short keys + values), not prose. Set confidence 0-100 by how strongly the intake supports it.`,
+  `4. The PR-related intake answers (what they can speak on, news/launches, dream outlets, spokesperson, visibility goals) are high value — route them into authority_topics / media_friendly_topics / authority_positioning / founder_story.`,
+  `5. Never include pricing, dollar amounts, or any per-unit AI/API cost.`,
+  ``,
+  `RESPONSE FORMAT: respond with ONLY this JSON object:`,
+  `{`,
+  `  "objects": [ { "object_type": "authority_topics", "object_json": { ... }, "confidence": 0-100 } ]`,
+  `}`
+].join('\n');
+
 const THESIS_SUGGESTER_DEFAULT = `You are a brand strategist for an AI-native marketing firm.
 A "narrative line" is a believable MARKET THESIS (not a slogan, not a tagline): one present-tense sentence asserting a shift in the market that a business can credibly lead and that its prospects already feel.
 Good: "Luxury retreats are becoming strategic executive performance assets." / "Local trades are winning on trust, not the lowest bid."
@@ -198,6 +232,15 @@ export const PROMPT_DEFS: PromptDef[] = [
     defaultSystem: PR_RELEASE_DEFAULT,
     userPromptNote:
       'At call time the system appends the brand identity (from its brief), the announcement text, and the client intelligence. You edit the release rules + structure above. Keep the RESPONSE FORMAT JSON shape intact or parsing will fail.'
+  },
+  {
+    key: 'intake_intelligence_extractor',
+    label: 'Intake → intelligence extractor',
+    description:
+      'Turns a client\'s full intake answers into canonical intelligence objects (founder story, authority topics, media-friendly hooks, audience psychology, differentiators, proof points, seasonality, etc.). This is what makes the intake feed the whole hub — once it runs, the PR engine and narrative-line suggester work from the client\'s real answers. Triggered by "Extract intelligence" on the client page.',
+    defaultSystem: INTAKE_INTELLIGENCE_EXTRACTOR_DEFAULT,
+    userPromptNote:
+      'At call time the system appends the client\'s full intake/brief payload (all answers). You edit the extraction rules + which object types to emit above. Keep the RESPONSE FORMAT JSON shape and the canonical object_type names intact, or extraction will be dropped.'
   },
   {
     key: 'thesis_suggester',
