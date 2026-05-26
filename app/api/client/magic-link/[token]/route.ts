@@ -23,6 +23,7 @@ import {
 import { signClientSessionJwt } from '@/lib/auth/client-jwt';
 import { setClientSessionCookie } from '@/lib/auth/client-session';
 import { ensureClientHub } from '@/lib/client/provision';
+import { clientMayAccessHub } from '@/lib/client/intake_gate';
 
 export const runtime = 'nodejs';
 
@@ -80,8 +81,10 @@ export async function GET(
 
     // Provision this account's own hub (idempotent, non-fatal): they build
     // from scratch, so they need a clients row to own their leads/content.
+    let clientId: number | null = user.client_id ?? null;
     try {
-      await ensureClientHub(user);
+      const cid = await ensureClientHub(user);
+      if (cid) clientId = cid;
     } catch (e) {
       console.error('[client-portal:magic-link] provision skipped:', (e as Error).message);
     }
@@ -96,20 +99,24 @@ export async function GET(
       statusCode: 200
     });
 
-    // Optional landing override via a simple KEYWORD (no slashes / no %2F, which
-    // the CDN edge 404s). 'intake' -> their pre-filled intake; 'dashboard' -> home.
-    const nextParam = req.nextUrl.searchParams.get('next');
-    const safeNext =
-      nextParam === 'intake' ? '/client/intake'
-        : nextParam === 'dashboard' ? '/client/dashboard'
-          : null;
-
+    // Landing logic:
+    //   1. First-timer with no password -> set their own password. (After they
+    //      save it, set-password sends them to /client/dashboard, where the
+    //      intake GATE catches them and forwards to /client/intake — so the
+    //      password step NEVER unlocks the portal; only completing intake does.)
+    //   2. Has a password but intake not done (and no operator override) ->
+    //      straight to their pre-filled intake.
+    //   3. Allowed in -> dashboard.
     const needsPassword = !user.password_hash;
-    const dest = new URL(
-      safeNext ?? (needsPassword ? '/client/set-password?welcome=1' : '/client/dashboard'),
-      req.url
-    );
-    return NextResponse.redirect(dest);
+    let target: string;
+    if (needsPassword) {
+      target = '/client/set-password?welcome=1';
+    } else if (!(await clientMayAccessHub(clientId))) {
+      target = '/client/intake';
+    } else {
+      target = '/client/dashboard';
+    }
+    return NextResponse.redirect(new URL(target, req.url));
   } catch (err) {
     await writeAuditRow({
       targetResource: '/api/client/magic-link',
