@@ -30,7 +30,13 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 // 50/month (as of mid-2026); we guard at 45 to leave a buffer for manual
 // retries. Override per-run via runEnrichmentBatch({ monthlyCeiling }).
 // Paid tiers: Starter $34/mo = 500 credits; Growth = 5000; Pro = 50000.
-const DEFAULT_MONTHLY_CREDIT_CEILING = 45;
+// Monthly Hunter credit ceiling — a cost rail, not a cage. Override per
+// deployment with the HUNTER_MONTHLY_CREDIT_CEILING env var (set it to your
+// real Hunter plan's monthly credit allowance). Falls back to 45 if unset.
+const DEFAULT_MONTHLY_CREDIT_CEILING = (() => {
+  const n = Number(process.env.HUNTER_MONTHLY_CREDIT_CEILING);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 45;
+})();
 const PLACEHOLDER_EMAIL_PATTERNS = [
   /^prospect\+/i,
   /^test@/i,
