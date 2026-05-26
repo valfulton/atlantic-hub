@@ -16,7 +16,18 @@ const BAND_PILL: Record<string, string> = {
   cool: 'bg-sky-500/15 text-sky-300'
 };
 
-export default function CreativeBrief({ brief, firstName }: { brief: Brief; firstName: string }) {
+export default function CreativeBrief({
+  brief,
+  firstName,
+  leadsHref = '/client/leads'
+}: {
+  brief: Brief;
+  firstName: string;
+  /** Where the "See all leads" / "Your leads" links point. Defaults to the
+   *  client portal; the operator preview overrides this to the operator client
+   *  page so the preview never jumps into the live (session-scoped) portal. */
+  leadsHref?: string;
+}) {
   const { activeLines, nextLeads, awaitingApproval, awaitingCount } = brief;
 
   return (
@@ -69,7 +80,7 @@ export default function CreativeBrief({ brief, firstName }: { brief: Brief; firs
       <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs uppercase tracking-wide text-muted">Your next leads</div>
-          <Link href="/client/leads" className="text-sm text-amber-300 hover:underline">See all leads →</Link>
+          <Link href={leadsHref} className="text-sm text-amber-300 hover:underline">See all leads →</Link>
         </div>
         {nextLeads.length === 0 ? (
           <p className="text-sm text-muted">No leads yet — find your next customers from the Leads page.</p>
@@ -94,7 +105,7 @@ export default function CreativeBrief({ brief, firstName }: { brief: Brief; firs
 
       {/* Quick links — leads live; calendar + sales team are coming, shown so the hub feels whole */}
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href="/client/leads" className="text-sm rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-ink hover:bg-white/[0.08]">Your leads</Link>
+        <Link href={leadsHref} className="text-sm rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-ink hover:bg-white/[0.08]">Your leads</Link>
         <span className="text-sm rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-muted/70 cursor-default" title="Coming soon">Calendar · soon</span>
         <span className="text-sm rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-muted/70 cursor-default" title="Coming soon">Sales team · soon</span>
       </div>

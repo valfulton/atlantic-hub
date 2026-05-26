@@ -126,7 +126,7 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
           </div>
         </section>
 
-        <CreativeBrief brief={brief} firstName={firstName} />
+        <CreativeBrief brief={brief} firstName={firstName} leadsHref={`/admin/av/clients/${clientId}`} />
 
         <section className="mb-8 rounded-2xl border border-border bg-surface p-6">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted">Strategic Marketing Audit</div>
