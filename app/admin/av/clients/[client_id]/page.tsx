@@ -5,6 +5,7 @@ import { getClientAccountDetail } from '@/lib/av/clients_overview';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
+import AccountInfoEditor from './AccountInfoEditor';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
@@ -95,6 +96,15 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-brand hover:underline">Edit creative brief →</Link>
         <Link href={`/admin/av/clients/${clientId}/preview`} className="text-brand hover:underline">Preview their dashboard →</Link>
       </div>
+
+      {/* Account info editor (name / industry / contact) — no SQL needed. */}
+      <AccountInfoEditor
+        clientId={clientId}
+        initialClientName={d.name}
+        initialIndustry={d.industry ?? ''}
+        contactEmail={d.members[0]?.email ?? null}
+        initialContactName={d.members[0]?.displayName ?? ''}
+      />
 
       {/* Access & tier controls */}
       <AccessControls clientId={clientId} initialState={access} currentTier={currentTier} />
