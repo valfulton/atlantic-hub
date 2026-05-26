@@ -261,7 +261,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               <div className="bg-surface border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium">
-                    <span className="text-amber-400">✨</span> Enriched via Hunter.io
+                    <span className="text-amber-400">✨</span> Contact details verified
                   </span>
                   {lead.enrichedAt && (
                     <span className="text-xs text-muted">
@@ -270,7 +270,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
                   )}
                 </div>
                 <div className="text-xs text-muted leading-relaxed">
-                  Hunter found{' '}
+                  Found{' '}
                   <span className="text-ink">{lead.contactName || 'a contact'}</span>
                   {lead.contactTitle && (
                     <>

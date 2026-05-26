@@ -37,8 +37,8 @@ export default function EnrichClientLeadsButton({ clientId, clientName }: { clie
     <div className="rounded-2xl border border-border bg-surface p-4 mb-5">
       <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-1">Enrich their leads (on their behalf)</div>
       <p className="text-xs text-muted mb-2 leading-relaxed">
-        Fills in missing contact details — name + email, via Hunter — for {clientName}&rsquo;s pipeline leads.
-        Uses your Hunter credits and respects the monthly cap.
+        Fills in missing contact details — name + email — for {clientName}&rsquo;s pipeline leads.
+        Uses your monthly enrichment credits and respects the cap.
       </p>
       <div className="flex items-center gap-3">
         <button

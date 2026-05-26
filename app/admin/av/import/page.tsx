@@ -16,7 +16,7 @@ export default function ImportPage() {
       <p className="text-sm text-muted mb-6">
         Upload an existing customer list, lead list, or contact export. Each row becomes a lead in
         the pipeline with cross-source dedup, automatic target-business tagging, and full activity
-        history. Apollo / Google Places / Instagram discoveries already in your DB will be matched
+        history. Discovered leads already in your DB will be matched
         and merged, not duplicated.
       </p>
       <CsvImportForm />

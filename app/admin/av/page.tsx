@@ -230,7 +230,7 @@ export default async function AvPage({
           <option value="enriched">✨ Enriched</option>
           <option value="pending">Pending (never tried)</option>
           <option value="failed_no_domain">No website on file</option>
-          <option value="failed_no_results">Hunter found nothing</option>
+          <option value="failed_no_results">Found nothing</option>
           <option value="failed_permanent">Stopped (manual)</option>
         </select>
         <select

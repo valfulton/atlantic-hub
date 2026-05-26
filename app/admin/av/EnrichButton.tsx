@@ -70,7 +70,7 @@ export function EnrichButton({ defaultLimit = 5 }: { defaultLimit?: number }) {
         onClick={runEnrichment}
         disabled={running}
         className="text-sm px-3 py-1.5 bg-brand text-white rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
-        title="Find real names + emails for placeholder prospects via Hunter.io"
+        title="Find real names + emails for placeholder prospects"
       >
         {running ? (
           <>
@@ -149,7 +149,7 @@ function ResultModal({
 
         <div className="bg-bg border border-border rounded-md px-3 py-2 mb-4 text-xs">
           <div className="text-muted">
-            Hunter credits this month:{' '}
+            Enrichment credits this month:{' '}
             <span className="text-ink font-medium">
               {summary.creditsUsedThisMonth} / {summary.monthlyCeiling}
             </span>{' '}
