@@ -8,7 +8,9 @@ import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
 import ExtractIntelButton from './ExtractIntelButton';
 import MagicLinkButton from './MagicLinkButton';
+import PortalAccessToggle from './PortalAccessToggle';
 import FindLeadsForClient from './FindLeadsForClient';
+import { getBriefPayload } from '@/lib/client/brief_store';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
@@ -45,6 +47,13 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
   const access = await getClientAccessState(clientId);
   const currentTier = (d.members[0]?.tier as ClientTier) || 'sprint';
+
+  // Current intake-gate override (portal_full_access) for the toggle.
+  let portalFullAccess = false;
+  try {
+    const bp = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
+    portalFullAccess = bp?.portal_full_access === true;
+  } catch { /* default: intake required */ }
 
   // Unassigned leads available to hand to this client (bulk handoff #79).
   let unassigned: { auditId: string; company: string; industry: string | null; email: string | null; score: number | null; band: string | null }[] = [];
@@ -120,6 +129,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         contactEmail={d.members[0]?.email ?? null}
         initialContactName={d.members[0]?.displayName ?? ''}
       />
+
+      {/* Intake gate override: grant full portal access, or require intake first. */}
+      <PortalAccessToggle clientId={clientId} initialFullAccess={portalFullAccess} />
 
       {/* Access & tier controls */}
       <AccessControls clientId={clientId} initialState={access} currentTier={currentTier} />

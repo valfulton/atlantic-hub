@@ -28,12 +28,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const clientId = Number.parseInt(params.client_id, 10);
   if (!Number.isFinite(clientId) || clientId <= 0) return NextResponse.json({ error: 'invalid client id' }, { status: 400 });
 
-  let body: { send?: unknown; dest?: unknown } = {};
+  let body: { send?: unknown } = {};
   try { body = await req.json(); } catch { /* default: no email */ }
   const send = body.send === true;
-  // Where the link lands the client. Default to their intake (review/complete
-  // their pre-filled details) — that's the pre-narrative-line step.
-  const dest = body.dest === 'dashboard' ? 'dashboard' : 'intake';
 
   try {
     const db = getAvDb();
@@ -55,8 +52,10 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       [token, expiresAt, user.client_user_id]
     );
 
-    const base = buildMagicLinkUrl(token);
-    const link = dest === 'intake' ? `${base}?next=${encodeURIComponent('/client/intake')}` : base;
+    // Plain link, no query param. The intake GATE lands them on /client/intake
+    // automatically (and keeps the hub locked) until they submit the form, so
+    // there's nothing to append — and no %2F for the CDN edge to 404.
+    const link = buildMagicLinkUrl(token);
     let emailSent = false;
     if (send) {
       try {
@@ -73,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
     }
 
-    return NextResponse.json({ ok: true, link, email: user.email, expiresInHours: MAGIC_TOKEN_TTL_HOURS, emailSent, dest });
+    return NextResponse.json({ ok: true, link, email: user.email, expiresInHours: MAGIC_TOKEN_TTL_HOURS, emailSent });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }

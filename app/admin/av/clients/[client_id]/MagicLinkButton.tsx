@@ -12,7 +12,6 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
   const [link, setLink] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [hours, setHours] = useState<number>(24);
-  const [dest, setDest] = useState<'intake' | 'dashboard'>('intake');
   const [emailSent, setEmailSent] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -21,7 +20,7 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
     setBusy(true); setErr(null); setEmailSent(null); setCopied(false);
     try {
       const res = await fetch(`/api/admin/av/clients/${clientId}/magic-link`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ send, dest })
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ send })
       });
       const j = await res.json();
       if (!res.ok || !j.ok) { setErr(j.error || 'Could not generate.'); return; }
@@ -38,23 +37,9 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
     if (link) { navigator.clipboard?.writeText(link); setCopied(true); }
   }
 
-  const destSelect = (
-    <select
-      value={dest}
-      onChange={(e) => setDest(e.target.value as 'intake' | 'dashboard')}
-      disabled={busy}
-      title="Where the link drops the client when they open it"
-      className="rounded-md border border-border bg-black/30 px-2 py-1 text-xs text-ink"
-    >
-      <option value="intake">→ their intake (review details)</option>
-      <option value="dashboard">→ their dashboard</option>
-    </select>
-  );
-
   if (!link) {
     return (
       <span className="inline-flex items-center gap-2 flex-wrap">
-        {destSelect}
         <button onClick={() => generate(false)} disabled={busy} className="text-brand hover:underline text-sm">
           {busy ? 'Generating…' : 'Generate magic link →'}
         </button>
@@ -66,7 +51,7 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 mb-6">
       <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-2">
-        Magic link {email ? `for ${email}` : ''} — valid {hours}h · lands on {dest === 'intake' ? 'their intake' : 'their dashboard'}
+        Magic link {email ? `for ${email}` : ''} — valid {hours}h · lands them on their intake until it's complete
       </div>
       <div className="flex gap-2 mb-2">
         <input
@@ -83,7 +68,6 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
         <button onClick={() => generate(true)} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-medium" style={{ background: 'rgba(255,156,91,0.16)', color: '#FFD9BE', border: '1px solid rgba(255,156,91,0.35)' }}>
           {busy ? 'Sending…' : 'Email it to them'}
         </button>
-        {destSelect}
         <button onClick={() => generate(false)} disabled={busy} className="text-xs text-muted hover:text-ink underline">Regenerate</button>
         {emailSent === true && <span className="text-xs" style={{ color: '#6ee7b7' }}>Emailed ✓</span>}
         {emailSent === false && <span className="text-xs" style={{ color: '#fca5a5' }}>Email didn’t send — copy the link instead.</span>}

@@ -8,6 +8,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
+import { clientHasCompletedIntake } from '@/lib/client/intake_gate';
 import { getAvDb } from '@/lib/db/av';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import type { RowDataPacket } from 'mysql2';
@@ -30,6 +31,11 @@ export default async function ClientAuditPage() {
 
   const user = await findClientUserById(actor.clientUserId);
   if (!user) redirect('/client/login');
+
+  // INTAKE GATE: no hub access until the client completes their own intake.
+  if (!(await clientHasCompletedIntake(user.client_id))) {
+    redirect('/client/intake');
+  }
 
   const db = getAvDb();
   const [auditRows] = await db.execute<AuditRow[]>(

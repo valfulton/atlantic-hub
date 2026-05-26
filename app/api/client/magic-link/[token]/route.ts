@@ -96,14 +96,13 @@ export async function GET(
       statusCode: 200
     });
 
-    // Optional landing override: an operator can issue a link that drops the
-    // client on a specific page (e.g. their pre-filled intake) via ?next=/client/...
-    // Whitelist to internal client paths only (no open redirect).
+    // Optional landing override via a simple KEYWORD (no slashes / no %2F, which
+    // the CDN edge 404s). 'intake' -> their pre-filled intake; 'dashboard' -> home.
     const nextParam = req.nextUrl.searchParams.get('next');
     const safeNext =
-      nextParam && /^\/client\/[a-z0-9/_-]*$/i.test(nextParam) && !nextParam.includes('//')
-        ? nextParam
-        : null;
+      nextParam === 'intake' ? '/client/intake'
+        : nextParam === 'dashboard' ? '/client/dashboard'
+          : null;
 
     const needsPassword = !user.password_hash;
     const dest = new URL(
