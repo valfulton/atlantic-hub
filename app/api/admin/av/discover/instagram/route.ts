@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { runInstagramDiscoveryBatch } from '@/lib/apify/discoverer';
+import { assignDiscoveredLeads, parseAssignToUserId } from '@/lib/leads/assign_discovered';
 import { ApifyTokenMissingError, ApifyApiError, normalizeInstagramHandle } from '@/lib/apify/instagram';
 
 export const runtime = 'nodejs';
@@ -66,9 +67,16 @@ export async function POST(req: NextRequest) {
     typeof payload.clientId === 'number' && Number.isInteger(payload.clientId) && payload.clientId > 0
       ? payload.clientId
       : null;
+  const assignToUserId = destClientId ? null : parseAssignToUserId(payload);
 
   try {
     const batch = await runInstagramDiscoveryBatch(usernames, { clientId: destClientId });
+    if (assignToUserId) {
+      const leadIds = batch.results
+        .filter((r) => r.outcome === 'inserted' && typeof r.leadId === 'number')
+        .map((r) => r.leadId);
+      await assignDiscoveredLeads(leadIds, assignToUserId, guard.actor.userId ?? null);
+    }
     return NextResponse.json({
       source: 'instagram',
       inputCount: usernames.length,

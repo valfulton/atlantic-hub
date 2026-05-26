@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { DestinationSelect, parseDestination, type ClientOption, type EmployeeOption } from './DestinationSelect';
 
 /**
  * Google Places Text Search → leads. Hospitality-friendly so it covers the
@@ -58,7 +59,13 @@ const INCLUDED_TYPE_OPTIONS = [
   { value: 'bakery', label: 'bakery' }
 ];
 
-export function PlacesDiscoverForm({ clients = [] }: { clients?: { clientId: number; name: string }[] }) {
+export function PlacesDiscoverForm({
+  clients = [],
+  employees = []
+}: {
+  clients?: ClientOption[];
+  employees?: EmployeeOption[];
+}) {
   const router = useRouter();
   const [textQuery, setTextQuery] = useState('');
   const [includedType, setIncludedType] = useState('');
@@ -66,7 +73,7 @@ export function PlacesDiscoverForm({ clients = [] }: { clients?: { clientId: num
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BatchResponse | null>(null);
-  const [destClientId, setDestClientId] = useState('');
+  const [dest, setDest] = useState('');
 
   function applyPreset(p: (typeof QUERY_PRESETS)[number]) {
     setTextQuery(p.query);
@@ -90,7 +97,7 @@ export function PlacesDiscoverForm({ clients = [] }: { clients?: { clientId: num
           textQuery: textQuery.trim(),
           includedType: includedType || undefined,
           pageSize,
-          clientId: destClientId ? Number(destClientId) : undefined
+          ...parseDestination(dest)
         })
       });
       const json: BatchResponse = await res.json();
@@ -133,23 +140,7 @@ export function PlacesDiscoverForm({ clients = [] }: { clients?: { clientId: num
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="pb-3 border-b border-border">
-          <label className="block text-xs uppercase tracking-wider text-muted mb-1">Send pulled leads to</label>
-          <select
-            value={destClientId}
-            onChange={(e) => setDestClientId(e.target.value)}
-            className="w-full md:w-96 border border-border rounded-md px-3 py-2 text-sm"
-            style={inputStyle}
-          >
-            <option value="">Atlantic &amp; Vine (my pipeline)</option>
-            {clients.map((c) => (
-              <option key={c.clientId} value={String(c.clientId)}>{c.name} (their hub)</option>
-            ))}
-          </select>
-          <div className="text-[11px] text-muted mt-1">
-            Pick a client to send these straight into their hub. Default keeps them in your AV pipeline.
-          </div>
-        </div>
+        <DestinationSelect value={dest} onChange={setDest} clients={clients} employees={employees} />
         <div>
           <label className="block text-xs uppercase tracking-wider text-muted mb-1">Text query</label>
           <input

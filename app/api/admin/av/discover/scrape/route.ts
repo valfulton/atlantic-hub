@@ -23,6 +23,7 @@ import { findExistingLead, normalizeDomain, mergeTargetBusiness, normalizePhone 
 import { inferTargetBusiness, isTargetBusiness, type TargetBusiness } from '@/lib/leads/target_business';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { assignDiscoveredLeads, parseAssignToUserId } from '@/lib/leads/assign_discovered';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
     if (mode === 'fill') {
       return await handleFillMode(payload);
     }
-    return await handleNewMode(payload);
+    return await handleNewMode(payload, guard.actor.userId ?? null);
   } catch (err) {
     console.error('[av:discover:scrape]', (err as Error).message);
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
@@ -119,7 +120,7 @@ async function handleFillMode(payload: Record<string, unknown>) {
   return NextResponse.json({ ok: true, mode: 'fill', filled: true, leadId: lead.id, scraped });
 }
 
-async function handleNewMode(payload: Record<string, unknown>) {
+async function handleNewMode(payload: Record<string, unknown>, actorUserId: number | null) {
   const websiteUrl = typeof payload.websiteUrl === 'string' ? payload.websiteUrl.trim() : '';
   if (!websiteUrl) {
     return NextResponse.json({ error: 'websiteUrl is required' }, { status: 400 });
@@ -131,6 +132,7 @@ async function handleNewMode(payload: Record<string, unknown>) {
     typeof payload.clientId === 'number' && Number.isInteger(payload.clientId) && payload.clientId > 0
       ? payload.clientId
       : null;
+  const assignToUserId = destClientId ? null : parseAssignToUserId(payload);
 
   const scraped = await scrapeContactPage(websiteUrl);
   if (!scraped.email && !scraped.phone) {
@@ -199,6 +201,9 @@ async function handleNewMode(payload: Record<string, unknown>) {
   );
 
   const newLeadId = result.insertId;
+  if (assignToUserId) {
+    await assignDiscoveredLeads([newLeadId], assignToUserId, actorUserId);
+  }
   await logEvent({
     eventType: 'lead.created',
     leadId: newLeadId,

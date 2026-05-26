@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { DestinationSelect, parseDestination, type ClientOption, type EmployeeOption } from './DestinationSelect';
 
 /**
  * Apify Instagram Profile Scraper → leads. Paste IG handles (any common format)
@@ -36,10 +37,16 @@ interface BatchResponse {
   detail?: string;
 }
 
-export function InstagramDiscoverForm({ clients = [] }: { clients?: { clientId: number; name: string }[] }) {
+export function InstagramDiscoverForm({
+  clients = [],
+  employees = []
+}: {
+  clients?: ClientOption[];
+  employees?: EmployeeOption[];
+}) {
   const router = useRouter();
   const [raw, setRaw] = useState('');
-  const [destClientId, setDestClientId] = useState('');
+  const [dest, setDest] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BatchResponse | null>(null);
@@ -69,7 +76,7 @@ export function InstagramDiscoverForm({ clients = [] }: { clients?: { clientId: 
       const res = await fetch('/api/admin/av/discover/instagram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernames, clientId: destClientId ? Number(destClientId) : undefined })
+        body: JSON.stringify({ usernames, ...parseDestination(dest) })
       });
       const json: BatchResponse = await res.json();
       if (!res.ok) {
@@ -104,23 +111,7 @@ export function InstagramDiscoverForm({ clients = [] }: { clients?: { clientId: 
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="pb-3 border-b border-border">
-          <label className="block text-xs uppercase tracking-wider text-muted mb-1">Send pulled leads to</label>
-          <select
-            value={destClientId}
-            onChange={(e) => setDestClientId(e.target.value)}
-            className="w-full md:w-96 px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm"
-            style={inputStyle}
-          >
-            <option value="">Atlantic &amp; Vine (my pipeline)</option>
-            {clients.map((c) => (
-              <option key={c.clientId} value={String(c.clientId)}>{c.name} (their hub)</option>
-            ))}
-          </select>
-          <div className="text-[11px] text-muted mt-1">
-            Pick a client to send these straight into their hub. Default keeps them in your AV pipeline.
-          </div>
-        </div>
+        <DestinationSelect value={dest} onChange={setDest} clients={clients} employees={employees} />
         <div>
           <label className="block text-xs uppercase tracking-wider text-muted mb-1">
             Instagram handles{' '}

@@ -4,6 +4,7 @@ import { PlacesDiscoverForm } from './PlacesDiscoverForm';
 import { InstagramDiscoverForm } from './InstagramDiscoverForm';
 import { ScrapeDiscoverForm } from './ScrapeDiscoverForm';
 import { listClientAccounts } from '@/lib/av/clients_overview';
+import { listEmployees } from '@/lib/employees/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,11 +34,20 @@ export default async function DiscoverPage({
   const sourceRaw = searchParams?.source ?? '';
   const source: Source = (TABS.find((t) => t.id === sourceRaw)?.id ?? 'apollo') as Source;
 
-  // Clients for the "send pulled leads to" destination dropdown.
-  const clients = (await listClientAccounts().catch(() => [])).map((c) => ({
-    clientId: c.clientId,
-    name: c.name
-  }));
+  // Destinations for the "send pulled leads to" dropdown: clients (their hub)
+  // and employees / sales reps (assign to their queue).
+  const [clients, employees] = await Promise.all([
+    listClientAccounts()
+      .then((rows) => rows.map((c) => ({ clientId: c.clientId, name: c.name })))
+      .catch(() => [] as { clientId: number; name: string }[]),
+    listEmployees()
+      .then((rows) =>
+        rows
+          .filter((e) => e.is_active === 1)
+          .map((e) => ({ userId: e.user_id, name: e.display_name || e.email }))
+      )
+      .catch(() => [] as { userId: number; name: string }[])
+  ]);
 
   return (
     <div>
@@ -80,13 +90,13 @@ export default async function DiscoverPage({
             Apollo organizations/search → top-people lookup → inserts as leads. Strong for
             B2B/agency targets; weak coverage for USVI hospitality (use Places or IG for those).
           </p>
-          <DiscoverForm clients={clients} />
+          <DiscoverForm clients={clients} employees={employees} />
         </div>
       )}
 
-      {source === 'places' && <PlacesDiscoverForm clients={clients} />}
-      {source === 'instagram' && <InstagramDiscoverForm clients={clients} />}
-      {source === 'scrape' && <ScrapeDiscoverForm clients={clients} />}
+      {source === 'places' && <PlacesDiscoverForm clients={clients} employees={employees} />}
+      {source === 'instagram' && <InstagramDiscoverForm clients={clients} employees={employees} />}
+      {source === 'scrape' && <ScrapeDiscoverForm clients={clients} employees={employees} />}
     </div>
   );
 }

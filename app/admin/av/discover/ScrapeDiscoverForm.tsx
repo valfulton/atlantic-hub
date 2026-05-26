@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { DestinationSelect, parseDestination, type ClientOption, type EmployeeOption } from './DestinationSelect';
 
 /**
  * Contact-page scraper. Two modes:
@@ -64,12 +65,18 @@ interface BulkResult {
   }>;
 }
 
-export function ScrapeDiscoverForm({ clients = [] }: { clients?: { clientId: number; name: string }[] }) {
+export function ScrapeDiscoverForm({
+  clients = [],
+  employees = []
+}: {
+  clients?: ClientOption[];
+  employees?: EmployeeOption[];
+}) {
   const router = useRouter();
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [industry, setIndustry] = useState('');
   const [targetBusiness, setTargetBusiness] = useState<string>('');
-  const [destClientId, setDestClientId] = useState('');
+  const [dest, setDest] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScrapeResponse | null>(null);
@@ -133,7 +140,7 @@ export function ScrapeDiscoverForm({ clients = [] }: { clients?: { clientId: num
           websiteUrl: websiteUrl.trim(),
           industry: industry || undefined,
           targetBusiness: targetBusiness || undefined,
-          clientId: destClientId ? Number(destClientId) : undefined
+          ...parseDestination(dest)
         })
       });
       const json: ScrapeResponse = await res.json();
@@ -279,23 +286,7 @@ export function ScrapeDiscoverForm({ clients = [] }: { clients?: { clientId: num
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="pb-3 border-b border-border">
-          <label className="block text-xs uppercase tracking-wider text-muted mb-1">Send pulled lead to</label>
-          <select
-            value={destClientId}
-            onChange={(e) => setDestClientId(e.target.value)}
-            className="w-full md:w-96 px-3 py-2 rounded-md border border-border focus:border-brand focus:outline-none text-sm"
-            style={inputStyle}
-          >
-            <option value="">Atlantic &amp; Vine (my pipeline)</option>
-            {clients.map((c) => (
-              <option key={c.clientId} value={String(c.clientId)}>{c.name} (their hub)</option>
-            ))}
-          </select>
-          <div className="text-[11px] text-muted mt-1">
-            Pick a client to send this straight into their hub. Default keeps it in your AV pipeline.
-          </div>
-        </div>
+        <DestinationSelect value={dest} onChange={setDest} clients={clients} employees={employees} plural={false} />
         <div>
           <label className="block text-xs uppercase tracking-wider text-muted mb-1">Website URL</label>
           <input

@@ -6,7 +6,9 @@
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getEmployee } from '@/lib/employees/store';
+import { getEmployee, getEmployeeApplication, listEmployeeDocuments } from '@/lib/employees/store';
+import EmployeeApplicationForm from '../EmployeeApplicationForm';
+import EmployeeDocsPanel from '../EmployeeDocsPanel';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,6 +27,12 @@ export default async function EmployeeDetailPage({ params }: { params: { user_id
 
   const emp = await getEmployee(userId);
   if (!emp) notFound();
+
+  const application = await getEmployeeApplication(userId).catch(() => null);
+  const docs = (await listEmployeeDocuments(userId).catch(() => [])).map((d) => ({
+    doc_id: d.doc_id, label: d.label, content_type: d.content_type,
+    created_at: new Date(d.created_at).toISOString()
+  }));
 
   return (
     <div className="max-w-3xl">
@@ -50,13 +58,26 @@ export default async function EmployeeDetailPage({ params }: { params: { user_id
         ))}
       </div>
 
-      <div className="rounded-2xl border border-border bg-surface p-4 mt-5">
-        <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-2">Onboarding</div>
-        <p className="text-sm text-muted leading-relaxed">
-          {emp.status === 'invited'
-            ? 'This employee has been invited but hasn’t set their password yet. Re-create them from the Employees page to re-issue the invite link.'
-            : 'Application form, contract signing, and document uploads attach here.'}
-        </p>
+      {emp.status === 'invited' && (
+        <div className="rounded-2xl border border-border bg-surface p-4 mt-5">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-2">Onboarding</div>
+          <p className="text-sm text-muted leading-relaxed">
+            Invited but hasn’t set their password yet. You can still fill their application below; contract signing + document uploads attach next.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-5">
+        <EmployeeApplicationForm userId={emp.user_id} initial={application} />
+      </div>
+
+      <div className="mt-5">
+        <EmployeeDocsPanel
+          userId={emp.user_id}
+          documents={docs}
+          contractSignedName={emp.contract_signed_name}
+          contractSignedAt={emp.contract_signed_at ? new Date(emp.contract_signed_at).toISOString() : null}
+        />
       </div>
     </div>
   );

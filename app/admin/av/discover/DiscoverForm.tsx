@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { DestinationSelect, parseDestination, type ClientOption, type EmployeeOption } from './DestinationSelect';
 
 interface DiscoverResult {
   apolloOrganizationId: string;
@@ -103,7 +104,13 @@ const ICP_PRESETS: IcpPreset[] = [
   }
 ];
 
-export function DiscoverForm({ clients = [] }: { clients?: { clientId: number; name: string }[] }) {
+export function DiscoverForm({
+  clients = [],
+  employees = []
+}: {
+  clients?: ClientOption[];
+  employees?: EmployeeOption[];
+}) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +124,7 @@ export function DiscoverForm({ clients = [] }: { clients?: { clientId: number; n
   const [qOrganizationKeywordTags, setQOrganizationKeywordTags] = useState('');
   const [selectedRanges, setSelectedRanges] = useState<string[]>([]);
   const [perPage, setPerPage] = useState(25);
-  const [destClientId, setDestClientId] = useState('');
+  const [dest, setDest] = useState('');
 
   function applyPreset(preset: IcpPreset) {
     setQOrganizationName(preset.filters.qOrganizationName || '');
@@ -151,7 +158,7 @@ export function DiscoverForm({ clients = [] }: { clients?: { clientId: number; n
         organizationNumEmployeesRanges: selectedRanges,
         page: 1,
         perPage,
-        clientId: destClientId ? Number(destClientId) : undefined
+        ...parseDestination(dest)
       };
       const res = await fetch('/api/admin/av/discover', {
         method: 'POST',
@@ -200,23 +207,7 @@ export function DiscoverForm({ clients = [] }: { clients?: { clientId: number; n
       </div>
 
       <form onSubmit={runSearch} className="bg-surface border border-border rounded-lg p-5 space-y-4">
-        <div className="pb-3 border-b border-border">
-          <div className="text-xs uppercase tracking-wider text-muted mb-1">Send pulled leads to</div>
-          <select
-            value={destClientId}
-            onChange={(e) => setDestClientId(e.target.value)}
-            className="w-full md:w-96 border border-border rounded-md px-3 py-2 text-sm"
-            style={inputStyle}
-          >
-            <option value="">Atlantic &amp; Vine (my pipeline)</option>
-            {clients.map((c) => (
-              <option key={c.clientId} value={String(c.clientId)}>{c.name} (their hub)</option>
-            ))}
-          </select>
-          <div className="text-[11px] text-muted mt-1">
-            Pick a client to send these straight into their hub. Default keeps them in your AV pipeline.
-          </div>
-        </div>
+        <DestinationSelect value={dest} onChange={setDest} clients={clients} employees={employees} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <div className="text-xs uppercase tracking-wider text-muted mb-1">Company name (partial match)</div>

@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { runDiscoveryBatch } from '@/lib/apollo/discoverer';
+import { assignDiscoveredLeads, parseAssignToUserId } from '@/lib/leads/assign_discovered';
 import type { ApolloOrgSearchFilters } from '@/lib/apollo/search';
 
 export const runtime = 'nodejs';
@@ -88,6 +89,9 @@ export async function POST(req: NextRequest) {
     typeof payload.clientId === 'number' && Number.isInteger(payload.clientId) && payload.clientId > 0
       ? payload.clientId
       : null;
+  // Alternative destination: assign the pulled leads to an employee/rep's queue
+  // (stays in the AV pipeline). Mutually exclusive with a client destination.
+  const assignToUserId = destClientId ? null : parseAssignToUserId(payload);
 
   try {
     const summary = await runDiscoveryBatch({
@@ -96,6 +100,12 @@ export async function POST(req: NextRequest) {
       actorUserId: guard.actor.userId,
       clientId: destClientId
     });
+    if (assignToUserId) {
+      const leadIds = summary.results
+        .filter((r) => r.outcome === 'inserted_person' || r.outcome === 'inserted_company_shell')
+        .map((r) => r.leadId);
+      await assignDiscoveredLeads(leadIds, assignToUserId, guard.actor.userId ?? null);
+    }
     return NextResponse.json(summary);
   } catch (err) {
     console.error('[av:discover:post]', (err as Error).message);
