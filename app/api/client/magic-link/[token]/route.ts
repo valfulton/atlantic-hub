@@ -22,7 +22,6 @@ import {
 import { signClientSessionJwt } from '@/lib/auth/client-jwt';
 import { setClientSessionCookie } from '@/lib/auth/client-session';
 import { ensureClientHub } from '@/lib/client/provision';
-import { clientMayAccessHub } from '@/lib/client/intake_gate';
 
 export const runtime = 'nodejs';
 
@@ -94,10 +93,8 @@ export async function GET(
 
     // Provision this account's own hub (idempotent, non-fatal): they build
     // from scratch, so they need a clients row to own their leads/content.
-    let clientId: number | null = user.client_id ?? null;
     try {
-      const cid = await ensureClientHub(user);
-      if (cid) clientId = cid;
+      await ensureClientHub(user);
     } catch (e) {
       console.error('[client-portal:magic-link] provision skipped:', (e as Error).message);
     }
@@ -112,21 +109,12 @@ export async function GET(
       statusCode: 200
     });
 
-    // Landing logic — zero friction to the intake:
-    //   1. Intake not done (and no operator override) -> straight to their
-    //      pre-filled intake. NO password/sign-in step to fail; the magic link
-    //      itself is the auth. The portal stays locked (gate) until they submit.
-    //   2. Allowed in but no password yet -> set a password.
-    //   3. Allowed in with a password -> dashboard.
+    // Landing logic:
+    //   - never set a password yet -> set a password (welcome), then dashboard.
+    //   - otherwise -> dashboard.
+    // Both targets are deployed pages, so the magic link always lands.
     const needsPassword = !user.password_hash;
-    let target: string;
-    if (!(await clientMayAccessHub(clientId))) {
-      target = '/client/intake';
-    } else if (needsPassword) {
-      target = '/client/set-password?welcome=1';
-    } else {
-      target = '/client/dashboard';
-    }
+    const target = needsPassword ? '/client/set-password?welcome=1' : '/client/dashboard';
     return NextResponse.redirect(new URL(target, portalOrigin(req)));
   } catch (err) {
     await writeAuditRow({

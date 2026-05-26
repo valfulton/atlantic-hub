@@ -20,7 +20,6 @@ import { getAvDb } from '@/lib/db/av';
 import { TIER_FEATURES, TIER_LABEL } from '@/lib/client-portal/tiers';
 import { getOrComposeClientGuidance } from '@/lib/client/guidance';
 import { ensureClientHub } from '@/lib/client/provision';
-import { clientHasCompletedIntake } from '@/lib/client/intake_gate';
 import { listClientCampaignContent, listClientCampaigns, type CampaignContentItem, type ClientCampaign } from '@/lib/client/campaign';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
@@ -86,11 +85,6 @@ export default async function ClientDashboardPage() {
         </>
       );
     }
-  }
-
-  // INTAKE GATE: no hub access until the client has completed their own intake.
-  if (!(await clientHasCompletedIntake(user.client_id))) {
-    redirect('/client/intake');
   }
 
   const db = getAvDb();

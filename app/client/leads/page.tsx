@@ -18,7 +18,6 @@ import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { ensureClientHub } from '@/lib/client/provision';
-import { clientHasCompletedIntake } from '@/lib/client/intake_gate';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import { getClientAccessState } from '@/lib/av/client_access';
 import PortalHeader from '@/app/client/_components/PortalHeader';
@@ -83,11 +82,6 @@ export default async function ClientLeadsPage() {
         </>
       );
     }
-  }
-
-  // INTAKE GATE: no hub access until the client completes their own intake.
-  if (!(await clientHasCompletedIntake(user.client_id))) {
-    redirect('/client/intake');
   }
 
   const headline = user.display_name?.split(/[ ,]/)[0] || 'there';
