@@ -33,6 +33,8 @@ import {
   buildMagicLinkUrl
 } from '@/lib/auth/client-magic-token';
 import { upsertClientUserForIntake } from '@/lib/auth/client-user';
+import { ensureClientHub } from '@/lib/client/provision';
+import { getBriefPayload, saveBriefPayload, type BriefPayload } from '@/lib/client/brief_store';
 import { corsHeadersFor } from '@/lib/auth/client-cors';
 import { sendEmail } from '@/lib/email/smtp';
 import { buildMagicLinkEmail } from '@/lib/email/magic-link-template';
@@ -142,6 +144,34 @@ export async function POST(req: NextRequest) {
       magicTokenExpiresAt: expiresAt,
       intakePayload: data
     });
+
+    // Connect this submission to the client's hub + canonical brief store, so a
+    // client's own answers actually reach the operator/PR/audit engine (which
+    // reads the brief by client_id) and the intake gate sees them as done.
+    // Historically this endpoint only wrote client_users.intake_payload (by
+    // email), leaving the submission siloed. Non-fatal: never block the magic
+    // link on a brief-write failure.
+    try {
+      const clientId = await ensureClientHub(row);
+      if (clientId) {
+        const existingBrief =
+          ((await getBriefPayload('av', clientId)) as Record<string, unknown> | null) ?? {};
+        const mergedBrief: Record<string, unknown> = { ...existingBrief };
+        // Apply the client's answers, but never overwrite an existing value
+        // (e.g. operator prefill) with a blank the client left empty.
+        for (const [k, v] of Object.entries(data)) {
+          if (v === '' || v == null) continue;
+          mergedBrief[k] = v;
+        }
+        mergedBrief.client_completed_at = new Date().toISOString();
+        await saveBriefPayload('av', clientId, mergedBrief as BriefPayload, {
+          source: 'client_intake',
+          changedBy: email
+        });
+      }
+    } catch (e) {
+      console.error('[client-portal:intake] brief link skipped:', (e as Error).message);
+    }
 
     const link = buildMagicLinkUrl(magicToken);
 
