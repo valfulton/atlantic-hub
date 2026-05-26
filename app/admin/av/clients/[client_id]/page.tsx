@@ -7,6 +7,7 @@ import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
 import ExtractIntelButton from './ExtractIntelButton';
+import MagicLinkButton from './MagicLinkButton';
 import FindLeadsForClient from './FindLeadsForClient';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
@@ -99,6 +100,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <Link href={`/admin/av/intake?clientId=${clientId}`} className="text-brand hover:underline">Edit full intake →</Link>
         <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-brand hover:underline">Edit creative brief →</Link>
         <Link href={`/admin/av/clients/${clientId}/preview`} className="text-brand hover:underline">Preview their dashboard →</Link>
+      </div>
+
+      {/* Generate / re-issue this client's magic-link (originals expire in 24h). */}
+      <div className="mb-5">
+        <MagicLinkButton clientId={clientId} />
       </div>
 
       {/* Intake -> canonical intelligence (one visible-prompt pass). */}
