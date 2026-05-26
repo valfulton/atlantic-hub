@@ -99,20 +99,18 @@ export async function GET(
       statusCode: 200
     });
 
-    // Landing logic:
-    //   1. First-timer with no password -> set their own password. (After they
-    //      save it, set-password sends them to /client/dashboard, where the
-    //      intake GATE catches them and forwards to /client/intake — so the
-    //      password step NEVER unlocks the portal; only completing intake does.)
-    //   2. Has a password but intake not done (and no operator override) ->
-    //      straight to their pre-filled intake.
-    //   3. Allowed in -> dashboard.
+    // Landing logic — zero friction to the intake:
+    //   1. Intake not done (and no operator override) -> straight to their
+    //      pre-filled intake. NO password/sign-in step to fail; the magic link
+    //      itself is the auth. The portal stays locked (gate) until they submit.
+    //   2. Allowed in but no password yet -> set a password.
+    //   3. Allowed in with a password -> dashboard.
     const needsPassword = !user.password_hash;
     let target: string;
-    if (needsPassword) {
-      target = '/client/set-password?welcome=1';
-    } else if (!(await clientMayAccessHub(clientId))) {
+    if (!(await clientMayAccessHub(clientId))) {
       target = '/client/intake';
+    } else if (needsPassword) {
+      target = '/client/set-password?welcome=1';
     } else {
       target = '/client/dashboard';
     }
