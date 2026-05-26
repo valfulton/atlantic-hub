@@ -17,6 +17,7 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { createCampaign, buildNarrativeContext } from '@/lib/campaigns/store';
+import { linkAssetToLine } from '@/lib/campaigns/line_links';
 import { draftArtifact } from '@/lib/pr/artifacts';
 import { DEFAULT_TENANT, CONTENT_EVENTS, type ArtifactType, type PitchMode } from '@/lib/pr/types';
 import type { ResultSetHeader } from 'mysql2';
@@ -100,6 +101,18 @@ export async function POST(req: NextRequest) {
     const socialId = await draftIntoCampaign({ artifactType: 'own_brand_post', tenantId, topic: socialTopic, campaignId, userId: guard.actor.userId, narrativeContext: narrativeBlock });
 
     const drafted = [blogId, socialId].filter((x) => x != null).length;
+
+    // Narrative spine (schema 050): both spawned drafts ADVANCE this lane's story.
+    // Non-fatal — a link failure never breaks the spawn.
+    if (laneId) {
+      for (const assetId of [blogId, socialId]) {
+        if (assetId) {
+          await linkAssetToLine({
+            tenantId, narrativeLineId: laneId, assetType: 'content_artifact', assetId, role: 'advances', createdByUserId: guard.actor.userId
+          }).catch(() => {});
+        }
+      }
+    }
 
     await logEvent({
       eventType: CONTENT_EVENTS.artifactDrafted,

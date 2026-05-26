@@ -11,6 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { generateLineCommercial, type AssetType } from '@/lib/grok/discoverer';
+import { getLane } from '@/lib/campaigns/store';
+import { linkAssetToLine } from '@/lib/campaigns/line_links';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -42,6 +44,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       actorUserId: guard.actor.userId,
       awaitCompletion: false // video returns 'running'; image is sync regardless
     });
+
+    // Narrative spine (schema 050): a line-born commercial ADVANCES that line's
+    // story. Non-fatal — never let a link failure break generation.
+    if (result?.assetId) {
+      try {
+        const line = await getLane(lineId);
+        await linkAssetToLine({
+          tenantId: line?.tenantId ?? 'av',
+          narrativeLineId: lineId,
+          assetType: 'commercial',
+          assetId: result.assetId,
+          role: 'advances',
+          createdByUserId: guard.actor.userId
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
+
     return NextResponse.json({ ok: true, asset: result });
   } catch (err) {
     return NextResponse.json({ error: 'generation failed', detail: (err as Error).message, errorClass: (err as Error).name }, { status: 500 });

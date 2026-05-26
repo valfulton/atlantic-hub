@@ -12,6 +12,7 @@
  * /api/admin/campaigns/lines/[id]/{engagement,commercials}.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { StoryMap } from './StoryMap';
 
 type LineState = 'candidate' | 'active' | 'reinforcing' | 'retiring';
 
@@ -605,6 +606,9 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
         {sm && <span style={{ fontSize: 12, fontWeight: 600, color: sm.ok ? '#6ee7b7' : '#fca5a5' }}>{sm.text}</span>}
         {!sm && isDirty && <span style={{ fontSize: 12, color: '#fcd34d' }}>Unsaved changes — click Save line</span>}
       </div>
+
+      {/* Narrative spine: the assets advancing / reinforcing / testing this story. */}
+      <StoryMap lineId={id} />
 
       {/* Your leads — fit + what they need, merged into one place (was two blocks). */}
       <Collapsible
