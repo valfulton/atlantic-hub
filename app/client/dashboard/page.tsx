@@ -31,7 +31,8 @@ import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from 
 import { getClientOwnAudit } from '@/lib/client/dashboard_data';
 import { getClientAccessState } from '@/lib/av/client_access';
 import ClientHero from '@/app/client/_components/ClientHero';
-import { clientMonthlyPipelineCents } from '@/lib/sales/deal_model';
+import { clientMonthlyPipelineCents, formatUsd } from '@/lib/sales/deal_model';
+import { listClientTeam } from '@/lib/client/team';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -153,6 +154,10 @@ export default async function ClientDashboardPage() {
   // model is set, so the hero simply omits the figure. Fails soft.
   const monthlyPipeline = await clientMonthlyPipelineCents(user.client_id).catch(() => null);
 
+  // Sales team: rep accounts reporting to this client (manager view, e.g. Skip
+  // seeing Mike). Empty for a standalone client, so the section just won't render.
+  const team = await listClientTeam(user.client_id).catch(() => []);
+
   return (
     <>
       <PortalHeader
@@ -180,6 +185,29 @@ export default async function ClientDashboardPage() {
         <GuidanceFeed guidance={guidance} firstName={headline} />
 
         <CreativeBrief brief={brief} firstName={headline} />
+
+        {team.length > 0 && (
+          <Collapsible title="Your sales team" meta={`${team.length} rep${team.length === 1 ? '' : 's'}`} defaultOpen>
+            <ul className="grid sm:grid-cols-2 gap-3">
+              {team.map((rep) => (
+                <li key={rep.clientId} className="rounded-2xl border border-border bg-surface p-5">
+                  <h3 className="text-ink font-medium leading-snug">{rep.name}</h3>
+                  <div className="mt-3 flex items-center gap-4 text-sm">
+                    <span>
+                      <span className="text-ink font-semibold tabular-nums">{rep.liveLeadCount}</span>{' '}
+                      <span className="text-muted">live lead{rep.liveLeadCount === 1 ? '' : 's'}</span>
+                    </span>
+                    {rep.monthlyPipelineCents != null && rep.monthlyPipelineCents > 0 && (
+                      <span className="tabular-nums" style={{ color: '#FFC73D' }}>
+                        {formatUsd(rep.monthlyPipelineCents)}<span className="text-muted text-xs">/mo</span>
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Collapsible>
+        )}
 
         <section className="mb-8">
           <p className="text-muted text-sm">
