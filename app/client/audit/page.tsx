@@ -8,21 +8,11 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
-import { getAvDb } from '@/lib/db/av';
+import { getClientOwnAudit } from '@/lib/client/dashboard_data';
 import PortalHeader from '@/app/client/_components/PortalHeader';
-import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-interface AuditRow extends RowDataPacket {
-  audit_id: string | null;
-  company: string | null;
-  industry: string | null;
-  audit_content: string | null;
-  audit_generated: Date | null;
-  created_at: Date | null;
-}
 
 export default async function ClientAuditPage() {
   const actor = readClientActorFromHeaders(headers() as unknown as Headers);
@@ -31,21 +21,8 @@ export default async function ClientAuditPage() {
   const user = await findClientUserById(actor.clientUserId);
   if (!user) redirect('/client/login');
 
-  const db = getAvDb();
-  // Show the client's OWN business audit (matched by their email), never a
-  // prospect's audit (leads scoped to their hub via client_id). See the matching
-  // fix + rationale in /client/dashboard.
-  const [auditRows] = await db.execute<AuditRow[]>(
-    `SELECT audit_id, company, industry, audit_content, audit_generated, created_at
-       FROM leads
-      WHERE archived_at IS NULL
-        AND audit_content IS NOT NULL
-        AND email = ?
-      ORDER BY COALESCE(audit_generated, created_at) DESC
-      LIMIT 1`,
-    [user.email]
-  );
-  const audit = auditRows[0] ?? null;
+  // Shared loader — the client's own audit, matched by email (one source of truth).
+  const audit = await getClientOwnAudit(user.email);
 
   return (
     <>

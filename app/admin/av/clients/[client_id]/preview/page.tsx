@@ -18,6 +18,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
+import { getClientOwnAudit } from '@/lib/client/dashboard_data';
 import CreativeBrief from '@/app/client/_components/CreativeBrief';
 import WaveDivider from '@/app/_components/WaveDivider';
 import type { RowDataPacket } from 'mysql2';
@@ -68,22 +69,9 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
     brief = await getClientCreativeBrief({ client_id: clientId, email });
   } catch { /* keep empty */ }
 
-  // Mirror the real client dashboard exactly: the client's OWN business audit is
-  // the lead matching THEIR email, never a prospect scoped to their hub (client_id).
-  // (Previously this matched client_id and showed a prospect's audit — e.g. Carrier
-  // HVAC — as the client's own. See the matching fix in /client/dashboard.)
-  let audit: AuditRow | null = null;
-  if (email) {
-    const [auditRows] = await db.execute<AuditRow[]>(
-      `SELECT company, audit_content, audit_generated, created_at
-         FROM leads
-        WHERE archived_at IS NULL AND audit_content IS NOT NULL AND email = ?
-        ORDER BY COALESCE(audit_generated, created_at) DESC
-        LIMIT 1`,
-      [email]
-    );
-    audit = auditRows[0] ?? null;
-  }
+  // Mirror the real client dashboard exactly via the shared loader: the client's
+  // OWN business audit (matched by email), never a prospect scoped to their hub.
+  const audit = await getClientOwnAudit(email);
 
   return (
     <div>

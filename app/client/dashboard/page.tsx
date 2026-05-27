@@ -28,6 +28,7 @@ import Collapsible from '@/app/client/_components/Collapsible';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
 import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
+import { getClientOwnAudit } from '@/lib/client/dashboard_data';
 import { getClientAccessState } from '@/lib/av/client_access';
 import WaveDivider from '@/app/_components/WaveDivider';
 import type { RowDataPacket } from 'mysql2';
@@ -88,23 +89,9 @@ export default async function ClientDashboardPage() {
   }
 
   const db = getAvDb();
-  // The client's OWN business audit is the lead that represents THEM -- matched by
-  // their email. Their PROSPECTS (leads scoped to their hub via client_id) must
-  // never appear here: a prospect's marketing audit is not the client's own audit.
-  // Bug fix: the old query also matched client_id and even prioritized it, so a
-  // benefits broker like Skip saw "Strategic Marketing Audit for <a prospect>"
-  // presented as his own business audit -- 100% irrelevant.
-  const [auditRows] = await db.execute<AuditRow[]>(
-    `SELECT audit_id, company, industry, audit_content, audit_generated, created_at
-       FROM leads
-      WHERE archived_at IS NULL
-        AND audit_content IS NOT NULL
-        AND email = ?
-      ORDER BY COALESCE(audit_generated, created_at) DESC
-      LIMIT 1`,
-    [user.email]
-  );
-  const audit = auditRows[0] ?? null;
+  // The client's OWN business audit (matched by email) — one shared loader so it
+  // can only ever be fixed in one place. See lib/client/dashboard_data.ts.
+  const audit = await getClientOwnAudit(user.email);
 
   const [countRows] = await db.execute<CountRow[]>(
     `SELECT COUNT(*) AS c FROM leads
