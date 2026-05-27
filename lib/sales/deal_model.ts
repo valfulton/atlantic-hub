@@ -82,6 +82,32 @@ export function annualCents(monthlyCents: number | null): number | null {
   return monthlyCents == null ? null : monthlyCents * 12;
 }
 
+/**
+ * Total monthly pipeline value (cents) for a client: sum of each LIVE lead's
+ * monthly value under the client's deal model. Returns null when the client has
+ * no deal model set (so callers can hide the figure rather than show $0).
+ */
+export async function clientMonthlyPipelineCents(clientId: number | null): Promise<number | null> {
+  const model = await getClientDealModel(clientId);
+  if (!model || !clientId) return null;
+  const db = getAvDb();
+  const [rows] = await db.execute<(RowDataPacket & { deal_unit_count: number | null; deal_flat_cents: number | null })[]>(
+    `SELECT deal_unit_count, deal_flat_cents FROM leads
+      WHERE client_id = ? AND archived_at IS NULL
+        AND lead_status IN ('new','contacted','qualified')`,
+    [clientId]
+  );
+  let total = 0;
+  for (const r of rows) {
+    const m = leadMonthlyCents(model, {
+      dealUnitCount: r.deal_unit_count == null ? null : Number(r.deal_unit_count),
+      dealFlatCents: r.deal_flat_cents == null ? null : Number(r.deal_flat_cents)
+    });
+    if (m) total += m;
+  }
+  return total;
+}
+
 export function formatUsd(cents: number | null | undefined): string {
   if (cents == null) return '—';
   return Math.round(cents / 100).toLocaleString('en-US', {

@@ -20,7 +20,8 @@ import { getAvDb } from '@/lib/db/av';
 import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
 import { getClientOwnAudit } from '@/lib/client/dashboard_data';
 import CreativeBrief from '@/app/client/_components/CreativeBrief';
-import WaveDivider from '@/app/_components/WaveDivider';
+import ClientHero from '@/app/client/_components/ClientHero';
+import { clientMonthlyPipelineCents } from '@/lib/sales/deal_model';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -72,6 +73,8 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
   // Mirror the real client dashboard exactly via the shared loader: the client's
   // OWN business audit (matched by email), never a prospect scoped to their hub.
   const audit = await getClientOwnAudit(email);
+  // Same potential-pipeline figure the client sees (deal economics). Null = no model.
+  const monthlyPipeline = await clientMonthlyPipelineCents(clientId).catch(() => null);
 
   return (
     <div>
@@ -88,38 +91,14 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
       </div>
 
       <main className="max-w-6xl mx-auto">
-        <section
-          className="mb-8 rounded-2xl border border-border overflow-hidden"
-          style={{ background: 'radial-gradient(120% 140% at 0% 0%, rgba(245,158,11,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))' }}
-        >
-          <div className="px-6 sm:px-8 py-7">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your campaign, live</div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">Welcome back, {firstName}.</h1>
-            <WaveDivider className="mt-3" width={120} />
-            <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Live pipeline</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl sm:text-4xl font-semibold text-ink leading-none">{brief.pipeline.total}</span>
-                  <span className="text-sm text-muted">{brief.pipeline.total === 1 ? 'lead' : 'leads'} in play</span>
-                </div>
-              </div>
-              {brief.pipeline.total > 0 && (
-                <div className="flex items-center gap-4 text-sm">
-                  {brief.pipeline.hot > 0 && <span className="text-rose-300"><span className="font-semibold">{brief.pipeline.hot}</span> hot</span>}
-                  {brief.pipeline.warm > 0 && <span className="text-amber-300"><span className="font-semibold">{brief.pipeline.warm}</span> warm</span>}
-                  {brief.pipeline.cool > 0 && <span className="text-sky-300"><span className="font-semibold">{brief.pipeline.cool}</span> cool</span>}
-                </div>
-              )}
-            </div>
-            {brief.pipeline.total === 0 && (
-              <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
-                No leads in their pipeline yet — assign prospects to this client from any lead&apos;s
-                &quot;Client&quot; dropdown, and they&apos;ll appear here.
-              </p>
-            )}
-          </div>
-        </section>
+        <ClientHero firstName={firstName} pipeline={brief.pipeline} monthlyPipelineCents={monthlyPipeline}>
+          {brief.pipeline.total === 0 && (
+            <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
+              No leads in their pipeline yet — assign prospects to this client from any lead&apos;s
+              &quot;Client&quot; dropdown, and they&apos;ll appear here.
+            </p>
+          )}
+        </ClientHero>
 
         <CreativeBrief brief={brief} firstName={firstName} leadsHref={`/admin/av/clients/${clientId}`} />
 

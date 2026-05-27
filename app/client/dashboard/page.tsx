@@ -30,7 +30,8 @@ import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
 import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
 import { getClientOwnAudit } from '@/lib/client/dashboard_data';
 import { getClientAccessState } from '@/lib/av/client_access';
-import WaveDivider from '@/app/_components/WaveDivider';
+import ClientHero from '@/app/client/_components/ClientHero';
+import { clientMonthlyPipelineCents } from '@/lib/sales/deal_model';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -148,6 +149,10 @@ export default async function ClientDashboardPage() {
     /* keep empty brief */
   }
 
+  // Potential pipeline in the client's own money (deal economics). Null when no
+  // model is set, so the hero simply omits the figure. Fails soft.
+  const monthlyPipeline = await clientMonthlyPipelineCents(user.client_id).catch(() => null);
+
   return (
     <>
       <PortalHeader
@@ -158,50 +163,18 @@ export default async function ClientDashboardPage() {
       />
 
       <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
-        {/* Luxury nautical hero band: the at-a-glance state of their campaign. */}
-        <section
-          className="mb-8 rounded-2xl border border-border overflow-hidden"
-          style={{
-            background:
-              'radial-gradient(120% 140% at 0% 0%, rgba(245,158,11,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
-          }}
-        >
-          <div className="px-6 sm:px-8 py-7">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your campaign, live</div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
-              Welcome back, {headline}.
-            </h1>
-            <WaveDivider className="mt-3" width={120} />
-
-            {/* Live pipeline — the number that entices moving leads through the cycle. */}
-            <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Live pipeline</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl sm:text-4xl font-semibold text-ink leading-none">{brief.pipeline.total}</span>
-                  <span className="text-sm text-muted">{brief.pipeline.total === 1 ? 'lead' : 'leads'} in play</span>
-                </div>
-              </div>
-              {brief.pipeline.total > 0 && (
-                <div className="flex items-center gap-4 text-sm">
-                  {brief.pipeline.hot > 0 && <span className="text-rose-300"><span className="font-semibold">{brief.pipeline.hot}</span> hot</span>}
-                  {brief.pipeline.warm > 0 && <span className="text-amber-300"><span className="font-semibold">{brief.pipeline.warm}</span> warm</span>}
-                  {brief.pipeline.cool > 0 && <span className="text-sky-300"><span className="font-semibold">{brief.pipeline.cool}</span> cool</span>}
-                </div>
-              )}
-            </div>
-
-            <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
-              {brief.pipeline.hot > 0
-                ? `${brief.pipeline.hot} hot lead${brief.pipeline.hot === 1 ? '' : 's'} ready to move — let's turn momentum into booked business.`
-                : liveCount > 0
-                  ? `${liveCount} piece${liveCount === 1 ? '' : 's'} live${inMotion > 0 ? `, ${inMotion} more in motion` : ''}. Your story is out in the world and building.`
-                  : inMotion > 0
-                    ? `${inMotion} piece${inMotion === 1 ? '' : 's'} in motion. Your campaign is taking shape — you'll see it go live here.`
-                    : 'Your campaign is being set in motion. Everything we create for you will appear here.'}
-            </p>
-          </div>
-        </section>
+        {/* Luxury nautical hero band — shared with the operator preview (ClientHero). */}
+        <ClientHero firstName={headline} pipeline={brief.pipeline} monthlyPipelineCents={monthlyPipeline}>
+          <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
+            {brief.pipeline.hot > 0
+              ? `${brief.pipeline.hot} hot lead${brief.pipeline.hot === 1 ? '' : 's'} ready to move — let's turn momentum into booked business.`
+              : liveCount > 0
+                ? `${liveCount} piece${liveCount === 1 ? '' : 's'} live${inMotion > 0 ? `, ${inMotion} more in motion` : ''}. Your story is out in the world and building.`
+                : inMotion > 0
+                  ? `${inMotion} piece${inMotion === 1 ? '' : 's'} in motion. Your campaign is taking shape — you'll see it go live here.`
+                  : 'Your campaign is being set in motion. Everything we create for you will appear here.'}
+          </p>
+        </ClientHero>
 
         {/* The guidance feed: what matters most right now, and why. */}
         <GuidanceFeed guidance={guidance} firstName={headline} />
