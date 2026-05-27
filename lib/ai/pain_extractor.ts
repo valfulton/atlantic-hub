@@ -31,6 +31,7 @@ import {
   OpenAIApiError
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
+import { getBriefSeed } from '@/lib/client/brief_store';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -83,9 +84,10 @@ interface LeadRow extends RowDataPacket {
   challenge: string | null;
   audit_content: string | null;
   pain_extracted_at: string | null;
+  client_id: number | null;
 }
 
-const SYSTEM_INSTRUCTIONS = `You are a senior B2B sales coach for Atlantic & Vine, an AI-native marketing platform. The rep is about to call this prospect. Your job is to read everything we know about them and produce a tight pain-point profile.
+const SYSTEM_INSTRUCTIONS = `You are a senior B2B sales coach. A sales rep is about to call this prospect, and you produce a tight pain-point profile to coach the call. WHO the rep sells matters: if a "CLIENT OFFER" block is provided, the rep sells THAT client's offer to the prospect -- coach entirely around the client's offer and never mention Atlantic & Vine. If no client offer is provided, the rep sells Atlantic & Vine's marketing services.
 
 Output ALWAYS valid JSON matching this exact shape:
 {
@@ -108,12 +110,12 @@ Rules:
 - budget_signal infers from business size, industry margins, and audit clues. Default to "unknown" if nothing clear.
 - timing_signal: "now" if anything suggests they are looking right now, "this_quarter" if growth/seasonal cycle implies it, "later" if they are clearly stable, "unknown" if no signal.
 - last_objection_seen: only populate if reply bodies actually contain an objection. Null otherwise.
-- conversation_starters: 1 to 3 concrete sentences the rep can use to open the call. No generic openers. Reference THEIR business specifically.
+- conversation_starters: 1 to 3 concrete sentences the rep can use to open the call. No generic openers. Reference the prospect's business specifically AND frame the opener around the seller's offer (the client's offer when a CLIENT OFFER is provided).
 - do_not_say: 0 to 2 things that would torpedo the call (e.g. "don't lead with price", "don't mention competitor X by name").
 
 ASCII only. No em-dashes, no smart quotes. Plural voice (we, our team). Never use the founder's name. No markdown code fences -- JSON only.`;
 
-function buildUserPrompt(lead: LeadRow): string {
+function buildUserPrompt(lead: LeadRow, briefContext: string | null): string {
   const lines: string[] = [];
   lines.push(`Build a pain-point profile for the following prospect.`);
   lines.push('');
@@ -122,6 +124,10 @@ function buildUserPrompt(lead: LeadRow): string {
   if (lead.contact_name) {
     lines.push(`Primary contact: ${lead.contact_name}${lead.contact_title ? `, ${lead.contact_title}` : ''}`);
   }
+  if (briefContext && briefContext.trim()) {
+    lines.push('');
+    lines.push(briefContext.trim());
+  }
   if (lead.challenge) {
     lines.push('');
     lines.push(`Self-reported challenge from intake form:`);
@@ -129,7 +135,7 @@ function buildUserPrompt(lead: LeadRow): string {
   }
   if (lead.audit_content) {
     lines.push('');
-    lines.push(`Strategic marketing audit we wrote for them:`);
+    lines.push(`Our call brief / audit on this prospect:`);
     lines.push(lead.audit_content.slice(0, 3500));
   }
   lines.push('');
@@ -147,7 +153,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
 
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, company, industry, contact_name, contact_title,
-            challenge, audit_content, pain_extracted_at
+            challenge, audit_content, pain_extracted_at, client_id
        FROM leads
       WHERE id = ?
         AND archived_at IS NULL
@@ -156,6 +162,30 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
   );
   if (rows.length === 0) return null;
   const lead = rows[0];
+
+  // When the lead belongs to a CLIENT, the rep sells THAT client's offer -- coach
+  // the call around it (not Atlantic & Vine's services). Non-fatal if unavailable.
+  let briefContext: string | null = null;
+  try {
+    if (lead.client_id != null) {
+      const seed = await getBriefSeed('av', lead.client_id);
+      if (seed) {
+        const parts: string[] = [];
+        if (seed.whyAdvertise) parts.push(`Why they sell: ${seed.whyAdvertise}`);
+        if (seed.keyMessage) parts.push(`Their key message: ${seed.keyMessage}`);
+        if (seed.audience) parts.push(`Who they target: ${seed.audience}`);
+        if (seed.differentiators) parts.push(`What sets them apart: ${seed.differentiators}`);
+        if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
+        if (parts.length) {
+          briefContext =
+            'CLIENT OFFER -- the rep sells THIS client\'s offer to the prospect. Coach the call around it; ' +
+            'do not mention Atlantic & Vine:\n- ' + parts.join('\n- ');
+        }
+      }
+    }
+  } catch {
+    /* non-fatal: profile still extracts without the client offer */
+  }
 
   // Insufficient input -- need either an audit or a challenge to have anything to extract.
   if (!lead.audit_content && !lead.challenge) {
@@ -174,7 +204,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
     completion = await openaiChatCompletion(
       [
         { role: 'system', content: SYSTEM_INSTRUCTIONS },
-        { role: 'user', content: buildUserPrompt(lead) }
+        { role: 'user', content: buildUserPrompt(lead, briefContext) }
       ],
       { json: true, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, model: MODEL }
     );

@@ -32,6 +32,7 @@ import {
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';
+import { extractPainProfileForLead } from '@/lib/ai/pain_extractor';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -217,7 +218,9 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
         if (seed.competitors) parts.push(`Competitors they named: ${seed.competitors}`);
         if (parts.length) {
           briefContext =
-            'This lead belongs to a client who completed an intake brief in their own words. Ground the audit in these and do not contradict them:\n- ' +
+            'CLIENT OFFER -- this prospect is a SALES TARGET for our client, who sells the following. ' +
+            'Score and brief from THIS client\'s selling vantage (a call brief for their rep, not a marketing audit ' +
+            'of the prospect). Do not mention Atlantic & Vine. The client\'s offer in their own words:\n- ' +
             parts.join('\n- ');
         }
       }
@@ -384,6 +387,13 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
       },
       executionTimeMs: elapsedMs
     });
+
+    // The call script (pain profile) is built FROM the audit, so refresh it now
+    // that the audit just changed — fire-and-forget so the score response is fast.
+    // Makes Re-score a one-click full intelligence refresh (audit + call script).
+    extractPainProfileForLead(lead.id).catch((e) =>
+      console.error('[auto-score:pain-refresh]', lead.id, (e as Error).message)
+    );
   }
 
   return {
