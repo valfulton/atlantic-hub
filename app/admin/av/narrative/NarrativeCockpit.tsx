@@ -235,9 +235,12 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
     setSaveMsg((m) => (m[id] ? { ...m, [id]: null } : m));
   };
 
-  const saveLine = useCallback(async (id: number) => {
-    const d = draft[id];
-    if (!d) return;
+  // `override` lets a caller (e.g. "Use this thesis") persist a field immediately
+  // without waiting for setDraft to flush — no save-after-setState race.
+  const saveLine = useCallback(async (id: number, override?: Partial<Line>) => {
+    const base = draft[id] ?? lines.find((l) => l.id === id);
+    if (!base) return;
+    const d: Line = override ? { ...base, ...override } : base;
     setSaving(id);
     setSaveMsg((m) => ({ ...m, [id]: null }));
     try {
@@ -256,6 +259,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
         return;
       }
       setLines((ls) => ls.map((l) => (l.id === id ? { ...d } : l)));
+      setDraft((dd) => ({ ...dd, [id]: { ...d } })); // keep the open editor in sync with what saved
       setDirty((m) => ({ ...m, [id]: false }));
       setSaveMsg((m) => ({ ...m, [id]: { ok: true, text: 'Saved ✓' } }));
     } catch {
@@ -264,7 +268,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
     } finally {
       setSaving(null);
     }
-  }, [draft]);
+  }, [draft, lines]);
 
   const changeState = useCallback(async (id: number, state: LineState) => {
     setSaveMsg((m) => ({ ...m, [id]: null }));
@@ -418,7 +422,7 @@ interface EditorProps {
   toggleLine: (l: Line) => void;
   draft: Record<number, Line>;
   patchField: (id: number, key: keyof Line, value: unknown) => void;
-  saveLine: (id: number) => void;
+  saveLine: (id: number, override?: Partial<Line>) => void;
   saving: number | null;
   saveMsg: Record<number, { ok: boolean; text: string } | null>;
   dirty: Record<number, boolean>;
@@ -558,7 +562,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
         {ideas && ideas.items.length > 0 && (
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>
-              Best fit first. Click <strong style={{ color: '#e2e8f0' }}>Use this thesis</strong> to drop it into the Thesis box above, then <strong style={{ color: '#e2e8f0' }}>Save line</strong>.
+              Best fit first. Click <strong style={{ color: '#e2e8f0' }}>Use this thesis</strong> — it fills the Thesis box and saves in one step. Then click <strong style={{ color: '#e2e8f0' }}>Activate</strong>.
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
               {ideas.items.map((s, i) => {
@@ -576,9 +580,10 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                     <button
                       type="button"
                       onClick={() => {
+                        // Fill the Thesis box AND save in one click (override avoids a
+                        // setState race), then scroll up so you see it landed + saved.
                         patchField(id, 'thesis', s.thesis);
-                        // Show it land: scroll the (now-filled) Thesis box into view + focus it,
-                        // so it's obvious the click did something. Then just hit Save line.
+                        saveLine(id, { thesis: s.thesis });
                         const el = typeof document !== 'undefined' ? document.getElementById(`thesis-${id}`) : null;
                         if (el) {
                           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -587,7 +592,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                       }}
                       style={{ ...btnPrimary, marginTop: 8, fontSize: 11, padding: '5px 12px' }}
                     >
-                      Use this thesis ↑ (fills Thesis box, then Save)
+                      Use this thesis ↑ (fills &amp; saves — then Activate)
                     </button>
                   </div>
                 );
