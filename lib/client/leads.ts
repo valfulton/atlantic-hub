@@ -42,6 +42,13 @@ export interface ClientLead {
   band: LeadBand;
   /** A short, human pain summary if one has been extracted; else null. */
   painSummary: string | null;
+  /** The "what to say on the call" script from the lead's pain profile. */
+  callScript: {
+    primaryPain: string | null;
+    urgency: string | null;
+    openers: string[];
+    avoid: string[];
+  } | null;
   submittedAt: string | null;
 }
 
@@ -101,6 +108,26 @@ function painSummaryOf(raw: string | object | null): string | null {
   return null;
 }
 
+/** Parse the full "what to say on the call" script from the pain profile JSON. */
+function callScriptOf(raw: string | object | null): ClientLead['callScript'] {
+  if (raw == null) return null;
+  let obj: Record<string, unknown> | null = null;
+  try {
+    obj = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (!obj || typeof obj !== 'object') return null;
+  const strArr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : [];
+  const openers = strArr(obj.conversation_starters ?? obj.openers);
+  const avoid = strArr(obj.do_not_say ?? obj.avoid);
+  const primaryPain = typeof obj.primary_pain === 'string' && obj.primary_pain.trim() ? obj.primary_pain.trim() : null;
+  const urgency = typeof obj.urgency_signal === 'string' && obj.urgency_signal.trim() ? obj.urgency_signal.trim() : null;
+  if (!openers.length && !avoid.length && !primaryPain) return null;
+  return { primaryPain, urgency, openers, avoid };
+}
+
 function toIso(v: string | Date | null): string | null {
   if (!v) return null;
   if (v instanceof Date) return v.toISOString();
@@ -150,6 +177,7 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
           : null,
     band: r.ai_score_band,
     painSummary: painSummaryOf(r.pain_point_profile),
+    callScript: callScriptOf(r.pain_point_profile),
     submittedAt: toIso(r.submission_date)
   }));
 }

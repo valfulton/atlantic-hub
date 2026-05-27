@@ -168,6 +168,27 @@ export default async function ClientLeadsPage() {
 
                 {l.painSummary && <p className="text-sm text-muted mt-3 leading-relaxed">{l.painSummary}</p>}
 
+                {l.callScript && (l.callScript.openers.length > 0 || l.callScript.avoid.length > 0) && (
+                  <div className="mt-3 rounded-xl border border-border bg-black/20 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-brand mb-1.5">What to say on the call</div>
+                    {l.callScript.primaryPain && (
+                      <p className="text-xs text-muted mb-2 leading-relaxed">{l.callScript.primaryPain}</p>
+                    )}
+                    {l.callScript.openers.length > 0 && (
+                      <ul className="space-y-1.5 mb-2">
+                        {l.callScript.openers.slice(0, 3).map((o, i) => (
+                          <li key={i} className="text-xs text-ink leading-relaxed">&ldquo;{o}&rdquo;</li>
+                        ))}
+                      </ul>
+                    )}
+                    {l.callScript.avoid.length > 0 && (
+                      <div className="text-[11px] text-muted">
+                        <span className="text-rose-300/80">Avoid:</span> {l.callScript.avoid.join('; ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="mt-3 pt-3 border-t border-border text-xs text-muted flex flex-wrap gap-x-4 gap-y-1">
                   {l.contactName && (
                     <span>
