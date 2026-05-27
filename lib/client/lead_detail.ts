@@ -37,6 +37,14 @@ export interface ClientCallScript {
   avoid: string[];
 }
 
+export interface ClientOutreachMessage {
+  id: number;
+  subject: string | null;
+  status: string | null;
+  sentAt: string | null;
+  repliedAt: string | null;
+}
+
 export interface ClientLeadDetail {
   id: number;
   auditId: string | null;
@@ -62,6 +70,8 @@ export interface ClientLeadDetail {
   painSummary: string | null;
   callScript: ClientCallScript | null;
   submittedAt: string | null;
+  /** Read-only history of outreach messages sent for this lead. */
+  outreach: ClientOutreachMessage[];
 }
 
 interface DetailRow extends RowDataPacket {
@@ -182,6 +192,31 @@ export async function getClientLeadDetail(
   const r = rows[0];
   if (!r) return null;
 
+  // Read-only outreach history for this lead (what's been sent + replies).
+  let outreach: ClientOutreachMessage[] = [];
+  try {
+    const [orows] = await db.execute<(RowDataPacket & {
+      id: number; subject: string | null; status: string | null;
+      sent_at: string | Date | null; replied_at: string | Date | null;
+    })[]>(
+      `SELECT id, subject, status, sent_at, replied_at
+         FROM outreach_messages
+        WHERE lead_id = ?
+        ORDER BY created_at DESC
+        LIMIT 50`,
+      [r.id]
+    );
+    outreach = orows.map((o) => ({
+      id: o.id,
+      subject: o.subject && o.subject.trim() ? o.subject : null,
+      status: o.status && o.status.trim() ? o.status : null,
+      sentAt: toIso(o.sent_at),
+      repliedAt: toIso(o.replied_at)
+    }));
+  } catch {
+    outreach = [];
+  }
+
   return {
     id: r.id,
     auditId: r.audit_id,
@@ -207,6 +242,7 @@ export async function getClientLeadDetail(
     auditGenerated: toIso(r.audit_generated),
     painSummary: painSummaryOf(r.pain_point_profile),
     callScript: callScriptOf(r.pain_point_profile),
-    submittedAt: toIso(r.submission_date)
+    submittedAt: toIso(r.submission_date),
+    outreach
   };
 }

@@ -12,8 +12,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ClientLeadDetail } from '@/lib/client/lead_detail';
 
-const TABS = ['Audit', 'Calls', 'AI Scoring', 'Identity', 'Commercials'] as const;
+const TABS = ['Audit', 'Calls', 'Notes', 'AI Scoring', 'Outreach', 'Identity', 'Commercials'] as const;
 type Tab = (typeof TABS)[number];
+
+interface NoteEntry {
+  noteId: number;
+  body: string;
+  authorRole: string;
+  createdAt: string;
+}
 
 /** Call outcomes a rep picks from — value matches the API's VALID_OUTCOMES. */
 const CALL_OUTCOMES: { value: string; label: string }[] = [
@@ -145,6 +152,53 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
   function fmtDateTime(iso: string): string {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  // Notes
+  const [notes, setNotes] = useState<NoteEntry[]>([]);
+  const [notesLoaded, setNotesLoaded] = useState(false);
+  const [noteBody, setNoteBody] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+
+  const fetchNotes = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/client/leads/${lead.auditId}/notes`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotes(Array.isArray(data.notes) ? data.notes : []);
+      }
+    } catch {
+      /* non-fatal */
+    } finally {
+      setNotesLoaded(true);
+    }
+  }, [lead.auditId]);
+
+  useEffect(() => {
+    if (active === 'Notes' && !notesLoaded) fetchNotes();
+  }, [active, notesLoaded, fetchNotes]);
+
+  async function addNote() {
+    const trimmed = noteBody.trim();
+    if (!trimmed) return;
+    setSavingNote(true);
+    setNoteError(null);
+    try {
+      const res = await fetch(`/api/client/leads/${lead.auditId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: trimmed })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.note) throw new Error(j.error || `HTTP ${res.status}`);
+      setNotes((prev) => [j.note as NoteEntry, ...prev]);
+      setNoteBody('');
+    } catch (e) {
+      setNoteError((e as Error).message);
+    } finally {
+      setSavingNote(false);
+    }
   }
 
   return (
@@ -308,6 +362,79 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
               </ul>
             )}
           </div>
+        </div>
+      )}
+
+      {active === 'Notes' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-border bg-surface p-5">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-brand mb-3">Add a note</div>
+            <textarea
+              value={noteBody}
+              onChange={(e) => setNoteBody(e.target.value)}
+              disabled={savingNote}
+              rows={3}
+              placeholder="Anything worth remembering about this lead…"
+              className="w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm text-ink"
+            />
+            <div className="flex items-center justify-end gap-3 mt-2">
+              {noteError && <span className="text-[11px] text-rose-400">Could not save: {noteError}</span>}
+              <button
+                onClick={addNote}
+                disabled={savingNote || !noteBody.trim()}
+                className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                style={{ background: 'linear-gradient(120deg,#FF9C5B,#FFC73D)', color: '#1a1207', border: 'none' }}
+              >
+                {savingNote ? 'Saving…' : 'Save note'}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-2">Notes</div>
+            {!notesLoaded ? (
+              <p className="text-sm text-muted">Loading…</p>
+            ) : notes.length === 0 ? (
+              <p className="text-sm text-muted">No notes yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {notes.map((n) => (
+                  <li key={n.noteId} className="rounded-xl border border-border bg-surface p-3">
+                    <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">{n.body}</p>
+                    <div className="text-[11px] text-muted mt-1">{fmtDateTime(n.createdAt)}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {active === 'Outreach' && (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-2">Outreach history</div>
+          {lead.outreach.length === 0 ? (
+            <p className="text-sm text-muted leading-relaxed">
+              No outreach has gone out for this lead yet. When emails are sent on your behalf, they&apos;ll show here with their status and any replies.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {lead.outreach.map((m) => (
+                <li key={m.id} className="rounded-xl border border-border bg-surface p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-ink font-medium truncate">{m.subject || '(no subject)'}</span>
+                    {m.status && (
+                      <span className="text-[10px] uppercase tracking-[0.12em] text-muted shrink-0">{m.status}</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted mt-1 flex flex-wrap gap-x-4">
+                    {m.sentAt && <span>Sent {fmtDateTime(m.sentAt)}</span>}
+                    {m.repliedAt && <span className="text-emerald-300/80">Replied {fmtDateTime(m.repliedAt)}</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
