@@ -32,6 +32,7 @@ import {
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';
+import { saveLeadAudit, lensForClient } from '@/lib/ai/lead_audits';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -296,6 +297,14 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
     });
     return null;
   }
+
+  // Mirror into the per-lens store (multi-lens, no-drift): the call script is
+  // preserved under this lead's seller lens, never clobbering another lens.
+  await saveLeadAudit({
+    leadId: lead.id,
+    lens: lensForClient(lead.client_id),
+    painPointProfile: profile
+  }).catch(() => {});
 
   const elapsedMs = Date.now() - start;
   await logEvent({

@@ -33,6 +33,7 @@ import {
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';
 import { extractPainProfileForLead } from '@/lib/ai/pain_extractor';
+import { saveLeadAudit, lensForClient } from '@/lib/ai/lead_audits';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -351,6 +352,17 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
   // so the dashboard's visible number reflects the new fit immediately.
   // Engagement delta is unchanged -- a Re-score is not an engagement event.
   await recomputeCombinedForLead(lead.id);
+
+  // Persist under this lead's SELLER lens (multi-lens, no-drift): a Re-score for
+  // one owner updates only that lens, never another owner's audit. The single
+  // columns above stay the "current" view for back-compat.
+  await saveLeadAudit({
+    leadId: lead.id,
+    lens: lensForClient(lead.client_id),
+    auditContent,
+    aiScore,
+    aiScoreBand
+  }).catch((e) => console.error('[auto-score:lens-save]', lead.id, (e as Error).message));
 
   const elapsedMs = Date.now() - start;
 
