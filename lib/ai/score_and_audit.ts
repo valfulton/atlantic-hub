@@ -32,8 +32,14 @@ import {
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';
-import { extractPainProfileForLead } from '@/lib/ai/pain_extractor';
-import { saveLeadAudit, lensForClient } from '@/lib/ai/lead_audits';
+import { extractPainProfileForLead, extractPainProfileForLeadLens } from '@/lib/ai/pain_extractor';
+import {
+  saveLeadAudit,
+  lensForClient,
+  parseLens,
+  isValidLens,
+  tenantOfferDescription
+} from '@/lib/ai/lead_audits';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -139,97 +145,71 @@ function buildUserPrompt(lead: LeadRow, briefContext?: string | null): string {
 }
 
 /**
- * Score and audit one lead. Updates the leads row and emits two
- * system_events rows.
- *
- * Returns null if the lead does not exist, is archived, or has insufficient
- * data to score. Returns a result object on success or partial failure
- * (skipped=true with skipReason set).
+ * Build the "who is selling" offer block for a given SELLER lens. This is what
+ * makes the audit speak from one seller's vantage:
+ *   - client:<id>  -> ground in THAT client's brief/intake answers (call brief for their rep)
+ *   - 'ebw'/'hh'   -> ground in that tenant brand's offer description
+ *   - 'av'         -> null (Atlantic & Vine's own marketing-audit branch; no offer block)
+ * Non-fatal: returns null on any error so the audit still runs ungrounded.
  */
-export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditResult | null> {
-  const start = Date.now();
-  const db = getAvDb();
-
-  const [rows] = await db.execute<LeadRow[]>(
-    `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website,
-            industry, target_business, source_type, challenge, client_id
-       FROM leads
-      WHERE id = ?
-        AND archived_at IS NULL
-      LIMIT 1`,
-    [leadId]
-  );
-
-  if (rows.length === 0) {
-    await logEvent({
-      eventType: 'ai.score_failed',
-      leadId,
-      source: 'openai',
-      status: 'failure',
-      errorMessage: 'lead not found or archived'
-    });
+async function buildBriefContextForLens(lens: string): Promise<string | null> {
+  try {
+    const parsed = parseLens(lens);
+    if (parsed.kind === 'client') {
+      const seed = await getBriefSeed('av', parsed.clientId);
+      if (!seed) return null;
+      const parts: string[] = [];
+      if (seed.whyAdvertise) parts.push(`Why they advertise: ${seed.whyAdvertise}`);
+      if (seed.goals) parts.push(`Their 90-day goals: ${seed.goals}`);
+      if (seed.audience) parts.push(`Their target audience: ${seed.audience}`);
+      if (seed.audienceInsights) parts.push(`What they know about that audience: ${seed.audienceInsights}`);
+      if (seed.keyMessage) parts.push(`Their single key message: ${seed.keyMessage}`);
+      if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
+      if (seed.differentiators) parts.push(`What makes them different: ${seed.differentiators}`);
+      if (seed.brandVoice) parts.push(`Brand voice: ${seed.brandVoice}`);
+      if (seed.competitors) parts.push(`Competitors they named: ${seed.competitors}`);
+      if (!parts.length) return null;
+      return (
+        'CLIENT OFFER -- this prospect is a SALES TARGET for our client, who sells the following. ' +
+        'Score and brief from THIS client\'s selling vantage (a call brief for their rep, not a marketing audit ' +
+        'of the prospect). Do not mention Atlantic & Vine. The client\'s offer in their own words:\n- ' +
+        parts.join('\n- ')
+      );
+    }
+    if (parsed.kind === 'tenant') {
+      const offer = tenantOfferDescription(parsed.tenant);
+      if (!offer) return null; // 'av' -> default marketing-audit branch
+      const name = parsed.tenant === 'ebw' ? 'Events by Water' : 'Hunter Honey';
+      return (
+        `SELLER OFFER -- this prospect is a SALES TARGET for ${name}, which sells the following. ` +
+        `Score and brief from ${name}'s selling vantage (a call brief for their rep, not a marketing ` +
+        `audit of the prospect). Do not mention Atlantic & Vine. The offer:\n- ${offer}`
+      );
+    }
+    return null;
+  } catch {
     return null;
   }
+}
 
-  const lead = rows[0];
+interface AuditPayload {
+  aiScore: number;
+  aiScoreBand: ScoreBand;
+  aiScoreReason: string | null;
+  aiScoreBreakdown: ScoreBreakdown;
+  auditContent: string | null;
+  rawJson: string;
+  model: string;
+  tokensUsed: number;
+}
 
-  if (!hasMinimumData(lead)) {
-    await logEvent({
-      eventType: 'ai.score_failed',
-      leadId: lead.id,
-      source: 'openai',
-      status: 'partial',
-      payload: { skipReason: 'insufficient_data', company: lead.company },
-      errorMessage: 'insufficient data (no real email, no website, no industry)'
-    });
-    return {
-      aiScore: null,
-      aiScoreBand: null,
-      aiScoreReason: null,
-      aiScoreBreakdown: null,
-      auditContent: null,
-      auditGenerated: null,
-      modelVersion: MODEL,
-      tokensUsed: 0,
-      skipped: true,
-      skipReason: 'insufficient_data'
-    };
-  }
-
-  // If this lead BELONGS TO a client account, ground the audit in that client's
-  // OWN brief/intake answers. Scoped strictly by lead.client_id (NOT email) — a
-  // prior email-match here cross-contaminated test accounts that shared an email
-  // (e.g. valrealestate pulling Chef Alex Forsythe's intake). Prospect leads
-  // (client_id NULL) get NO brief context, so their audit is unchanged.
-  // Non-fatal: the audit still runs without it.
-  let briefContext: string | null = null;
-  try {
-    if (lead.client_id != null) {
-      const seed = await getBriefSeed('av', lead.client_id);
-      if (seed) {
-        const parts: string[] = [];
-        if (seed.whyAdvertise) parts.push(`Why they advertise: ${seed.whyAdvertise}`);
-        if (seed.goals) parts.push(`Their 90-day goals: ${seed.goals}`);
-        if (seed.audience) parts.push(`Their target audience: ${seed.audience}`);
-        if (seed.audienceInsights) parts.push(`What they know about that audience: ${seed.audienceInsights}`);
-        if (seed.keyMessage) parts.push(`Their single key message: ${seed.keyMessage}`);
-        if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
-        if (seed.differentiators) parts.push(`What makes them different: ${seed.differentiators}`);
-        if (seed.brandVoice) parts.push(`Brand voice: ${seed.brandVoice}`);
-        if (seed.competitors) parts.push(`Competitors they named: ${seed.competitors}`);
-        if (parts.length) {
-          briefContext =
-            'CLIENT OFFER -- this prospect is a SALES TARGET for our client, who sells the following. ' +
-            'Score and brief from THIS client\'s selling vantage (a call brief for their rep, not a marketing audit ' +
-            'of the prospect). Do not mention Atlantic & Vine. The client\'s offer in their own words:\n- ' +
-            parts.join('\n- ');
-        }
-      }
-    }
-  } catch {
-    /* non-fatal: audit proceeds without the brief context */
-  }
-
+/**
+ * Run the OpenAI audit+score call for a lead under a given offer context and
+ * return the sanitized payload, or null on key-missing / API error / malformed
+ * JSON (each logged to system_events). Pure generation: persists NOTHING. The
+ * caller decides whether to write the leads columns, a lens row, or both.
+ */
+async function generateAuditPayload(lead: LeadRow, briefContext: string | null): Promise<AuditPayload | null> {
   const systemPrompt = await getSystemPrompt('av_lead_audit');
 
   let completion;
@@ -290,7 +270,6 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
     return null;
   }
 
-  // Clamp and sanitize
   const aiScore = Math.max(0, Math.min(100, Math.round(parsed.ai_score)));
   const aiScoreBand: ScoreBand =
     parsed.ai_score_band === 'hot' || parsed.ai_score_band === 'warm' || parsed.ai_score_band === 'cool'
@@ -308,6 +287,88 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
     icp_match: clamp01(parsed.ai_score_breakdown?.icp_match)
   };
   const auditContent = typeof parsed.audit_content === 'string' ? parsed.audit_content : null;
+
+  return {
+    aiScore,
+    aiScoreBand,
+    aiScoreReason,
+    aiScoreBreakdown,
+    auditContent,
+    rawJson: JSON.stringify(parsed),
+    model: completion.model || MODEL,
+    tokensUsed: completion.usage.totalTokens
+  };
+}
+
+/**
+ * Score and audit one lead. Updates the leads row and emits two
+ * system_events rows.
+ *
+ * Returns null if the lead does not exist, is archived, or has insufficient
+ * data to score. Returns a result object on success or partial failure
+ * (skipped=true with skipReason set).
+ */
+export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditResult | null> {
+  const start = Date.now();
+  const db = getAvDb();
+
+  const [rows] = await db.execute<LeadRow[]>(
+    `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website,
+            industry, target_business, source_type, challenge, client_id
+       FROM leads
+      WHERE id = ?
+        AND archived_at IS NULL
+      LIMIT 1`,
+    [leadId]
+  );
+
+  if (rows.length === 0) {
+    await logEvent({
+      eventType: 'ai.score_failed',
+      leadId,
+      source: 'openai',
+      status: 'failure',
+      errorMessage: 'lead not found or archived'
+    });
+    return null;
+  }
+
+  const lead = rows[0];
+
+  if (!hasMinimumData(lead)) {
+    await logEvent({
+      eventType: 'ai.score_failed',
+      leadId: lead.id,
+      source: 'openai',
+      status: 'partial',
+      payload: { skipReason: 'insufficient_data', company: lead.company },
+      errorMessage: 'insufficient data (no real email, no website, no industry)'
+    });
+    return {
+      aiScore: null,
+      aiScoreBand: null,
+      aiScoreReason: null,
+      aiScoreBreakdown: null,
+      auditContent: null,
+      auditGenerated: null,
+      modelVersion: MODEL,
+      tokensUsed: 0,
+      skipped: true,
+      skipReason: 'insufficient_data'
+    };
+  }
+
+  // If this lead BELONGS TO a client account, ground the audit in that client's
+  // OWN brief/intake answers (call brief for their rep). Scoped strictly by the
+  // lead's owner lens — a prior email-match here cross-contaminated test accounts
+  // that shared an email (e.g. valrealestate pulling Chef Alex Forsythe's intake).
+  // Prospect leads (client_id NULL -> 'av') get NO offer block, so their audit is
+  // the unchanged AV marketing audit. Non-fatal: the audit still runs without it.
+  const briefContext = await buildBriefContextForLens(lensForClient(lead.client_id));
+
+  const payload = await generateAuditPayload(lead, briefContext);
+  if (!payload) return null; // failure already logged to system_events
+  const { aiScore, aiScoreBand, aiScoreReason, aiScoreBreakdown, auditContent } = payload;
 
   // Persist to leads. ai_audit gets the full JSON we received, for forensic
   // audit. audit_content is the rendered markdown. ai_last_scored_at marks
@@ -331,9 +392,9 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
         aiScoreBand,
         aiScoreReason,
         JSON.stringify(aiScoreBreakdown),
-        JSON.stringify(parsed),
+        payload.rawJson,
         auditContent,
-        completion.model || MODEL,
+        payload.model,
         lead.id
       ]
     );
@@ -378,8 +439,8 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
       ai_score: aiScore,
       ai_score_band: aiScoreBand,
       breakdown: aiScoreBreakdown,
-      model: completion.model,
-      tokens_used: completion.usage.totalTokens,
+      model: payload.model,
+      tokens_used: payload.tokensUsed,
       company: lead.company
     },
     executionTimeMs: elapsedMs
@@ -393,8 +454,8 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
       status: 'success',
       payload: {
         audit_chars: auditContent.length,
-        tokens_used: completion.usage.totalTokens,
-        model: completion.model,
+        tokens_used: payload.tokensUsed,
+        model: payload.model,
         company: lead.company
       },
       executionTimeMs: elapsedMs
@@ -415,8 +476,107 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
     aiScoreBreakdown,
     auditContent,
     auditGenerated: new Date().toISOString(),
-    modelVersion: completion.model || MODEL,
-    tokensUsed: completion.usage.totalTokens,
+    modelVersion: payload.model,
+    tokensUsed: payload.tokensUsed,
+    skipped: false
+  };
+}
+
+/**
+ * Generate an audit + call brief for a lead under an EXPLICIT seller lens, and
+ * persist it ONLY to that lens's row in lead_audits — never the leads columns.
+ * This is the "generate the EBW / Atlantic & Vine pitch for this lead" path: a
+ * lead Skip owns can also carry an Events by Water brief without disturbing
+ * Skip's own (owner-lens) audit. The owner path above stays the single source
+ * for the leads.audit_content "current" view.
+ *
+ * Returns the result for the generated lens, or null on bad lens / not found /
+ * generation failure (logged to system_events). Awaits the matching call-script
+ * (pain profile) for the lens so the lens is fully populated when this resolves.
+ */
+export async function scoreAndAuditLeadForLens(
+  leadId: number,
+  targetLens: string
+): Promise<ScoreAndAuditResult | null> {
+  const start = Date.now();
+  const db = getAvDb();
+
+  if (!isValidLens(targetLens)) return null;
+
+  const [rows] = await db.execute<LeadRow[]>(
+    `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website,
+            industry, target_business, source_type, challenge, client_id
+       FROM leads
+      WHERE id = ?
+        AND archived_at IS NULL
+      LIMIT 1`,
+    [leadId]
+  );
+  if (rows.length === 0) return null;
+  const lead = rows[0];
+
+  if (!hasMinimumData(lead)) {
+    return {
+      aiScore: null,
+      aiScoreBand: null,
+      aiScoreReason: null,
+      aiScoreBreakdown: null,
+      auditContent: null,
+      auditGenerated: null,
+      modelVersion: MODEL,
+      tokensUsed: 0,
+      skipped: true,
+      skipReason: 'insufficient_data'
+    };
+  }
+
+  const briefContext = await buildBriefContextForLens(targetLens);
+  const payload = await generateAuditPayload(lead, briefContext);
+  if (!payload) return null;
+
+  // No-drift: write ONLY this lens's row. The leads columns (owner's current
+  // view) are untouched.
+  await saveLeadAudit({
+    leadId: lead.id,
+    lens: targetLens,
+    auditContent: payload.auditContent,
+    aiScore: payload.aiScore,
+    aiScoreBand: payload.aiScoreBand
+  });
+
+  const elapsedMs = Date.now() - start;
+  await logEvent({
+    eventType: 'ai.audit_generated',
+    leadId: lead.id,
+    source: 'openai',
+    status: 'success',
+    payload: {
+      lens: targetLens,
+      audit_chars: payload.auditContent?.length ?? 0,
+      tokens_used: payload.tokensUsed,
+      model: payload.model,
+      company: lead.company
+    },
+    executionTimeMs: elapsedMs
+  });
+
+  // Build the matching call script for THIS lens too (writes only the lens row).
+  // Awaited so the lens picker shows a complete brief + script on first refresh.
+  if (payload.auditContent) {
+    await extractPainProfileForLeadLens(lead.id, targetLens, payload.auditContent).catch((e) =>
+      console.error('[lens-gen:pain]', lead.id, targetLens, (e as Error).message)
+    );
+  }
+
+  return {
+    aiScore: payload.aiScore,
+    aiScoreBand: payload.aiScoreBand,
+    aiScoreReason: payload.aiScoreReason,
+    aiScoreBreakdown: payload.aiScoreBreakdown,
+    auditContent: payload.auditContent,
+    auditGenerated: new Date().toISOString(),
+    modelVersion: payload.model,
+    tokensUsed: payload.tokensUsed,
     skipped: false
   };
 }

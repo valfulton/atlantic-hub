@@ -134,6 +134,10 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
   const [active, setActive] = useState<Tab>('Identity');
   const [legacyOpen, setLegacyOpen] = useState(false);
   const [auditLens, setAuditLens] = useState<string | null>(null);
+  const [lensList, setLensList] = useState<NonNullable<Lead['auditLenses']>>(lead.auditLenses ?? []);
+  const [genLens, setGenLens] = useState<string>('av');
+  const [genBusy, setGenBusy] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
   // Identity tab — editable status + follow-up date
   const [status, setStatus] = useState(lead.leadStatus);
@@ -233,6 +237,39 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
       setNoteError((e as Error).message);
     } finally {
       setSavingNote(false);
+    }
+  }
+
+  const refreshLenses = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/av/leads/${lead.auditId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.lead?.auditLenses)) setLensList(data.lead.auditLenses);
+    } catch {
+      /* non-fatal: keep the current lens list */
+    }
+  }, [lead.auditId]);
+
+  // Generate an audit + call script for an explicit seller lens. Stored ONLY
+  // under that lens (no-drift) — never touches the owner's audit.
+  async function generateForLens() {
+    setGenBusy(true);
+    setGenError(null);
+    try {
+      const res = await fetch(`/api/admin/av/leads/${lead.auditId}/generate-lens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lens: genLens })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      await refreshLenses();
+      setAuditLens(genLens); // jump the picker to the lens we just generated
+    } catch (e) {
+      setGenError((e as Error).message);
+    } finally {
+      setGenBusy(false);
     }
   }
 
@@ -401,7 +438,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
       )}
 
       {active === 'Audit' && (() => {
-        const lenses = lead.auditLenses ?? [];
+        const lenses = lensList;
         const ownerLens = lead.clientId ? `client:${lead.clientId}` : 'av';
         const selected = auditLens
           ?? (lenses.find((l) => l.lens === ownerLens)?.lens)
@@ -410,6 +447,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
         const current = selected ? (lenses.find((l) => l.lens === selected) ?? null) : null;
         const content = current?.auditContent ?? lead.auditContent;
         const generatedAt = current?.generatedAt ?? lead.auditGenerated;
+        const genOptions = Array.from(new Set<string>(['av', 'ebw', 'hh', ownerLens]));
         return (
           <div>
             {lenses.length > 0 && (
@@ -451,6 +489,39 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             ) : (
               <Empty message="No audit content yet. The AI audit generates after the lead is scored." />
             )}
+
+            <div className="mt-5 border-t border-border pt-4">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                Generate for another lens
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={genLens}
+                  onChange={(e) => setGenLens(e.target.value)}
+                  disabled={genBusy}
+                  className="text-xs bg-surface border border-border rounded-md px-2.5 py-1.5 text-ink"
+                >
+                  {genOptions.map((l) => (
+                    <option key={l} value={l}>
+                      {lensLabel(l)}
+                      {lenses.some((x) => x.lens === l) ? ' (regenerate)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={generateForLens}
+                  disabled={genBusy}
+                  className="text-xs px-3 py-1.5 rounded-md border border-brand text-ink bg-[var(--surface-2)] hover:opacity-90 disabled:opacity-50"
+                >
+                  {genBusy ? 'Generating…' : 'Generate'}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted mt-2">
+                Builds an audit + call script from that seller&apos;s vantage (e.g. pitch this lead as
+                Events by Water) and saves it under that lens only — the owner&apos;s audit is untouched.
+              </p>
+              {genError && <p className="text-[11px] text-rose-400 mt-1.5">Could not generate: {genError}</p>}
+            </div>
           </div>
         );
       })()}

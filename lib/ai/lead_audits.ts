@@ -18,6 +18,54 @@ export function lensForClient(clientId: number | null | undefined): string {
   return clientId && clientId > 0 ? `client:${clientId}` : 'av';
 }
 
+export type TenantLens = 'av' | 'ebw' | 'hh';
+
+export type ParsedLens =
+  | { kind: 'tenant'; tenant: TenantLens }
+  | { kind: 'client'; clientId: number }
+  | { kind: 'unknown' };
+
+/** Decompose a lens string into its seller kind. */
+export function parseLens(lens: string): ParsedLens {
+  if (lens === 'av' || lens === 'ebw' || lens === 'hh') return { kind: 'tenant', tenant: lens };
+  const m = /^client:(\d+)$/.exec(lens);
+  if (m) return { kind: 'client', clientId: Number(m[1]) };
+  return { kind: 'unknown' };
+}
+
+/** True for any lens the generator knows how to produce a brief for. */
+export function isValidLens(lens: string): boolean {
+  return parseLens(lens).kind !== 'unknown';
+}
+
+/**
+ * Short, plain-English description of what a SELLER tenant offers, used to
+ * ground an audit / call brief when generating a pitch under that tenant's
+ * vantage (e.g. "generate the Events by Water pitch for this lead").
+ *
+ * 'av' returns null on purpose: Atlantic & Vine is the agency's own marketing
+ * audit — the prompt's default "no client offer" branch — so it needs no offer
+ * block. EBW/HH copy below is an editable constant; tune it as the brands sharpen.
+ */
+export function tenantOfferDescription(tenant: TenantLens): string | null {
+  switch (tenant) {
+    case 'ebw':
+      return (
+        'Events by Water sells premium on-the-water events and experiences: private yacht ' +
+        'charters, waterfront corporate retreats and team offsites, and milestone celebrations ' +
+        'on the water. The buyer is booking a memorable, high-touch event venue/experience.'
+      );
+    case 'hh':
+      return (
+        'Hunter Honey sells its artisanal honey and hive products to retailers, hospitality, and ' +
+        'gifting buyers — a premium, locally-sourced specialty food line.'
+      );
+    case 'av':
+    default:
+      return null;
+  }
+}
+
 export interface LeadAuditRow {
   lens: string;
   auditContent: string | null;

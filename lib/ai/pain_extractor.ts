@@ -32,7 +32,13 @@ import {
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';
-import { saveLeadAudit, lensForClient } from '@/lib/ai/lead_audits';
+import {
+  saveLeadAudit,
+  lensForClient,
+  getLeadAudit,
+  parseLens,
+  tenantOfferDescription
+} from '@/lib/ai/lead_audits';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -116,28 +122,37 @@ Rules:
 
 ASCII only. No em-dashes, no smart quotes. Plural voice (we, our team). Never use the founder's name. No markdown code fences -- JSON only.`;
 
-function buildUserPrompt(lead: LeadRow, briefContext: string | null): string {
+interface PainPromptInput {
+  company: string;
+  industry: string | null;
+  contact_name: string | null;
+  contact_title: string | null;
+  challenge: string | null;
+  auditContent: string | null;
+}
+
+function buildUserPrompt(input: PainPromptInput, briefContext: string | null): string {
   const lines: string[] = [];
   lines.push(`Build a pain-point profile for the following prospect.`);
   lines.push('');
-  lines.push(`Company: ${lead.company}`);
-  if (lead.industry) lines.push(`Industry: ${lead.industry}`);
-  if (lead.contact_name) {
-    lines.push(`Primary contact: ${lead.contact_name}${lead.contact_title ? `, ${lead.contact_title}` : ''}`);
+  lines.push(`Company: ${input.company}`);
+  if (input.industry) lines.push(`Industry: ${input.industry}`);
+  if (input.contact_name) {
+    lines.push(`Primary contact: ${input.contact_name}${input.contact_title ? `, ${input.contact_title}` : ''}`);
   }
   if (briefContext && briefContext.trim()) {
     lines.push('');
     lines.push(briefContext.trim());
   }
-  if (lead.challenge) {
+  if (input.challenge) {
     lines.push('');
     lines.push(`Self-reported challenge from intake form:`);
-    lines.push(lead.challenge.slice(0, 1200));
+    lines.push(input.challenge.slice(0, 1200));
   }
-  if (lead.audit_content) {
+  if (input.auditContent) {
     lines.push('');
     lines.push(`Our call brief / audit on this prospect:`);
-    lines.push(lead.audit_content.slice(0, 3500));
+    lines.push(input.auditContent.slice(0, 3500));
   }
   lines.push('');
   lines.push('Return the JSON object only. No code fences. ASCII characters only.');
@@ -145,57 +160,63 @@ function buildUserPrompt(lead: LeadRow, briefContext: string | null): string {
 }
 
 /**
- * Extract the pain profile for one lead. Updates leads row. Returns the
- * parsed profile on success, null on insufficient-data or error.
+ * Build the "who is selling" coaching block for a SELLER lens, so the call
+ * script is coached from that seller's vantage:
+ *   - client:<id> -> that client's brief/intake answers
+ *   - 'ebw'/'hh'  -> that tenant brand's offer description
+ *   - 'av'        -> null (rep sells Atlantic & Vine's marketing services)
+ * Non-fatal: returns null on any error.
  */
-export async function extractPainProfileForLead(leadId: number): Promise<PainPointProfile | null> {
-  const start = Date.now();
-  const db = getAvDb();
-
-  const [rows] = await db.execute<LeadRow[]>(
-    `SELECT id, company, industry, contact_name, contact_title,
-            challenge, audit_content, pain_extracted_at, client_id
-       FROM leads
-      WHERE id = ?
-        AND archived_at IS NULL
-      LIMIT 1`,
-    [leadId]
-  );
-  if (rows.length === 0) return null;
-  const lead = rows[0];
-
-  // When the lead belongs to a CLIENT, the rep sells THAT client's offer -- coach
-  // the call around it (not Atlantic & Vine's services). Non-fatal if unavailable.
-  let briefContext: string | null = null;
+async function buildPainBriefContextForLens(lens: string): Promise<string | null> {
   try {
-    if (lead.client_id != null) {
-      const seed = await getBriefSeed('av', lead.client_id);
-      if (seed) {
-        const parts: string[] = [];
-        if (seed.whyAdvertise) parts.push(`Why they sell: ${seed.whyAdvertise}`);
-        if (seed.keyMessage) parts.push(`Their key message: ${seed.keyMessage}`);
-        if (seed.audience) parts.push(`Who they target: ${seed.audience}`);
-        if (seed.differentiators) parts.push(`What sets them apart: ${seed.differentiators}`);
-        if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
-        if (parts.length) {
-          briefContext =
-            'CLIENT OFFER -- the rep sells THIS client\'s offer to the prospect. Coach the call around it; ' +
-            'do not mention Atlantic & Vine:\n- ' + parts.join('\n- ');
-        }
-      }
+    const parsed = parseLens(lens);
+    if (parsed.kind === 'client') {
+      const seed = await getBriefSeed('av', parsed.clientId);
+      if (!seed) return null;
+      const parts: string[] = [];
+      if (seed.whyAdvertise) parts.push(`Why they sell: ${seed.whyAdvertise}`);
+      if (seed.keyMessage) parts.push(`Their key message: ${seed.keyMessage}`);
+      if (seed.audience) parts.push(`Who they target: ${seed.audience}`);
+      if (seed.differentiators) parts.push(`What sets them apart: ${seed.differentiators}`);
+      if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
+      if (!parts.length) return null;
+      return (
+        'CLIENT OFFER -- the rep sells THIS client\'s offer to the prospect. Coach the call around it; ' +
+        'do not mention Atlantic & Vine:\n- ' + parts.join('\n- ')
+      );
     }
+    if (parsed.kind === 'tenant') {
+      const offer = tenantOfferDescription(parsed.tenant);
+      if (!offer) return null; // 'av' -> rep sells Atlantic & Vine's own services
+      const name = parsed.tenant === 'ebw' ? 'Events by Water' : 'Hunter Honey';
+      return (
+        `CLIENT OFFER -- the rep sells ${name}'s offer to the prospect. Coach the call around it; ` +
+        `do not mention Atlantic & Vine:\n- ${offer}`
+      );
+    }
+    return null;
   } catch {
-    /* non-fatal: profile still extracts without the client offer */
+    return null;
   }
+}
 
-  // Insufficient input -- need either an audit or a challenge to have anything to extract.
-  if (!lead.audit_content && !lead.challenge) {
+/**
+ * Pure generation: run the OpenAI pain-profile call for a prospect and return
+ * the sanitized profile + tokens used, or null on insufficient input / API
+ * error / malformed JSON (each logged to system_events). Persists NOTHING.
+ */
+async function generatePainProfile(
+  leadId: number,
+  input: PainPromptInput,
+  briefContext: string | null
+): Promise<{ profile: PainPointProfile; tokensUsed: number } | null> {
+  if (!input.auditContent && !input.challenge) {
     await logEvent({
       eventType: 'ai.pain_extract_skipped',
-      leadId: lead.id,
+      leadId,
       source: 'openai',
       status: 'partial',
-      payload: { reason: 'no_audit_or_challenge', company: lead.company }
+      payload: { reason: 'no_audit_or_challenge', company: input.company }
     });
     return null;
   }
@@ -205,7 +226,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
     completion = await openaiChatCompletion(
       [
         { role: 'system', content: SYSTEM_INSTRUCTIONS },
-        { role: 'user', content: buildUserPrompt(lead, briefContext) }
+        { role: 'user', content: buildUserPrompt(input, briefContext) }
       ],
       { json: true, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, model: MODEL }
     );
@@ -213,7 +234,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
     if (err instanceof OpenAIKeyMissingError) {
       await logEvent({
         eventType: 'api.openai_error',
-        leadId: lead.id,
+        leadId,
         source: 'openai',
         status: 'failure',
         errorMessage: 'OPENAI_API_KEY missing during pain extract'
@@ -223,7 +244,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
     if (err instanceof OpenAIApiError) {
       await logEvent({
         eventType: err.status === 429 ? 'api.rate_limited' : 'api.openai_error',
-        leadId: lead.id,
+        leadId,
         source: 'openai',
         status: 'failure',
         payload: { route: 'pain_extractor', status_code: err.status },
@@ -233,7 +254,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
     }
     await logEvent({
       eventType: 'ai.pain_extract_failed',
-      leadId: lead.id,
+      leadId,
       source: 'openai',
       status: 'failure',
       errorMessage: (err as Error).message.slice(0, 500)
@@ -245,7 +266,7 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
   if (!parsed || typeof parsed.primary_pain !== 'string' || !parsed.primary_pain.trim()) {
     await logEvent({
       eventType: 'ai.pain_extract_failed',
-      leadId: lead.id,
+      leadId,
       source: 'openai',
       status: 'failure',
       payload: { raw_first_300: completion.text.slice(0, 300) },
@@ -278,6 +299,48 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
       : [],
     extracted_at: new Date().toISOString()
   };
+
+  return { profile, tokensUsed: completion.usage.totalTokens };
+}
+
+/**
+ * Extract the pain profile for one lead. Updates leads row. Returns the
+ * parsed profile on success, null on insufficient-data or error.
+ */
+export async function extractPainProfileForLead(leadId: number): Promise<PainPointProfile | null> {
+  const start = Date.now();
+  const db = getAvDb();
+
+  const [rows] = await db.execute<LeadRow[]>(
+    `SELECT id, company, industry, contact_name, contact_title,
+            challenge, audit_content, pain_extracted_at, client_id
+       FROM leads
+      WHERE id = ?
+        AND archived_at IS NULL
+      LIMIT 1`,
+    [leadId]
+  );
+  if (rows.length === 0) return null;
+  const lead = rows[0];
+
+  // When the lead belongs to a CLIENT, the rep sells THAT client's offer -- coach
+  // the call around it (not Atlantic & Vine's services). Non-fatal if unavailable.
+  const briefContext = await buildPainBriefContextForLens(lensForClient(lead.client_id));
+
+  const gen = await generatePainProfile(
+    lead.id,
+    {
+      company: lead.company,
+      industry: lead.industry,
+      contact_name: lead.contact_name,
+      contact_title: lead.contact_title,
+      challenge: lead.challenge,
+      auditContent: lead.audit_content
+    },
+    briefContext
+  );
+  if (!gen) return null; // insufficient input / failure already logged
+  const { profile } = gen;
 
   try {
     await db.execute<ResultSetHeader>(
@@ -318,7 +381,84 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
       urgency: profile.urgency_signal,
       timing: profile.timing_signal,
       starter_count: profile.conversation_starters.length,
-      tokens_used: completion.usage.totalTokens
+      tokens_used: gen.tokensUsed
+    },
+    executionTimeMs: elapsedMs
+  });
+
+  return profile;
+}
+
+/**
+ * Build the call script (pain profile) for a lead under an EXPLICIT seller lens
+ * and persist it ONLY to that lens's row — never the leads.pain_point_profile
+ * column (the owner's current view). Coaches the call from that lens's offer
+ * and reads that lens's audit content (passed in, or looked up). Used by the
+ * "generate the EBW / A&V pitch for this lead" path so a generated lens carries
+ * both an audit and a matching call script.
+ */
+export async function extractPainProfileForLeadLens(
+  leadId: number,
+  targetLens: string,
+  auditContentOverride?: string | null
+): Promise<PainPointProfile | null> {
+  const start = Date.now();
+  const db = getAvDb();
+
+  const [rows] = await db.execute<LeadRow[]>(
+    `SELECT id, company, industry, contact_name, contact_title,
+            challenge, audit_content, pain_extracted_at, client_id
+       FROM leads
+      WHERE id = ?
+        AND archived_at IS NULL
+      LIMIT 1`,
+    [leadId]
+  );
+  if (rows.length === 0) return null;
+  const lead = rows[0];
+
+  // Use the lens's own audit (the one we just generated), not the owner column.
+  let auditContent = auditContentOverride ?? null;
+  if (auditContent == null) {
+    const lensAudit = await getLeadAudit(leadId, targetLens).catch(() => null);
+    auditContent = lensAudit?.auditContent ?? null;
+  }
+
+  const briefContext = await buildPainBriefContextForLens(targetLens);
+
+  const gen = await generatePainProfile(
+    lead.id,
+    {
+      company: lead.company,
+      industry: lead.industry,
+      contact_name: lead.contact_name,
+      contact_title: lead.contact_title,
+      challenge: lead.challenge,
+      auditContent
+    },
+    briefContext
+  );
+  if (!gen) return null;
+  const { profile } = gen;
+
+  // No-drift: write ONLY this lens's row. leads.pain_point_profile is untouched.
+  await saveLeadAudit({
+    leadId: lead.id,
+    lens: targetLens,
+    painPointProfile: profile
+  }).catch(() => {});
+
+  const elapsedMs = Date.now() - start;
+  await logEvent({
+    eventType: 'ai.pain_extracted',
+    leadId: lead.id,
+    source: 'openai',
+    status: 'success',
+    payload: {
+      lens: targetLens,
+      company: lead.company,
+      primary_pain_preview: profile.primary_pain.slice(0, 100),
+      tokens_used: gen.tokensUsed
     },
     executionTimeMs: elapsedMs
   });
