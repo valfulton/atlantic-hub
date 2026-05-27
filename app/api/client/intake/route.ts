@@ -73,6 +73,53 @@ const IntakeSchema = z.object({
   // Anything else the form sends is still captured verbatim into intake_payload.
 }).passthrough();
 
+/**
+ * Map the PUBLIC FORM's field names onto the brief's canonical keys so a client's
+ * richest answers actually populate the labeled Creative Brief — not just sit in
+ * the raw payload. The website form uses ideal_client / founder_story /
+ * proof_points / client_problems and three brand-personality radios; the brief
+ * reads target_audience / why_advertise / message_support / audience_insights /
+ * brand_voice / preferred_channels.
+ *
+ * Non-destructive: only fills a canonical key the form didn't already send
+ * directly, and keeps every original field too (nothing is lost). Fixes the
+ * intake→brief "drift" where submitted answers didn't reach the labeled brief.
+ */
+function normalizeIntakeForBrief(data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  const setIfEmpty = (key: string, val: unknown) => {
+    if (val == null || val === '') return;
+    const cur = out[key];
+    if (cur == null || cur === '') out[key] = val;
+  };
+
+  setIfEmpty('target_audience', data.ideal_client);
+  setIfEmpty('message_support', data.proof_points);
+  setIfEmpty('why_advertise', data.founder_story);
+  setIfEmpty('audience_insights', data.client_problems);
+
+  // brand_voice ← compose from the three personality radios (Traditional/Modern,
+  // Friendly/Corporate, High-end/Cost-effective).
+  const voiceBits = [data.brand_traditional, data.brand_friendly, data.brand_pricing]
+    .filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+  if (voiceBits.length) setIfEmpty('brand_voice', voiceBits.join(', '));
+
+  // preferred_channels ← content platforms (checkboxes, may be array) + any
+  // socials the client connected in-form.
+  const channels: string[] = [];
+  if (Array.isArray(data.content_platforms)) {
+    for (const c of data.content_platforms) if (typeof c === 'string' && c) channels.push(c);
+  } else if (typeof data.content_platforms === 'string' && data.content_platforms) {
+    channels.push(data.content_platforms);
+  }
+  if (typeof data.social_connected === 'string' && data.social_connected) {
+    for (const s of data.social_connected.split(',')) if (s.trim()) channels.push(s.trim());
+  }
+  if (channels.length) setIfEmpty('preferred_channels', channels.join(', '));
+
+  return out;
+}
+
 export async function OPTIONS(req: NextRequest) {
   return new NextResponse(null, {
     status: 204,
@@ -157,9 +204,10 @@ export async function POST(req: NextRequest) {
         const existingBrief =
           ((await getBriefPayload('av', clientId)) as Record<string, unknown> | null) ?? {};
         const mergedBrief: Record<string, unknown> = { ...existingBrief };
-        // Apply the client's answers, but never overwrite an existing value
+        // Map form field names onto the brief's canonical keys first (fixes drift),
+        // then apply the client's answers — never overwriting an existing value
         // (e.g. operator prefill) with a blank the client left empty.
-        for (const [k, v] of Object.entries(data)) {
+        for (const [k, v] of Object.entries(normalizeIntakeForBrief(data))) {
           if (v === '' || v == null) continue;
           mergedBrief[k] = v;
         }
