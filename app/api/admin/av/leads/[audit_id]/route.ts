@@ -3,6 +3,7 @@ import { getAvDb } from '@/lib/db/av';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled, mysqlBoolToJs } from '@/lib/feature-flags';
 import { getClientDealModel, leadMonthlyCents, annualCents } from '@/lib/sales/deal_model';
+import { listLeadAudits } from '@/lib/ai/lead_audits';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -123,6 +124,8 @@ export async function GET(
     const dealUnitCount = r.deal_unit_count == null ? null : Number(r.deal_unit_count);
     const dealFlatCents = r.deal_flat_cents == null ? null : Number(r.deal_flat_cents);
     const dealMonthlyCents = leadMonthlyCents(dealModel, { dealUnitCount, dealFlatCents });
+    // Every seller-lens audit this lead has (multi-lens, no-drift) for the picker.
+    const auditLenses = await listLeadAudits(r.id).catch(() => []);
     return NextResponse.json({
       lead: {
         id: r.id,
@@ -176,6 +179,7 @@ export async function GET(
         dealModel,
         dealMonthlyCents,
         dealAnnualCents: annualCents(dealMonthlyCents),
+        auditLenses,
         archivedAt: r.archived_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at

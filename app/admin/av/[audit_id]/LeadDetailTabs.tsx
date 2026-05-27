@@ -84,6 +84,15 @@ interface Lead {
   dealModel?: { mode: 'per_head' | 'flat'; rateCents: number | null; unitLabel: string } | null;
   dealMonthlyCents?: number | null;
   dealAnnualCents?: number | null;
+  auditLenses?: Array<{ lens: string; auditContent: string | null; aiScore: number | null; aiScoreBand: string | null; generatedAt: string | null }>;
+}
+
+function lensLabel(lens: string): string {
+  if (lens === 'av') return 'Atlantic & Vine';
+  if (lens === 'ebw') return 'Events by Water';
+  if (lens === 'hh') return 'HunterHoney';
+  if (lens.startsWith('client:')) return `Client #${lens.slice(7)}`;
+  return lens;
 }
 
 interface NoteEntry {
@@ -124,6 +133,7 @@ const EVENT_LABEL: Record<string, string> = {
 export function LeadDetailTabs({ lead }: { lead: Lead }) {
   const [active, setActive] = useState<Tab>('Identity');
   const [legacyOpen, setLegacyOpen] = useState(false);
+  const [auditLens, setAuditLens] = useState<string | null>(null);
 
   // Identity tab — editable status + follow-up date
   const [status, setStatus] = useState(lead.leadStatus);
@@ -390,24 +400,60 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
         </div>
       )}
 
-      {active === 'Audit' && (
-        <div>
-          {lead.auditContent ? (
-            <>
-              <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono bg-surface border border-border rounded-lg p-5 max-h-[65vh] overflow-y-auto">
-                {lead.auditContent}
-              </pre>
-              {lead.auditGenerated && (
-                <p className="text-xs text-muted mt-2">
-                  Generated {fmtDateTime(lead.auditGenerated)}
-                </p>
-              )}
-            </>
-          ) : (
-            <Empty message="No audit content yet. The AI audit generates after the lead is scored in Phase 2." />
-          )}
-        </div>
-      )}
+      {active === 'Audit' && (() => {
+        const lenses = lead.auditLenses ?? [];
+        const ownerLens = lead.clientId ? `client:${lead.clientId}` : 'av';
+        const selected = auditLens
+          ?? (lenses.find((l) => l.lens === ownerLens)?.lens)
+          ?? lenses[0]?.lens
+          ?? null;
+        const current = selected ? (lenses.find((l) => l.lens === selected) ?? null) : null;
+        const content = current?.auditContent ?? lead.auditContent;
+        const generatedAt = current?.generatedAt ?? lead.auditGenerated;
+        return (
+          <div>
+            {lenses.length > 0 && (
+              <>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-1.5">Seller lens</div>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {lenses.map((l) => (
+                    <button
+                      key={l.lens}
+                      onClick={() => setAuditLens(l.lens)}
+                      className={[
+                        'text-xs px-3 py-1.5 rounded-full border transition-colors',
+                        selected === l.lens
+                          ? 'border-brand text-ink bg-[var(--surface-2)]'
+                          : 'border-border text-muted hover:text-ink'
+                      ].join(' ')}
+                    >
+                      {lensLabel(l.lens)}{l.aiScore != null ? ` · ${l.aiScore}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {content ? (
+              <>
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono bg-surface border border-border rounded-lg p-5 max-h-[65vh] overflow-y-auto">
+                  {content}
+                </pre>
+                {generatedAt && (
+                  <p className="text-xs text-muted mt-2">Generated {fmtDateTime(generatedAt)}</p>
+                )}
+                {lenses.length > 1 && selected && (
+                  <p className="text-[11px] text-muted mt-2">
+                    This lead has {lenses.length} seller lenses, each kept separately — you&apos;re viewing the{' '}
+                    <span className="text-ink">{lensLabel(selected)}</span> lens. Re-scoring under a given owner updates only that lens.
+                  </p>
+                )}
+              </>
+            ) : (
+              <Empty message="No audit content yet. The AI audit generates after the lead is scored." />
+            )}
+          </div>
+        );
+      })()}
 
       {active === 'Challenge' && (
         <div>
