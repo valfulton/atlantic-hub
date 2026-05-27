@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
+import { autoThreadAsset } from '@/lib/campaigns/line_links';
 import { getAvDb } from '@/lib/db/av';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -62,6 +63,8 @@ export async function POST(req: NextRequest) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [conn.tenant_id, connectionId, leadId, text, mediaUrl, mediaType, status, scheduledFor, guard.actor.userId]
     );
+    // Narrative spine: thread this post to the customer's active line (no-op if none).
+    autoThreadAsset({ tenantId: conn.tenant_id, leadId, assetType: 'social_post', assetId: res.insertId }).catch(() => {});
     return NextResponse.json({ ok: true, outboxId: res.insertId, status, scheduledFor });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });

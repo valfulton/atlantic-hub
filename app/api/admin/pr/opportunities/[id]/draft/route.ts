@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
+import { autoThreadAsset } from '@/lib/campaigns/line_links';
 import { logEvent } from '@/lib/events/log';
 import { draftPitch, upsertIntelligenceObjects } from '@/lib/pr/drafter';
 import { DEFAULT_TENANT, type PrOpportunity, type PrSource } from '@/lib/pr/types';
@@ -107,6 +108,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       [opportunity.id, opportunity.tenantId, leadId, drafted.bodyText, drafted.model]
     );
     const pitchId = pres.insertId;
+
+    // Narrative spine: thread this pitch to the customer's active line (no-op if none).
+    autoThreadAsset({ tenantId: opportunity.tenantId, leadId, assetType: 'pr_pitch', assetId: pitchId }).catch(() => {});
 
     // Compound the intelligence graph: persist anything the drafter derived.
     const written = await upsertIntelligenceObjects({
