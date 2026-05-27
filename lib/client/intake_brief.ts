@@ -47,6 +47,17 @@ export interface BriefSeed {
   brandColors: string | null;
   preferredChannels: string | null;
   timeline: string | null;
+  // PR & authority block — what the client told us about their visibility goals,
+  // expert topics, timely hooks, dream outlets, spokesperson, and credibility.
+  // Feeds PR pitch/release grounding (lib/pr/drafter.ts) so a pitch leads with
+  // what THEY can speak to, aimed where THEY want to land.
+  prGoals: string | null;
+  prExpertTopics: string | null;
+  prNewsHooks: string | null;
+  prDreamOutlets: string | null;
+  prSpokesperson: string | null;
+  notableClients: string | null;
+  pressAwards: string | null;
   /** Ready-to-use seed for createLane(...) — a candidate line from their own words. */
   lineSeed: NarrativeLineFields & { name: string };
 }
@@ -80,6 +91,13 @@ export function extractBriefSeedFromIntake(intakePayload: unknown): BriefSeed {
     brandColors: pick(o, ['brand_colors']),
     preferredChannels: channels,
     timeline,
+    prGoals: pick(o, ['pr_goals']),
+    prExpertTopics: pick(o, ['pr_expert_topics']),
+    prNewsHooks: pick(o, ['pr_news_hooks']),
+    prDreamOutlets: pick(o, ['pr_dream_outlets']),
+    prSpokesperson: pick(o, ['pr_spokesperson']),
+    notableClients: pick(o, ['notable_clients']),
+    pressAwards: pick(o, ['press_awards']),
     lineSeed: {
       name: keyMessage ? keyMessage.slice(0, 80) : (company ? `${company} — opening line` : 'Opening narrative line'),
       thesis: keyMessage,

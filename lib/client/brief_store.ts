@@ -325,6 +325,16 @@ export async function getBriefForPrompt(args: {
   add('VOICE', seed.brandVoice);
   add('DIFFERENTIATORS', seed.differentiators);
   add('COMPETITORS', seed.competitors);
+  // PR & authority — what they can speak to, where they want to land, and the
+  // proof that makes them quotable. Drives PR pitch/release grounding so a pitch
+  // leads with THEIR expertise aimed at THEIR target outlets.
+  add('PR_VISIBILITY_GOALS', seed.prGoals);
+  add('PR_EXPERT_TOPICS', seed.prExpertTopics);
+  add('PR_TIMELY_HOOKS', seed.prNewsHooks);
+  add('PR_DREAM_OUTLETS', seed.prDreamOutlets);
+  add('PR_SPOKESPERSON', seed.prSpokesperson);
+  add('NOTABLE_CLIENTS', seed.notableClients);
+  add('PRESS_AND_AWARDS', seed.pressAwards);
 
   const grounded = lines.length > 2; // more than BRAND_IDENTITY + BRAND
   if (!grounded) {
