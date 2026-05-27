@@ -84,6 +84,79 @@ export async function linkAssetToLine(args: {
   }
 }
 
+/**
+ * The customer's PRIMARY active narrative line id (sort_order first), or null.
+ * Scoped by (tenant, clientId) — clientId null = the brand's own house lines.
+ * Own small query (not importing the campaigns store) to avoid a circular dep.
+ */
+async function primaryActiveLineId(tenantId: string, clientId: number | null): Promise<number | null> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { id: number })[]>(
+      `SELECT id FROM narrative_lanes
+        WHERE tenant_id = ? AND client_id <=> ? AND archived_at IS NULL
+          AND state IN ('active','reinforcing')
+        ORDER BY sort_order ASC, name ASC
+        LIMIT 1`,
+      [tenantId, clientId]
+    );
+    return rows[0]?.id ?? null;
+  } catch (err) {
+    console.error('[line_links:primaryActive]', (err as Error).message);
+    return null;
+  }
+}
+
+/** The client_id that owns a lead (null = operator/house prospect). */
+async function clientIdForLead(leadId: number): Promise<number | null> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { client_id: number | null })[]>(
+      `SELECT client_id FROM leads WHERE id = ? LIMIT 1`,
+      [leadId]
+    );
+    return rows[0]?.client_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Auto-thread a freshly created asset to the customer's primary ACTIVE narrative
+ * line, so every channel reinforces one story ("one story everywhere"). No-op
+ * (returns false) when the customer has no active line yet. Never throws — safe
+ * to fire-and-forget from any generation flow. Idempotent via linkAssetToLine.
+ *
+ * Pass `clientId` directly, OR pass `leadId` and we resolve the owner: a lead
+ * owned by a client threads to THAT client's line; a prospect (client_id NULL)
+ * threads to the brand's own house line. Content reinforces the right story.
+ */
+export async function autoThreadAsset(args: {
+  tenantId: string;
+  clientId?: number | null;
+  leadId?: number | null;
+  assetType: LinkAssetType;
+  assetId: number;
+  role?: LinkRole;
+  note?: string | null;
+}): Promise<boolean> {
+  if (!Number.isInteger(args.assetId) || args.assetId <= 0) return false;
+  let clientId = args.clientId ?? null;
+  if (clientId == null && args.leadId != null && args.leadId > 0) {
+    clientId = await clientIdForLead(args.leadId);
+  }
+  const lineId = await primaryActiveLineId(args.tenantId, clientId);
+  if (!lineId) return false;
+  return linkAssetToLine({
+    tenantId: args.tenantId,
+    narrativeLineId: lineId,
+    assetType: args.assetType,
+    assetId: args.assetId,
+    role: args.role ?? 'advances',
+    note: args.note ?? 'auto-threaded on create'
+  });
+}
+
 export async function unlinkAssetFromLine(narrativeLineId: number, assetType: LinkAssetType, assetId: number): Promise<boolean> {
   try {
     const db = getAvDb();

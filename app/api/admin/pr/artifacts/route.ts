@@ -19,6 +19,7 @@ import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { draftArtifact } from '@/lib/pr/artifacts';
 import { upsertIntelligenceObjects } from '@/lib/pr/drafter';
+import { autoThreadAsset } from '@/lib/campaigns/line_links';
 import {
   DEFAULT_TENANT,
   CONTENT_EVENTS,
@@ -184,6 +185,12 @@ export async function POST(req: NextRequest) {
       ]
     );
     const id = ins.insertId;
+
+    // Narrative spine: thread this new content to the customer's active line so
+    // the Story Map fills and "one story everywhere" holds. Fire-and-forget;
+    // no-op if the customer has no active line. clientId is resolved from the
+    // lead (a prospect threads to the brand's own house line).
+    autoThreadAsset({ tenantId, leadId: storedLeadId, assetType: 'content_artifact', assetId: id }).catch(() => {});
 
     // Compound the intelligence graph: persist anything the drafter derived.
     const written = await upsertIntelligenceObjects({
