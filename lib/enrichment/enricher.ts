@@ -110,6 +110,16 @@ async function getMonthlyCreditUsage(): Promise<number> {
 }
 
 /**
+ * Hunter credit status for the current month — for the operator dashboard's
+ * vendor strip (so val can see enrichment headroom without running a batch).
+ */
+export async function getHunterCreditStatus(): Promise<{ used: number; ceiling: number; remaining: number }> {
+  const used = await getMonthlyCreditUsage().catch(() => 0);
+  const ceiling = DEFAULT_MONTHLY_CREDIT_CEILING;
+  return { used, ceiling, remaining: Math.max(0, ceiling - used) };
+}
+
+/**
  * Insert one row into hunter_credit_log.
  */
 async function logCreditUsage(opts: {

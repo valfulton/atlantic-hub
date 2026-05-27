@@ -4,6 +4,7 @@ import { serverFetch } from '@/lib/server-fetch';
 import { AvLeadsTable } from './AvLeadsTable';
 import type { AvLead } from './AvLeadsTable';
 import { EnrichButton } from './EnrichButton';
+import { VendorStatus } from './VendorStatus';
 import { CoachCallsButton } from './CoachCallsButton';
 import { LeadOfTheDay } from '@/components/LeadOfTheDay';
 import { HotLeadConfetti } from '@/components/HotLeadConfetti';
@@ -377,6 +378,7 @@ export default async function AvPage({
             <EnrichButton defaultLimit={5} />
           </div>
         </div>
+        <VendorStatus />
         <AvLeadsTable leads={leads} sortKey={sortParam} sortDirection={directionParam as 'asc' | 'desc'} />
       </div>
     </div>
