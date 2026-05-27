@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { StoryMap } from './StoryMap';
+import { celebrateConversion } from '@/components/ConversionConfetti';
 
 type LineState = 'candidate' | 'active' | 'reinforcing' | 'retiring';
 
@@ -284,11 +285,17 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
       }
       setLines((ls) => ls.map((l) => (l.id === id ? { ...l, state } : l)));
       setDraft((d) => (d[id] ? { ...d, [id]: { ...d[id], state } } : d));
-      setSaveMsg((m) => ({ ...m, [id]: { ok: true, text: `Moved to ${state}.` } }));
+      // Going live is the win — celebrate it so it's unmistakable the line is active.
+      if (state === 'active') {
+        celebrateConversion(lines.find((l) => l.id === id)?.name);
+        setSaveMsg((m) => ({ ...m, [id]: { ok: true, text: '🎉 Live — now steering content' } }));
+      } else {
+        setSaveMsg((m) => ({ ...m, [id]: { ok: true, text: `Moved to ${state}.` } }));
+      }
     } catch {
       setSaveMsg((m) => ({ ...m, [id]: { ok: false, text: 'Could not reach the server. Check your connection and retry.' } }));
     }
-  }, []);
+  }, [lines]);
 
   const submitEngagement = useCallback(async (id: number) => {
     // Records one reading per ticked channel (so "check all" logs the same
@@ -518,6 +525,14 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
 
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid rgba(148,163,184,0.12)', paddingTop: 12 }}>
+      {(line.state === 'active' || line.state === 'reinforcing') && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(16,185,129,0.45)', background: 'rgba(16,185,129,0.12)', color: '#6ee7b7', fontSize: 12, fontWeight: 600 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#6ee7b7', boxShadow: '0 0 0 3px rgba(16,185,129,0.25)' }} />
+          {line.state === 'active'
+            ? 'Live — this is your active story, steering content now.'
+            : 'Reinforcing — this story is being doubled down on.'}
+        </div>
+      )}
       <div>
         <label style={labelStyle}>Thesis — the believable market thesis, one sentence</label>
         <textarea
@@ -562,13 +577,13 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
         {ideas && ideas.items.length > 0 && (
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>
-              Best fit first. Click <strong style={{ color: '#e2e8f0' }}>Use this thesis</strong> — it fills the Thesis box and saves in one step. Then click <strong style={{ color: '#e2e8f0' }}>Activate</strong>.
+              Best fit first. <strong style={{ color: '#e2e8f0' }}>Use &amp; activate</strong> makes that suggestion your live story in one click — fills the Thesis box, saves, and goes active (you can still edit + re-save after).
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
               {ideas.items.map((s, i) => {
                 const bs = BAND_STYLE[s.band];
                 return (
-                  <div key={i} style={{ border: `1px solid ${bs.border}`, background: bs.bg, borderRadius: 10, padding: 11, animation: bs.spark ? 'avSpark 2.4s ease-in-out infinite' : undefined }}>
+                  <div key={i} style={{ border: `1px solid ${bs.border}`, background: bs.bg, borderRadius: 10, padding: 11, animation: bs.spark && line.state !== 'active' && line.state !== 'reinforcing' ? 'avSpark 2.4s ease-in-out infinite' : undefined }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: bs.fg }}>{bs.spark ? '✨ ' : ''}{bs.label}</span>
                       {s.matchedTerms.length > 0 && (
@@ -579,11 +594,13 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                     {s.why && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.why}</div>}
                     <button
                       type="button"
-                      onClick={() => {
-                        // Fill the Thesis box AND save in one click (override avoids a
-                        // setState race), then scroll up so you see it landed + saved.
+                      onClick={async () => {
+                        // One click: fill the Thesis box, save it, and make it the live
+                        // story. (override avoids a setState race.) Then scroll up so you
+                        // see it landed; activation pops confetti + the Live banner.
                         patchField(id, 'thesis', s.thesis);
-                        saveLine(id, { thesis: s.thesis });
+                        await saveLine(id, { thesis: s.thesis });
+                        await changeState(id, 'active');
                         const el = typeof document !== 'undefined' ? document.getElementById(`thesis-${id}`) : null;
                         if (el) {
                           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -592,7 +609,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                       }}
                       style={{ ...btnPrimary, marginTop: 8, fontSize: 11, padding: '5px 12px' }}
                     >
-                      Use this thesis ↑ (fills &amp; saves — then Activate)
+                      ✦ Use &amp; activate this story
                     </button>
                   </div>
                 );
