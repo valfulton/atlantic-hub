@@ -158,7 +158,13 @@ export default async function ClientLeadsPage() {
               <li key={l.id} className="rounded-2xl border border-border bg-surface p-5 flex flex-col">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-ink font-medium leading-snug truncate">{l.company}</h3>
+                    {l.auditId ? (
+                      <a href={`/client/leads/${l.auditId}`} className="text-ink font-medium leading-snug truncate hover:text-brand hover:underline block">
+                        {l.company}
+                      </a>
+                    ) : (
+                      <h3 className="text-ink font-medium leading-snug truncate">{l.company}</h3>
+                    )}
                     {l.industry && (
                       <div className="text-[11px] uppercase tracking-[0.12em] text-muted mt-1">{l.industry}</div>
                     )}
