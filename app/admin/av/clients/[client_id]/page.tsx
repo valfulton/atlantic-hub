@@ -18,6 +18,7 @@ import { getClientIcpWithProvenance } from '@/lib/client/icp';
 import { signIntakeShareToken } from '@/lib/auth/intake-share';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
+import ReleaseLeadsPanel from './ReleaseLeadsPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
 
@@ -232,6 +233,23 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}
       <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />
+
+      {/* Bulk take-back: return this client's leads to the house pipeline (#96).
+          Ownership flips only; enrichment/scores/audits stay on the lead. */}
+      <ReleaseLeadsPanel
+        clientId={clientId}
+        clientName={d.name}
+        leads={d.leads
+          .filter((l): l is typeof l & { auditId: string } => typeof l.auditId === 'string' && l.auditId.length > 0)
+          .map((l) => ({
+            auditId: l.auditId,
+            company: l.company,
+            industry: l.industry,
+            contactName: l.contactName,
+            score: l.score,
+            band: l.band
+          }))}
+      />
 
       {/* Enrich this client's leads on their behalf (Hunter contact details). */}
       <EnrichClientLeadsButton clientId={clientId} clientName={d.name} />
