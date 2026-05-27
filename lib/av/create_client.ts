@@ -14,6 +14,7 @@
 import { generateMagicToken, magicTokenExpiresAt, buildMagicLinkUrl, MAGIC_TOKEN_TTL_HOURS } from '@/lib/auth/client-magic-token';
 import { upsertClientUserForIntake } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
+import { setBrandMember } from '@/lib/client/membership';
 import { setClientAccess } from '@/lib/av/client_access';
 import { extractBriefSeedFromIntake } from '@/lib/client/intake_brief';
 import { createLane } from '@/lib/campaigns/store';
@@ -90,6 +91,12 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
   let clientId: number | null = row.client_id;
   if (!clientId) {
     try { clientId = await ensureClientHub(row); } catch { clientId = null; }
+  }
+
+  // Register this login as OWNER of its brand (multi-brand model #101). The 058
+  // backfill covered pre-existing accounts; new ones get their membership here.
+  if (clientId) {
+    await setBrandMember(row.client_user_id, clientId, 'owner').catch(() => {});
   }
 
   // Tier + optional trial window. Default to the full package for testing.

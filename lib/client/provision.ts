@@ -36,10 +36,12 @@ function slugify(input: string): string {
 
 type ProvisionUser = Pick<ClientUserRow, 'client_user_id' | 'client_id' | 'display_name' | 'email' | 'tier'>;
 
+export type PlanTier = 'sprint' | 'momentum' | 'scale';
+
 async function insertClient(
   name: string,
   slug: string,
-  planTier: 'sprint' | 'momentum' | 'scale'
+  planTier: PlanTier
 ): Promise<number> {
   const db = getAvDb();
   const [res] = await db.execute<ResultSetHeader>(
@@ -49,6 +51,44 @@ async function insertClient(
   );
   return res.insertId;
 }
+
+/** Pick a slug derived from name that doesn't collide (client_slug is UNIQUE). */
+async function pickFreeSlug(baseName: string): Promise<string> {
+  const baseSlug = slugify(baseName);
+  try {
+    const db = getAvDb();
+    const [taken] = await db.execute<RowDataPacket[]>(
+      `SELECT client_slug FROM clients WHERE client_slug LIKE ?`,
+      [`${baseSlug}%`]
+    );
+    const used = new Set(taken.map((r) => String(r.client_slug)));
+    return used.has(baseSlug) ? `${baseSlug}-${randomUUID().slice(0, 6)}` : baseSlug;
+  } catch {
+    return `${baseSlug}-${randomUUID().slice(0, 6)}`;
+  }
+}
+
+/**
+ * Create a standalone brand hub (a `clients` row) and return its client_id —
+ * WITHOUT touching client_users. This is the multi-brand primitive: a brand can
+ * be owned by an existing login (via brand_members) rather than minting a new
+ * login. Returns null on failure. See lib/av/add_brand.ts.
+ */
+export async function createBrandHub(name: string, planTier: PlanTier = 'sprint'): Promise<number | null> {
+  const cleanName = (name && name.trim()) || 'Brand';
+  try {
+    return await insertClient(cleanName, await pickFreeSlug(cleanName), planTier);
+  } catch {
+    try {
+      return await insertClient(cleanName, `${slugify(cleanName)}-${randomUUID().slice(0, 6)}`, planTier);
+    } catch (err) {
+      console.error('[client-provision] createBrandHub failed:', (err as Error).message);
+      return null;
+    }
+  }
+}
+
+export { planTierFor };
 
 /**
  * Ensure the given client_user has its own clients row + linked client_id.

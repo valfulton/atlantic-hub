@@ -19,6 +19,7 @@ import { signIntakeShareToken } from '@/lib/auth/intake-share';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import ReleaseLeadsPanel from './ReleaseLeadsPanel';
+import AddBrandPanel from './AddBrandPanel';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
 
@@ -138,6 +139,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       <div className="mb-5">
         <ExtractIntelButton clientId={clientId} />
       </div>
+
+      {/* Multi-brand (#101): give this same login another brand (e.g. Adriana's CBB + CLDA). */}
+      <AddBrandPanel clientId={clientId} ownerName={d.members[0]?.displayName || d.name} />
 
       {/* Account info editor (name / industry / contact) — no SQL needed. */}
       <AccountInfoEditor
