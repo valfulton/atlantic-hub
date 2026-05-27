@@ -9,8 +9,9 @@
  * /api/admin/av/clients/[id]/icp; the next "Find leads for this client" run uses
  * the new ICP immediately (excluded industries are filtered out of results).
  */
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
+import type { IcpProvenance, IcpItemSource } from '@/lib/client/icp';
 
 interface IcpValue {
   industries: string[];
@@ -30,8 +31,56 @@ const toNum = (s: string): number | null => {
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
-export default function IcpEditor({ clientId, initial }: { clientId: number; initial: IcpValue }) {
+// Inline styles (not palette classes) so the colors always render regardless of
+// Tailwind purge. Amber = operator (val), teal = client, muted = new/unsaved.
+const CHIP_STYLE: Record<'operator' | 'client' | 'new', CSSProperties> = {
+  operator: { borderColor: 'rgba(255,199,61,0.45)', color: '#FFC73D', background: 'rgba(255,199,61,0.10)' },
+  client: { borderColor: 'rgba(94,234,212,0.45)', color: '#5eead4', background: 'rgba(94,234,212,0.10)' },
+  new: { borderColor: 'var(--border, rgba(255,255,255,0.15))', color: 'var(--muted, #9aa)', background: 'transparent' }
+};
+
+/** Live chips beneath a list field, colored by who authored each item. New items
+ *  the operator just typed (not yet on file) show muted until saved. */
+function ProvenanceChips({ value, sources }: { value: string; sources: Record<string, IcpItemSource> }) {
+  const items = toList(value);
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-1.5">
+      {items.map((it, i) => {
+        const src = sources[it.toLowerCase()];
+        const key = src === 'client' ? 'client' : src === 'operator' ? 'operator' : 'new';
+        return (
+          <span
+            key={`${it}-${i}`}
+            className="text-[11px] px-2 py-0.5 rounded-full border"
+            style={CHIP_STYLE[key]}
+            title={src === 'client' ? 'Client added this' : src === 'operator' ? 'You added this' : 'New — save to keep'}
+          >
+            {it}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function IcpEditor({
+  clientId,
+  initial,
+  provenance
+}: {
+  clientId: number;
+  initial: IcpValue;
+  provenance?: IcpProvenance;
+}) {
   const router = useRouter();
+  const prov = provenance ?? {
+    industries: {},
+    geographies: {},
+    excludeGeographies: {},
+    excludedIndustries: {},
+    description: null
+  };
   const [industries, setIndustries] = useState(toLine(initial.industries));
   const [excludedIndustries, setExcludedIndustries] = useState(toLine(initial.excludedIndustries));
   const [geographies, setGeographies] = useState(toLine(initial.geographies));
@@ -77,31 +126,47 @@ export default function IcpEditor({ clientId, initial }: { clientId: number; ini
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 mb-5">
       <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-1">Their ICP — who discovery targets</div>
-      <p className="text-xs text-muted mb-3 leading-relaxed">
+      <p className="text-xs text-muted mb-2 leading-relaxed">
         These drive &ldquo;Find leads for this client.&rdquo; Target their <span className="text-ink">customers&rsquo;</span> industries
         (not the client&rsquo;s own), and exclude the noise. Comma-separated.
       </p>
+      <div className="flex flex-wrap items-center gap-3 mb-3 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border" style={CHIP_STYLE.operator} /> You added
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border" style={CHIP_STYLE.client} /> Client added
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border" style={CHIP_STYLE.new} /> New — save to keep
+        </span>
+        <span className="text-muted">· edit freely; chips are just a cue for what they changed</span>
+      </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block sm:col-span-2">
           <span className={label}>Target industries / keywords</span>
           <span className={hint}>The kinds of companies they sell to — e.g. construction, restaurants, manufacturers</span>
           <input className={input} value={industries} onChange={(e) => setIndustries(e.target.value)} />
+          <ProvenanceChips value={industries} sources={prov.industries} />
         </label>
         <label className="block sm:col-span-2">
           <span className={label}>Exclude industries</span>
           <span className={hint}>Drop these from results — e.g. hospital, health system, insurance carrier</span>
           <input className={input} value={excludedIndustries} onChange={(e) => setExcludedIndustries(e.target.value)} />
+          <ProvenanceChips value={excludedIndustries} sources={prov.excludedIndustries} />
         </label>
         <label className="block">
           <span className={label}>Locations</span>
           <span className={hint}>City / state / country</span>
           <input className={input} value={geographies} onChange={(e) => setGeographies(e.target.value)} />
+          <ProvenanceChips value={geographies} sources={prov.geographies} />
         </label>
         <label className="block">
           <span className={label}>Exclude locations</span>
           <span className={hint}>Optional</span>
           <input className={input} value={excludeGeographies} onChange={(e) => setExcludeGeographies(e.target.value)} />
+          <ProvenanceChips value={excludeGeographies} sources={prov.excludeGeographies} />
         </label>
         <label className="block">
           <span className={label}>Company size — min employees</span>

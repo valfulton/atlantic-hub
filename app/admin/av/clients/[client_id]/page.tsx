@@ -14,7 +14,7 @@ import FindLeadsForClient from './FindLeadsForClient';
 import IcpEditor from './IcpEditor';
 import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import { getBriefPayload } from '@/lib/client/brief_store';
-import { getClientIcp } from '@/lib/client/icp';
+import { getClientIcpWithProvenance } from '@/lib/client/icp';
 import { signIntakeShareToken } from '@/lib/auth/intake-share';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
@@ -51,7 +51,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   if (!d) notFound();
 
   const access = await getClientAccessState(clientId);
-  const icp = await getClientIcp(clientId);
+  const { icp, provenance: icpProvenance } = await getClientIcpWithProvenance(clientId);
   const currentTier = (d.members[0]?.tier as ClientTier) || 'sprint';
 
   // Intake-gate state for the toggle: the operator override (portal_full_access)
@@ -225,7 +225,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       </div>
 
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
-      <IcpEditor clientId={clientId} initial={icp} />
+      <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />
 
       {/* Find leads scoped to THIS client (their hub only — never the AV pipeline). */}
       <FindLeadsForClient clientId={clientId} clientName={d.name} />

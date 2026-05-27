@@ -45,6 +45,28 @@ export const EMPTY_ICP: ClientIcp = {
   description: ''
 };
 
+/** Who authored an ICP item: the operator (val) or the client (their intake). */
+export type IcpItemSource = 'operator' | 'client';
+
+/** Per-item authorship, keyed by lowercased item value within each list field. */
+export interface IcpProvenance {
+  industries: Record<string, IcpItemSource>;
+  geographies: Record<string, IcpItemSource>;
+  excludeGeographies: Record<string, IcpItemSource>;
+  excludedIndustries: Record<string, IcpItemSource>;
+  description: IcpItemSource | null;
+}
+
+export function emptyProvenance(): IcpProvenance {
+  return {
+    industries: {},
+    geographies: {},
+    excludeGeographies: {},
+    excludedIndustries: {},
+    description: null
+  };
+}
+
 interface IcpRow extends RowDataPacket {
   target_industries: unknown;
   target_geographies: unknown;
@@ -53,6 +75,34 @@ interface IcpRow extends RowDataPacket {
   target_company_size_min: number | null;
   target_company_size_max: number | null;
   description: string | null;
+  provenance: unknown;
+}
+
+/** mysql2 returns JSON columns parsed; tolerate a string or null too. */
+function asSourceMap(v: unknown): Record<string, IcpItemSource> {
+  const out: Record<string, IcpItemSource> = {};
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (val === 'operator' || val === 'client') out[k.trim().toLowerCase()] = val;
+    }
+  }
+  return out;
+}
+
+function parseProvenance(v: unknown): IcpProvenance {
+  let val: unknown = v;
+  if (typeof val === 'string') {
+    try { val = JSON.parse(val); } catch { val = null; }
+  }
+  const o = val && typeof val === 'object' && !Array.isArray(val) ? (val as Record<string, unknown>) : {};
+  const desc = o.description;
+  return {
+    industries: asSourceMap(o.industries),
+    geographies: asSourceMap(o.geographies),
+    excludeGeographies: asSourceMap(o.excludeGeographies),
+    excludedIndustries: asSourceMap(o.excludedIndustries),
+    description: desc === 'operator' || desc === 'client' ? desc : null
+  };
 }
 
 /** mysql2 returns JSON columns already-parsed, but tolerate strings too. */
@@ -131,6 +181,34 @@ export async function getClientIcp(clientId: number): Promise<ClientIcp> {
   };
 }
 
+/** Read the client's saved ICP together with its per-item authorship. */
+export async function getClientIcpWithProvenance(
+  clientId: number
+): Promise<{ icp: ClientIcp; provenance: IcpProvenance }> {
+  if (!clientId || clientId <= 0) return { icp: { ...EMPTY_ICP }, provenance: emptyProvenance() };
+  const db = getAvDb();
+  const [rows] = await db.execute<IcpRow[]>(
+    `SELECT target_industries, target_geographies, excluded_topics, excluded_industries,
+            target_company_size_min, target_company_size_max, description, provenance
+       FROM client_icps WHERE client_id = ? LIMIT 1`,
+    [clientId]
+  );
+  const r = rows[0];
+  if (!r) return { icp: { ...EMPTY_ICP }, provenance: emptyProvenance() };
+  return {
+    icp: {
+      industries: asStringArray(r.target_industries),
+      geographies: asStringArray(r.target_geographies),
+      excludeGeographies: asStringArray(r.excluded_topics),
+      excludedIndustries: asStringArray(r.excluded_industries),
+      companySizeMin: clampSize(r.target_company_size_min),
+      companySizeMax: clampSize(r.target_company_size_max),
+      description: typeof r.description === 'string' ? r.description : ''
+    },
+    provenance: parseProvenance(r.provenance)
+  };
+}
+
 /** Normalize a raw inbound ICP (from a form/JSON body) into a clean ClientIcp. */
 export function normalizeIcp(raw: Record<string, unknown> | null | undefined): ClientIcp {
   const r = raw ?? {};
@@ -145,15 +223,22 @@ export function normalizeIcp(raw: Record<string, unknown> | null | undefined): C
   };
 }
 
-/** Upsert the client's ICP (one row per client). */
-export async function saveClientIcp(clientId: number, icp: ClientIcp, userId?: number | null): Promise<void> {
+/** Upsert the client's ICP (one row per client). Optionally records per-item
+ *  authorship (provenance) so the editor can color what val wrote vs the client. */
+export async function saveClientIcp(
+  clientId: number,
+  icp: ClientIcp,
+  userId?: number | null,
+  provenance?: IcpProvenance | null
+): Promise<void> {
   if (!clientId || clientId <= 0) throw new Error('saveClientIcp: invalid clientId');
   const db = getAvDb();
+  const provJson = provenance == null ? null : JSON.stringify(provenance);
   await db.execute<ResultSetHeader>(
     `INSERT INTO client_icps
        (client_id, target_industries, target_geographies, excluded_topics, excluded_industries,
-        target_company_size_min, target_company_size_max, description, updated_by_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        target_company_size_min, target_company_size_max, description, provenance, updated_by_user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        target_industries = VALUES(target_industries),
        target_geographies = VALUES(target_geographies),
@@ -162,6 +247,7 @@ export async function saveClientIcp(clientId: number, icp: ClientIcp, userId?: n
        target_company_size_min = VALUES(target_company_size_min),
        target_company_size_max = VALUES(target_company_size_max),
        description = VALUES(description),
+       provenance = COALESCE(VALUES(provenance), provenance),
        updated_by_user_id = VALUES(updated_by_user_id)`,
     [
       clientId,
@@ -172,6 +258,7 @@ export async function saveClientIcp(clientId: number, icp: ClientIcp, userId?: n
       icp.companySizeMin,
       icp.companySizeMax,
       icp.description || null,
+      provJson,
       userId ?? null
     ]
   );
@@ -243,6 +330,103 @@ export function suggestIcpFromIntake(raw: unknown): ClientIcp {
     companySizeMin,
     companySizeMax,
     description: description ? description.slice(0, 2000) : ''
+  };
+}
+
+/**
+ * Merge a fresh intake-derived ICP suggestion onto an existing saved ICP so a
+ * client's NEW submission repopulates their targeting WITHOUT wiping operator
+ * curation. Policy (intentionally conservative on the operator-tuned fields):
+ *   - geographies, description: replaced by the new intake when it provides them;
+ *     kept as-is when the intake is silent (so a blank never erases a value).
+ *   - industries: UNION of existing + suggested, deduped (curated tags survive,
+ *     the client's new signal is added).
+ *   - excludedIndustries: ALWAYS preserved — the intake form has no exclude
+ *     field, so these are operator-tuned (e.g. EHP excluding insurance carriers).
+ *   - excludeGeographies: preserved if set, else taken from the suggestion.
+ *   - company size: taken from intake when present, else preserved.
+ */
+export function mergeIntakeIcp(
+  existing: ClientIcp,
+  suggested: ClientIcp,
+  priorProv: IcpProvenance = emptyProvenance()
+): { icp: ClientIcp; provenance: IcpProvenance } {
+  const union = (a: string[], b: string[]): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const s of [...a, ...b]) {
+      const k = s.trim().toLowerCase();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(s.trim());
+    }
+    return out.slice(0, 12);
+  };
+
+  const icp: ClientIcp = {
+    industries: suggested.industries.length
+      ? union(existing.industries, suggested.industries)
+      : existing.industries,
+    geographies: suggested.geographies.length ? suggested.geographies : existing.geographies,
+    excludeGeographies: existing.excludeGeographies.length
+      ? existing.excludeGeographies
+      : suggested.excludeGeographies,
+    excludedIndustries: existing.excludedIndustries, // operator-curated: never auto-overwrite
+    companySizeMin: suggested.companySizeMin ?? existing.companySizeMin,
+    companySizeMax: suggested.companySizeMax ?? existing.companySizeMax,
+    description: suggested.description ? suggested.description : existing.description
+  };
+
+  const lowerSet = (a: string[]) => new Set(a.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const sIndustries = lowerSet(suggested.industries);
+  const sGeo = lowerSet(suggested.geographies);
+  const sExGeo = lowerSet(suggested.excludeGeographies);
+
+  const provenance: IcpProvenance = {
+    industries: provMapFor(icp.industries, sIndustries, priorProv.industries),
+    geographies: provMapFor(icp.geographies, sGeo, priorProv.geographies),
+    excludeGeographies: provMapFor(icp.excludeGeographies, sExGeo, priorProv.excludeGeographies),
+    // Excludes come only from the operator (intake has no exclude field).
+    excludedIndustries: provMapFor(icp.excludedIndustries, new Set(), priorProv.excludedIndustries),
+    description: suggested.description ? 'client' : priorProv.description ?? (icp.description ? 'operator' : null)
+  };
+
+  return { icp, provenance };
+}
+
+/**
+ * Per-item authorship for a field: an item the new intake supplied is tagged
+ * 'client'; an item carried over keeps its prior source; anything else (a brand
+ * new item, e.g. operator-typed) defaults to 'operator'.
+ */
+function provMapFor(
+  finalItems: string[],
+  suggestedSet: Set<string>,
+  prior: Record<string, IcpItemSource>
+): Record<string, IcpItemSource> {
+  const out: Record<string, IcpItemSource> = {};
+  for (const it of finalItems) {
+    const k = it.trim().toLowerCase();
+    if (!k) continue;
+    out[k] = suggestedSet.has(k) ? 'client' : prior[k] ?? 'operator';
+  }
+  return out;
+}
+
+/**
+ * Provenance for an OPERATOR manual save: val owns the final list, so each item
+ * keeps its prior source if it was already on file (a client-authored item she
+ * chose to keep stays 'client' — a durable memory of who asked for it) and any
+ * brand-new item she typed is 'operator'. Removed items simply drop out.
+ */
+export function operatorSaveProvenance(icp: ClientIcp, priorProv: IcpProvenance): IcpProvenance {
+  const none = new Set<string>();
+  return {
+    industries: provMapFor(icp.industries, none, priorProv.industries),
+    geographies: provMapFor(icp.geographies, none, priorProv.geographies),
+    excludeGeographies: provMapFor(icp.excludeGeographies, none, priorProv.excludeGeographies),
+    excludedIndustries: provMapFor(icp.excludedIndustries, none, priorProv.excludedIndustries),
+    description: priorProv.description ?? (icp.description ? 'operator' : null)
   };
 }
 

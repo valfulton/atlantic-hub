@@ -12,7 +12,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { normalizeIcp, saveClientIcp } from '@/lib/client/icp';
+import { normalizeIcp, saveClientIcp, getClientIcpWithProvenance, operatorSaveProvenance } from '@/lib/client/icp';
 
 export const runtime = 'nodejs';
 
@@ -35,7 +35,11 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   const icp = normalizeIcp(body);
   try {
-    await saveClientIcp(clientId, icp, guard.actor.userId ?? null);
+    // Recompute provenance: items val keeps that the client originally authored
+    // stay tagged 'client'; anything new she typed becomes 'operator'.
+    const { provenance: priorProv } = await getClientIcpWithProvenance(clientId);
+    const provenance = operatorSaveProvenance(icp, priorProv);
+    await saveClientIcp(clientId, icp, guard.actor.userId ?? null, provenance);
     return NextResponse.json({ ok: true, icp });
   } catch (err) {
     return NextResponse.json({ error: 'save failed', errorClass: (err as Error).name }, { status: 500 });

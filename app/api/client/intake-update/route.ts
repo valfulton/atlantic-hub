@@ -16,6 +16,7 @@ import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
 import { saveBriefPayload, type BriefPayload } from '@/lib/client/brief_store';
+import { suggestIcpFromIntake, getClientIcpWithProvenance, saveClientIcp, mergeIntakeIcp } from '@/lib/client/icp';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -51,6 +52,19 @@ export async function POST(req: NextRequest) {
       changedBy: user.email
     });
     if (!ok) return NextResponse.json({ error: 'save failed' }, { status: 500 });
+
+    // Keep the ICP in step with the edited intake (merge-preserving: operator
+    // excludes survive, new geo/notes repopulate). Non-fatal. Mirrors the public
+    // /api/client/intake path so both entry points sync targeting the same way.
+    try {
+      const suggested = suggestIcpFromIntake(payload);
+      const { icp: existingIcp, provenance: priorProv } = await getClientIcpWithProvenance(clientId);
+      const { icp: mergedIcp, provenance } = mergeIntakeIcp(existingIcp, suggested, priorProv);
+      await saveClientIcp(clientId, mergedIcp, null, provenance);
+    } catch (icpErr) {
+      console.error('[client-portal:intake-update] icp refresh skipped:', (icpErr as Error).message);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });

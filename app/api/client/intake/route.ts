@@ -35,6 +35,7 @@ import {
 import { upsertClientUserForIntake } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
 import { getBriefPayload, saveBriefPayload, type BriefPayload } from '@/lib/client/brief_store';
+import { suggestIcpFromIntake, getClientIcpWithProvenance, saveClientIcp, mergeIntakeIcp } from '@/lib/client/icp';
 import { corsHeadersFor } from '@/lib/auth/client-cors';
 import { sendEmail } from '@/lib/email/smtp';
 import { buildMagicLinkEmail } from '@/lib/email/magic-link-template';
@@ -204,6 +205,15 @@ export async function POST(req: NextRequest) {
         const existingBrief =
           ((await getBriefPayload('av', clientId)) as Record<string, unknown> | null) ?? {};
         const mergedBrief: Record<string, unknown> = { ...existingBrief };
+        // Preserve the operator's ORIGINAL answers once, before the client's first
+        // submission can overwrite any of them — so val can always retrieve what she
+        // wrote at setup. Snapshotted a single time; later submissions leave it alone.
+        if (existingBrief.operator_intake_snapshot == null && Object.keys(existingBrief).length > 0) {
+          const snapshot = { ...existingBrief };
+          delete (snapshot as Record<string, unknown>).operator_intake_snapshot;
+          mergedBrief.operator_intake_snapshot = snapshot;
+          mergedBrief.operator_intake_snapshot_at = new Date().toISOString();
+        }
         // Map form field names onto the brief's canonical keys first (fixes drift),
         // then apply the client's answers — never overwriting an existing value
         // (e.g. operator prefill) with a blank the client left empty.
@@ -216,6 +226,20 @@ export async function POST(req: NextRequest) {
           source: 'client_intake',
           changedBy: email
         });
+
+        // Repopulate the client's ICP from this submission so their new answers
+        // (geographic focus, ideal-client text) actually reach discovery — not just
+        // the brief. Historically the ICP only persisted on first discovery run or
+        // manual "Save ICP", so fresh intake never updated it. Merge-preserving:
+        // operator-curated excludes survive; new geo/notes repopulate. Non-fatal.
+        try {
+          const suggested = suggestIcpFromIntake(data);
+          const { icp: existingIcp, provenance: priorProv } = await getClientIcpWithProvenance(clientId);
+          const { icp: mergedIcp, provenance } = mergeIntakeIcp(existingIcp, suggested, priorProv);
+          await saveClientIcp(clientId, mergedIcp, null, provenance);
+        } catch (icpErr) {
+          console.error('[client-portal:intake] icp refresh skipped:', (icpErr as Error).message);
+        }
       }
     } catch (e) {
       console.error('[client-portal:intake] brief link skipped:', (e as Error).message);
