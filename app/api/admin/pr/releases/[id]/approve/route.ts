@@ -11,6 +11,7 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { PR_EVENTS } from '@/lib/pr/types';
+import { autoThreadAsset } from '@/lib/campaigns/line_links';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // can't duplicate. Non-fatal: the release is published regardless.
     if (target === 'published' && rel.status === 'approved') {
       try {
-        await db.execute<ResultSetHeader>(
+        const [insRel] = await db.execute<ResultSetHeader>(
           `INSERT INTO content_artifacts
              (tenant_id, artifact_type, lead_id, opportunity_id, voice_mode, title, body_text,
               meta_json, model, status, created_by_user_id, campaign_id)
@@ -89,6 +90,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             guard.actor.userId
           ]
         );
+        // Narrative spine: thread the published release to the customer's active line.
+        autoThreadAsset({ tenantId: rel.tenant_id, leadId: rel.lead_id, assetType: 'content_artifact', assetId: insRel.insertId }).catch(() => {});
       } catch (e) {
         console.error('[pr:releases:newsroom-publish]', (e as Error).message);
       }

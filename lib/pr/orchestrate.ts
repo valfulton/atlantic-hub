@@ -24,6 +24,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { draftPitch, upsertIntelligenceObjects } from '@/lib/pr/drafter';
+import { autoThreadAsset } from '@/lib/campaigns/line_links';
 import { generateCommercialForLead } from '@/lib/grok/discoverer';
 import { publishOutboxRow } from '@/lib/social/publish';
 import { DEFAULT_TENANT, PR_EVENTS, type PitchMode, type PrOpportunity, type PrSource } from '@/lib/pr/types';
@@ -166,6 +167,9 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
     await upsertIntelligenceObjects({ tenantId, leadId, objects: drafted.derivedObjects, source: 'pr_orchestrate' });
   }
 
+  // Narrative spine: thread the pitch to the customer's active line (no-op if none).
+  if (pitchId) autoThreadAsset({ tenantId, leadId, assetType: 'pr_pitch', assetId: pitchId }).catch(() => {});
+
   // ---- 2. Optional commercial (existing Grok engine) ----
   let commercial: OrchestrateResult['commercial'] = null;
   const assetType = opts.assetType ?? 'image';
@@ -188,6 +192,8 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
           mediaUrl: gen.storageUrl,
           generationStatus: gen.generationStatus
         };
+        // Narrative spine: thread the commercial to the customer's active line.
+        autoThreadAsset({ tenantId, leadId, assetType: 'commercial', assetId: gen.assetId }).catch(() => {});
         if (gen.generationStatus === 'running') {
           notes.push('Video is still rendering; the post was queued and the media will attach when it finishes.');
         }
@@ -237,6 +243,8 @@ export async function orchestrateOpportunity(opts: OrchestrateOptions): Promise<
       ]
     );
     social = { outboxId: ores.insertId, connectionId, status };
+    // Narrative spine: thread the queued post to the customer's active line.
+    autoThreadAsset({ tenantId, leadId, assetType: 'social_post', assetId: ores.insertId }).catch(() => {});
     await logEvent({
       eventType: PR_EVENTS.socialQueued,
       leadId,
