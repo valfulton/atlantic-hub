@@ -1,46 +1,29 @@
 /**
  * /admin/av/clients/[client_id]/preview
  *
- * OPERATOR-ONLY preview of what a client sees on their dashboard, for a given
- * client_id — WITHOUT the client logging in. Solves the chicken-and-egg: val can
- * perfect a client's dashboard before sending their magic link.
+ * OPERATOR-ONLY, read-only TRUE MIRROR of a client's dashboard, for a given
+ * client_id — WITHOUT the client logging in. Renders the EXACT same body the
+ * client sees (<ClientDashboardBody> fed by getClientDashboardData), so the
+ * preview can never drift from the real /client/dashboard. The `preview` flag
+ * makes client-only actions read-only; leadsHref points lead links at the
+ * operator client page instead of the live portal.
  *
- * Read-only and safe: it reuses the same data function as the real client
- * dashboard (getClientCreativeBrief) scoped by client_id, plus the audit query,
- * and the same presentational CreativeBrief component. It does NOT touch the live
- * /client/dashboard page or any client auth.
- *
- * NOTE: this lives under [client_id] (param name client_id) to match the sibling
- * client-detail route — Next.js forbids two different slug names at one path level.
+ * NOTE: this lives under [client_id] to match the sibling client-detail route —
+ * Next.js forbids two different slug names at one path level.
  */
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
-import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
-import { getClientOwnAudit } from '@/lib/client/dashboard_data';
-import CreativeBrief from '@/app/client/_components/CreativeBrief';
-import ClientHero from '@/app/client/_components/ClientHero';
-import { clientMonthlyPipelineCents } from '@/lib/sales/deal_model';
+import { findClientUserById } from '@/lib/auth/client-user';
+import { getClientDashboardData } from '@/lib/client/dashboard_data';
+import ClientDashboardBody from '@/app/client/_components/ClientDashboardBody';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 interface ClientRow extends RowDataPacket { client_name: string | null }
-interface MemberRow extends RowDataPacket { email: string; display_name: string | null }
-interface AuditRow extends RowDataPacket {
-  company: string | null;
-  audit_content: string | null;
-  audit_generated: Date | null;
-  created_at: Date | null;
-}
-
-function auditPreview(text: string | null, maxChars = 480): string {
-  if (!text) return '';
-  const t = text.trim().replace(/\r\n/g, '\n');
-  return t.length <= maxChars ? t : t.slice(0, maxChars).replace(/\s+\S*$/, '') + '...';
-}
 
 export default async function ClientDashboardPreview({ params }: { params: { client_id: string } }) {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
@@ -57,24 +40,22 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
   if (!crows[0]) notFound();
   const clientName = crows[0].client_name || `Client #${clientId}`;
 
-  // A representative member (for the email-scoped fallbacks the brief uses).
-  const [mrows] = await db.execute<MemberRow[]>(
-    `SELECT email, display_name FROM client_users WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
+  // The representative member gives us the client identity the dashboard loads
+  // against. Reuse findClientUserById (same path the real dashboard uses) so tier
+  // / email / display_name are resolved identically — no column guessing.
+  const [mrows] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+    `SELECT client_user_id FROM client_users WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
     [clientId]
   );
-  const email = mrows[0]?.email ?? '';
-  const firstName = (mrows[0]?.display_name || clientName).split(/[ ,]/)[0] || 'there';
+  const member = mrows[0] ? await findClientUserById(mrows[0].client_user_id) : null;
 
-  let brief: CreativeBriefData = { activeLines: [], nextLeads: [], awaitingApproval: [], awaitingCount: 0, pipeline: { total: 0, hot: 0, warm: 0, cool: 0 } };
-  try {
-    brief = await getClientCreativeBrief({ client_id: clientId, email });
-  } catch { /* keep empty */ }
-
-  // Mirror the real client dashboard exactly via the shared loader: the client's
-  // OWN business audit (matched by email), never a prospect scoped to their hub.
-  const audit = await getClientOwnAudit(email);
-  // Same potential-pipeline figure the client sees (deal economics). Null = no model.
-  const monthlyPipeline = await clientMonthlyPipelineCents(clientId).catch(() => null);
+  const data = await getClientDashboardData({
+    clientUserId: member?.client_user_id ?? 0,
+    clientId,
+    email: member?.email ?? '',
+    tier: member?.tier ?? 'sprint',
+    displayName: member?.display_name ?? clientName
+  });
 
   return (
     <div>
@@ -85,33 +66,17 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
           <span className="font-semibold">{clientName}</span> sees on their dashboard. Read-only.
         </span>
         <span className="shrink-0 flex items-center gap-4">
-          <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-amber-100 hover:underline">Edit creative brief →</Link>
+          <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-amber-100 hover:underline">Edit creative brief &rarr;</Link>
           <Link href={`/admin/av/clients/${clientId}`} className="text-amber-100 hover:underline">Back to client</Link>
         </span>
       </div>
 
-      <main className="max-w-6xl mx-auto">
-        <ClientHero firstName={firstName} pipeline={brief.pipeline} monthlyPipelineCents={monthlyPipeline}>
-          {brief.pipeline.total === 0 && (
-            <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
-              No leads in their pipeline yet — assign prospects to this client from any lead&apos;s
-              &quot;Client&quot; dropdown, and they&apos;ll appear here.
-            </p>
-          )}
-        </ClientHero>
-
-        <CreativeBrief brief={brief} firstName={firstName} leadsHref={`/admin/av/clients/${clientId}`} />
-
-        <section className="mb-8 rounded-2xl border border-border bg-surface p-6">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-muted">Strategic Marketing Audit</div>
-          <h2 className="text-lg font-semibold text-ink mt-1">{audit?.company || clientName}</h2>
-          {audit ? (
-            <div className="text-sm text-ink whitespace-pre-line leading-relaxed mt-3">{auditPreview(audit.audit_content)}</div>
-          ) : (
-            <div className="text-sm text-muted mt-3">No audit generated for this client yet.</div>
-          )}
-        </section>
-      </main>
+      <ClientDashboardBody
+        data={data}
+        email={member?.email ?? clientName}
+        preview
+        leadsHref={`/admin/av/clients/${clientId}`}
+      />
     </div>
   );
 }
