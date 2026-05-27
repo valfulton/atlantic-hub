@@ -51,6 +51,12 @@ interface EngagementSummary {
   recent: Array<{ id: number; channel: string; impressions: number; engagements: number; clicks: number; conversions: number; source: string; createdAt: string }>;
 }
 interface Commercial { id: number; assetType: string; brandedStatus: string | null; campaignName: string | null; company: string | null; generationStatus: string | null; }
+interface Produced { linkId: number; assetType: string; assetId: number; role: string; label: string; status: string | null; kind: string; createdAt: string; }
+const ROLE_TONE: Record<string, { fg: string; label: string }> = {
+  advances: { fg: '#6ee7b7', label: 'advances' },
+  reinforces: { fg: '#93c5fd', label: 'reinforces' },
+  tests: { fg: '#fcd34d', label: 'tests' }
+};
 const GEN_STATUS_LABEL: Record<string, { label: string; fg: string }> = {
   running: { label: '⏳ Rendering…', fg: '#fcd34d' },
   queued: { label: '⏳ Queued…', fg: '#fcd34d' },
@@ -114,6 +120,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
 
   const [eng, setEng] = useState<Record<number, EngagementSummary>>({});
   const [commercials, setCommercials] = useState<Record<number, Commercial[]>>({});
+  const [produced, setProduced] = useState<Record<number, Produced[]>>({});
   const [fit, setFit] = useState<Record<number, LineFit>>({});
   const [entry, setEntry] = useState<{ channels: string[]; impressions: string; engagements: string; clicks: string; conversions: string; note: string }>({ channels: ['linkedin'], impressions: '', engagements: '', clicks: '', conversions: '', note: '' });
   const [pullMsg, setPullMsg] = useState<string | null>(null);
@@ -138,14 +145,16 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
 
   const loadLineData = useCallback(async (id: number) => {
     try {
-      const [e, c, f] = await Promise.all([
+      const [e, c, f, p] = await Promise.all([
         fetch(`/api/admin/campaigns/lines/${id}/engagement`, { cache: 'no-store' }).then((r) => r.json()),
         fetch(`/api/admin/campaigns/lines/${id}/commercials`, { cache: 'no-store' }).then((r) => r.json()),
-        fetch(`/api/admin/campaigns/lines/${id}/fit`, { cache: 'no-store' }).then((r) => r.json())
+        fetch(`/api/admin/campaigns/lines/${id}/fit`, { cache: 'no-store' }).then((r) => r.json()),
+        fetch(`/api/admin/campaigns/lines/${id}/produced`, { cache: 'no-store' }).then((r) => r.json())
       ]);
       if (e?.summary) setEng((m) => ({ ...m, [id]: e.summary }));
       if (c?.commercials) setCommercials((m) => ({ ...m, [id]: c.commercials }));
       if (f?.fit) setFit((m) => ({ ...m, [id]: f.fit }));
+      if (p?.produced) setProduced((m) => ({ ...m, [id]: p.produced }));
     } catch { /* ignore */ }
   }, []);
 
@@ -381,7 +390,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas };
 
   return (
     <div>
@@ -460,6 +469,7 @@ interface EditorProps {
   changeState: (id: number, s: LineState) => void;
   eng: Record<number, EngagementSummary>;
   commercials: Record<number, Commercial[]>;
+  produced: Record<number, Produced[]>;
   fit: Record<number, LineFit>;
   entry: { channels: string[]; impressions: string; engagements: string; clicks: string; conversions: string; note: string };
   setEntry: (e: EditorProps['entry']) => void;
@@ -524,11 +534,12 @@ function Collapsible({ title, hint, defaultOpen = false, children }: { title: st
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
   const comms = commercials[id] ?? [];
+  const prod = produced[id] ?? [];
   const lf = fit[id];
   const pd = promptDraft[id];
   const gen = genStatus[id];
@@ -838,6 +849,31 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
           </button>
         </div>
         {cg?.msg && <div style={{ fontSize: 12, color: cg.ok ? '#6ee7b7' : '#fca5a5', marginTop: 8 }}>{cg.msg}</div>}
+      </Collapsible>
+
+      {/* What this story has produced — every post/blog/pitch/release threaded to
+          this line, so you can watch one story working across channels. */}
+      <Collapsible title="What this story has produced" hint={prod.length > 0 ? `${prod.length} piece${prod.length === 1 ? '' : 's'}` : 'nothing yet'}>
+        {prod.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#64748b' }}>
+            Nothing has threaded to this story yet. Write a post or blog above, or draft a pitch — anything created while this line is active links here automatically.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {prod.map((a) => {
+              const rt = ROLE_TONE[a.role] ?? ROLE_TONE.advances;
+              return (
+                <div key={a.linkId} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid rgba(148,163,184,0.16)', borderRadius: 10, padding: '8px 10px' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: '#cbd5e1', background: 'rgba(148,163,184,0.16)', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>{a.kind}</span>
+                  <span style={{ fontSize: 12, color: '#e2e8f0', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label}</span>
+                  {a.status && <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>{a.status}</span>}
+                  <span style={{ fontSize: 11, color: rt.fg, flexShrink: 0 }}>{rt.label}</span>
+                </div>
+              );
+            })}
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>Review &amp; approve these in Content &amp; Blog and on the Calendar.</div>
+          </div>
+        )}
       </Collapsible>
 
       {/* Commercials — make one from the line + see what's tied to it (merged into one section). */}

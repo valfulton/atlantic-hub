@@ -198,6 +198,112 @@ export async function listLinksForLine(narrativeLineId: number): Promise<LineLin
   }
 }
 
+/**
+ * A written/queued asset a line has PRODUCED, resolved for display in the cockpit
+ * "What this story has produced" rollup. Covers content_artifact / social_post /
+ * pr_pitch / press_release — NOT commercials (those have their own gallery) or
+ * lead/campaign links. Read-only; degrades to [] on error.
+ */
+export interface LineProducedAsset {
+  linkId: number;
+  assetType: 'content_artifact' | 'social_post' | 'pr_pitch' | 'press_release';
+  assetId: number;
+  role: LinkRole;
+  /** Short human label: a title, or a snippet of the body. */
+  label: string;
+  /** Asset lifecycle (draft / scheduled / published / approved …) when known. */
+  status: string | null;
+  /** A friendly kind label for the chip ("Post", "Blog", "Pitch", "Release"). */
+  kind: string;
+  createdAt: string;
+}
+
+const PRODUCED_TYPES = new Set(['content_artifact', 'social_post', 'pr_pitch', 'press_release']);
+
+function snippet(s: string | null | undefined, max = 90): string {
+  const t = (s ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
+}
+
+export async function listLineProducedAssets(narrativeLineId: number): Promise<LineProducedAsset[]> {
+  if (!Number.isInteger(narrativeLineId) || narrativeLineId <= 0) return [];
+  const links = (await listLinksForLine(narrativeLineId)).filter((l) => PRODUCED_TYPES.has(l.assetType));
+  if (links.length === 0) return [];
+
+  // Bucket the asset ids by type so we resolve each table in one query.
+  const byType: Record<string, number[]> = {};
+  for (const l of links) (byType[l.assetType] ??= []).push(l.assetId);
+
+  // Per-asset display detail, keyed `${assetType}:${assetId}`.
+  const detail = new Map<string, { label: string; status: string | null; kind: string }>();
+  const db = getAvDb();
+  const inList = (ids: number[]) => ids.map(() => '?').join(',');
+
+  try {
+    if (byType.content_artifact?.length) {
+      const ids = byType.content_artifact;
+      const [rows] = await db.execute<(RowDataPacket & { id: number; artifact_type: string; title: string | null; body_text: string | null; status: string | null })[]>(
+        `SELECT id, artifact_type, title, body_text, status FROM content_artifacts WHERE id IN (${inList(ids)})`,
+        ids
+      );
+      for (const r of rows) {
+        const kind = r.artifact_type === 'own_brand_post' ? 'Post'
+          : r.artifact_type === 'blog_article' ? 'Blog'
+          : r.artifact_type === 'seo_article' ? 'SEO article'
+          : r.artifact_type === 'press_release' ? 'Release'
+          : 'Content';
+        detail.set(`content_artifact:${r.id}`, { label: r.title?.trim() || snippet(r.body_text) || `Content #${r.id}`, status: r.status, kind });
+      }
+    }
+    if (byType.social_post?.length) {
+      const ids = byType.social_post;
+      const [rows] = await db.execute<(RowDataPacket & { id: number; body_text: string | null; status: string | null })[]>(
+        `SELECT id, body_text, status FROM social_outbox WHERE id IN (${inList(ids)})`,
+        ids
+      );
+      for (const r of rows) detail.set(`social_post:${r.id}`, { label: snippet(r.body_text) || `Post #${r.id}`, status: r.status, kind: 'Post' });
+    }
+    if (byType.pr_pitch?.length) {
+      const ids = byType.pr_pitch;
+      const [rows] = await db.execute<(RowDataPacket & { id: number; body_text: string | null; status: string | null })[]>(
+        `SELECT id, body_text, status FROM pr_pitches WHERE id IN (${inList(ids)})`,
+        ids
+      );
+      for (const r of rows) detail.set(`pr_pitch:${r.id}`, { label: snippet(r.body_text) || `Pitch #${r.id}`, status: r.status, kind: 'Pitch' });
+    }
+    if (byType.press_release?.length) {
+      const ids = byType.press_release;
+      const [rows] = await db.execute<(RowDataPacket & { id: number; title: string | null; body_text: string | null; status: string | null })[]>(
+        `SELECT id, title, body_text, status FROM press_releases WHERE id IN (${inList(ids)})`,
+        ids
+      );
+      for (const r of rows) detail.set(`press_release:${r.id}`, { label: r.title?.trim() || snippet(r.body_text) || `Release #${r.id}`, status: r.status, kind: 'Release' });
+    }
+  } catch (err) {
+    console.error('[line_links:produced]', (err as Error).message);
+    return [];
+  }
+
+  // Preserve the link ordering (role, then recency) from listLinksForLine.
+  const out: LineProducedAsset[] = [];
+  for (const l of links) {
+    const d = detail.get(`${l.assetType}:${l.assetId}`);
+    if (!d) continue; // asset deleted/archived — skip the dangling link
+    out.push({
+      linkId: l.id,
+      assetType: l.assetType as LineProducedAsset['assetType'],
+      assetId: l.assetId,
+      role: l.role,
+      label: d.label,
+      status: d.status,
+      kind: d.kind,
+      createdAt: l.createdAt
+    });
+  }
+  return out;
+}
+
 /** Role counts for one line (for the cockpit story-map badges). */
 export async function roleCountsForLine(narrativeLineId: number): Promise<RoleCounts> {
   const empty: RoleCounts = { advances: 0, reinforces: 0, tests: 0, total: 0 };
