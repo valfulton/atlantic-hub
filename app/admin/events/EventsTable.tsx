@@ -222,7 +222,9 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
       // ignore
     }
     if (!liveMode) return;
+    // Skip the live refresh while the tab is hidden (no background billing).
     const id = window.setInterval(() => {
+      if (document.hidden) return;
       void refresh({
         eventType: eventType || undefined,
         status: status || undefined,

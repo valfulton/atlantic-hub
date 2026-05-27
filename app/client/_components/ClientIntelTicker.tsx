@@ -31,8 +31,13 @@ export default function ClientIntelTicker() {
       } catch { /* quiet */ }
     };
     load();
-    const poll = setInterval(load, 120_000);
-    return () => { alive = false; clearInterval(poll); };
+    // Only poll while the tab is visible; refresh on return. A client leaving
+    // their dashboard open in a background tab no longer bills function calls.
+    const tick = () => { if (!document.hidden) load(); };
+    const poll = setInterval(tick, 120_000);
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; clearInterval(poll); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
   useEffect(() => {

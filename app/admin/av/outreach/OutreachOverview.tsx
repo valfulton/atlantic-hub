@@ -116,8 +116,12 @@ export function OutreachOverview() {
 
   useEffect(() => {
     if (!live) return;
-    const handle = window.setInterval(refresh, 15_000);
-    return () => window.clearInterval(handle);
+    // Pause the 15s live refresh when the tab is hidden; refresh on return.
+    const tick = () => { if (!document.hidden) void refresh(); };
+    const handle = window.setInterval(tick, 15_000);
+    const onVis = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { window.clearInterval(handle); document.removeEventListener('visibilitychange', onVis); };
   }, [live, refresh]);
 
   // Once-per-day positive-reply celebration.

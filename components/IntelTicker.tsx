@@ -55,8 +55,14 @@ export function IntelTicker() {
       } catch { /* stay quiet */ }
     };
     load();
-    const poll = setInterval(load, 90_000);
-    return () => { alive = false; clearInterval(poll); };
+    // Only poll while the tab is visible — a backgrounded tab stops hitting the
+    // API entirely (the biggest Netlify-invocation saver). Returning to the tab
+    // fires an immediate refresh so the bar is never stale.
+    const tick = () => { if (!document.hidden) load(); };
+    const poll = setInterval(tick, 90_000);
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; clearInterval(poll); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
   useEffect(() => {
