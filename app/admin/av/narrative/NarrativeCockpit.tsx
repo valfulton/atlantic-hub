@@ -172,6 +172,30 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
     }
   }, [promptDraft, loadLineData]);
 
+  // Push a line OUTWARD: write a piece of content (post / blog) grounded in the
+  // line's thesis. One click — the drafter is fed the line's narrative context
+  // and the new draft is auto-linked back to the line as 'advances'.
+  const [contentGen, setContentGen] = useState<Record<number, { loading: boolean; msg: string | null; ok: boolean }>>({});
+  const generateContentFromLine = useCallback(async (id: number, kind: 'post' | 'blog') => {
+    setContentGen((s) => ({ ...s, [id]: { loading: true, msg: null, ok: false } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${id}/content/generate`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind })
+      });
+      const j = await res.json();
+      if (res.ok) {
+        const label = kind === 'blog' ? 'Blog draft' : 'Post draft';
+        const title = j.artifact?.title ? ` — “${j.artifact.title}”` : '';
+        setContentGen((s) => ({ ...s, [id]: { loading: false, ok: true, msg: `${label} created${title}. Find it in Content & Blog (status: draft) to review, brand, and approve.` } }));
+      } else {
+        setContentGen((s) => ({ ...s, [id]: { loading: false, ok: false, msg: j.detail || j.error || 'Generation failed.' } }));
+      }
+    } catch {
+      setContentGen((s) => ({ ...s, [id]: { loading: false, ok: false, msg: 'Generation failed.' } }));
+    }
+  }, []);
+
   // AI thesis suggestions — two-step so the operator sees + edits the prompt
   // BEFORE any tokens are spent, then gets fewer, fit-SCORED choices back.
   const [thesisPrompt, setThesisPrompt] = useState<Record<number, { text: string; loading: boolean; totalLeads?: number }>>({});
@@ -357,7 +381,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas };
 
   return (
     <div>
@@ -447,6 +471,8 @@ interface EditorProps {
   setPromptText: (id: number, text: string) => void;
   genStatus: Record<number, { loading: boolean; msg: string | null }>;
   generateCommercial: (id: number) => void;
+  contentGen: Record<number, { loading: boolean; msg: string | null; ok: boolean }>;
+  generateContentFromLine: (id: number, kind: 'post' | 'blog') => void;
   thesisIdeas: Record<number, { loading: boolean; ran: boolean; items: ThesisIdea[] }>;
   thesisPrompt: Record<number, { text: string; loading: boolean; totalLeads?: number }>;
   draftThesisPrompt: (id: number) => void;
@@ -498,7 +524,7 @@ function Collapsible({ title, hint, defaultOpen = false, children }: { title: st
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -506,6 +532,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
   const lf = fit[id];
   const pd = promptDraft[id];
   const gen = genStatus[id];
+  const cg = contentGen[id];
   const ideas = thesisIdeas[id];
   const tp = thesisPrompt[id];
   const sm = saveMsg[id];
@@ -794,6 +821,23 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
           <button onClick={() => pullSocials(id)} style={btnGhost} title="Auto-pull from connected socials (coming with the social accounts work)">Pull from socials</button>
         </div>
         {pullMsg && <div style={{ fontSize: 12, color: '#fcd34d', marginTop: 8 }}>{pullMsg}</div>}
+      </Collapsible>
+
+      {/* Write content — push the line OUTWARD into a written piece grounded in
+          its thesis. One click; the draft lands in Content & Blog for review. */}
+      <Collapsible title="Write content from this story" hint="one click → on-thesis draft">
+        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+          Writes a draft grounded in this line&apos;s thesis, audience, emotional driver &amp; authority angle — and links it back to the story so it counts as advancing it. Nothing publishes: the draft lands in Content &amp; Blog to review, brand &amp; approve.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button onClick={() => generateContentFromLine(id, 'post')} disabled={cg?.loading} style={{ ...btnPrimary, opacity: cg?.loading ? 0.5 : 1 }}>
+            {cg?.loading ? 'Writing…' : '✦ Write a post'}
+          </button>
+          <button onClick={() => generateContentFromLine(id, 'blog')} disabled={cg?.loading} style={{ ...btnGhost, opacity: cg?.loading ? 0.5 : 1 }}>
+            {cg?.loading ? 'Writing…' : 'Write a blog article'}
+          </button>
+        </div>
+        {cg?.msg && <div style={{ fontSize: 12, color: cg.ok ? '#6ee7b7' : '#fca5a5', marginTop: 8 }}>{cg.msg}</div>}
       </Collapsible>
 
       {/* Commercials — make one from the line + see what's tied to it (merged into one section). */}
