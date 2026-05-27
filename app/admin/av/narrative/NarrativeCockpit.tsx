@@ -463,8 +463,12 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
       {lines.map((l) => {
         const tone = STATE_TONE[l.state];
         const open = openId === l.id;
+        // The live (active/reinforcing) story is the brightest thing on the page —
+        // green-glow border + tinted background so the chosen thesis dominates the
+        // candidates/suggestions around it.
+        const isLive = l.state === 'active' || l.state === 'reinforcing';
         return (
-          <div key={l.id} style={{ border: '1px solid rgba(148,163,184,0.14)', borderRadius: 12, background: 'rgba(2,6,23,0.35)', padding: 12, marginBottom: 10 }}>
+          <div key={l.id} style={{ border: `1px solid ${isLive ? 'rgba(16,185,129,0.55)' : 'rgba(148,163,184,0.14)'}`, borderRadius: 12, background: isLive ? 'rgba(16,185,129,0.09)' : 'rgba(2,6,23,0.35)', boxShadow: isLive ? '0 0 20px rgba(16,185,129,0.18)' : undefined, padding: 12, marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => toggleLine(l)}>
               <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 999, background: tone.bg, color: tone.fg }}>{tone.label}</span>
               <span style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{l.name}</span>
@@ -618,6 +622,12 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
           </div>
         )}
       </div>
+      {lf && lf.totalLeads > 0 && (
+        <div style={{ fontSize: 12, color: '#cbd5e1', margin: '10px 0 2px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span>This story reaches <strong style={{ color: lf.matchedCount > 0 ? '#6ee7b7' : '#94a3b8' }}>{lf.matchedCount}</strong> of {lf.totalLeads} of your leads</span>
+          {lf.matchedCount > 0 && <span style={{ color: '#94a3b8' }}>· {lf.bands.hot} hot · {lf.bands.warm} warm · {lf.bands.cool} cool</span>}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {field('Audience', 'audience', 'burned-out leadership teams')}
         {field('Emotional driver', 'emotionalDriver', 'burnout + reconnection')}
