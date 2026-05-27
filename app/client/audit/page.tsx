@@ -32,19 +32,18 @@ export default async function ClientAuditPage() {
   if (!user) redirect('/client/login');
 
   const db = getAvDb();
+  // Show the client's OWN business audit (matched by their email), never a
+  // prospect's audit (leads scoped to their hub via client_id). See the matching
+  // fix + rationale in /client/dashboard.
   const [auditRows] = await db.execute<AuditRow[]>(
     `SELECT audit_id, company, industry, audit_content, audit_generated, created_at
        FROM leads
       WHERE archived_at IS NULL
         AND audit_content IS NOT NULL
-        AND (
-          (? IS NOT NULL AND client_id = ?)
-          OR email = ?
-        )
-      ORDER BY (client_id = ?) DESC,
-               COALESCE(audit_generated, created_at) DESC
+        AND email = ?
+      ORDER BY COALESCE(audit_generated, created_at) DESC
       LIMIT 1`,
-    [user.client_id, user.client_id, user.email, user.client_id]
+    [user.email]
   );
   const audit = auditRows[0] ?? null;
 

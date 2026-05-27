@@ -11,13 +11,15 @@
  * hub (client_id), OR to a rep (assigned_to_user_id).
  */
 import { getAvDb } from '@/lib/db/av';
+import { getPlatformDb } from '@/lib/db/platform';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-/** True when userId is a real, active owner/staff admin user (assignable). */
+/** True when userId is a real, active owner/staff admin user (assignable).
+ *  admin_users lives in the platform db (same table /login uses), not the AV db. */
 export async function isAssignableUser(userId: number): Promise<boolean> {
   if (!Number.isInteger(userId) || userId <= 0) return false;
-  const db = getAvDb();
+  const db = getPlatformDb();
   const [rows] = await db.execute<(RowDataPacket & { user_id: number })[]>(
     `SELECT user_id FROM admin_users
       WHERE user_id = ? AND role IN ('owner', 'staff') AND is_active = 1 LIMIT 1`,

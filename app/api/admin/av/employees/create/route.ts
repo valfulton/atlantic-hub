@@ -43,6 +43,25 @@ export async function POST(req: NextRequest) {
     const inviteUrl = `${origin(req)}/employee/set-password?token=${result.token}`;
     return NextResponse.json({ ok: true, userId: result.userId, created: result.created, inviteUrl });
   } catch (err) {
-    return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
+    // Surface the real cause to the operator (admin-only endpoint). A missing
+    // column / table here almost always means migration 052 hasn't been applied
+    // to this database yet (ER_BAD_FIELD_ERROR / ER_NO_SUCH_TABLE).
+    const e = err as Error & { code?: string; sqlMessage?: string };
+    const detail = e.sqlMessage || e.message || '';
+    const looksLikeMissingSchema =
+      e.code === 'ER_NO_SUCH_TABLE' ||
+      e.code === 'ER_BAD_FIELD_ERROR' ||
+      /employee_profiles|set_password_token|set_password_expires_at/i.test(detail);
+    return NextResponse.json(
+      {
+        error: looksLikeMissingSchema
+          ? 'Database is missing the employee tables/columns — run migration 052_employees.sql, then try again.'
+          : 'server error',
+        errorClass: e.name,
+        code: e.code ?? null,
+        detail: detail.slice(0, 300)
+      },
+      { status: 500 }
+    );
   }
 }

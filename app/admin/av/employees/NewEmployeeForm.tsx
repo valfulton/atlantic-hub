@@ -31,7 +31,9 @@ export default function NewEmployeeForm() {
         body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, title: title.trim() || undefined })
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.ok) throw new Error(j.error || 'Could not create employee.');
+      if (!res.ok || !j.ok) {
+        throw new Error(j.detail ? `${j.error} (${j.detail})` : (j.error || 'Could not create employee.'));
+      }
       setInvite(j.inviteUrl);
       setEmail(''); setName(''); setTitle('');
       router.refresh();

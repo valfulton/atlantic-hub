@@ -7,9 +7,20 @@
  * Staff accounts have no native self-serve set-password flow (password_hash is
  * NOT NULL and there's no staff magic link), so create-employee seeds an unusable
  * placeholder password + a set_password_token; the employee sets their real
- * password via the invite link (schema 052), then logs in normally at /login.
+ * password via the invite link (schema 053), then logs in normally at /login.
+ *
+ * TWO DATABASES (this is load-bearing — read before editing a query here):
+ *   - admin_users lives in the PLATFORM db (getPlatformDb / shhdbite_atlantic_hub).
+ *     That is the table /login authenticates against, and its role ENUM includes
+ *     'staff'. The employee's *account* row MUST go here, or they can't log in.
+ *     (schema/053_platform_employee_invite.sql adds set_password_token there.)
+ *   - employee_profiles + employee_documents live in the AV db (getAvDb /
+ *     shhdbite_AV), keyed by the platform admin_users.user_id — the same
+ *     cross-DB, app-enforced pattern as leads.assigned_to_user_id. We therefore
+ *     never SQL-join the two; we query each pool and merge in JS.
  */
 import { getAvDb } from '@/lib/db/av';
+import { getPlatformDb } from '@/lib/db/platform';
 import { generateMagicToken } from '@/lib/auth/client-magic-token';
 import { hashPassword } from '@/lib/auth/password';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -42,7 +53,7 @@ export async function createEmployee(params: {
   displayName: string;
   title?: string | null;
 }): Promise<CreateEmployeeResult> {
-  const db = getAvDb();
+  const db = getPlatformDb(); // admin_users (the table /login uses) lives here
   const email = params.email.toLowerCase().trim();
   const displayName = params.displayName.trim() || email.split('@')[0];
   const token = generateMagicToken();
@@ -93,7 +104,7 @@ async function ensureProfile(userId: number, title: string | null): Promise<void
 /** Verify a set-password invite token → the user_id, or null if invalid/expired. */
 export async function userIdForSetPasswordToken(token: string): Promise<number | null> {
   if (!token || token.length !== 64 || !/^[a-f0-9]{64}$/i.test(token)) return null;
-  const db = getAvDb();
+  const db = getPlatformDb();
   const [rows] = await db.execute<(RowDataPacket & { user_id: number })[]>(
     `SELECT user_id FROM admin_users
       WHERE set_password_token = ?
@@ -108,48 +119,99 @@ export async function userIdForSetPasswordToken(token: string): Promise<number |
 
 /** Set an employee's password, clear the invite token, mark profile active. */
 export async function setEmployeePassword(userId: number, plaintext: string): Promise<void> {
-  const db = getAvDb();
   const hash = await hashPassword(plaintext);
-  await db.execute(
+  // admin_users in the platform db; profile status in the AV db.
+  await getPlatformDb().execute(
     `UPDATE admin_users
         SET password_hash = ?, set_password_token = NULL, set_password_expires_at = NULL
       WHERE user_id = ?`,
     [hash, userId]
   );
-  await db.execute(
+  await getAvDb().execute(
     `UPDATE employee_profiles SET status = IF(status = 'invited', 'active', status) WHERE user_id = ?`,
     [userId]
   );
 }
 
+interface ProfileRow extends RowDataPacket {
+  user_id: number;
+  title: string | null;
+  status: string | null;
+  application_completed_at: Date | null;
+  contract_signed_at: Date | null;
+  contract_signed_name: string | null;
+}
+
+/** Fetch employee_profiles rows (AV db) for a set of user ids, keyed by user_id. */
+async function profilesByUserId(userIds: number[]): Promise<Map<number, ProfileRow>> {
+  const map = new Map<number, ProfileRow>();
+  if (userIds.length === 0) return map;
+  const placeholders = userIds.map(() => '?').join(', ');
+  const [rows] = await getAvDb().execute<ProfileRow[]>(
+    `SELECT user_id, title, status, application_completed_at, contract_signed_at, contract_signed_name
+       FROM employee_profiles WHERE user_id IN (${placeholders})`,
+    userIds
+  );
+  for (const r of rows) map.set(Number(r.user_id), r);
+  return map;
+}
+
 /** List staff employees (excludes owner + client_user) with profile basics. */
 export async function listEmployees(): Promise<EmployeeRow[]> {
-  const db = getAvDb();
-  const [rows] = await db.execute<EmployeeRow[]>(
-    `SELECT u.user_id, u.email, u.display_name, u.role, u.is_active, u.created_at,
-            p.title, p.status, p.application_completed_at, p.contract_signed_at
-       FROM admin_users u
-       LEFT JOIN employee_profiles p ON p.user_id = u.user_id
-      WHERE u.role = 'staff'
-      ORDER BY u.created_at DESC`
+  // admin_users (platform db) is the source of truth for the account.
+  const [users] = await getPlatformDb().execute<(RowDataPacket & {
+    user_id: number; email: string; display_name: string;
+    role: 'owner' | 'staff' | 'client_user'; is_active: number; created_at: Date;
+  })[]>(
+    `SELECT user_id, email, display_name, role, is_active, created_at
+       FROM admin_users WHERE role = 'staff' ORDER BY created_at DESC`
   );
-  return rows;
+  const profiles = await profilesByUserId(users.map((u) => Number(u.user_id)));
+  return users.map((u) => {
+    const p = profiles.get(Number(u.user_id));
+    return {
+      user_id: u.user_id,
+      email: u.email,
+      display_name: u.display_name,
+      role: u.role,
+      is_active: u.is_active,
+      created_at: u.created_at,
+      title: p?.title ?? null,
+      status: p?.status ?? null,
+      application_completed_at: p?.application_completed_at ?? null,
+      contract_signed_at: p?.contract_signed_at ?? null,
+      contract_signed_name: p?.contract_signed_name ?? null
+    } as EmployeeRow;
+  });
 }
 
 /** One staff employee (with profile), or null. */
 export async function getEmployee(userId: number): Promise<EmployeeRow | null> {
   if (!userId || userId <= 0) return null;
-  const db = getAvDb();
-  const [rows] = await db.execute<EmployeeRow[]>(
-    `SELECT u.user_id, u.email, u.display_name, u.role, u.is_active, u.created_at,
-            p.title, p.status, p.application_completed_at, p.contract_signed_at, p.contract_signed_name
-       FROM admin_users u
-       LEFT JOIN employee_profiles p ON p.user_id = u.user_id
-      WHERE u.user_id = ? AND u.role = 'staff'
-      LIMIT 1`,
+  const [users] = await getPlatformDb().execute<(RowDataPacket & {
+    user_id: number; email: string; display_name: string;
+    role: 'owner' | 'staff' | 'client_user'; is_active: number; created_at: Date;
+  })[]>(
+    `SELECT user_id, email, display_name, role, is_active, created_at
+       FROM admin_users WHERE user_id = ? AND role = 'staff' LIMIT 1`,
     [userId]
   );
-  return rows[0] ?? null;
+  const u = users[0];
+  if (!u) return null;
+  const p = (await profilesByUserId([Number(u.user_id)])).get(Number(u.user_id));
+  return {
+    user_id: u.user_id,
+    email: u.email,
+    display_name: u.display_name,
+    role: u.role,
+    is_active: u.is_active,
+    created_at: u.created_at,
+    title: p?.title ?? null,
+    status: p?.status ?? null,
+    application_completed_at: p?.application_completed_at ?? null,
+    contract_signed_at: p?.contract_signed_at ?? null,
+    contract_signed_name: p?.contract_signed_name ?? null
+  } as EmployeeRow;
 }
 
 export interface EmployeeApplication {

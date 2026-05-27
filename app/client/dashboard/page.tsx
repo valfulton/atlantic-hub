@@ -88,19 +88,21 @@ export default async function ClientDashboardPage() {
   }
 
   const db = getAvDb();
+  // The client's OWN business audit is the lead that represents THEM -- matched by
+  // their email. Their PROSPECTS (leads scoped to their hub via client_id) must
+  // never appear here: a prospect's marketing audit is not the client's own audit.
+  // Bug fix: the old query also matched client_id and even prioritized it, so a
+  // benefits broker like Skip saw "Strategic Marketing Audit for <a prospect>"
+  // presented as his own business audit -- 100% irrelevant.
   const [auditRows] = await db.execute<AuditRow[]>(
     `SELECT audit_id, company, industry, audit_content, audit_generated, created_at
        FROM leads
       WHERE archived_at IS NULL
         AND audit_content IS NOT NULL
-        AND (
-          (? IS NOT NULL AND client_id = ?)
-          OR email = ?
-        )
-      ORDER BY (client_id = ?) DESC,
-               COALESCE(audit_generated, created_at) DESC
+        AND email = ?
+      ORDER BY COALESCE(audit_generated, created_at) DESC
       LIMIT 1`,
-    [user.client_id, user.client_id, user.email, user.client_id]
+    [user.email]
   );
   const audit = auditRows[0] ?? null;
 
