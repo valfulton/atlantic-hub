@@ -9,11 +9,24 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function PortalAccessToggle({ clientId, initialFullAccess }: { clientId: number; initialFullAccess: boolean }) {
+export default function PortalAccessToggle({
+  clientId,
+  initialFullAccess,
+  intakeCompleted = false
+}: {
+  clientId: number;
+  initialFullAccess: boolean;
+  /** True when the client completed their own intake (client_completed_at). This
+   *  alone unlocks the hub — independent of the operator override. */
+  intakeCompleted?: boolean;
+}) {
   const router = useRouter();
   const [full, setFull] = useState(initialFullAccess);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // The hub is open if EITHER the operator granted full access OR the client
+  // completed their intake. The badge keys off this, not just the override.
+  const unlocked = full || intakeCompleted;
 
   async function set(fullAccess: boolean) {
     setBusy(true); setMsg(null);
@@ -40,15 +53,19 @@ export default function PortalAccessToggle({ clientId, initialFullAccess }: { cl
     <div className="rounded-2xl border border-border bg-surface p-4 mb-6">
       <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-2">Portal access (operator)</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: full ? '#6ee7b7' : '#fcd34d', fontWeight: 600 }}>
-          {full ? '● Full access — hub unlocked' : '● Intake required — hub locked until they submit it'}
+        <span style={{ fontSize: 13, color: unlocked ? '#6ee7b7' : '#fcd34d', fontWeight: 600 }}>
+          {full
+            ? '● Full access — hub unlocked (operator override)'
+            : intakeCompleted
+              ? '● Hub unlocked — they completed their intake'
+              : '● Intake required — hub locked until they submit it'}
         </span>
         {full ? (
           <button onClick={() => set(false)} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs"
             style={{ background: 'rgba(148,163,184,0.12)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.25)' }}>
             {busy ? 'Saving…' : 'Require intake first'}
           </button>
-        ) : (
+        ) : intakeCompleted ? null : (
           <button onClick={() => set(true)} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-medium"
             style={{ background: 'linear-gradient(120deg,#FF9C5B,#FFC73D)', color: '#1a1207', border: 'none' }}>
             {busy ? 'Saving…' : 'Grant full access now'}
@@ -57,7 +74,9 @@ export default function PortalAccessToggle({ clientId, initialFullAccess }: { cl
         {msg && <span style={{ fontSize: 12, color: '#bfdbfe' }}>{msg}</span>}
       </div>
       <p className="text-[11px] text-muted mt-2 leading-relaxed">
-        Default for trial accounts is intake-first. Granting full access lets them into the whole portal immediately, without the intake.
+        {intakeCompleted && !full
+          ? 'They submitted their intake, so their hub is already open — nothing to grant. Use the override only to bypass the intake for someone who has not submitted.'
+          : 'Default for trial accounts is intake-first. Granting full access lets them into the whole portal immediately, without the intake.'}
       </p>
     </div>
   );

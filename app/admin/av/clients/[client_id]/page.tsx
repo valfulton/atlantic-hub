@@ -54,11 +54,16 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   const icp = await getClientIcp(clientId);
   const currentTier = (d.members[0]?.tier as ClientTier) || 'sprint';
 
-  // Current intake-gate override (portal_full_access) for the toggle.
+  // Intake-gate state for the toggle: the operator override (portal_full_access)
+  // AND whether the client completed their own intake (client_completed_at). EITHER
+  // unlocks the hub, so the badge must reflect both — not just the override.
   let portalFullAccess = false;
+  let intakeCompleted = false;
   try {
     const bp = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
     portalFullAccess = bp?.portal_full_access === true;
+    const stamp = bp?.client_completed_at;
+    intakeCompleted = typeof stamp === 'string' && stamp.trim().length > 0;
   } catch { /* default: intake required */ }
 
   // Prefilled-intake share link -> the live website intake form, prefilled via token.
@@ -143,7 +148,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       />
 
       {/* Intake gate override: grant full portal access, or require intake first. */}
-      <PortalAccessToggle clientId={clientId} initialFullAccess={portalFullAccess} />
+      <PortalAccessToggle clientId={clientId} initialFullAccess={portalFullAccess} intakeCompleted={intakeCompleted} />
 
       {/* Access & tier controls */}
       <AccessControls clientId={clientId} initialState={access} currentTier={currentTier} />
