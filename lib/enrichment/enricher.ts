@@ -452,7 +452,22 @@ export async function runEnrichmentBatch(opts: {
   let creditsUsedThisRun = 0;
 
   for (const lead of candidates) {
-    const result = await enrichOne(lead, triggerSource);
+    // Resilience: one bad lead must NEVER abort the whole batch (or throw away
+    // the results already gathered). enrichOne handles Hunter errors itself, but
+    // any other throw (DB hiccup, etc.) is caught here so the run completes.
+    let result: EnrichmentResult;
+    try {
+      result = await enrichOne(lead, triggerSource);
+    } catch (err) {
+      result = {
+        leadId: lead.id,
+        company: lead.company,
+        outcome: 'api_error',
+        details: { error: ((err as Error).message || 'unknown error').slice(0, 300) }
+      };
+      // Release the in_progress lock so it can be retried on a later run.
+      await markLeadStatus(lead.id, lead.enrichment_status ?? '').catch(() => {});
+    }
     results.push(result);
 
     // Every Hunter call (success or no_results) consumes a credit

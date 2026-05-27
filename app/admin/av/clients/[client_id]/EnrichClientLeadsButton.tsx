@@ -23,7 +23,9 @@ export default function EnrichClientLeadsButton({ clientId, clientName }: { clie
         body: JSON.stringify({ limit: 10 })
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.ok) throw new Error(j.error || j.message || 'Enrichment failed.');
+      if (!res.ok || !j.ok) {
+        throw new Error([j.error, j.detail].filter(Boolean).join(' — ') || j.message || 'Enrichment failed.');
+      }
       setMsg({ ok: true, text: j.message || 'Done.' });
       router.refresh();
     } catch (err) {

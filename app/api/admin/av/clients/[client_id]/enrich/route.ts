@@ -44,6 +44,14 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
             : 'No new contact details found this run.';
     return NextResponse.json({ ok: true, ...summary, message });
   } catch (err) {
-    return NextResponse.json({ error: 'enrichment failed', errorClass: (err as Error).name }, { status: 500 });
+    console.error('[av:client:enrich]', clientId, (err as Error).message);
+    return NextResponse.json(
+      {
+        error: 'enrichment failed',
+        detail: ((err as Error).message || '').slice(0, 300),
+        errorClass: (err as Error).name
+      },
+      { status: 500 }
+    );
   }
 }
