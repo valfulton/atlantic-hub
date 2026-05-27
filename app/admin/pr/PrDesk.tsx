@@ -15,6 +15,20 @@ import { celebrateGoLive } from '@/lib/ui/celebrate';
 
 type VoiceChoice = 'auto' | PitchMode;
 
+// Mirror of resolveDefaultMode() in lib/pr/drafter.ts so the "edit this voice's
+// prompt" link points at the prompt the draft will actually use. Real media
+// requests default to a quotable client-voice response; internal ideas
+// (source 'manual') and 'other' default to advisory outreach. Keep in sync.
+function defaultModeForSource(source: PrSource): PitchMode {
+  return source === 'manual' || source === 'other' ? 'advisory' : 'client_voice';
+}
+
+/** Deep-link to the exact editable prompt behind the active voice for a draft. */
+function promptHrefFor(voice: VoiceChoice, source: PrSource): string {
+  const mode = voice === 'auto' ? defaultModeForSource(source) : voice;
+  return `/admin/av/prompts?prompt=pr_pitch_${mode}`;
+}
+
 // ---- view models (mirror the API responses) ------------------------------
 
 interface LatestPitch {
@@ -894,7 +908,7 @@ export function PrDesk() {
           id={`voice-${o.id}`}
           value={voiceFor(o.id)}
           onChange={(e) => setVoice((v) => ({ ...v, [o.id]: e.target.value as VoiceChoice }))}
-          title="Who is this written as? Leads get advisory/congratulatory (our voice, to them)."
+          title="Who is this written as? Auto = a quotable client-voice response for real media requests, advisory (our voice, to the prospect) for ideas from your data. Override anytime."
           className="rounded-lg px-2 py-1.5 text-[12px] focus-visible:ring-2 focus-visible:ring-brand"
           style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
         >
@@ -903,6 +917,16 @@ export function PrDesk() {
             <option key={m} value={m} style={{ color: '#000' }}>{PITCH_MODE_LABELS[m]}</option>
           ))}
         </select>
+        <a
+          href={promptHrefFor(voiceFor(o.id), o.source)}
+          target="_blank"
+          rel="noopener"
+          title="Edit the exact AI prompt behind this voice"
+          className="text-[11px] underline focus-visible:ring-2 focus-visible:ring-brand rounded"
+          style={{ color: '#9AE6B4' }}
+        >
+          Edit this voice&rsquo;s prompt &rarr;
+        </a>
         <button
           type="button"
           onClick={() => void draftPitch(o.id)}

@@ -39,8 +39,20 @@ export function PromptEditor() {
         const res = await fetch('/api/admin/av/prompts', { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Could not load prompts.');
-        setList(data.prompts ?? []);
-        if ((data.prompts ?? []).length) setActiveKey(data.prompts[0].key);
+        const prompts: PromptListItem[] = data.prompts ?? [];
+        setList(prompts);
+        if (prompts.length) {
+          // Allow deep-linking to a specific prompt, e.g. the PR desk's
+          // "edit this voice's prompt" link: /admin/av/prompts?prompt=pr_pitch_advisory
+          let want = '';
+          try {
+            want = new URLSearchParams(window.location.search).get('prompt') ?? '';
+          } catch {
+            /* no window/search -- fall back to the first prompt */
+          }
+          const match = want && prompts.some((p) => p.key === want) ? want : prompts[0].key;
+          setActiveKey(match);
+        }
       } catch (err) {
         setMsg({ ok: false, text: (err as Error).message });
       } finally {
