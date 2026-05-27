@@ -517,6 +517,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
       <div>
         <label style={labelStyle}>Thesis — the believable market thesis, one sentence</label>
         <textarea
+          id={`thesis-${id}`}
           style={{ ...inputStyle, minHeight: 52 }}
           placeholder="e.g. Luxury retreats are becoming strategic executive performance assets."
           value={d.thesis ?? ''}
@@ -572,7 +573,22 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                     </div>
                     <div style={{ fontSize: 13, color: '#e2e8f0' }}>{s.thesis}</div>
                     {s.why && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.why}</div>}
-                    <button type="button" onClick={() => patchField(id, 'thesis', s.thesis)} style={{ ...btnPrimary, marginTop: 8, fontSize: 11, padding: '5px 12px' }}>Use this thesis →</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        patchField(id, 'thesis', s.thesis);
+                        // Show it land: scroll the (now-filled) Thesis box into view + focus it,
+                        // so it's obvious the click did something. Then just hit Save line.
+                        const el = typeof document !== 'undefined' ? document.getElementById(`thesis-${id}`) : null;
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          (el as HTMLTextAreaElement).focus();
+                        }
+                      }}
+                      style={{ ...btnPrimary, marginTop: 8, fontSize: 11, padding: '5px 12px' }}
+                    >
+                      Use this thesis ↑ (fills Thesis box, then Save)
+                    </button>
                   </div>
                 );
               })}
@@ -596,7 +612,7 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
         {listField("Don't say (off-thesis)", 'dontSay', 'phrases to avoid')}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center', position: 'sticky', bottom: 0, zIndex: 5, background: 'rgba(2,6,23,0.94)', backdropFilter: 'blur(6px)', borderTop: '1px solid rgba(148,163,184,0.18)', padding: '10px 4px', margin: '12px -4px 0', borderRadius: '0 0 12px 12px' }}>
         <button onClick={() => saveLine(id)} disabled={saving === id} style={{ ...btnPrimary, opacity: saving === id ? 0.5 : 1 }}>{saving === id ? 'Saving…' : isDirty ? 'Save line •' : 'Save line'}</button>
         {line.state !== 'active' && <button onClick={() => changeState(id, 'active')} style={btnGhost}>Activate</button>}
         {line.state === 'active' && <button onClick={() => changeState(id, 'reinforcing')} style={btnGhost}>Mark reinforcing</button>}
