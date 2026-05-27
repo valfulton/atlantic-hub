@@ -326,15 +326,24 @@ async function loadPrimaryLead(client: ClientIdentity): Promise<PrimaryLeadRow |
   return rows[0] ?? null;
 }
 
-/** Accumulated intelligence_objects for this business (tenant 'av', lead-scoped + tenant-level). */
+/**
+ * Accumulated intelligence_objects for THIS business only — strictly lead-scoped.
+ *
+ * NO-BLEED: we deliberately do NOT pull tenant-level (lead_id IS NULL) 'av'
+ * objects here. Those are house/agency-wide intelligence (and, in practice,
+ * leftover test artifacts like a debt-collection authority topic); reading them
+ * into one client's guidance leaked unrelated themes into every client's "what
+ * matters most" panel regardless of who they were. A client's guidance must
+ * ground only on their own lead's intelligence.
+ */
 async function loadIntelObjects(leadId: number): Promise<IntelObjRow[]> {
   const db = getAvDb();
   const [rows] = await db.execute<IntelObjRow[]>(
     `SELECT object_type, object_json, confidence, updated_at
        FROM intelligence_objects
       WHERE tenant_id = ?
-        AND (lead_id = ? OR lead_id IS NULL)
-      ORDER BY (lead_id IS NULL), confidence DESC, updated_at DESC
+        AND lead_id = ?
+      ORDER BY confidence DESC, updated_at DESC
       LIMIT 40`,
     [SOURCE_TENANT, leadId]
   );
