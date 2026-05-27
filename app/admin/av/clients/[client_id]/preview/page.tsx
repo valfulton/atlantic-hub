@@ -68,15 +68,22 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
     brief = await getClientCreativeBrief({ client_id: clientId, email });
   } catch { /* keep empty */ }
 
-  const [auditRows] = await db.execute<AuditRow[]>(
-    `SELECT company, audit_content, audit_generated, created_at
-       FROM leads
-      WHERE archived_at IS NULL AND audit_content IS NOT NULL AND client_id = ?
-      ORDER BY COALESCE(audit_generated, created_at) DESC
-      LIMIT 1`,
-    [clientId]
-  );
-  const audit = auditRows[0] ?? null;
+  // Mirror the real client dashboard exactly: the client's OWN business audit is
+  // the lead matching THEIR email, never a prospect scoped to their hub (client_id).
+  // (Previously this matched client_id and showed a prospect's audit — e.g. Carrier
+  // HVAC — as the client's own. See the matching fix in /client/dashboard.)
+  let audit: AuditRow | null = null;
+  if (email) {
+    const [auditRows] = await db.execute<AuditRow[]>(
+      `SELECT company, audit_content, audit_generated, created_at
+         FROM leads
+        WHERE archived_at IS NULL AND audit_content IS NOT NULL AND email = ?
+        ORDER BY COALESCE(audit_generated, created_at) DESC
+        LIMIT 1`,
+      [email]
+    );
+    audit = auditRows[0] ?? null;
+  }
 
   return (
     <div>
@@ -134,7 +141,7 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
           {audit ? (
             <div className="text-sm text-ink whitespace-pre-line leading-relaxed mt-3">{auditPreview(audit.audit_content)}</div>
           ) : (
-            <div className="text-sm text-muted mt-3">No audit generated for this client&apos;s leads yet.</div>
+            <div className="text-sm text-muted mt-3">No audit generated for this client yet.</div>
           )}
         </section>
       </main>
