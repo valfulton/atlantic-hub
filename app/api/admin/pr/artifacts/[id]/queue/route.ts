@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
+import { autoThreadAsset } from '@/lib/campaigns/line_links';
 import { CONTENT_EVENTS } from '@/lib/pr/types';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -116,6 +117,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         [artifact.tenant_id, connId, artifact.lead_id, text, status, scheduledFor, guard.actor.userId]
       );
       outboxIds.push(ins.insertId);
+      // Narrative spine: thread each queued post to the customer's active line (no-op if none).
+      autoThreadAsset({ tenantId: artifact.tenant_id, leadId: artifact.lead_id, assetType: 'social_post', assetId: ins.insertId }).catch(() => {});
     }
 
     // Link the first outbox row back onto the artifact (graph traceability).

@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
+import { autoThreadAsset } from '@/lib/campaigns/line_links';
 import { DEFAULT_TENANT, PR_EVENTS } from '@/lib/pr/types';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -142,6 +143,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         ]
       );
       outboxIds.push(res.insertId);
+      // Narrative spine: thread each scheduled post to the customer's active line (no-op if none).
+      autoThreadAsset({ tenantId, leadId: opp.matched_lead_id, assetType: 'social_post', assetId: res.insertId }).catch(() => {});
       await logEvent({
         eventType: PR_EVENTS.socialQueued,
         leadId: opp.matched_lead_id,
