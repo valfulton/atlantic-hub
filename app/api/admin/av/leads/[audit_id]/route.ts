@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAvDb } from '@/lib/db/av';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled, mysqlBoolToJs } from '@/lib/feature-flags';
+import { getClientDealModel, leadMonthlyCents, annualCents } from '@/lib/sales/deal_model';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -61,6 +62,8 @@ interface LeadDetailRow extends RowDataPacket {
   pipeline_stage_id: number | null;
   source_type: string;
   target_business: 'av' | 'ebw' | 'both';
+  deal_unit_count: number | null;
+  deal_flat_cents: number | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -101,7 +104,7 @@ export async function GET(
               pain_point_profile, pain_extracted_at,
               assigned_to_user_id, handed_to_owner_at, wake_at_date, parked_reason,
               tags, last_activity_at, client_id, pipeline_stage_id, source_type,
-              target_business, archived_at,
+              target_business, deal_unit_count, deal_flat_cents, archived_at,
               created_at, updated_at
        FROM leads
        WHERE audit_id = ?
@@ -114,6 +117,12 @@ export async function GET(
     }
 
     const r = rows[0];
+    // Resolve the owning client's deal model (null for AV-pipeline leads) and
+    // compute this lead's monthly/annual value so the detail page can show it.
+    const dealModel = await getClientDealModel(r.client_id).catch(() => null);
+    const dealUnitCount = r.deal_unit_count == null ? null : Number(r.deal_unit_count);
+    const dealFlatCents = r.deal_flat_cents == null ? null : Number(r.deal_flat_cents);
+    const dealMonthlyCents = leadMonthlyCents(dealModel, { dealUnitCount, dealFlatCents });
     return NextResponse.json({
       lead: {
         id: r.id,
@@ -162,6 +171,11 @@ export async function GET(
         pipelineStageId: r.pipeline_stage_id,
         sourceType: r.source_type,
         targetBusiness: r.target_business,
+        dealUnitCount,
+        dealFlatCents,
+        dealModel,
+        dealMonthlyCents,
+        dealAnnualCents: annualCents(dealMonthlyCents),
         archivedAt: r.archived_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at
@@ -286,6 +300,29 @@ export async function PATCH(
     updates.push('target_business = ?');
     values.push(payload.targetBusiness);
     eventPayload.targetBusiness = payload.targetBusiness;
+  }
+
+  // Deal metrics (per-client economics). deal_unit_count drives per_head value
+  // (e.g. # employees); deal_flat_cents is the flat-mode monthly value. Both
+  // accept null to clear.
+  if (payload.dealUnitCount === null || typeof payload.dealUnitCount === 'number') {
+    const v = payload.dealUnitCount;
+    if (v !== null && (!Number.isFinite(v) || v < 0 || v > 10_000_000)) {
+      return NextResponse.json({ error: 'dealUnitCount must be a non-negative integer or null' }, { status: 400 });
+    }
+    updates.push('deal_unit_count = ?');
+    values.push(v === null ? null : Math.floor(v));
+    eventPayload.dealUnitCount = v;
+  }
+
+  if (payload.dealFlatCents === null || typeof payload.dealFlatCents === 'number') {
+    const v = payload.dealFlatCents;
+    if (v !== null && (!Number.isFinite(v) || v < 0 || v > 100_000_000_00)) {
+      return NextResponse.json({ error: 'dealFlatCents must be a non-negative integer or null' }, { status: 400 });
+    }
+    updates.push('deal_flat_cents = ?');
+    values.push(v === null ? null : Math.floor(v));
+    eventPayload.dealValueChanged = true;
   }
 
   // Soft delete / undelete. archived=true → archived_at = NOW().

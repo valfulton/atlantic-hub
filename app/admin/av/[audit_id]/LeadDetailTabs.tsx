@@ -78,6 +78,12 @@ interface Lead {
     note?: string;
   }> | null;
   sourceType: string;
+  clientId?: number | null;
+  dealUnitCount?: number | null;
+  dealFlatCents?: number | null;
+  dealModel?: { mode: 'per_head' | 'flat'; rateCents: number | null; unitLabel: string } | null;
+  dealMonthlyCents?: number | null;
+  dealAnnualCents?: number | null;
 }
 
 interface NoteEntry {
@@ -319,6 +325,10 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
                 {lead.parkedReason ? ` -- ${lead.parkedReason}` : ''}
               </div>
             )}
+          </div>
+
+          <div className="md:col-span-2">
+            <DealValueEditor lead={lead} />
           </div>
 
           <div>
@@ -636,6 +646,126 @@ function Empty({ message }: { message: string }) {
   return (
     <div className="px-6 py-12 text-center text-sm text-muted bg-surface border border-border rounded-lg">
       {message}
+    </div>
+  );
+}
+
+function fmtUsd(cents: number | null | undefined): string {
+  if (cents == null) return '—';
+  return Math.round(cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+
+/**
+ * DealValueEditor — enter the metric that drives a lead's value under the owning
+ * client's deal model (per-head count, or a flat monthly amount), and see the
+ * monthly + annual value live. Saves via PATCH (dealUnitCount / dealFlatCents).
+ */
+function DealValueEditor({ lead }: { lead: Lead }) {
+  const model = lead.dealModel ?? null;
+  const [count, setCount] = useState<string>(lead.dealUnitCount != null ? String(lead.dealUnitCount) : '');
+  const [flat, setFlat] = useState<string>(lead.dealFlatCents != null ? String(Math.round(lead.dealFlatCents / 100)) : '');
+  const [busy, setBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  let monthlyCents: number | null = null;
+  if (model?.mode === 'per_head' && model.rateCents != null) {
+    const n = parseInt(count, 10);
+    monthlyCents = Number.isFinite(n) && n >= 0 ? model.rateCents * n : null;
+  } else if (model?.mode === 'flat') {
+    const d = parseFloat(flat);
+    monthlyCents = Number.isFinite(d) && d >= 0 ? Math.round(d * 100) : null;
+  }
+  const annual = monthlyCents == null ? null : monthlyCents * 12;
+
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (model?.mode === 'per_head') {
+        const n = parseInt(count, 10);
+        body.dealUnitCount = count.trim() === '' ? null : Number.isFinite(n) ? n : 0;
+      } else {
+        const d = parseFloat(flat);
+        body.dealFlatCents = flat.trim() === '' ? null : Number.isFinite(d) ? Math.round(d * 100) : 0;
+      }
+      const res = await fetch(`/api/admin/av/leads/${lead.auditId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!model) {
+    return (
+      <div className="border-t border-border pt-4">
+        <div className="field-label mb-1">Deal value</div>
+        <p className="text-sm text-muted">
+          {lead.clientId
+            ? 'This client has no deal model set yet — set one on the client page (per-head rate or flat) to value this lead.'
+            : 'Deal value applies to client-owned leads. Assign this lead to a client whose deal model is set to value it.'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-border pt-4">
+      <div className="field-label mb-2">Deal value</div>
+      <div className="flex flex-wrap items-end gap-3">
+        {model.mode === 'per_head' ? (
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-muted mb-1"># {model.unitLabel}s</label>
+            <input
+              type="number"
+              min={0}
+              value={count}
+              onChange={(e) => setCount(e.target.value)}
+              placeholder="0"
+              className="w-32 px-3 py-2 rounded-md border border-border bg-surface text-ink text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            />
+            <div className="text-[11px] text-muted mt-1">× {fmtUsd(model.rateCents)}/{model.unitLabel}/mo</div>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-muted mb-1">Monthly value ($)</label>
+            <input
+              type="number"
+              min={0}
+              value={flat}
+              onChange={(e) => setFlat(e.target.value)}
+              placeholder="0"
+              className="w-36 px-3 py-2 rounded-md border border-border bg-surface text-ink text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            />
+          </div>
+        )}
+        <div className="px-4 py-2 rounded-md bg-surface border border-border">
+          <div className="text-[10px] uppercase tracking-wider text-muted">Monthly</div>
+          <div className="text-lg font-semibold text-ink tabular-nums">{fmtUsd(monthlyCents)}</div>
+        </div>
+        <div className="px-4 py-2 rounded-md bg-surface border border-border">
+          <div className="text-[10px] uppercase tracking-wider text-muted">Annual</div>
+          <div className="text-lg font-semibold text-ink tabular-nums">{fmtUsd(annual)}</div>
+        </div>
+        <button
+          onClick={save}
+          disabled={busy}
+          className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : 'Save value'}
+        </button>
+        {savedAt && !err && <span className="text-xs text-muted">Saved {savedAt}</span>}
+        {err && <span className="text-xs text-rose-300">Error: {err}</span>}
+      </div>
     </div>
   );
 }
