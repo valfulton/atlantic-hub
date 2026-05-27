@@ -239,6 +239,35 @@ export async function POST(req: NextRequest) {
       html: emailBody.html
     });
 
+    // Operator notification — so val knows the moment a submission lands (not just
+    // the client getting their magic link). Address is configurable; non-fatal.
+    try {
+      const notifyTo = process.env.INTAKE_NOTIFY_EMAIL || 'val@atlanticandvine.com';
+      const company = typeof data.company === 'string' && data.company.trim() ? data.company.trim() : '(not given)';
+      const summary =
+        `New client intake submitted.\n\n` +
+        `Name: ${displayName || '(not given)'}\n` +
+        `Email: ${email}\n` +
+        `Company: ${company}\n` +
+        `Returning account: ${created ? 'no — first time' : 'yes'}\n\n` +
+        `Review it in the hub: https://atlantic-hub.netlify.app/admin/av/clients`;
+      await sendEmail({
+        to: notifyTo,
+        subject: `New intake: ${displayName || email}`,
+        text: summary,
+        html: `<p>New client intake submitted.</p>
+<ul>
+  <li><strong>Name:</strong> ${displayName || '(not given)'}</li>
+  <li><strong>Email:</strong> ${email}</li>
+  <li><strong>Company:</strong> ${company}</li>
+  <li><strong>Returning account:</strong> ${created ? 'no — first time' : 'yes'}</li>
+</ul>
+<p><a href="https://atlantic-hub.netlify.app/admin/av/clients">Review it in the hub</a></p>`
+      });
+    } catch (notifyErr) {
+      console.error('[client-portal:intake] operator notify failed:', (notifyErr as Error).message);
+    }
+
     // Always log a structured trail. If email sent, we record the
     // messageId; if not, we still log the link so it can be recovered
     // manually.
