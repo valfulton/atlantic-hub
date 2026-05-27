@@ -240,6 +240,34 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
     }
   }, [thesisPrompt]);
 
+  // Park a generated suggestion into the parking lot (a new CANDIDATE line for the
+  // same customer) WITHOUT activating it — so an idea you like isn't lost and you
+  // never have to pay to regenerate it. Keyed by `${lineId}::${thesis}` for per-card feedback.
+  const [parkedIdeas, setParkedIdeas] = useState<Record<string, 'saving' | 'done' | 'error'>>({});
+  const parkThesisIdea = useCallback(async (line: Line, thesis: string) => {
+    const key = `${line.id}::${thesis}`;
+    setParkedIdeas((p) => ({ ...p, [key]: 'saving' }));
+    const name = thesis.split(/\s+/).slice(0, 6).join(' ').slice(0, 80) || 'Parked idea';
+    try {
+      const res = await fetch('/api/admin/campaigns/lanes', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, thesis, tenant: line.tenantId, clientId: line.clientId })
+      });
+      const j = await res.json();
+      if (res.ok && j.id) {
+        setLines((ls) => [
+          { id: j.id, ownerKey: line.ownerKey, tenantId: line.tenantId, clientId: line.clientId, name, state: 'candidate', accent: null, thesis, audience: null, emotionalDriver: null, authorityAngle: null, seasonality: null, conversionSignal: null, proofPoints: [], doSay: [], dontSay: [] },
+          ...ls
+        ]);
+        setParkedIdeas((p) => ({ ...p, [key]: 'done' }));
+      } else {
+        setParkedIdeas((p) => ({ ...p, [key]: 'error' }));
+      }
+    } catch {
+      setParkedIdeas((p) => ({ ...p, [key]: 'error' }));
+    }
+  }, []);
+
   const [newCustomerKey, setNewCustomerKey] = useState(customers[0]?.key ?? 'av:house');
   const [newName, setNewName] = useState('');
   const [newThesis, setNewThesis] = useState('');
@@ -390,7 +418,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea };
 
   return (
     <div>
@@ -488,6 +516,8 @@ interface EditorProps {
   draftThesisPrompt: (id: number) => void;
   setThesisPromptText: (id: number, text: string) => void;
   generateThesisIdeas: (id: number) => void;
+  parkedIdeas: Record<string, 'saving' | 'done' | 'error'>;
+  parkThesisIdea: (line: Line, thesis: string) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -534,7 +564,7 @@ function Collapsible({ title, hint, defaultOpen = false, children }: { title: st
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -634,25 +664,41 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                     </div>
                     <div style={{ fontSize: 13, color: '#e2e8f0' }}>{s.thesis}</div>
                     {s.why && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.why}</div>}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        // One click: fill the Thesis box, save it, and make it the live
-                        // story. (override avoids a setState race.) Then scroll up so you
-                        // see it landed; activation pops confetti + the Live banner.
-                        patchField(id, 'thesis', s.thesis);
-                        await saveLine(id, { thesis: s.thesis });
-                        await changeState(id, 'active');
-                        const el = typeof document !== 'undefined' ? document.getElementById(`thesis-${id}`) : null;
-                        if (el) {
-                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          (el as HTMLTextAreaElement).focus();
-                        }
-                      }}
-                      style={{ ...btnPrimary, marginTop: 8, fontSize: 11, padding: '5px 12px' }}
-                    >
-                      ✦ Use &amp; activate this story
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // One click: fill the Thesis box, save it, and make it the live
+                          // story. (override avoids a setState race.) Then scroll up so you
+                          // see it landed; activation pops confetti + the Live banner.
+                          patchField(id, 'thesis', s.thesis);
+                          await saveLine(id, { thesis: s.thesis });
+                          await changeState(id, 'active');
+                          const el = typeof document !== 'undefined' ? document.getElementById(`thesis-${id}`) : null;
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            (el as HTMLTextAreaElement).focus();
+                          }
+                        }}
+                        style={{ ...btnPrimary, fontSize: 11, padding: '5px 12px' }}
+                      >
+                        ✦ Use &amp; activate this story
+                      </button>
+                      {(() => {
+                        const pstate = parkedIdeas[`${id}::${s.thesis}`];
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => parkThesisIdea(line, s.thesis)}
+                            disabled={pstate === 'saving' || pstate === 'done'}
+                            title="Save this idea to the parking lot (Candidates) without activating it"
+                            style={{ ...btnGhost, fontSize: 11, padding: '5px 12px', opacity: pstate === 'saving' ? 0.6 : 1 }}
+                          >
+                            {pstate === 'done' ? 'Parked ✓' : pstate === 'saving' ? 'Parking…' : pstate === 'error' ? 'Retry park' : '🅿 Park it'}
+                          </button>
+                        );
+                      })()}
+                    </div>
                   </div>
                 );
               })}
