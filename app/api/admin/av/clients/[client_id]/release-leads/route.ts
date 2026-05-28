@@ -40,13 +40,45 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   try {
     const db = getAvDb();
     const placeholders = ids.map(() => '?').join(',');
-    // client_id = ? guard: only release leads this client actually owns.
+
+    // STEP 1 (#188): snapshot the lead_ids being released BEFORE we null their
+    // client_id — we need them to clean stale per-client guidance afterward.
+    const [releasedRows] = await db.execute<(import('mysql2').RowDataPacket & { id: number })[]>(
+      `SELECT id FROM leads
+        WHERE audit_id IN (${placeholders}) AND client_id = ? AND archived_at IS NULL`,
+      [...ids, clientId]
+    );
+    const releasedLeadIds = releasedRows.map((r) => r.id);
+
+    // STEP 2: client_id = ? guard: only release leads this client actually owns.
     const [res] = await db.execute<ResultSetHeader>(
       `UPDATE leads SET client_id = NULL, last_activity_at = NOW()
          WHERE audit_id IN (${placeholders}) AND client_id = ? AND archived_at IS NULL`,
       [...ids, clientId]
     );
-    return NextResponse.json({ ok: true, released: res.affectedRows ?? 0 });
+
+    // STEP 3 (#188): clean up the released leads' polluted guidance under this
+    // client's tenant. next_best_moves + momentum_signals rows pegged to these
+    // lead_ids would otherwise orphan and surface in the dashboard as stale
+    // content the next time the cache picks the wrong (older) row.
+    let guidanceCleaned = 0;
+    if (releasedLeadIds.length > 0) {
+      const leadPlaceholders = releasedLeadIds.map(() => '?').join(',');
+      const [delRes] = await db.execute<ResultSetHeader>(
+        `DELETE FROM intelligence_objects
+          WHERE tenant_id = ?
+            AND object_type IN ('next_best_moves','momentum_signals')
+            AND lead_id IN (${leadPlaceholders})`,
+        [`client:${clientId}`, ...releasedLeadIds]
+      );
+      guidanceCleaned = delRes.affectedRows ?? 0;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      released: res.affectedRows ?? 0,
+      guidanceCleaned
+    });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }

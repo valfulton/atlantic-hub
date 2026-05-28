@@ -576,20 +576,27 @@ export async function loadClientIntelligence(
 
 /** Read accumulated intelligence_objects (lead-scoped first, then tenant-level). */
 async function loadObjectSummaries(tenantId: string, leadId: number | null): Promise<string[]> {
+  // (#188) Scope STRICTLY to this lead's own intelligence_objects. Previously
+  // this also read tenant-wide rows (lead_id IS NULL), which let ambient noise
+  // (a single SEO row about an unrelated business) seed drafter context with
+  // off-topic material the model then riffed into the wrong client's guidance.
+  // Matches the no-bleed rule lib/client/guidance.ts already enforces.
+  // House/agency-wide objects should be authored against a specific lead now,
+  // not the tenant.
+  if (leadId == null) return [];
   const db = getAvDb();
   const [rows] = await db.execute<IntelObjRow[]>(
     `SELECT object_type, object_json, lead_id, confidence
        FROM intelligence_objects
       WHERE tenant_id = ?
-        AND (lead_id = ? OR lead_id IS NULL)
-      ORDER BY (lead_id IS NULL), updated_at DESC
+        AND lead_id = ?
+      ORDER BY updated_at DESC
       LIMIT 24`,
     [tenantId, leadId]
   );
   return rows.map((r) => {
-    const scope = r.lead_id == null ? 'tenant' : 'client';
     const val = compactJson(r.object_json);
-    return `[${scope}] ${r.object_type}: ${val}`;
+    return `[client] ${r.object_type}: ${val}`;
   });
 }
 

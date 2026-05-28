@@ -48,12 +48,37 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       if (!crows[0]) return NextResponse.json({ error: 'client not found' }, { status: 404 });
     }
 
+    // (#188) Read the lead's PRIOR client_id + id BEFORE the UPDATE so we can
+    // clean up the prior owner's stale guidance if the lead is changing hands.
+    const [priorRows] = await db.execute<(import('mysql2').RowDataPacket & { id: number; client_id: number | null })[]>(
+      `SELECT id, client_id FROM leads WHERE audit_id = ? AND archived_at IS NULL LIMIT 1`,
+      [params.audit_id]
+    );
+    const prior = priorRows[0];
+    if (!prior) return NextResponse.json({ error: 'lead not found' }, { status: 404 });
+
     const [res] = await db.execute<ResultSetHeader>(
       `UPDATE leads SET client_id = ?, last_activity_at = NOW() WHERE audit_id = ? AND archived_at IS NULL`,
       [clientId, params.audit_id]
     );
     if (!res.affectedRows) return NextResponse.json({ error: 'lead not found' }, { status: 404 });
-    return NextResponse.json({ ok: true, clientId });
+
+    // (#188) If the lead just LEFT a client (priorClientId set, and either
+    // unassigned or moved to a different client), wipe stale next_best_moves +
+    // momentum_signals under the prior client's tenant pegged to this lead.
+    let guidanceCleaned = 0;
+    if (prior.client_id != null && prior.client_id !== clientId) {
+      const [delRes] = await db.execute<ResultSetHeader>(
+        `DELETE FROM intelligence_objects
+          WHERE tenant_id = ?
+            AND object_type IN ('next_best_moves','momentum_signals')
+            AND lead_id = ?`,
+        [`client:${prior.client_id}`, prior.id]
+      );
+      guidanceCleaned = delRes.affectedRows ?? 0;
+    }
+
+    return NextResponse.json({ ok: true, clientId, guidanceCleaned });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }
