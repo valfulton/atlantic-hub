@@ -65,7 +65,6 @@ export default async (_req: Request) => {
 };
 
 export const config: Config = {
-  // Leaned down from hourly to every 6 hours to cut Netlify usage. Backfill just
-  // takes a bit longer; the 14-day staleness check is unaffected.
-  schedule: '0 */6 * * *'
+  // PAUSED to cut Netlify usage — re-enable on HostGator (#73). Was: '0 */6 * * *'
+  // schedule: '0 */6 * * *'
 };

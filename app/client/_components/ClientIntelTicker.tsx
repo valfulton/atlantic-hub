@@ -31,13 +31,9 @@ export default function ClientIntelTicker() {
       } catch { /* quiet */ }
     };
     load();
-    // Only poll while the tab is visible; refresh on return. A client leaving
-    // their dashboard open in a background tab no longer bills function calls.
-    const tick = () => { if (!document.hidden) load(); };
-    const poll = setInterval(tick, 120_000);
-    const onVis = () => { if (!document.hidden) load(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => { alive = false; clearInterval(poll); document.removeEventListener('visibilitychange', onVis); };
+    // Auto-refresh PAUSED to cut Netlify usage (until the HostGator move, #73).
+    // Loads once on mount; reload the page for fresh intel.
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {

@@ -88,5 +88,6 @@ export default async (_req: Request) => {
  * freshest combined scores feed momentum before guidance recomposes.
  */
 export const config: Config = {
-  schedule: '30 8 * * *'
+  // PAUSED to cut Netlify usage — re-enable on HostGator (#73).
+  // schedule: '30 8 * * *'
 };

@@ -55,14 +55,9 @@ export function IntelTicker() {
       } catch { /* stay quiet */ }
     };
     load();
-    // Only poll while the tab is visible — a backgrounded tab stops hitting the
-    // API entirely (the biggest Netlify-invocation saver). Returning to the tab
-    // fires an immediate refresh so the bar is never stale.
-    const tick = () => { if (!document.hidden) load(); };
-    const poll = setInterval(tick, 90_000);
-    const onVis = () => { if (!document.hidden) load(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => { alive = false; clearInterval(poll); document.removeEventListener('visibilitychange', onVis); };
+    // Auto-refresh PAUSED to cut Netlify usage (until the HostGator move, #73).
+    // Loads once on mount; reload the page for fresh intel.
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {

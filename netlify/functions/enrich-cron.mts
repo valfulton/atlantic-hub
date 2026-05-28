@@ -92,5 +92,6 @@ export default async (req: Request) => {
  * If you want eastern-AM enrichment, change to "0 10 * * *" (= 06:00 EDT / 05:00 EST).
  */
 export const config: Config = {
-  schedule: '0 6 * * *'
+  // PAUSED to cut Netlify usage — re-enable on HostGator (#73).
+  // schedule: '0 6 * * *'
 };

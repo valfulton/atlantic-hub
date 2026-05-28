@@ -60,18 +60,9 @@ export function PipelineValueCard() {
       }
     }
     void load();
-    // Poll only while the tab is visible (background tabs stop hitting the API),
-    // and refresh on return. Slowed 30s -> 60s: a pipeline total doesn't need
-    // sub-minute freshness, and this halves the calls while open.
-    const tick = () => { if (!document.hidden) void load(); };
-    const id = window.setInterval(tick, 60_000);
-    const onVis = () => { if (!document.hidden) void load(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-      document.removeEventListener('visibilitychange', onVis);
-    };
+    // Auto-refresh PAUSED to cut Netlify usage (until the HostGator move, #73).
+    // Loads once on mount; reload the page to refresh the pipeline total.
+    return () => { cancelled = true; };
   }, []);
 
   // Animate the dollar total when it changes.

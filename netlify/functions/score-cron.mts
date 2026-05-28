@@ -98,5 +98,6 @@ export default async (_req: Request) => {
  * the same morning.
  */
 export const config: Config = {
-  schedule: '0 7 * * *'
+  // PAUSED to cut Netlify usage — re-enable on HostGator (#73).
+  // schedule: '0 7 * * *'
 };

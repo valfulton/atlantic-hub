@@ -78,6 +78,6 @@ export default async (_req: Request) => {
  * so this is well within budget.
  */
 export const config: Config = {
-  // Leaned down from every 15 min to hourly to cut Netlify usage ~4x.
-  schedule: '0 * * * *'
+  // PAUSED to cut Netlify usage — re-enable on HostGator (#73). Was: '0 * * * *'
+  // schedule: '0 */4 * * *'
 };

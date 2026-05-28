@@ -4,7 +4,6 @@ import { DataTable, Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/StatusBadge';
 
 const LIVE_MODE_KEY = 'ah_events_live_mode';
-const LIVE_REFRESH_MS = 5_000;
 const HIGHLIGHT_FADE_MS = 2_000;
 
 export interface SystemEvent {
@@ -214,27 +213,15 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
     }
   }, []);
 
-  // Persist live-mode pref + manage the polling interval.
+  // Persist live-mode pref. Live POLLING is PAUSED to cut Netlify usage (until
+  // the HostGator move, #73) — reload the page to refresh the events list.
   useEffect(() => {
     try {
       window.localStorage.setItem(LIVE_MODE_KEY, liveMode ? '1' : '0');
     } catch {
       // ignore
     }
-    if (!liveMode) return;
-    // Skip the live refresh while the tab is hidden (no background billing).
-    const id = window.setInterval(() => {
-      if (document.hidden) return;
-      void refresh({
-        eventType: eventType || undefined,
-        status: status || undefined,
-        source: source || undefined,
-        silent: true
-      });
-    }, LIVE_REFRESH_MS);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveMode, eventType, status, source]);
+  }, [liveMode]);
 
   // Re-fetch on first mount so the page shows live data even if the SSR
   // pass missed a recent event.

@@ -95,5 +95,6 @@ export default async (_req: Request) => {
 export const config: Config = {
   // Leaned down from every 10 min to every 30 min to cut Netlify usage ~3x.
   // Scheduled posts now fire within ~30 min of their time (fine for a calendar).
-  schedule: '*/30 * * * *'
+  // PAUSED to cut Netlify usage — re-enable on HostGator (#73). Was: '*/30 * * * *'
+  // schedule: '0 * * * *'
 };
