@@ -44,9 +44,12 @@ export default function BrandSeal({
   title = 'Atlantic & Vine'
 }: BrandSealProps) {
   const px = SIZE_PX[size];
-  // The logo sits centered with breathing room. A ratio close to 0.82 keeps
-  // the gold mark readable without crowding the red field.
-  const logoPx = Math.round(px * 0.82);
+  // The logo PNG has a wide black backdrop around the gold artwork, so a
+  // contain-fit makes the visible gold look small. We scale the image to ~1.7x
+  // the seal box (the gold art fills the seal) and use `mix-blend-mode: screen`
+  // so the PNG's black backdrop dissolves into transparency against the red
+  // field — only the gold artwork reads. Red square stays the same size.
+  const logoPx = Math.round(px * 1.7);
   const radius = Math.round(px * 0.18); // soft rounded square, not a circle
 
   return (
@@ -54,7 +57,7 @@ export default function BrandSeal({
       role="img"
       aria-label={title}
       title={title}
-      className={`inline-flex items-center justify-center shrink-0 ${className}`}
+      className={`inline-flex items-center justify-center shrink-0 overflow-hidden ${className}`}
       style={{
         width: px,
         height: px,
@@ -68,7 +71,11 @@ export default function BrandSeal({
         alt=""
         width={logoPx}
         height={logoPx}
-        style={{ display: 'block', objectFit: 'contain' }}
+        style={{
+          display: 'block',
+          objectFit: 'contain',
+          mixBlendMode: 'screen'
+        }}
         draggable={false}
       />
     </span>
