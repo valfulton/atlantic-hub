@@ -78,7 +78,15 @@ interface LeadRow extends RowDataPacket {
   email: string;
   phone: string | null;
   website: string | null;
+  /** Data-quality flag on the website (#180/#195). */
+  website_status: 'unknown' | 'valid' | 'placeholder' | 'dead' | null;
   industry: string | null;
+  /** Address fields surfaced by #180 backfill / future enrichment. */
+  address_street: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_postal: string | null;
+  address_country: string | null;
   target_business: 'av' | 'ebw' | 'both';
   source_type: string;
   challenge: string | null;
@@ -121,7 +129,29 @@ function buildUserPrompt(lead: LeadRow, briefContext?: string | null): string {
   lines.push('');
   lines.push(`Company: ${lead.company}`);
   if (lead.industry) lines.push(`Industry: ${lead.industry}`);
-  if (lead.website) lines.push(`Website: ${lead.website}`);
+
+  // (#180/#196) Geography — consider regional/market context where it matters.
+  // Skip when empty; never fabricate a location when none is known.
+  const addressParts = [
+    lead.address_street,
+    lead.address_city,
+    lead.address_state,
+    lead.address_postal,
+    lead.address_country
+  ].filter((v): v is string => !!(v && v.trim()));
+  if (addressParts.length > 0) {
+    lines.push(`Address: ${addressParts.join(', ')}`);
+  }
+
+  if (lead.website) {
+    lines.push(`Website: ${lead.website}`);
+    // Pass the data-quality signal so the model can downweight fake URLs in
+    // its reachability + intent reasoning (#195).
+    if (lead.website_status && lead.website_status !== 'unknown') {
+      lines.push(`Website status: ${lead.website_status}`);
+    }
+  }
+
   if (lead.email && !/^(prospect|apollo|noemail)\+/i.test(lead.email)) {
     lines.push(`Email: ${lead.email}`);
   }
@@ -314,6 +344,8 @@ export async function scoreAndAuditLead(leadId: number): Promise<ScoreAndAuditRe
 
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website,
+            website_status,
+            address_street, address_city, address_state, address_postal, address_country,
             industry, target_business, source_type, challenge, client_id
        FROM leads
       WHERE id = ?
@@ -505,6 +537,8 @@ export async function scoreAndAuditLeadForLens(
 
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website,
+            website_status,
+            address_street, address_city, address_state, address_postal, address_country,
             industry, target_business, source_type, challenge, client_id
        FROM leads
       WHERE id = ?

@@ -217,7 +217,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Scores every new lead (fit / intent / reachability / ICP) and writes its strategic marketing audit. Runs on every new lead and on Re-score. The audit it produces is what the PR pitch drafter and other surfaces later ground on, so this prompt is foundational.',
     defaultSystem: AV_LEAD_AUDIT_DEFAULT,
     userPromptNote:
-      'At call time the system appends the lead facts (company, industry, website, contact, self-reported challenge) and — when the lead belongs to a client — that client\'s creative brief. You edit the strategy/rubric above; the per-lead data is added automatically.'
+      'At call time the system appends the lead facts (company, industry, website + website_status flag, ADDRESS / city / state / country when known, contact, self-reported challenge) and — when the lead belongs to a client — that client\'s creative brief. You edit the strategy/rubric above; the per-lead data is added automatically. NEW (#180/#196): geography is now passed; consider local market context where relevant. website_status \'placeholder\' or \'dead\' means the URL is synthetic / unreachable — downweight reachability and intent accordingly.'
   },
   {
     key: 'pr_opportunity_parse',

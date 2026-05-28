@@ -92,6 +92,15 @@ interface LeadRow extends RowDataPacket {
   audit_content: string | null;
   pain_extracted_at: string | null;
   client_id: number | null;
+  /** Geography surfaced by #180. */
+  address_street: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_postal: string | null;
+  address_country: string | null;
+  /** Website data quality flag (#180/#195). */
+  website: string | null;
+  website_status: 'unknown' | 'valid' | 'placeholder' | 'dead' | null;
 }
 
 const SYSTEM_INSTRUCTIONS = `You are a senior B2B sales coach. A sales rep is about to call this prospect, and you produce a tight pain-point profile to coach the call. WHO the rep sells matters: if a "CLIENT OFFER" block is provided, the rep sells THAT client's offer to the prospect -- coach entirely around the client's offer and never mention Atlantic & Vine. If no client offer is provided, the rep sells Atlantic & Vine's marketing services.
@@ -129,6 +138,15 @@ interface PainPromptInput {
   contact_title: string | null;
   challenge: string | null;
   auditContent: string | null;
+  /** Geography (#180) — model can ground urgency + opener in local context. */
+  address_street?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_postal?: string | null;
+  address_country?: string | null;
+  /** Website + its data-quality flag — placeholder/dead lowers reachability. */
+  website?: string | null;
+  website_status?: 'unknown' | 'valid' | 'placeholder' | 'dead' | null;
 }
 
 function buildUserPrompt(input: PainPromptInput, briefContext: string | null): string {
@@ -137,6 +155,26 @@ function buildUserPrompt(input: PainPromptInput, briefContext: string | null): s
   lines.push('');
   lines.push(`Company: ${input.company}`);
   if (input.industry) lines.push(`Industry: ${input.industry}`);
+
+  // (#180/#196) Geography — only emit when present. Never fabricate.
+  const addressParts = [
+    input.address_street,
+    input.address_city,
+    input.address_state,
+    input.address_postal,
+    input.address_country
+  ].filter((v): v is string => !!(v && v.trim()));
+  if (addressParts.length > 0) {
+    lines.push(`Address: ${addressParts.join(', ')}`);
+  }
+
+  if (input.website) {
+    lines.push(`Website: ${input.website}`);
+    if (input.website_status && input.website_status !== 'unknown') {
+      lines.push(`Website status: ${input.website_status}`);
+    }
+  }
+
   if (input.contact_name) {
     lines.push(`Primary contact: ${input.contact_name}${input.contact_title ? `, ${input.contact_title}` : ''}`);
   }
@@ -313,6 +351,8 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
 
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, company, industry, contact_name, contact_title,
+            website, website_status,
+            address_street, address_city, address_state, address_postal, address_country,
             challenge, audit_content, pain_extracted_at, client_id
        FROM leads
       WHERE id = ?
@@ -335,7 +375,14 @@ export async function extractPainProfileForLead(leadId: number): Promise<PainPoi
       contact_name: lead.contact_name,
       contact_title: lead.contact_title,
       challenge: lead.challenge,
-      auditContent: lead.audit_content
+      auditContent: lead.audit_content,
+      address_street: lead.address_street,
+      address_city: lead.address_city,
+      address_state: lead.address_state,
+      address_postal: lead.address_postal,
+      address_country: lead.address_country,
+      website: lead.website,
+      website_status: lead.website_status
     },
     briefContext
   );
@@ -407,6 +454,8 @@ export async function extractPainProfileForLeadLens(
 
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, company, industry, contact_name, contact_title,
+            website, website_status,
+            address_street, address_city, address_state, address_postal, address_country,
             challenge, audit_content, pain_extracted_at, client_id
        FROM leads
       WHERE id = ?
