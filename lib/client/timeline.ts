@@ -124,7 +124,35 @@ export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineIt
   const limit = Number.isFinite(rawLimit) ? rawLimit : 80;
   const db = getAvDb();
 
-  // First — resolve which lead_ids currently belong to this client.
+  // Resolve a representative client_user. The codebase has TWO tenancy
+  // conventions both prefixed `client:` — intake_extract uses client:<client_id>
+  // while guidance uses client:<client_user_id>. We query BOTH tenants so the
+  // timeline surfaces every per-client write site.
+  let memberUserId: number | null = null;
+  try {
+    const [m1] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+      `SELECT client_user_id FROM client_users
+        WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
+      [clientId]
+    );
+    memberUserId = m1[0]?.client_user_id ?? null;
+    if (!memberUserId) {
+      const [m2] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+        `SELECT client_user_id FROM brand_members
+          WHERE client_id = ? AND role = 'owner'
+          ORDER BY client_user_id ASC LIMIT 1`,
+        [clientId]
+      );
+      memberUserId = m2[0]?.client_user_id ?? null;
+    }
+  } catch (e) {
+    console.error('[timeline:member]', (e as Error).message);
+  }
+  const tenants: string[] = [`client:${clientId}`];
+  if (memberUserId && memberUserId !== clientId) tenants.push(`client:${memberUserId}`);
+  const tenantPlaceholders = tenants.map(() => '?').join(',');
+
+  // Resolve which lead_ids currently belong to this client.
   // Defensive: each stream is wrapped in try/catch so one schema mismatch or
   // empty source can't crash the whole timeline render.
   let leadIds: number[] = [];
@@ -215,10 +243,10 @@ export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineIt
     const [rows] = await db.execute<ArtRow[]>(
       `SELECT id, artifact_type, title, status, model, lead_id, created_at
          FROM content_artifacts
-        WHERE tenant_id = ?
+        WHERE tenant_id IN (${tenantPlaceholders})
         ORDER BY created_at DESC
         LIMIT ${limit}`,
-      [`client:${clientId}`]
+      tenants
     );
     artRows = rows;
   } catch (e) {
@@ -251,10 +279,10 @@ export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineIt
     const [rows] = await db.execute<IntelRow[]>(
       `SELECT id, object_type, source, confidence, lead_id, updated_at
          FROM intelligence_objects
-        WHERE tenant_id = ?
+        WHERE tenant_id IN (${tenantPlaceholders})
         ORDER BY updated_at DESC
         LIMIT ${limit}`,
-      [`client:${clientId}`]
+      tenants
     );
     intelRows = rows;
   } catch (e) {

@@ -133,14 +133,45 @@ export interface IntelInventory {
 export async function loadIntelInventory(clientId: number): Promise<IntelInventory> {
   const db = getAvDb();
 
-  // 1. intelligence_objects under tenant 'client:<id>'
-  const tenant = `client:${clientId}`;
+  // Resolve the representative client_user for this client_id. The codebase has
+  // TWO tenancy conventions that both prefix `client:` but use different ids:
+  //   • intake_extract.ts writes under  client:<clients.client_id>
+  //   • guidance.ts writes under        client:<client_users.client_user_id>
+  // For Skip, client_id=4 but client_user_id=5 (they're separate sequences).
+  // To show everything the system has for this client we query BOTH tenants.
+  // brand_members fallback handles ADDED brands that don't have a directly-
+  // linked client_user (#101 multi-brand).
+  let memberUserId: number | null = null;
+  {
+    const [m1] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+      `SELECT client_user_id FROM client_users
+        WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
+      [clientId]
+    );
+    memberUserId = m1[0]?.client_user_id ?? null;
+    if (!memberUserId) {
+      const [m2] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+        `SELECT client_user_id FROM brand_members
+          WHERE client_id = ? AND role = 'owner'
+          ORDER BY client_user_id ASC LIMIT 1`,
+        [clientId]
+      );
+      memberUserId = m2[0]?.client_user_id ?? null;
+    }
+  }
+  const tenants: string[] = [`client:${clientId}`];
+  if (memberUserId && memberUserId !== clientId) {
+    tenants.push(`client:${memberUserId}`);
+  }
+
+  // 1. intelligence_objects under either tenant convention.
+  const tenantPlaceholders = tenants.map(() => '?').join(',');
   const [ioRows] = await db.execute<(IntelligenceObjectRow & RowDataPacket)[]>(
     `SELECT id, object_type, object_json, source, confidence, updated_at
        FROM intelligence_objects
-      WHERE tenant_id = ?
+      WHERE tenant_id IN (${tenantPlaceholders})
       ORDER BY object_type ASC, updated_at DESC`,
-    [tenant]
+    tenants
   );
   const intelligenceObjects: IntelligenceObjectRow[] = ioRows.map((r) => ({
     id: r.id,
