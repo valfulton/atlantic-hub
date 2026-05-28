@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import BrandSeal from '@/components/BrandSeal';
 
 interface PortalHeaderProps {
   displayName: string | null;
@@ -33,12 +34,9 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
     <header className="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur supports-[backdrop-filter]:bg-surface/60">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div
-            aria-hidden="true"
-            className="h-9 w-9 rounded-lg bg-brand text-brand-fg font-bold flex items-center justify-center text-sm tracking-wider"
-          >
-            AV
-          </div>
+          {/* Brand seal — the logo on its own red field (#186 phase 1).
+              Self-contained: never depends on page bg behind it. */}
+          <BrandSeal size="md" />
           <div className="leading-tight">
             <div className="text-sm font-semibold text-ink">Atlantic &amp; Vine</div>
             {/* Mirrors the operator chrome's "Live · Operator" line (components/

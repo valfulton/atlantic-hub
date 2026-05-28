@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import BrandSeal from './BrandSeal';
 
 const HH_NAV = [
   { href: '/admin', label: 'Home', section: 'top' as const },
@@ -53,27 +54,12 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
       {/* Brand header */}
       <div className="px-6 py-5 border-b border-border">
         <div className="flex items-center gap-2.5">
-          {/* Honeycomb brand mark — ties to HunterHoney visual language */}
-          <svg
-            width="22"
-            height="24"
-            viewBox="0 0 22 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-            className="shrink-0"
-          >
-            <path
-              d="M11 1.5L20.5 7v10L11 22.5 1.5 17V7L11 1.5z"
-              stroke="#f59e0b"
-              strokeWidth="1.5"
-              fill="rgba(245, 158, 11, 0.12)"
-            />
-            <circle cx="11" cy="12" r="2.5" fill="#f59e0b" />
-          </svg>
+          {/* Brand seal — the logo on its own red field (#186 phase 1).
+              Self-contained — never depends on the page bg behind it. */}
+          <BrandSeal size="md" />
           <div className="text-base font-semibold tracking-tight text-ink">Atlantic Hub</div>
         </div>
-        <div className="flex items-center gap-2 mt-2 ml-9">
+        <div className="flex items-center gap-2 mt-2 ml-[52px]">
           <span className="live-dot" aria-hidden="true" />
           <span className="text-[10.5px] text-muted uppercase tracking-[0.12em] font-medium">
             Live · Operator
