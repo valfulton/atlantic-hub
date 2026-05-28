@@ -68,7 +68,18 @@ const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   // WITHOUT this exemption middleware 401s the cron before the secret check runs --
   // which is why pain_point_profile was never getting populated. See
   // app/api/admin/av/pain-sweep/route.ts. (score-sweep has the same latent gap.)
-  '/api/admin/av/pain-sweep'
+  '/api/admin/av/pain-sweep',
+  // Cron-secret sweep targets (dual-mode auth in each handler). These were the
+  // "latent gap" — not exempted, so middleware 401'd the cron before the secret
+  // check, meaning they never ran via cron. Now exempted (each validates
+  // x-cron-secret == ENRICHMENT_CRON_SECRET internally).
+  '/api/admin/av/score-sweep',
+  '/api/admin/av/enrich',
+  '/api/admin/av/nurture-wake',
+  '/api/admin/av/outreach/replies/poll',
+  // Cron dispatcher (#73): one HostGator cron pings this; it fans out to the
+  // sweep endpoints above. Validates x-cron-secret internally.
+  '/api/admin/cron/run'
 ]);
 
 export const config = {
