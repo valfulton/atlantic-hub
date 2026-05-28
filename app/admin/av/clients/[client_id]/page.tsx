@@ -125,6 +125,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <Link href={`/admin/av/intake?clientId=${clientId}`} className="text-brand hover:underline">Edit full intake →</Link>
         <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-brand hover:underline">Edit creative brief →</Link>
         <Link href={`/admin/av/clients/${clientId}/preview`} className="text-brand hover:underline">Preview their dashboard →</Link>
+        <Link href={`/admin/av/clients/${clientId}/intelligence`} className="text-brand hover:underline">Intelligence inventory →</Link>
       </div>
 
       {/* No-login prefilled intake link — the "just send it" link. */}
