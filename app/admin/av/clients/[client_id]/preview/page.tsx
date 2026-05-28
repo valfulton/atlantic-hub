@@ -73,7 +73,7 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
   return (
     <div>
       {/* Operator preview banner — clearly not the client's own login. */}
-      <div className="mb-4 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200 flex items-center justify-between gap-3">
+      <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200 flex items-center justify-between gap-3 flex-wrap">
         <span>
           <span className="font-semibold">Operator preview</span> — this is what{' '}
           <span className="font-semibold">{clientName}</span> sees on their dashboard. Read-only.
@@ -82,6 +82,15 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
           <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-amber-100 hover:underline">Edit creative brief &rarr;</Link>
           <Link href={`/admin/av/clients/${clientId}`} className="text-amber-100 hover:underline">Back to client</Link>
         </span>
+      </div>
+
+      {/* Sibling preview surfaces — click any to see exactly what the client sees there. */}
+      <div className="mb-4 flex items-center gap-2 text-xs flex-wrap">
+        <span className="text-muted/70 uppercase tracking-[0.2em] text-[10px] mr-1">See what {clientName} sees:</span>
+        <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-400/5 px-2.5 py-1 text-amber-100">Dashboard</span>
+        <Link href={`/admin/av/clients/${clientId}/preview/leads`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Leads list</Link>
+        <Link href={`/admin/av/clients/${clientId}/preview/audit`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Audit</Link>
+        <Link href={`/admin/av/clients/${clientId}/preview/intake`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Intake / brief</Link>
       </div>
 
       <ClientDashboardBody
