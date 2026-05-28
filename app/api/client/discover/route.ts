@@ -87,6 +87,8 @@ async function resolveClient(req: NextRequest) {
   if (clientId <= 0) {
     clientId = (await ensureClientHub(user)) ?? 0;
   }
+  // Multi-brand (#101): run discovery against the brand the owner is viewing.
+  clientId = (await activeBrandFor(actor.clientUserId, clientId)) ?? clientId;
   if (clientId <= 0) {
     return { error: NextResponse.json({ error: 'workspace_not_ready' }, { status: 409 }) };
   }

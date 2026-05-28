@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
+import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
 import PortalHeader from '@/app/client/_components/PortalHeader';
@@ -38,9 +39,12 @@ export default async function ClientDashboardPage() {
     }
   }
 
+  // Multi-brand (#101): scope to the brand the owner is currently viewing.
+  const clientId = await activeBrandFor(actor.clientUserId, user.client_id ?? null);
+
   // Access gate: a lapsed trial or revoked account sees a calm "paused" screen.
-  if (user.client_id) {
-    const access = await getClientAccessState(user.client_id);
+  if (clientId) {
+    const access = await getClientAccessState(clientId);
     if (!access.active) {
       return (
         <>
@@ -53,7 +57,7 @@ export default async function ClientDashboardPage() {
 
   const data = await getClientDashboardData({
     clientUserId: user.client_user_id,
-    clientId: user.client_id,
+    clientId,
     email: user.email,
     tier: user.tier,
     displayName: user.display_name

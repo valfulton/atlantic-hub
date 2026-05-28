@@ -89,6 +89,8 @@ export const config = {
     '/api/client/discover',
     '/api/client/intake-update',
     '/api/client/ticker',
+    // Multi-brand (#101): switch the active brand for an owner spanning brands.
+    '/api/client/active-brand',
     // All client lead APIs (reject, calls, future notes) — wildcard so each
     // receives x-ah-client-user-id and rejects anonymous callers.
     '/api/client/leads/:path*',

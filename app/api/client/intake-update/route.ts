@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
+import { activeBrandFor } from '@/lib/client/active-brand';
 import { saveBriefPayload, type BriefPayload } from '@/lib/client/brief_store';
 import { suggestIcpFromIntake, getClientIcpWithProvenance, saveClientIcp, mergeIntakeIcp } from '@/lib/client/icp';
 
@@ -32,6 +33,8 @@ export async function POST(req: NextRequest) {
   if (!clientId) {
     try { clientId = await ensureClientHub(user); } catch { clientId = null; }
   }
+  // Multi-brand (#101): save to the brand the owner is currently viewing.
+  clientId = await activeBrandFor(actor.clientUserId, clientId);
   if (!clientId) return NextResponse.json({ error: 'no client hub' }, { status: 409 });
 
   let body: { payload?: unknown } = {};

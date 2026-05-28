@@ -15,6 +15,7 @@ import { redirect, notFound } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
+import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientLeadDetail } from '@/lib/client/lead_detail';
 import PortalHeader from '@/app/client/_components/PortalHeader';
@@ -40,8 +41,11 @@ export default async function ClientLeadDetailPage({ params }: { params: { audit
     }
   }
 
-  if (user.client_id) {
-    const access = await getClientAccessState(user.client_id);
+  // Multi-brand (#101): scope to the brand the owner is currently viewing.
+  const clientId = await activeBrandFor(actor.clientUserId, user.client_id ?? null);
+
+  if (clientId) {
+    const access = await getClientAccessState(clientId);
     if (!access.active) {
       return (
         <>
@@ -52,7 +56,7 @@ export default async function ClientLeadDetailPage({ params }: { params: { audit
     }
   }
 
-  const lead = await getClientLeadDetail(user.client_id, params.audit_id);
+  const lead = await getClientLeadDetail(clientId, params.audit_id);
   if (!lead) notFound();
 
   return (

@@ -18,6 +18,7 @@ import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { ensureClientHub } from '@/lib/client/provision';
+import { activeBrandFor } from '@/lib/client/active-brand';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import { getClientAccessState } from '@/lib/av/client_access';
 import PortalHeader from '@/app/client/_components/PortalHeader';
@@ -71,9 +72,12 @@ export default async function ClientLeadsPage() {
     }
   }
 
+  // Multi-brand (#101): scope to the brand the owner is currently viewing.
+  const clientId = await activeBrandFor(actor.clientUserId, user.client_id ?? null);
+
   // Access gate (same as dashboard): lapsed/revoked -> calm paused screen.
-  if (user.client_id) {
-    const access = await getClientAccessState(user.client_id);
+  if (clientId) {
+    const access = await getClientAccessState(clientId);
     if (!access.active) {
       return (
         <>
@@ -90,7 +94,7 @@ export default async function ClientLeadsPage() {
   let leads: ClientLead[] = [];
   if (!locked) {
     try {
-      leads = await listClientLeads({ client_id: user.client_id });
+      leads = await listClientLeads({ client_id: clientId });
     } catch {
       leads = [];
     }
