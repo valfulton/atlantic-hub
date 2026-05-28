@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById, type ClientUserTier } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
+import { activeBrandFor } from '@/lib/client/active-brand';
 import {
   getClientIcp,
   saveClientIcp,
