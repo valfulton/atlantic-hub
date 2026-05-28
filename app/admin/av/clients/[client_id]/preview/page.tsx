@@ -47,7 +47,20 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
     `SELECT client_user_id FROM client_users WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
     [clientId]
   );
-  const member = mrows[0] ? await findClientUserById(mrows[0].client_user_id) : null;
+  let memberUserId = mrows[0]?.client_user_id ?? null;
+  // Multi-brand (#101): an ADDED brand has no login directly linked to its
+  // client_id — its owner lives in brand_members. Fall back to that owner so the
+  // preview resolves the right identity (email/tier) instead of an empty shell.
+  if (!memberUserId) {
+    const [orows] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+      `SELECT client_user_id FROM brand_members
+        WHERE client_id = ? AND role = 'owner'
+        ORDER BY client_user_id ASC LIMIT 1`,
+      [clientId]
+    );
+    memberUserId = orows[0]?.client_user_id ?? null;
+  }
+  const member = memberUserId ? await findClientUserById(memberUserId) : null;
 
   const data = await getClientDashboardData({
     clientUserId: member?.client_user_id ?? 0,
