@@ -55,6 +55,14 @@ export interface ClientLeadDetail {
   email: string | null;
   phone: string | null;
   website: string | null;
+  /** Data-quality flag on the website (#180/#195). */
+  websiteStatus: 'unknown' | 'valid' | 'placeholder' | 'dead';
+  /** Address fields backfilled from source_payload + future enrichment. */
+  addressStreet: string | null;
+  addressCity: string | null;
+  addressState: string | null;
+  addressPostal: string | null;
+  addressCountry: string | null;
   leadStatus: string;
   /** Visible Living Score: combined when present, else fit-only. */
   score: number | null;
@@ -84,6 +92,12 @@ interface DetailRow extends RowDataPacket {
   email: string | null;
   phone: string | null;
   website: string | null;
+  website_status: 'unknown' | 'valid' | 'placeholder' | 'dead' | null;
+  address_street: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_postal: string | null;
+  address_country: string | null;
   lead_status: string | null;
   ai_score: number | null;
   ai_combined_score: number | null;
@@ -179,6 +193,8 @@ export async function getClientLeadDetail(
   const db = getAvDb();
   const [rows] = await db.execute<DetailRow[]>(
     `SELECT id, audit_id, company, industry, contact_name, contact_title, email, phone, website,
+            website_status,
+            address_street, address_city, address_state, address_postal, address_country,
             lead_status, ai_score, ai_combined_score, ai_engagement_score, ai_score_band,
             ai_score_reason, ai_score_breakdown, audit_content, audit_generated,
             pain_point_profile, submission_date
@@ -227,6 +243,12 @@ export async function getClientLeadDetail(
     email: realEmail(r.email),
     phone: r.phone && r.phone.trim() ? r.phone : null,
     website: r.website && r.website.trim() ? r.website : null,
+    websiteStatus: r.website_status ?? 'unknown',
+    addressStreet: r.address_street && r.address_street.trim() ? r.address_street : null,
+    addressCity: r.address_city && r.address_city.trim() ? r.address_city : null,
+    addressState: r.address_state && r.address_state.trim() ? r.address_state : null,
+    addressPostal: r.address_postal && r.address_postal.trim() ? r.address_postal : null,
+    addressCountry: r.address_country && r.address_country.trim() ? r.address_country : null,
     leadStatus: r.lead_status || 'new',
     score:
       r.ai_combined_score !== null

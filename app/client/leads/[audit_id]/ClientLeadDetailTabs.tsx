@@ -283,7 +283,27 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
           <Field label="Title" value={lead.contactTitle} />
           <Field label="Email" value={lead.email} />
           <Field label="Phone" value={lead.phone} />
-          <Field label="Website" value={lead.website} href={lead.website ?? undefined} />
+          <Field
+            label="Website"
+            value={
+              lead.websiteStatus === 'placeholder' || lead.websiteStatus === 'dead'
+                ? 'No working website'
+                : lead.website
+            }
+            href={
+              lead.website && lead.websiteStatus !== 'placeholder' && lead.websiteStatus !== 'dead'
+                ? lead.website
+                : undefined
+            }
+          />
+          <Field
+            label="Address"
+            value={
+              [lead.addressStreet, lead.addressCity, lead.addressState, lead.addressPostal]
+                .filter(Boolean)
+                .join(', ') || null
+            }
+          />
           <Field label="Status" value={lead.leadStatus} />
         </div>
       )}

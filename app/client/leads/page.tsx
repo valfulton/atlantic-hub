@@ -215,11 +215,26 @@ export default async function ClientLeadsPage() {
                       <span className="text-muted/70">Phone:</span> <span className="text-ink">{l.phone}</span>
                     </span>
                   )}
-                  {l.website && (
+                  {(l.addressStreet || l.addressCity) && (
+                    <span>
+                      <span className="text-muted/70">Address:</span>{' '}
+                      <span className="text-ink">
+                        {[l.addressStreet, l.addressCity, l.addressState, l.addressPostal]
+                          .filter(Boolean)
+                          .join(', ')}
+                      </span>
+                    </span>
+                  )}
+                  {l.website && l.websiteStatus !== 'placeholder' && l.websiteStatus !== 'dead' ? (
                     <a href={l.website} target="_blank" rel="noopener" className="text-brand hover:underline">
                       Website &rarr;
                     </a>
-                  )}
+                  ) : l.website && (l.websiteStatus === 'placeholder' || l.websiteStatus === 'dead') ? (
+                    <span className="inline-flex items-center gap-1 text-rose-300/80" title={l.website}>
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-rose-300/70" />
+                      No working website
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="mt-auto pt-3 flex justify-end">
