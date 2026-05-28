@@ -37,7 +37,13 @@ export const INTEL_OBJECT_CONSUMERS: Record<string, string[]> = {
   proof_points:                ['Intake mapping (intake_brief)', 'Add-brand flow'],
   engagement_patterns:         ['PR sources sweep'],
   authority_topics:            ['PR engine (artifacts)', 'Client guidance'],
-  media_friendly_topics:       ['PR discovery', 'Client guidance']
+  media_friendly_topics:       ['PR discovery', 'Client guidance'],
+
+  // Produced by lib/client/guidance.ts, consumed by the client dashboard's
+  // "Here's where to focus" + momentum cards. Not in the canonical 13-type
+  // registry; included here because they're real and persisted per-client.
+  next_best_moves:             ['Client dashboard — "Here\'s where to focus" cards'],
+  momentum_signals:            ['Client dashboard — momentum card']
 };
 
 // ──────────────────────────────────────────────────────────────────────────
