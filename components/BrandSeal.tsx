@@ -49,7 +49,7 @@ export default function BrandSeal({
   // the seal box (the gold art fills the seal) and use `mix-blend-mode: screen`
   // so the PNG's black backdrop dissolves into transparency against the red
   // field — only the gold artwork reads. Red square stays the same size.
-  const logoPx = Math.round(px * 1.7);
+  const logoPx = Math.round(px * 2.4);
   const radius = Math.round(px * 0.18); // soft rounded square, not a circle
 
   return (
