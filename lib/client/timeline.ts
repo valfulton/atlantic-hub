@@ -117,58 +117,69 @@ interface TimelineOpts {
 
 export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineItem[]> {
   const { clientId } = opts;
-  const limit = opts.limit ?? 80;
+  // Limits are inlined into the SQL (not parameterized) because mysql2's
+  // prepared-statement path rejects `LIMIT ?` on some MySQL versions/modes.
+  // We sanitize to a positive integer first; no injection surface.
+  const rawLimit = Math.max(1, Math.min(500, Math.floor(opts.limit ?? 80)));
+  const limit = Number.isFinite(rawLimit) ? rawLimit : 80;
   const db = getAvDb();
 
   // First — resolve which lead_ids currently belong to this client.
-  const [leadRows] = await db.execute<(RowDataPacket & { id: number })[]>(
-    `SELECT id FROM leads WHERE client_id = ? AND archived_at IS NULL LIMIT 500`,
-    [clientId]
-  );
-  const leadIds = leadRows.map((r) => r.id);
+  // Defensive: each stream is wrapped in try/catch so one schema mismatch or
+  // empty source can't crash the whole timeline render.
+  let leadIds: number[] = [];
+  try {
+    const [leadRows] = await db.execute<(RowDataPacket & { id: number })[]>(
+      `SELECT id FROM leads WHERE client_id = ? AND archived_at IS NULL LIMIT 500`,
+      [clientId]
+    );
+    leadIds = leadRows.map((r) => r.id);
+  } catch (e) {
+    console.error('[timeline:leads]', (e as Error).message);
+  }
   const leadPlaceholders = leadIds.length ? leadIds.map(() => '?').join(',') : null;
 
   // 1. system_events — scoped to this client's leads (or events tagged
   //    organization_id, when present, matching the client).
-  const [evRows] = leadPlaceholders
-    ? await db.execute<(RowDataPacket & {
-        id: number;
-        event_type: string;
-        lead_id: number | null;
-        source: string | null;
-        payload: unknown;
-        status: 'success' | 'failure' | 'partial' | 'pending';
-        execution_time_ms: number | null;
-        error_message: string | null;
-        created_at: Date;
-      })[]>(
+  type EvRow = RowDataPacket & {
+    id: number;
+    event_type: string;
+    lead_id: number | null;
+    source: string | null;
+    payload: unknown;
+    status: 'success' | 'failure' | 'partial' | 'pending';
+    execution_time_ms: number | null;
+    error_message: string | null;
+    created_at: Date;
+  };
+  let evRows: EvRow[] = [];
+  try {
+    if (leadPlaceholders) {
+      const [rows] = await db.execute<EvRow[]>(
         `SELECT id, event_type, lead_id, source, payload, status,
                 execution_time_ms, error_message, created_at
            FROM system_events
           WHERE (lead_id IN (${leadPlaceholders}) OR organization_id = ?)
           ORDER BY created_at DESC
-          LIMIT ?`,
-        [...leadIds, clientId, limit]
-      )
-    : await db.execute<(RowDataPacket & {
-        id: number;
-        event_type: string;
-        lead_id: number | null;
-        source: string | null;
-        payload: unknown;
-        status: 'success' | 'failure' | 'partial' | 'pending';
-        execution_time_ms: number | null;
-        error_message: string | null;
-        created_at: Date;
-      })[]>(
+          LIMIT ${limit}`,
+        [...leadIds, clientId]
+      );
+      evRows = rows;
+    } else {
+      const [rows] = await db.execute<EvRow[]>(
         `SELECT id, event_type, lead_id, source, payload, status,
                 execution_time_ms, error_message, created_at
            FROM system_events
           WHERE organization_id = ?
           ORDER BY created_at DESC
-          LIMIT ?`,
-        [clientId, limit]
+          LIMIT ${limit}`,
+        [clientId]
       );
+      evRows = rows;
+    }
+  } catch (e) {
+    console.error('[timeline:events]', (e as Error).message);
+  }
 
   const fromEvents: TimelineItem[] = evRows.map((r) => {
     const k = kindForEvent(r.event_type);
@@ -190,7 +201,7 @@ export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineIt
   });
 
   // 2. content_artifacts — pieces created for this client.
-  const [artRows] = await db.execute<(RowDataPacket & {
+  type ArtRow = RowDataPacket & {
     id: number;
     artifact_type: string;
     title: string | null;
@@ -198,14 +209,21 @@ export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineIt
     model: string | null;
     lead_id: number | null;
     created_at: Date;
-  })[]>(
-    `SELECT id, artifact_type, title, status, model, lead_id, created_at
-       FROM content_artifacts
-      WHERE tenant_id = ?
-      ORDER BY created_at DESC
-      LIMIT ?`,
-    [`client:${clientId}`, limit]
-  );
+  };
+  let artRows: ArtRow[] = [];
+  try {
+    const [rows] = await db.execute<ArtRow[]>(
+      `SELECT id, artifact_type, title, status, model, lead_id, created_at
+         FROM content_artifacts
+        WHERE tenant_id = ?
+        ORDER BY created_at DESC
+        LIMIT ${limit}`,
+      [`client:${clientId}`]
+    );
+    artRows = rows;
+  } catch (e) {
+    console.error('[timeline:artifacts]', (e as Error).message);
+  }
 
   const fromArtifacts: TimelineItem[] = artRows.map((r) => ({
     key: `art-${r.id}`,
@@ -220,21 +238,28 @@ export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineIt
   }));
 
   // 3. intelligence_objects — typed intel writes for this client.
-  const [intelRows] = await db.execute<(RowDataPacket & {
+  type IntelRow = RowDataPacket & {
     id: number;
     object_type: string;
     source: string | null;
     confidence: number | null;
     lead_id: number | null;
     updated_at: Date;
-  })[]>(
-    `SELECT id, object_type, source, confidence, lead_id, updated_at
-       FROM intelligence_objects
-      WHERE tenant_id = ?
-      ORDER BY updated_at DESC
-      LIMIT ?`,
-    [`client:${clientId}`, limit]
-  );
+  };
+  let intelRows: IntelRow[] = [];
+  try {
+    const [rows] = await db.execute<IntelRow[]>(
+      `SELECT id, object_type, source, confidence, lead_id, updated_at
+         FROM intelligence_objects
+        WHERE tenant_id = ?
+        ORDER BY updated_at DESC
+        LIMIT ${limit}`,
+      [`client:${clientId}`]
+    );
+    intelRows = rows;
+  } catch (e) {
+    console.error('[timeline:intel]', (e as Error).message);
+  }
 
   const fromIntel: TimelineItem[] = intelRows.map((r) => ({
     key: `io-${r.id}`,
@@ -254,33 +279,37 @@ export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineIt
   // 4. call_log — every logged call for this client's leads.
   let fromCalls: TimelineItem[] = [];
   if (leadPlaceholders) {
-    const [callRows] = await db.execute<(RowDataPacket & {
-      call_log_id: number;
-      lead_id: number;
-      outcome: string;
-      duration_seconds: number | null;
-      notes: string | null;
-      called_at: Date;
-    })[]>(
-      `SELECT call_log_id, lead_id, outcome, duration_seconds, notes, called_at
-         FROM call_log
-        WHERE lead_id IN (${leadPlaceholders})
-        ORDER BY called_at DESC
-        LIMIT ?`,
-      [...leadIds, limit]
-    );
-    fromCalls = callRows.map((r) => ({
-      key: `cl-${r.call_log_id}`,
-      at: safeIso(r.called_at),
-      kind: 'outreach',
-      title: `Call logged — ${r.outcome.replace(/_/g, ' ')}`,
-      detail: r.duration_seconds != null ? `${r.duration_seconds}s` : undefined,
-      status: 'success',
-      preview: r.notes ?? undefined,
-      leadId: r.lead_id,
-      source: 'manual',
-      table: 'call_log'
-    }));
+    try {
+      const [callRows] = await db.execute<(RowDataPacket & {
+        call_log_id: number;
+        lead_id: number;
+        outcome: string;
+        duration_seconds: number | null;
+        notes: string | null;
+        called_at: Date;
+      })[]>(
+        `SELECT call_log_id, lead_id, outcome, duration_seconds, notes, called_at
+           FROM call_log
+          WHERE lead_id IN (${leadPlaceholders})
+          ORDER BY called_at DESC
+          LIMIT ${limit}`,
+        [...leadIds]
+      );
+      fromCalls = callRows.map((r) => ({
+        key: `cl-${r.call_log_id}`,
+        at: safeIso(r.called_at),
+        kind: 'outreach',
+        title: `Call logged — ${r.outcome.replace(/_/g, ' ')}`,
+        detail: r.duration_seconds != null ? `${r.duration_seconds}s` : undefined,
+        status: 'success',
+        preview: r.notes ?? undefined,
+        leadId: r.lead_id,
+        source: 'manual',
+        table: 'call_log'
+      }));
+    } catch (e) {
+      console.error('[timeline:calls]', (e as Error).message);
+    }
   }
 
   // ─── Merge + sort, newest first.

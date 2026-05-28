@@ -93,7 +93,14 @@ export default async function ClientTimelinePage({ params }: { params: { client_
   if (!crows[0]) notFound();
   const clientName = crows[0].client_name || `Client #${clientId}`;
 
-  const items = await loadClientTimeline({ clientId, limit: 80 });
+  let items: TimelineItem[] = [];
+  let loadError: string | null = null;
+  try {
+    items = await loadClientTimeline({ clientId, limit: 80 });
+  } catch (e) {
+    loadError = (e as Error).message;
+    console.error('[timeline:page]', loadError);
+  }
 
   // Group by day.
   const groups = new Map<string, TimelineItem[]>();
@@ -143,8 +150,16 @@ export default async function ClientTimelinePage({ params }: { params: { client_
           ))}
       </div>
 
+      {/* Load error state */}
+      {loadError && (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 mb-6 text-sm">
+          <div className="text-rose-200 font-semibold mb-1">Timeline couldn&apos;t load all streams.</div>
+          <div className="text-rose-200/80 text-xs leading-relaxed">{loadError}</div>
+        </div>
+      )}
+
       {/* Empty state */}
-      {items.length === 0 && (
+      {!loadError && items.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-8 text-center">
           <div className="text-sm text-muted leading-relaxed">
             Nothing on the wire yet. Once leads land, AI calls fire, or content gets drafted for{' '}
