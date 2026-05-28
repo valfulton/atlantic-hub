@@ -1,0 +1,304 @@
+/**
+ * lib/client/timeline.ts
+ *
+ * Per-client activity timeline (#185). Unifies four streams of "what the system
+ * actually did for this client" into a single ordered list val can scroll
+ * through with Skip or Mike sitting beside her:
+ *
+ *   1. system_events    — every AI call, enrichment, discovery, error
+ *   2. content_artifacts — every blog, post, release, deliverable
+ *   3. intelligence_objects — every typed tag (founder_story, proof_points, ...)
+ *   4. call_log         — every logged call outcome
+ *
+ * All reads are scoped to leads CURRENTLY owned by this client_id (so it
+ * doesn't surface stale entries from when a lead lived elsewhere — same
+ * no-bleed posture as guidance.ts after #188).
+ *
+ * Read-only. Operator-only. No external API; pure DB.
+ */
+import { getAvDb } from '@/lib/db/av';
+import type { RowDataPacket } from 'mysql2';
+
+// ─── Public types ────────────────────────────────────────────────────────
+
+export type TimelineKind =
+  | 'ai_call'         // AI work — audit gen, scoring, intel extraction, guidance compose
+  | 'discovery'       // lead found / enriched
+  | 'content'         // an artifact was drafted / published
+  | 'intel'           // an intelligence_object was written
+  | 'outreach'        // call logged
+  | 'system'          // cron, error, status
+  | 'other';
+
+export interface TimelineItem {
+  /** Stable key for React. */
+  key: string;
+  /** When this happened (ISO). */
+  at: string;
+  /** Bucketing for color + icon. */
+  kind: TimelineKind;
+  /** Compact event title (≤ 60 chars). */
+  title: string;
+  /** Optional secondary line — model used, outcome, lead it touched, etc. */
+  detail?: string;
+  /** Status pill — success / failure / partial / pending. */
+  status: 'success' | 'failure' | 'partial' | 'pending' | 'info';
+  /** Optional one-line preview of the payload (for expanding). */
+  preview?: string;
+  /** Lead-id this touched (if any). */
+  leadId?: number | null;
+  /** Source label — apollo / openai / hunter / clay / cron / manual / ... */
+  source?: string | null;
+  /** Where the row came from (so the panel can group / filter). */
+  table: 'system_events' | 'content_artifacts' | 'intelligence_objects' | 'call_log';
+}
+
+// ─── Categorization ──────────────────────────────────────────────────────
+
+/** Map a system_events.event_type to a timeline kind + readable title. */
+function kindForEvent(eventType: string): { kind: TimelineKind; title: string } {
+  // AI work
+  if (eventType.startsWith('ai.') || eventType.includes('extracted') || eventType.includes('composed')) {
+    return { kind: 'ai_call', title: humanizeEvent(eventType) };
+  }
+  // Discovery + enrichment
+  if (eventType.startsWith('lead.') || eventType.startsWith('enrichment.') || eventType.startsWith('discovery.')) {
+    return { kind: 'discovery', title: humanizeEvent(eventType) };
+  }
+  // Content engine
+  if (
+    eventType.startsWith('artifact.') ||
+    eventType.startsWith('content.') ||
+    eventType.startsWith('social.') ||
+    eventType.startsWith('pr.')
+  ) {
+    return { kind: 'content', title: humanizeEvent(eventType) };
+  }
+  // Errors + cron + status
+  if (eventType.startsWith('api.') || eventType.startsWith('scoring.') || eventType.includes('cron')) {
+    return { kind: 'system', title: humanizeEvent(eventType) };
+  }
+  return { kind: 'other', title: humanizeEvent(eventType) };
+}
+
+function humanizeEvent(eventType: string): string {
+  // lead.enrichment_failed -> "Lead — enrichment failed"
+  const [head, ...tailParts] = eventType.split('.');
+  const tail = tailParts.join('.').replace(/_/g, ' ');
+  if (!tail) return cap(head);
+  return `${cap(head)} — ${tail}`;
+}
+
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
+}
+
+function safeIso(d: string | Date | null | undefined): string {
+  if (!d) return '';
+  if (typeof d === 'string') return d;
+  try { return d.toISOString(); } catch { return ''; }
+}
+
+function compactJson(v: unknown, max = 220): string {
+  if (v == null) return '';
+  try {
+    const s = typeof v === 'string' ? v : JSON.stringify(v);
+    return s.length > max ? s.slice(0, max - 1).trimEnd() + '…' : s;
+  } catch { return ''; }
+}
+
+// ─── Loader ──────────────────────────────────────────────────────────────
+
+interface TimelineOpts {
+  clientId: number;
+  /** Cap on total rows returned per stream. Default 80. */
+  limit?: number;
+}
+
+export async function loadClientTimeline(opts: TimelineOpts): Promise<TimelineItem[]> {
+  const { clientId } = opts;
+  const limit = opts.limit ?? 80;
+  const db = getAvDb();
+
+  // First — resolve which lead_ids currently belong to this client.
+  const [leadRows] = await db.execute<(RowDataPacket & { id: number })[]>(
+    `SELECT id FROM leads WHERE client_id = ? AND archived_at IS NULL LIMIT 500`,
+    [clientId]
+  );
+  const leadIds = leadRows.map((r) => r.id);
+  const leadPlaceholders = leadIds.length ? leadIds.map(() => '?').join(',') : null;
+
+  // 1. system_events — scoped to this client's leads (or events tagged
+  //    organization_id, when present, matching the client).
+  const [evRows] = leadPlaceholders
+    ? await db.execute<(RowDataPacket & {
+        id: number;
+        event_type: string;
+        lead_id: number | null;
+        source: string | null;
+        payload: unknown;
+        status: 'success' | 'failure' | 'partial' | 'pending';
+        execution_time_ms: number | null;
+        error_message: string | null;
+        created_at: Date;
+      })[]>(
+        `SELECT id, event_type, lead_id, source, payload, status,
+                execution_time_ms, error_message, created_at
+           FROM system_events
+          WHERE (lead_id IN (${leadPlaceholders}) OR organization_id = ?)
+          ORDER BY created_at DESC
+          LIMIT ?`,
+        [...leadIds, clientId, limit]
+      )
+    : await db.execute<(RowDataPacket & {
+        id: number;
+        event_type: string;
+        lead_id: number | null;
+        source: string | null;
+        payload: unknown;
+        status: 'success' | 'failure' | 'partial' | 'pending';
+        execution_time_ms: number | null;
+        error_message: string | null;
+        created_at: Date;
+      })[]>(
+        `SELECT id, event_type, lead_id, source, payload, status,
+                execution_time_ms, error_message, created_at
+           FROM system_events
+          WHERE organization_id = ?
+          ORDER BY created_at DESC
+          LIMIT ?`,
+        [clientId, limit]
+      );
+
+  const fromEvents: TimelineItem[] = evRows.map((r) => {
+    const k = kindForEvent(r.event_type);
+    const detail = r.execution_time_ms
+      ? `${r.execution_time_ms}ms${r.source ? ` · ${r.source}` : ''}`
+      : r.source ?? undefined;
+    return {
+      key: `ev-${r.id}`,
+      at: safeIso(r.created_at),
+      kind: k.kind,
+      title: k.title,
+      detail,
+      status: r.status,
+      preview: r.error_message ?? compactJson(r.payload),
+      leadId: r.lead_id,
+      source: r.source,
+      table: 'system_events'
+    };
+  });
+
+  // 2. content_artifacts — pieces created for this client.
+  const [artRows] = await db.execute<(RowDataPacket & {
+    id: number;
+    artifact_type: string;
+    title: string | null;
+    status: string;
+    model: string | null;
+    lead_id: number | null;
+    created_at: Date;
+  })[]>(
+    `SELECT id, artifact_type, title, status, model, lead_id, created_at
+       FROM content_artifacts
+      WHERE tenant_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?`,
+    [`client:${clientId}`, limit]
+  );
+
+  const fromArtifacts: TimelineItem[] = artRows.map((r) => ({
+    key: `art-${r.id}`,
+    at: safeIso(r.created_at),
+    kind: 'content',
+    title: `${humanizeArtifactType(r.artifact_type)} — ${r.title?.slice(0, 60) || 'untitled'}`,
+    detail: r.model ? `model: ${r.model}` : undefined,
+    status: r.status === 'published' ? 'success' : 'info',
+    leadId: r.lead_id,
+    source: 'content_engine',
+    table: 'content_artifacts'
+  }));
+
+  // 3. intelligence_objects — typed intel writes for this client.
+  const [intelRows] = await db.execute<(RowDataPacket & {
+    id: number;
+    object_type: string;
+    source: string | null;
+    confidence: number | null;
+    lead_id: number | null;
+    updated_at: Date;
+  })[]>(
+    `SELECT id, object_type, source, confidence, lead_id, updated_at
+       FROM intelligence_objects
+      WHERE tenant_id = ?
+      ORDER BY updated_at DESC
+      LIMIT ?`,
+    [`client:${clientId}`, limit]
+  );
+
+  const fromIntel: TimelineItem[] = intelRows.map((r) => ({
+    key: `io-${r.id}`,
+    at: safeIso(r.updated_at),
+    kind: 'intel',
+    title: `Tagged — ${r.object_type.replace(/_/g, ' ')}`,
+    detail: [
+      r.source ? `source: ${r.source}` : null,
+      r.confidence != null ? `conf: ${r.confidence}` : null
+    ].filter(Boolean).join(' · ') || undefined,
+    status: 'success',
+    leadId: r.lead_id,
+    source: r.source,
+    table: 'intelligence_objects'
+  }));
+
+  // 4. call_log — every logged call for this client's leads.
+  let fromCalls: TimelineItem[] = [];
+  if (leadPlaceholders) {
+    const [callRows] = await db.execute<(RowDataPacket & {
+      call_log_id: number;
+      lead_id: number;
+      outcome: string;
+      duration_seconds: number | null;
+      notes: string | null;
+      called_at: Date;
+    })[]>(
+      `SELECT call_log_id, lead_id, outcome, duration_seconds, notes, called_at
+         FROM call_log
+        WHERE lead_id IN (${leadPlaceholders})
+        ORDER BY called_at DESC
+        LIMIT ?`,
+      [...leadIds, limit]
+    );
+    fromCalls = callRows.map((r) => ({
+      key: `cl-${r.call_log_id}`,
+      at: safeIso(r.called_at),
+      kind: 'outreach',
+      title: `Call logged — ${r.outcome.replace(/_/g, ' ')}`,
+      detail: r.duration_seconds != null ? `${r.duration_seconds}s` : undefined,
+      status: 'success',
+      preview: r.notes ?? undefined,
+      leadId: r.lead_id,
+      source: 'manual',
+      table: 'call_log'
+    }));
+  }
+
+  // ─── Merge + sort, newest first.
+  const merged = [...fromEvents, ...fromArtifacts, ...fromIntel, ...fromCalls];
+  merged.sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0));
+
+  // Cap total returned so the page stays snappy. The UI can filter / paginate
+  // from here without another DB call.
+  return merged.slice(0, limit * 2);
+}
+
+function humanizeArtifactType(t: string): string {
+  switch (t) {
+    case 'blog_article': return 'Blog article';
+    case 'seo_article': return 'SEO article';
+    case 'own_brand_post': return 'Brand post';
+    case 'press_release': return 'Press release';
+    case 'client_deliverable': return 'Client deliverable';
+    default: return t;
+  }
+}
