@@ -28,14 +28,17 @@ import { getClientIcp, saveClientIcp, type ClientIcp, type IcpProvenance } from 
 import { sharpenIcpFromBrief } from '@/lib/client/icp_sharpener';
 import { scoreClientLeadsBulk } from '@/lib/ai/client_icp_fit';
 import { scoreAndAuditLead } from '@/lib/ai/score_and_audit';
+import { extractBrandKitFromUrl } from '@/lib/client/brand_kit_extractor';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
-import type { RowDataPacket } from 'mysql2';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 /** Top-N stale audits to regen per autopilot trigger. Higher-fit leads first. */
 const STALE_AUDIT_REGEN_TOP_N = 5;
 /** Don't re-fire autopilot audit regen for the same client within this window. */
 const AUDIT_REGEN_RATE_LIMIT_HOURS = 6;
+/** Don't re-fire autopilot brand-kit extraction for the same client within this window. */
+const BRAND_KIT_RATE_LIMIT_HOURS = 24;
 
 /**
  * Run the ICP sharpener for a client IF their ICP table is currently empty.
@@ -246,6 +249,122 @@ export async function maybeRegenerateStaleAudits(args: { clientId: number | null
   } catch (err) {
     await logEvent({
       eventType: 'autopilot.audit_regen_failed',
+      source: 'autopilot',
+      status: 'failure',
+      errorMessage: (err as Error).message
+    });
+  }
+}
+
+/**
+ * (#243) After a brief save, if the brief has a website_url AND brand_colors
+ * is empty, fire the brand-kit extractor in the background. Writes colors /
+ * logo / aesthetic / typography back into the brief so the next commercial /
+ * social card / blog header ships in their real visual identity — no manual
+ * paste of the BrandKitPanel.
+ *
+ * Rate-limited per client (BRAND_KIT_RATE_LIMIT_HOURS) so a flurry of brief
+ * edits doesn't burn the same LLM call repeatedly. Operator can still hit
+ * the manual BrandKitPanel any time.
+ */
+export async function maybeExtractBrandKitAfterBriefSave(args: { clientId: number | null }): Promise<void> {
+  try {
+    const { clientId } = args;
+    if (!clientId) return;
+    const db = getAvDb();
+
+    // Rate-limit
+    const [recent] = await db.execute<(RowDataPacket & { id: number })[]>(
+      `SELECT id FROM system_events
+        WHERE event_type = 'autopilot.brand_kit_extracted'
+          AND organization_id = ?
+          AND created_at > DATE_SUB(NOW(), INTERVAL ? HOUR)
+        ORDER BY created_at DESC LIMIT 1`,
+      [clientId, BRAND_KIT_RATE_LIMIT_HOURS]
+    );
+    if (recent[0]) return;
+
+    // Pull the brief — we need website_url + check brand_colors
+    const [briefRows] = await db.execute<(RowDataPacket & { brief_payload: string | object | null })[]>(
+      `SELECT brief_payload FROM creative_briefs
+        WHERE tenant_id = 'av' AND client_id = ? LIMIT 1`,
+      [clientId]
+    );
+    const raw = briefRows[0]?.brief_payload;
+    if (!raw) return;
+    let payload: Record<string, unknown>;
+    try {
+      payload = typeof raw === 'string' ? JSON.parse(raw) : (raw as Record<string, unknown>);
+    } catch { return; }
+
+    const websiteUrl = typeof payload.website_url === 'string' ? payload.website_url.trim() : '';
+    if (!websiteUrl || !/^https?:\/\//.test(websiteUrl)) return;
+
+    const brandColorsExisting = typeof payload.brand_colors === 'string' ? payload.brand_colors.trim() : '';
+    if (brandColorsExisting.length > 0) {
+      // Operator already curated — don't touch.
+      return;
+    }
+
+    // Pull client name for the LLM brand hint
+    const [clientRows] = await db.execute<(RowDataPacket & { client_name: string | null })[]>(
+      `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
+      [clientId]
+    );
+    const brandHint = clientRows[0]?.client_name?.trim() || null;
+
+    // Run the extraction. Throws on fetch / LLM failures — caught below.
+    const result = await extractBrandKitFromUrl({ url: websiteUrl, brandHint });
+
+    // Build the patch (canonical intake keys + logo_url).
+    const patch: Record<string, string> = {};
+    if (result.colors.length > 0) patch.brand_colors = result.colors.join(', ').slice(0, 1000);
+    if (result.logoUrl && /^https?:\/\//.test(result.logoUrl)) {
+      patch.logo_url = result.logoUrl.slice(0, 2000);
+      patch.has_logo = 'yes';
+    }
+    if (result.aesthetic) patch.brand_aesthetic = result.aesthetic.slice(0, 400);
+    if (result.typography) patch.brand_typography = result.typography.slice(0, 400);
+
+    const writtenKeys = Object.keys(patch);
+    if (writtenKeys.length === 0) return;
+
+    // Use JSON_MERGE_PATCH directly on the brief payload — bypasses
+    // saveBriefPayload to avoid re-triggering ourselves recursively.
+    await db.execute<ResultSetHeader>(
+      `UPDATE creative_briefs
+          SET brief_payload = JSON_MERGE_PATCH(brief_payload, CAST(? AS JSON)),
+              updated_at = NOW()
+        WHERE tenant_id = 'av' AND client_id = ?`,
+      [JSON.stringify(patch), clientId]
+    );
+
+    // Mirror to client_users.intake_payload so the preview at /preview/intake
+    // and the client portal stay in sync.
+    try {
+      await db.execute<ResultSetHeader>(
+        `UPDATE client_users
+            SET intake_payload = JSON_MERGE_PATCH(COALESCE(intake_payload, JSON_OBJECT()), CAST(? AS JSON))
+          WHERE client_id = ?`,
+        [JSON.stringify(patch), clientId]
+      );
+    } catch { /* non-fatal */ }
+
+    await logEvent({
+      eventType: 'autopilot.brand_kit_extracted',
+      organizationId: clientId,
+      source: 'autopilot',
+      payload: {
+        client_id: clientId,
+        colors_count: result.colors.length,
+        logo_found: !!result.logoUrl,
+        tokens: result.tokensUsed,
+        written_keys: writtenKeys
+      }
+    });
+  } catch (err) {
+    await logEvent({
+      eventType: 'autopilot.brand_kit_extract_failed',
       source: 'autopilot',
       status: 'failure',
       errorMessage: (err as Error).message

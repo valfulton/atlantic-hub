@@ -165,10 +165,13 @@ export async function saveBriefPayload(
         // (the per-helper logic also filters, but skip here too to avoid
         // even loading those helpers for tiny touches).
         if (opts.source === 'voice_picker' || opts.source === 'restore') return;
-        // Independent fire-and-forget for each lifecycle: ICP sharpener +
-        // (#90 inc 2) audit regen for the top stale leads.
+        // Independent fire-and-forget for each lifecycle:
+        //   - (#240) ICP sharpener (empty ICP only)
+        //   - (#90 inc 2) audit regen for top stale leads
+        //   - (#243) brand-kit extraction from website_url (empty brand_colors only)
         autopilot.maybeSharpenIcpAfterBriefSave({ clientId, source: opts.source }).catch(() => undefined);
         autopilot.maybeRegenerateStaleAudits({ clientId }).catch(() => undefined);
+        autopilot.maybeExtractBrandKitAfterBriefSave({ clientId }).catch(() => undefined);
       });
     }
 
@@ -343,6 +346,17 @@ export async function getVoiceLockBlock(
 ): Promise<string | null> {
   const seed = await getBriefSeed(tenantId, clientId);
   if (!seed) return null;
+  // (#243) Also pull brand_aesthetic from the raw payload so the voice lock
+  // can include visual identity context for drafters that render anything
+  // visual (commercials, social cards). Brief seed doesn't expose this.
+  let brandAesthetic: string | null = null;
+  try {
+    const payload = (await getBriefPayload(tenantId, clientId)) as Record<string, unknown> | null;
+    if (payload && typeof payload.brand_aesthetic === 'string') {
+      brandAesthetic = payload.brand_aesthetic.trim() || null;
+    }
+  } catch { /* non-fatal */ }
+
   const lines: string[] = ['VOICE_LOCK (drafter MUST honor — pulled from this brand\'s brief):'];
   if (seed.prSpokesperson && seed.prSpokesperson.trim()) {
     lines.push(`  SPEAK_AS: ${seed.prSpokesperson.trim().slice(0, 280)}`);
@@ -358,6 +372,9 @@ export async function getVoiceLockBlock(
   }
   if (seed.prNewsHooks && seed.prNewsHooks.trim()) {
     lines.push(`  TIMELY_HOOKS: ${seed.prNewsHooks.trim().slice(0, 400)}`);
+  }
+  if (brandAesthetic) {
+    lines.push(`  VISUAL_AESTHETIC: ${brandAesthetic.slice(0, 300)}`);
   }
   // No useful fields? Don't emit the block at all -- avoids a bare header.
   return lines.length > 1 ? lines.join('\n') : null;

@@ -62,9 +62,19 @@ const FRIENDLY: Record<string, { icon: string; label: (p: Record<string, unknown
       return `Refreshed ${r} audit${r === 1 ? '' : 's'}${tail}`;
     }
   },
+  'autopilot.brand_kit_extracted': {
+    icon: '◇',
+    label: (p) => {
+      const c = Number(p.colors_count ?? 0);
+      const hasLogo = !!p.logo_found;
+      const bits = [c > 0 && `${c} color${c === 1 ? '' : 's'}`, hasLogo && 'logo'].filter(Boolean).join(' + ');
+      return `Pulled brand kit from website${bits ? ` (${bits})` : ''}`;
+    }
+  },
   'autopilot.icp_sharpen_failed': { icon: '!', label: () => 'ICP sharpen failed (will retry next brief edit)' },
   'autopilot.discovery_score_failed': { icon: '!', label: () => 'Discovery-batch scoring failed' },
-  'autopilot.audit_regen_failed': { icon: '!', label: () => 'Audit regen failed' }
+  'autopilot.audit_regen_failed': { icon: '!', label: () => 'Audit regen failed' },
+  'autopilot.brand_kit_extract_failed': { icon: '!', label: () => 'Brand-kit extraction failed' }
 };
 
 function parsePayload(raw: unknown): Record<string, unknown> {
