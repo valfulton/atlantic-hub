@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DestinationSelect, parseDestination, type ClientOption, type EmployeeOption } from './DestinationSelect';
 
@@ -125,6 +125,58 @@ export function DiscoverForm({
   const [selectedRanges, setSelectedRanges] = useState<string[]>([]);
   const [perPage, setPerPage] = useState(25);
   const [dest, setDest] = useState('');
+  // (#238) When val picks a client from the destination dropdown, auto-fill
+  // the search criteria from THAT client's stored ICP. State below tracks the
+  // last applied client so we don't clobber edits she made AFTER the auto-fill
+  // and gives her a one-click "undo" if the saved ICP isn't what she wants.
+  const [autoFilledFromClient, setAutoFilledFromClient] = useState<{ clientId: number; name: string } | null>(null);
+  const [autoFillBusy, setAutoFillBusy] = useState(false);
+
+  useEffect(() => {
+    const parsed = parseDestination(dest);
+    if (!parsed.clientId) {
+      // Switched away from a client destination — leave any typed values alone.
+      // Just clear the "auto-filled from X" badge so the UI is honest.
+      setAutoFilledFromClient(null);
+      return;
+    }
+    const clientId = parsed.clientId;
+    const clientName = clients.find((c) => c.clientId === clientId)?.name || `client #${clientId}`;
+    let cancelled = false;
+    setAutoFillBusy(true);
+    fetch(`/api/admin/av/clients/${clientId}/icp-for-discovery`, { cache: 'no-store' })
+      .then(async (res) => {
+        const raw = await res.text();
+        let data: { industries?: string[]; geographies?: string[]; excludedIndustries?: string[]; employeeRanges?: string[] } = {};
+        try { data = JSON.parse(raw); } catch { throw new Error(`HTTP ${res.status} (non-JSON)`); }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (cancelled) return;
+        // Apply each field only when the client has saved values for it, so a
+        // partially-filled ICP doesn't wipe out val's typed criteria.
+        if (Array.isArray(data.geographies) && data.geographies.length > 0) {
+          setOrganizationLocations(data.geographies.join(', '));
+        }
+        if (Array.isArray(data.excludedIndustries) && data.excludedIndustries.length > 0) {
+          setOrganizationNotLocations((prev) => prev); // excludes are industries, not locations — leave locations
+        }
+        if (Array.isArray(data.industries) && data.industries.length > 0) {
+          setQOrganizationKeywordTags(data.industries.join(', '));
+        }
+        if (Array.isArray(data.employeeRanges) && data.employeeRanges.length > 0) {
+          setSelectedRanges(data.employeeRanges);
+        }
+        setAutoFilledFromClient({ clientId, name: clientName });
+      })
+      .catch(() => {
+        // Non-fatal: if the ICP fetch fails the form stays as-is and val types
+        // criteria like before. No banner needed.
+        if (!cancelled) setAutoFilledFromClient(null);
+      })
+      .finally(() => {
+        if (!cancelled) setAutoFillBusy(false);
+      });
+    return () => { cancelled = true; };
+  }, [dest, clients]);
 
   function applyPreset(preset: IcpPreset) {
     setQOrganizationName(preset.filters.qOrganizationName || '');
@@ -208,6 +260,35 @@ export function DiscoverForm({
 
       <form onSubmit={runSearch} className="bg-surface border border-border rounded-lg p-5 space-y-4">
         <DestinationSelect value={dest} onChange={setDest} clients={clients} employees={employees} />
+        {/* (#238) Auto-fill banner: shows when a client destination triggered
+            the ICP fill. Val can see at a glance what got loaded + has a
+            one-click reset if the saved ICP isn't the angle she wants. */}
+        {autoFillBusy && (
+          <div className="text-[11px] text-amber-300/70 -mt-2">Loading their saved ICP…</div>
+        )}
+        {!autoFillBusy && autoFilledFromClient && (
+          <div className="-mt-2 flex items-center gap-2 flex-wrap text-[11.5px] text-amber-200/85">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-300" aria-hidden="true" />
+              Filled from {autoFilledFromClient.name}&apos;s saved ICP
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setOrganizationLocations('');
+                setQOrganizationKeywordTags('');
+                setSelectedRanges([]);
+                setAutoFilledFromClient(null);
+              }}
+              className="text-[10.5px] uppercase tracking-wider text-white/55 hover:text-white/85"
+            >
+              clear
+            </button>
+            <span className="text-white/40 text-[10.5px]">
+              Edit any field below before running — your changes win.
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <div className="text-xs uppercase tracking-wider text-muted mb-1">Company name (partial match)</div>

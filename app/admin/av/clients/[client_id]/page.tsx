@@ -77,8 +77,14 @@ export default async function ClientDetailPage({ params }: { params: { client_id
     intakeCompleted = typeof stamp === 'string' && stamp.trim().length > 0;
   } catch { /* default: intake required */ }
 
-  // Prefilled-intake share link -> the live website intake form, prefilled via token.
-  const intakeShareUrl = `https://atlanticandvine.netlify.app/client-intake?t=${await signIntakeShareToken(clientId)}`;
+  // (#237) Prefilled-intake share link -> the HUB's intake-form/[token] route,
+  // not the marketing site. Both surfaces accept the same JWT and write to the
+  // same backend, but the hub render is the upgraded one (Your-turn pills, etc.)
+  // and is the single source of truth going forward. Older marketing-site links
+  // (atlanticandvine.netlify.app/client-intake?t=...) still work for clients who
+  // already received one -- this only changes what NEW shares point to.
+  const _hubBase = process.env.URL || 'https://atlantic-hub.netlify.app';
+  const intakeShareUrl = `${_hubBase}/client/intake-form/${await signIntakeShareToken(clientId)}`;
 
   // (#88) Per-client PR drafter voice + posture, read from the brief payload.
   // Both null when val hasn't picked any yet.
