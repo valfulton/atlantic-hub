@@ -26,6 +26,12 @@ interface Lead {
   phone: string | null;
   website: string | null;
   industry: string | null;
+  /** (#207) Address columns (#180) already feed the AI prompts; now also rendered. */
+  addressStreet?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressPostal?: string | null;
+  addressCountry?: string | null;
   challenge: string | null;
   auditContent: string | null;
   auditGenerated: string | null;
@@ -307,6 +313,26 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
           <Field label="Phone" value={lead.phone} />
           <Field label="Website" value={lead.website} />
           <Field label="Industry" value={lead.industry} />
+
+          {/* (#207) Address rendered at the bottom of the identity grid. The
+              same geography is what feeds the AI prompts (#180 / #196) -- now
+              visible to the operator too. Joined into one human-readable
+              line. Spans both columns. */}
+          {(() => {
+            const parts = [
+              lead.addressStreet,
+              lead.addressCity,
+              lead.addressState,
+              lead.addressPostal,
+              lead.addressCountry
+            ].filter((v): v is string => !!(v && v.trim()));
+            if (parts.length === 0) return null;
+            return (
+              <div className="md:col-span-2">
+                <Field label="Address" value={parts.join(', ')} />
+              </div>
+            );
+          })()}
 
           <div className="md:col-span-2 border-t border-border pt-4">
             <div className="field-label mb-2">Enrichment</div>

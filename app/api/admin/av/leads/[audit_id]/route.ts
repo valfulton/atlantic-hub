@@ -28,6 +28,13 @@ interface LeadDetailRow extends RowDataPacket {
   contact_title: string | null;
   enrichment_status: string | null;
   enriched_at: string | null;
+  /** (#207) Address columns (#180) so the operator Identity tab can show
+   *  the geography that's already feeding the AI prompts. */
+  address_street: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_postal: string | null;
+  address_country: string | null;
   challenge: string | null;
   audit_content: string | null;
   audit_generated: string | null;
@@ -97,6 +104,7 @@ export async function GET(
     const [rows] = await db.execute<LeadDetailRow[]>(
       `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
               enrichment_status, enriched_at,
+              address_street, address_city, address_state, address_postal, address_country,
               challenge, audit_content, audit_generated, is_approved, approval_date,
               approved_by, submission_date, lead_status, follow_up_date, notes,
               ai_score, ai_score_band, ai_score_reason, ai_score_breakdown, ai_audit,
@@ -139,6 +147,11 @@ export async function GET(
         phone: r.phone,
         website: r.website,
         industry: r.industry,
+        addressStreet: r.address_street,
+        addressCity: r.address_city,
+        addressState: r.address_state,
+        addressPostal: r.address_postal,
+        addressCountry: r.address_country,
         challenge: r.challenge,
         auditContent: r.audit_content,
         auditGenerated: r.audit_generated,
