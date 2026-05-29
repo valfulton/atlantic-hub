@@ -100,6 +100,8 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
   const [lastResult, setLastResult] = useState<BulkResult | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  // (#206) Bulk progress -- how many batches done out of total.
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
 
   const clients = useMemo(() => {
     const m = new Map<number, string>();
@@ -227,23 +229,70 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
     if (refreshCallScripts) parts.push('call scripts');
     if (refreshOutreach) parts.push('outreach drafts');
     const sentence = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+
+    // (#206) Pick a safe chunk size so each backend request finishes within
+    // the 60s Netlify ceiling. Each AI call takes ~7s; audits + call scripts
+    // together = ~12s per lead. We aim for ~40s of inline work per request.
+    const heavyArtifacts = (refreshAudits ? 1 : 0) + (refreshCallScripts ? 1 : 0);
+    const chunkSize = heavyArtifacts >= 2 ? 3 : heavyArtifacts === 1 ? 5 : 50;
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      batches.push(ids.slice(i, i + chunkSize));
+    }
+
     const confirmed = window.confirm(
-      `Refresh ${sentence} for ${ids.length} lead${ids.length === 1 ? '' : 's'}?\n\nRuns OpenAI for each audit and call script, can take up to 55s. Already-sent emails are never touched.`
+      `Refresh ${sentence} for ${ids.length} lead${ids.length === 1 ? '' : 's'}?` +
+      (batches.length > 1 ? `\n\nWill run in ${batches.length} batches of up to ${chunkSize} leads each (each batch takes ~30-45s). Stay on this page until it finishes.` : '\n\nRuns OpenAI for each audit and call script, can take up to 45s.') +
+      `\n\nAlready-sent emails are never touched.`
     );
     if (!confirmed) return;
 
     setBulkBusy(true);
     setLastError(null);
     setLastResult(null);
+    setBulkProgress({ done: 0, total: batches.length });
+
+    // Accumulate counts across batches
+    const accum: BulkResult = {
+      requestedLeads: 0,
+      matchedLeads: 0,
+      audits: { reset: 0, regenerated: 0, failed: 0 },
+      callScripts: { reset: 0, regenerated: 0, failed: 0 },
+      outreach: { deleted: 0 },
+      stoppedEarly: false,
+      elapsedMs: 0
+    };
+    const startedAt = Date.now();
+
     try {
-      const result = await callRefresh(ids);
-      setLastResult(result);
-      // Clear selection on success
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const r = await callRefresh(batch);
+        accum.requestedLeads += r.requestedLeads;
+        accum.matchedLeads += r.matchedLeads;
+        accum.audits.reset += r.audits.reset;
+        accum.audits.regenerated += r.audits.regenerated;
+        accum.audits.failed += r.audits.failed;
+        accum.callScripts.reset += r.callScripts.reset;
+        accum.callScripts.regenerated += r.callScripts.regenerated;
+        accum.callScripts.failed += r.callScripts.failed;
+        accum.outreach.deleted += r.outreach.deleted;
+        if (r.stoppedEarly) accum.stoppedEarly = true;
+        setBulkProgress({ done: i + 1, total: batches.length });
+        // Live-update the result banner so val sees counts climbing.
+        setLastResult({ ...accum, elapsedMs: Date.now() - startedAt });
+      }
+      accum.elapsedMs = Date.now() - startedAt;
+      setLastResult(accum);
       setSelected(new Set());
     } catch (err) {
-      setLastError((err as Error).message);
+      setLastError(
+        `Stopped after ${bulkProgress?.done ?? 0} of ${batches.length} batches: ${(err as Error).message}. ` +
+        `Columns are already nulled for the batches that ran -- select the remaining rows and click Refresh again.`
+      );
     } finally {
       setBulkBusy(false);
+      setBulkProgress(null);
       router.refresh();
     }
   }
@@ -304,7 +353,11 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
                   : 'bg-amber-400/90 text-black hover:bg-amber-300')
               }
             >
-              {bulkBusy ? 'Refreshing…' : 'Refresh selected'}
+              {bulkBusy
+                ? bulkProgress
+                  ? `Batch ${bulkProgress.done}/${bulkProgress.total}…`
+                  : 'Refreshing…'
+                : 'Refresh selected'}
             </button>
           </div>
         </div>

@@ -34,7 +34,9 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const SOFT_DEADLINE_MS = 55_000;
+// (#206) 40s leaves room for one in-flight ~10s AI call to finish before
+// Netlify's 60s ceiling. 55s was cutting it too close on bulk runs.
+const SOFT_DEADLINE_MS = 40_000;
 
 interface RefreshResult {
   totalLeads: number;
