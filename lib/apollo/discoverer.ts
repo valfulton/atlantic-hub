@@ -187,16 +187,25 @@ async function insertApolloOrgAsLead(org: ApolloOrganization, clientId: number |
     const addrCity = (org.city && org.city.trim()) || null;
     const addrState = (org.state && org.state.trim()) || null;
     const addrCountry = (org.country && org.country.trim()) || null;
+    // (#227) Persist Apollo's employee estimate to deal_unit_count so the
+    // per-lead pipeline value calculator (#132) actually has a number to
+    // multiply against the client's per_head deal rate. Skip's leads all
+    // showed $0 in pipeline before this because the value was buried inside
+    // source_payload.apollo_estimated_num_employees and the calculator only
+    // reads deal_unit_count.
+    const dealUnitCount = (typeof org.estimated_num_employees === 'number' && org.estimated_num_employees > 0)
+      ? org.estimated_num_employees
+      : null;
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
          audit_id, company, email, phone, website,
          industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
          client_id, last_activity_at,
-         address_city, address_state, address_country
+         address_city, address_state, address_country, deal_unit_count
        )
-       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW(), ?, ?, ?, ?)`,
       [auditId, company, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId,
-       addrCity, addrState, addrCountry]
+       addrCity, addrState, addrCountry, dealUnitCount]
     );
 
     const newLeadId = result.insertId;
@@ -297,16 +306,21 @@ async function insertApolloPersonAsLead(
     const addrCity = (org.city && org.city.trim()) || null;
     const addrState = (org.state && org.state.trim()) || null;
     const addrCountry = (org.country && org.country.trim()) || null;
+    // (#227) Same as the org-shell path -- Apollo's employee estimate goes
+    // into deal_unit_count so per-head pipeline value can compute.
+    const dealUnitCount = (typeof org.estimated_num_employees === 'number' && org.estimated_num_employees > 0)
+      ? org.estimated_num_employees
+      : null;
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
          audit_id, company, contact_name, contact_title, email, phone, website,
          industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
          client_id, last_activity_at,
-         address_city, address_state, address_country
+         address_city, address_state, address_country, deal_unit_count
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW(), ?, ?, ?, ?)`,
       [auditId, company, name, title, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId,
-       addrCity, addrState, addrCountry]
+       addrCity, addrState, addrCountry, dealUnitCount]
     );
 
     const newLeadId = result.insertId;
