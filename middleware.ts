@@ -92,6 +92,8 @@ export const config = {
     '/client/audit/:path*',
     '/client/leads/:path*',
     '/client/intake/:path*',
+    // (#220) Client-facing PR pipeline.
+    '/client/pr/:path*',
     '/client/set-password',
     // Client portal APIs (protected)
     '/api/client/me',
@@ -105,6 +107,8 @@ export const config = {
     // All client lead APIs (reject, calls, future notes) — wildcard so each
     // receives x-ah-client-user-id and rejects anonymous callers.
     '/api/client/leads/:path*',
+    // (#220) Client PR approval endpoint — same guard.
+    '/api/client/pr/:path*',
     // Client campaign actions (publish own approved content). Guarded so the
     // route receives x-ah-client-user-id and rejects anonymous callers.
     '/api/client/campaign/:path*'

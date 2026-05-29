@@ -6,7 +6,7 @@ interface PortalHeaderProps {
   displayName: string | null;
   email: string;
   tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
-  active: 'dashboard' | 'audit' | 'leads' | 'details';
+  active: 'dashboard' | 'audit' | 'leads' | 'details' | 'pr';
 }
 
 const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
@@ -85,6 +85,23 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
           >
             Your Audit
           </a>
+          {/* PR is Momentum+ but we render the link for Sprint clients too,
+              since the page shows the upgrade panel itself. We hide it for
+              audit_only (they don't even have leads yet, no value in a
+              dead-end link). */}
+          {tier !== 'audit_only' && (
+            <a
+              href="/client/pr"
+              aria-current={active === 'pr' ? 'page' : undefined}
+              className={`px-3 py-1.5 rounded-md text-sm ${
+                active === 'pr'
+                  ? 'bg-surface-2 text-ink'
+                  : 'text-muted hover:text-ink hover:bg-surface-2'
+              }`}
+            >
+              Your Press
+            </a>
+          )}
           <a
             href="/client/intake"
             aria-current={active === 'details' ? 'page' : undefined}
