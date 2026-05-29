@@ -236,6 +236,29 @@ const INTAKE_INTELLIGENCE_EXTRACTOR_DEFAULT = [
   `}`
 ].join('\n');
 
+// --- Web-to-intake filler (#235). Used by lib/client/intake_web_filler.ts. ---
+// Reads cleaned plaintext from a client's public website and drafts a partial
+// intake payload (canonical keys only). Conservative — leaves fields blank if
+// the page doesn't directly support them.
+const INTAKE_WEB_FILLER_DEFAULT = [
+  `You read the cleaned plain text of a business's PUBLIC website (about / home / services / press) and draft a partial intake payload Atlantic & Vine will use to onboard them.`,
+  ``,
+  `RULES — never break these:`,
+  `1. Output ONLY keys from the CANONICAL_INTAKE_FIELDS list provided in the user message. Never invent a key.`,
+  `2. For each field, decide: does the page text DIRECTLY support an answer? If yes, write it. If unclear or absent, LEAVE THE FIELD OUT entirely. Do not output empty strings or "unknown" — half-filled is better than wrong-filled.`,
+  `3. Anchor every answer in concrete on-page evidence. Never invent founders, awards, clients, results, prices, geographies, or "years in business". If the page implies but doesn't state something, leave the field out.`,
+  `4. Match the brand's actual voice in fields like brand_voice / slogan / key_message — quote or paraphrase the site, don't write your own marketing copy.`,
+  `5. Keep values concise: short fields ≤ 200 chars, long fields (founder_story, key_message, audience_insights, etc.) ≤ 600 chars. Plain text, no markdown, no quotation-mark wrapping.`,
+  `6. NEVER include pricing, dollar amounts, or any per-unit AI/API cost. Never write "this site is powered by AI" or any meta commentary about the source page.`,
+  `7. Write a short SUMMARY (1-3 sentences, plain text) for the operator: what business this is, what they sell, who they sell to. The operator reads this before deciding whether to apply the suggestions.`,
+  ``,
+  `RESPONSE FORMAT: respond with ONLY this JSON object. Omit any field you have no real signal for from "suggestions":`,
+  `{`,
+  `  "summary": "...",`,
+  `  "suggestions": { "company": "...", "industry": "...", "key_message": "...", ... }`,
+  `}`
+].join('\n');
+
 const THESIS_SUGGESTER_DEFAULT = `You are a brand strategist for an AI-native marketing firm.
 A "narrative line" is a believable MARKET THESIS (not a slogan, not a tagline): one present-tense sentence asserting a shift in the market that a business can credibly lead and that its prospects already feel.
 Good: "Luxury retreats are becoming strategic executive performance assets." / "Local trades are winning on trust, not the lowest bid."
@@ -399,6 +422,15 @@ export const PROMPT_DEFS: PromptDef[] = [
     defaultSystem: PAIN_EXTRACTOR_DEFAULT,
     userPromptNote:
       'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197 + #198 + #199): the brief now includes plain-language identity ("What they sell", "Their tagline"), name-drops ("Names they can drop"), what the client is already running for lead-gen, AND "Topics they can speak to as an authority" (pr_expert_topics) so the rep has a natural domain-led opener that sidesteps pitch energy.'
+  },
+  {
+    key: 'intake_web_filler',
+    label: 'Web → client intake filler (#235)',
+    description:
+      'Reads a client\'s public website (about / home / services / press) and drafts a partial intake payload Atlantic & Vine can review before saving. Conservative: leaves fields blank when the page does not directly support an answer. Eliminates the SQL-paste path for new operator-prefilled onboards.',
+    defaultSystem: INTAKE_WEB_FILLER_DEFAULT,
+    userPromptNote:
+      'At call time the system appends a brand-name hint (when available), the source URL, the full CANONICAL_INTAKE_FIELDS list with hints, and the cleaned plaintext extracted from the page. You edit the rules + voice expectations above.'
   },
   {
     key: 'outreach_drafter',

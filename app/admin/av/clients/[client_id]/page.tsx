@@ -17,6 +17,7 @@ import RefreshIntelPanel from './RefreshIntelPanel';
 import { ClientPrPanel } from './ClientPrPanel';
 import PrInboxPanel from './PrInboxPanel';
 import PrVoicePicker from './PrVoicePicker';
+import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
 import ClientInfluenceCard from '@/app/_components/ClientInfluenceCard';
 import { getIntelConfig } from '@/lib/client/brief_store';
 import { getInboxRecord } from '@/lib/clients/pr_inbox';
@@ -90,6 +91,15 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // Both null when val hasn't picked any yet.
   const intelCfg = await getIntelConfig('av', clientId);
 
+  // (#235) Default URL for the "Fill intake from web" panel: prefer the
+  // client's saved website_url, else fall back to nothing (operator types).
+  let defaultIntakeUrl: string | null = null;
+  try {
+    const bp2 = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
+    const w = bp2?.website_url;
+    if (typeof w === 'string' && w.trim()) defaultIntakeUrl = w.trim();
+  } catch { /* non-fatal */ }
+
   // Unassigned leads available to hand to this client (bulk handoff #79).
   let unassigned: { auditId: string; company: string; industry: string | null; email: string | null; score: number | null; band: string | null }[] = [];
   try {
@@ -150,6 +160,17 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* No-login prefilled intake link — the "just send it" link. */}
       <PrefilledIntakeLink url={intakeShareUrl} />
+
+      {/* (#235) Fill intake from public web — paste their site, get suggested
+          intake fields drafted from the page. Eliminates the SQL-paste
+          onboarding path. Preview-first; reversible via brief versions. */}
+      <div className="mb-5">
+        <FillIntakeFromWebPanel
+          clientId={clientId}
+          clientName={d.name}
+          defaultUrl={defaultIntakeUrl}
+        />
+      </div>
 
       {/* Generate / re-issue this client's magic-link (full portal login). */}
       <div className="mb-5">
