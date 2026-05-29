@@ -31,6 +31,7 @@ import {
   OpenAIApiError
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefSeed } from '@/lib/client/brief_store';
 import {
   saveLeadAudit,
@@ -103,33 +104,9 @@ interface LeadRow extends RowDataPacket {
   website_status: 'unknown' | 'valid' | 'placeholder' | 'dead' | null;
 }
 
-const SYSTEM_INSTRUCTIONS = `You are a senior B2B sales coach. A sales rep is about to call this prospect, and you produce a tight pain-point profile to coach the call. WHO the rep sells matters: if a "CLIENT OFFER" block is provided, the rep sells THAT client's offer to the prospect -- coach entirely around the client's offer and never mention Atlantic & Vine. If no client offer is provided, the rep sells Atlantic & Vine's marketing services.
-
-Output ALWAYS valid JSON matching this exact shape:
-{
-  "primary_pain": "<one crisp sentence in plain English>",
-  "pain_category": "lead_flow" | "conversion" | "retention" | "brand_trust" | "visibility" | "operational_overwhelm" | "pricing_pressure" | "differentiation" | "other",
-  "urgency_signal": "high" | "medium" | "low" | "unknown",
-  "decision_maker_proximity": "direct" | "team_member" | "unclear",
-  "budget_signal": "strong" | "possible" | "weak" | "unknown",
-  "timing_signal": "now" | "this_quarter" | "later" | "unknown",
-  "last_objection_seen": "<short text>" | null,
-  "conversation_starters": ["<thing the rep can literally say>", "..."],
-  "do_not_say": ["<thing the rep should avoid>", "..."]
-}
-
-Rules:
-- primary_pain is THE problem -- the one a rep would lead the call with. One sentence.
-- pain_category: choose the SINGLE closest bucket from the list above to primary_pain. Be consistent -- the same underlying problem must always map to the same bucket (this is how we cluster the pain across prospects). Use "other" only if none fit.
-- urgency_signal infers from intake-form language, audit findings, recent activity.
-- decision_maker_proximity: "direct" if the contact IS likely the decision maker, "team_member" if they appear to be reporting up, "unclear" otherwise.
-- budget_signal infers from business size, industry margins, and audit clues. Default to "unknown" if nothing clear.
-- timing_signal: "now" if anything suggests they are looking right now, "this_quarter" if growth/seasonal cycle implies it, "later" if they are clearly stable, "unknown" if no signal.
-- last_objection_seen: only populate if reply bodies actually contain an objection. Null otherwise.
-- conversation_starters: 1 to 3 concrete sentences the rep can use to open the call. No generic openers. Reference the prospect's business specifically AND frame the opener around the seller's offer (the client's offer when a CLIENT OFFER is provided).
-- do_not_say: 0 to 2 things that would torpedo the call (e.g. "don't lead with price", "don't mention competitor X by name").
-
-ASCII only. No em-dashes, no smart quotes. Plural voice (we, our team). Never use the founder's name. No markdown code fences -- JSON only.`;
+// System prompt now lives in lib/ai/prompt_registry.ts under the
+// 'pain_extractor' PROMPT_DEF (operator-editable, #80). Live calls below read
+// it via getSystemPrompt('pain_extractor').
 
 interface PainPromptInput {
   company: string;
@@ -259,11 +236,15 @@ async function generatePainProfile(
     return null;
   }
 
+  // Operator-editable system prompt: getSystemPrompt returns the override from
+  // ai_prompt_overrides if set, else PAIN_EXTRACTOR_DEFAULT (#80, #196).
+  const systemPrompt = await getSystemPrompt('pain_extractor');
+
   let completion;
   try {
     completion = await openaiChatCompletion(
       [
-        { role: 'system', content: SYSTEM_INSTRUCTIONS },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: buildUserPrompt(input, briefContext) }
       ],
       { json: true, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, model: MODEL }

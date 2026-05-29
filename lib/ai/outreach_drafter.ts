@@ -27,6 +27,7 @@ import {
   OpenAIApiError
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -82,6 +83,14 @@ interface LeadRow extends RowDataPacket {
   email: string;
   industry: string | null;
   website: string | null;
+  /** Data-quality flag — placeholder/dead means don't reference the URL in the email. */
+  website_status: 'unknown' | 'valid' | 'placeholder' | 'dead' | null;
+  /** Geography fields (#180) so openers can ground in local context. */
+  address_street: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_postal: string | null;
+  address_country: string | null;
   audit_content: string | null;
   challenge: string | null;
   ai_score: number | null;
@@ -113,7 +122,9 @@ export async function generateOutreachDraft(args: {
     ? truncate(lead.audit_content!.trim(), AUDIT_EXCERPT_MAX_CHARS)
     : null;
 
-  const systemPrompt = buildSystemPrompt();
+  // Operator-editable system prompt — getSystemPrompt returns the override from
+  // ai_prompt_overrides if set, else OUTREACH_DRAFTER_DEFAULT (#80).
+  const systemPrompt = await getSystemPrompt('outreach_drafter');
   const userPrompt = buildUserPrompt({ lead, campaign: args.campaign, auditExcerpt });
 
   let completion;
@@ -242,27 +253,9 @@ export async function insertDraftRow(args: {
 // Internal: prompt construction
 // ---------------------------------------------------------------------
 
-function buildSystemPrompt(): string {
-  return [
-    `You write short, specific, human-feeling outreach emails for a marketing platform called Atlantic & Vine.`,
-    ``,
-    `RULES -- never break these:`,
-    `1. Speak in PLURAL voice ("our team", "we", "our platform"). Never use a first-person singular "I" and never sign with a person's name. The signature is the sender_display_name supplied by the user.`,
-    `2. Hook the email on ONE specific observation from the audit_excerpt. Do not summarize the whole audit. Pick one concrete thing (a broken meta tag, a missing local-SEO play, a weak CTA on the homepage, a content gap, a competitor angle, etc.) and reference it briefly.`,
-    `3. Body 80-150 words. Subject 35-60 characters. Plain text only -- no HTML, no markdown formatting, no bullets.`,
-    `4. End with the cta supplied by the user. If no cta is supplied, ask for a 15-minute call.`,
-    `5. Sound like a person, not a corporate template. No "I hope this email finds you well." No "leveraging synergies." No "circle back."`,
-    `6. Do not mention pricing, dollar amounts, or any per-unit API cost. Never reveal that the email was AI-generated.`,
-    `7. If the audit_excerpt is empty, still produce a draft, but ground it in the company name + industry instead. Set grounded_excerpt to null in that case.`,
-    ``,
-    `RESPONSE FORMAT: respond with a JSON object exactly matching this shape and nothing else:`,
-    `{`,
-    `  "subject": "...",`,
-    `  "body": "...",`,
-    `  "grounded_excerpt": "..."   // the ~1 sentence from the audit that the body hooks onto, or null`,
-    `}`
-  ].join('\n');
-}
+// System prompt now lives in lib/ai/prompt_registry.ts under the
+// 'outreach_drafter' PROMPT_DEF (operator-editable, #80). Live calls below read
+// it via getSystemPrompt('outreach_drafter').
 
 function buildUserPrompt(args: {
   lead: LeadRow;
@@ -275,7 +268,23 @@ function buildUserPrompt(args: {
   if (lead.industry) parts.push(`INDUSTRY: ${lead.industry}`);
   if (lead.contact_name) parts.push(`CONTACT_NAME: ${lead.contact_name}`);
   if (lead.contact_title) parts.push(`CONTACT_TITLE: ${lead.contact_title}`);
+
+  // (#180/#196) Geography + website status — only emit when present. Never fake.
+  const addressParts = [
+    lead.address_street,
+    lead.address_city,
+    lead.address_state,
+    lead.address_postal,
+    lead.address_country
+  ].filter((v): v is string => !!(v && v.trim()));
+  if (addressParts.length > 0) {
+    parts.push(`ADDRESS: ${addressParts.join(', ')}`);
+  }
+
   if (lead.website) parts.push(`WEBSITE: ${lead.website}`);
+  if (lead.website_status && lead.website_status !== 'unknown') {
+    parts.push(`WEBSITE_STATUS: ${lead.website_status}`);
+  }
   parts.push(``);
   parts.push(`SENDER_DISPLAY_NAME: ${campaign.senderDisplayName}`);
   parts.push(`CAMPAIGN_NAME: ${campaign.campaignName}`);
@@ -302,7 +311,9 @@ async function loadLead(auditId: string): Promise<LeadRow | null> {
   const db = getAvDb();
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, audit_id, company, contact_name, contact_title, email, industry,
-            website, audit_content, challenge, ai_score, ai_score_band, ai_score_reason
+            website, website_status,
+            address_street, address_city, address_state, address_postal, address_country,
+            audit_content, challenge, ai_score, ai_score_band, ai_score_reason
        FROM leads
       WHERE audit_id = ? AND archived_at IS NULL
       LIMIT 1`,
