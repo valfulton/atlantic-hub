@@ -25,6 +25,7 @@ import { createHash } from 'crypto';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { upsertIntelligenceObjects } from '@/lib/pr/drafter';
+import { applyPrResponsiveBump } from '@/lib/pr/responsive_bump';
 import { DEFAULT_TENANT, PR_EVENTS } from '@/lib/pr/types';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -82,13 +83,16 @@ export async function runInternalDiscoverySweep(args: {
     const queryText =
       `Advisory outreach angle for ${cluster.industry} prospects: the recurring problem "${cluster.theme}" ` +
       `that ${cluster.count} businesses in this space are facing.`;
+    // (#199) Bump score if the example lead's client is fast-turnaround.
+    const baseRelevance = clusterRelevance(cluster.count);
+    const relevanceScore = await applyPrResponsiveBump(baseRelevance, cluster.exampleLeadId);
     const oppId = await upsertSuggestedOpportunity({
       tenantId,
       origin: 'internal_signal',
       queryText,
       topicTags: [cluster.industry.toLowerCase().slice(0, 48), 'industry-trend', 'thought-leadership'],
       whyItMatters: why,
-      relevanceScore: clusterRelevance(cluster.count),
+      relevanceScore,
       matchedLeadId: cluster.exampleLeadId,
       dedupeHash: sha256(`${tenantId}:${signalKey}`),
       actorUserId
@@ -133,13 +137,16 @@ export async function runInternalDiscoverySweep(args: {
       `in our voice -- acknowledge what they appear to be doing well and offer a visibility idea. This is ` +
       `outreach TO a prospect; do not write claims as them.`;
     const queryText = `Congratulatory outreach to prospect: ${p.company}${p.industry ? ` (${p.industry})` : ''}.`;
+    // (#199) Bump score if this standout prospect belongs to a fast-turnaround client.
+    const baseRelevance = p.ai_score ? Math.min(100, p.ai_score) : 70;
+    const relevanceScore = await applyPrResponsiveBump(baseRelevance, p.id);
     const oppId = await upsertSuggestedOpportunity({
       tenantId,
       origin: 'internal_signal',
       queryText,
       topicTags: ['prospect', 'congratulatory', 'outreach', p.industry ? p.industry.toLowerCase().slice(0, 48) : 'lead'],
       whyItMatters: why,
-      relevanceScore: p.ai_score ? Math.min(100, p.ai_score) : 70,
+      relevanceScore,
       matchedLeadId: p.id,
       dedupeHash: sha256(`${tenantId}:${signalKey}`),
       actorUserId

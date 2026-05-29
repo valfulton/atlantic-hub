@@ -342,6 +342,9 @@ export async function getBriefForPrompt(args: {
   add('PR_TIMELY_HOOKS', seed.prNewsHooks);
   add('PR_DREAM_OUTLETS', seed.prDreamOutlets);
   add('PR_SPOKESPERSON', seed.prSpokesperson);
+  // (#199) Fast-turnaround availability — surfaces in pitches so journalists
+  // know they can quote-and-go. Also bumps PR opportunity scoring elsewhere.
+  add('PR_RESPONSIVE', seed.prResponsive);
   add('NOTABLE_CLIENTS', seed.notableClients);
   add('PRESS_AND_AWARDS', seed.pressAwards);
 

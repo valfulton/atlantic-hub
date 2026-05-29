@@ -25,6 +25,7 @@ import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { upsertIntelligenceObjects } from '@/lib/pr/drafter';
 import { ingestBatch } from '@/lib/pr/ingest';
+import { applyPrResponsiveBump } from '@/lib/pr/responsive_bump';
 import { fetchRedditOpportunities, parseRedditConfig } from '@/lib/pr/sources/reddit';
 import { fetchRssOpportunities, parseRssConfig } from '@/lib/pr/sources/rss';
 import { DEFAULT_TENANT, PR_EVENTS } from '@/lib/pr/types';
@@ -257,6 +258,9 @@ export async function runPerformanceSweep(args: {
       `Proven-converting vertical: ${industry}. ${wins} prospects replied positively to outreach in the last ` +
       `${PERF_WINDOW_DAYS} days -- a strong, timely angle for ${industry}-focused thought leadership.`;
     const dedupeHash = sha256(`${tenantId}:performance:industry_conversion:${normalize(industry)}`);
+    // (#199) Bump if the example lead's client is fast-turnaround.
+    const baseRelevance = Math.max(55, Math.min(100, 55 + wins * 6));
+    const relevanceScore = await applyPrResponsiveBump(baseRelevance, row.example_lead_id);
     const created1 = await upsertSuggestedOpportunity({
       db,
       tenantId,
@@ -264,7 +268,7 @@ export async function runPerformanceSweep(args: {
       queryText,
       topicTags: [industry.toLowerCase().slice(0, 48), 'converting', 'thought-leadership', 'performance'],
       whyItMatters: why,
-      relevanceScore: Math.max(55, Math.min(100, 55 + wins * 6)),
+      relevanceScore,
       matchedLeadId: row.example_lead_id,
       dedupeHash,
       actorUserId

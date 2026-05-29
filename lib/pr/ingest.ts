@@ -29,6 +29,7 @@ import type { NextRequest } from 'next/server';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { parseOpportunity } from '@/lib/pr/drafter';
+import { applyPrResponsiveBump } from '@/lib/pr/responsive_bump';
 import {
   DEFAULT_TENANT,
   PR_EVENTS,
@@ -195,7 +196,11 @@ export async function ingestRawItem(args: {
   //    insertId resolve to the existing row in that case.
   let opportunityId: number | null = null;
   try {
-    const relevance = RELEVANCE_BY_ORIGIN[origin] ?? 60;
+    // (#199) Bump relevance when the matched client flagged themselves
+    // "fast-turnaround available" on intake (pr_responsive=yes). Non-fatal:
+    // helper returns the base score unchanged on any miss/error.
+    const baseRelevance = RELEVANCE_BY_ORIGIN[origin] ?? 60;
+    const relevance = await applyPrResponsiveBump(baseRelevance, parsed.matchedLeadId);
     const [res] = await db.execute<ResultSetHeader>(
       `INSERT INTO pr_opportunities
          (tenant_id, source, outlet, journalist, query_text, topic_tags, why_it_matters,

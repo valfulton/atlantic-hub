@@ -56,6 +56,8 @@ export interface BriefSeed {
   prNewsHooks: string | null;
   prDreamOutlets: string | null;
   prSpokesperson: string | null;
+  /** (#199) Fast-turnaround-quote flag. Bumps PR opportunity scoring when 'yes'. */
+  prResponsive: string | null;
   notableClients: string | null;
   pressAwards: string | null;
   // Plain-language identity fields the client wrote in the basics section.
@@ -106,6 +108,7 @@ export function extractBriefSeedFromIntake(intakePayload: unknown): BriefSeed {
     prNewsHooks: pick(o, ['pr_news_hooks']),
     prDreamOutlets: pick(o, ['pr_dream_outlets']),
     prSpokesperson: pick(o, ['pr_spokesperson']),
+    prResponsive: pick(o, ['pr_responsive']),
     notableClients: pick(o, ['notable_clients']),
     pressAwards: pick(o, ['press_awards']),
     businessDescription: pick(o, ['business_description']),

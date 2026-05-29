@@ -343,7 +343,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Reads everything we know about a lead (audit, challenge, recent replies) and produces the JSON pain-point profile that drives the "What to say on the call" panel on every lead. The conversation_starters + do_not_say arrays end up in front of the sales rep every call.',
     defaultSystem: PAIN_EXTRACTOR_DEFAULT,
     userPromptNote:
-      'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197 + #198): the brief now includes plain-language identity ("What they sell", "Their tagline"), name-drops ("Names they can drop"), and what the client is already running for lead-gen ("What they\'re already running for lead-gen") so the rep knows what the prospect is comparing against and doesn\'t fight the wrong objection.'
+      'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197 + #198 + #199): the brief now includes plain-language identity ("What they sell", "Their tagline"), name-drops ("Names they can drop"), what the client is already running for lead-gen, AND "Topics they can speak to as an authority" (pr_expert_topics) so the rep has a natural domain-led opener that sidesteps pitch energy.'
   },
   {
     key: 'outreach_drafter',

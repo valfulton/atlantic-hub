@@ -203,6 +203,10 @@ async function buildPainBriefContextForLens(lens: string): Promise<string | null
       // know what the prospect is comparing against ("already on LinkedIn ads",
       // "referrals only", etc.) so the call doesn't fight the wrong objection.
       if (seed.currentLeadgen) parts.push(`What they're already running for lead-gen: ${seed.currentLeadgen}`);
+      // (#199) Expertise the client can speak to as an authority -- gives the
+      // rep a natural "by the way, you wrote about X recently" opener that
+      // sidesteps pitch energy and starts the conversation in their domain.
+      if (seed.prExpertTopics) parts.push(`Topics they can speak to as an authority: ${seed.prExpertTopics}`);
       if (!parts.length) return null;
       return (
         'CLIENT OFFER -- the rep sells THIS client\'s offer to the prospect. Coach the call around it; ' +
