@@ -37,6 +37,8 @@ interface SourceRow extends RowDataPacket {
   kind: 'internal' | 'email_inbox' | 'reddit' | 'rss';
   config_json: unknown;
   is_active: number;
+  /** (#214) Per-client source attribution. NULL = tenant-wide. */
+  client_id: number | null;
 }
 
 export interface LaneResult {
@@ -72,7 +74,7 @@ export async function runExternalDiscovery(args: {
   try {
     if (args.sourceId) {
       const [rows] = await db.execute<SourceRow[]>(
-        `SELECT id, tenant_id, kind, config_json, is_active
+        `SELECT id, tenant_id, kind, config_json, is_active, client_id
            FROM pr_discovery_sources
           WHERE tenant_id = ? AND id = ? AND is_active = 1 AND kind IN ('reddit','rss')
           LIMIT 1`,
@@ -80,12 +82,16 @@ export async function runExternalDiscovery(args: {
       );
       sources = rows;
     } else {
+      // (#214) Pull tenant-wide AND per-client sources in the same sweep.
+      // The is_active filter still gates both; client-scoped sources just
+      // additionally carry client_id which is logged into the ingestion event
+      // so the per-client PR section can attribute the matched opportunities.
       const [rows] = await db.execute<SourceRow[]>(
-        `SELECT id, tenant_id, kind, config_json, is_active
+        `SELECT id, tenant_id, kind, config_json, is_active, client_id
            FROM pr_discovery_sources
           WHERE tenant_id = ? AND is_active = 1 AND kind IN ('reddit','rss')
           ORDER BY id ASC
-          LIMIT 25`,
+          LIMIT 50`,
         [tenantId]
       );
       sources = rows;
@@ -140,14 +146,31 @@ export async function runExternalDiscovery(args: {
         userId: actorUserId,
         source: `pr_source:${src.kind}`,
         status: status === 'disabled' ? 'partial' : 'failure',
-        payload: { source_id: src.id, kind: src.kind, detail: detail.slice(0, 480) }
+        payload: { source_id: src.id, kind: src.kind, client_id: src.client_id, detail: detail.slice(0, 480) }
       });
     } else {
       await logEvent({
         eventType: PR_EVENTS.discoverySwept,
         userId: actorUserId,
         source: `pr_source:${src.kind}`,
-        payload: { source_id: src.id, kind: src.kind, parsed: ingest.parsed, duplicate: ingest.duplicate }
+        payload: { source_id: src.id, kind: src.kind, client_id: src.client_id, parsed: ingest.parsed, duplicate: ingest.duplicate }
+      });
+    }
+
+    // (#214) When the source is bound to a specific client, log a routing
+    // event so the per-client PR section (#213) can attribute the matched
+    // opportunities even when the parser couldn't pick a specific lead.
+    if (src.client_id && ingest.parsed > 0) {
+      await logEvent({
+        eventType: 'pr.discovery_routed_per_client',
+        userId: actorUserId,
+        source: `pr_source:${src.kind}`,
+        payload: {
+          client_id: src.client_id,
+          source_id: src.id,
+          source_kind: src.kind,
+          items_parsed: ingest.parsed
+        }
       });
     }
 

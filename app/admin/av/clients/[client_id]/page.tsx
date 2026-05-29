@@ -17,6 +17,8 @@ import RefreshIntelPanel from './RefreshIntelPanel';
 import { ClientPrPanel } from './ClientPrPanel';
 import PrInboxPanel from './PrInboxPanel';
 import { getInboxRecord } from '@/lib/clients/pr_inbox';
+import PrSourcesPanel from './PrSourcesPanel';
+import { listSourcesForClient } from '@/lib/pr/client_sources';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import { getClientIcpWithProvenance } from '@/lib/client/icp';
 import { signIntakeShareToken } from '@/lib/auth/intake-share';
@@ -256,6 +258,27 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           email: r?.email ?? null,
           setAt: r?.setAt ?? null
         })).catch(() => ({ slug: null, email: null, setAt: null }))}
+      />
+
+      {/* (#214) Per-client PR discovery source tuning. RSS feeds tagged to
+          this client only, so John's political feeds / Adriana's legal feeds /
+          Ron's healthcare feeds run alongside the tenant-wide sources. */}
+      <PrSourcesPanel
+        clientId={clientId}
+        clientName={d.name}
+        initial={await listSourcesForClient(clientId).then((rows) =>
+          rows.map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            label: s.label,
+            url: s.configJson && typeof s.configJson === 'object' && 'url' in (s.configJson as Record<string, unknown>)
+              ? String((s.configJson as { url?: unknown }).url ?? '')
+              : null,
+            isActive: s.isActive,
+            lastRunAt: s.lastRunAt,
+            lastStatus: s.lastStatus
+          }))
+        ).catch(() => [])}
       />
 
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}

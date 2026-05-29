@@ -32,6 +32,8 @@ interface Lead {
   addressState?: string | null;
   addressPostal?: string | null;
   addressCountry?: string | null;
+  /** (#212) Estimated employee count from Apollo enrichment (source_payload). */
+  employeeCount?: number | null;
   challenge: string | null;
   auditContent: string | null;
   auditGenerated: string | null;
@@ -313,6 +315,11 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
           <Field label="Phone" value={lead.phone} />
           <Field label="Website" value={lead.website} />
           <Field label="Industry" value={lead.industry} />
+          {/* (#212) Employee count from Apollo enrichment. Shows nothing when
+              the lead wasn't Apollo-sourced or Apollo didn't size the org. */}
+          {typeof lead.employeeCount === 'number' && lead.employeeCount > 0 && (
+            <Field label="Employees (est.)" value={lead.employeeCount.toLocaleString()} />
+          )}
 
           {/* (#207) Address rendered at the bottom of the identity grid. The
               same geography is what feeds the AI prompts (#180 / #196) -- now

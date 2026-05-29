@@ -35,6 +35,10 @@ interface LeadDetailRow extends RowDataPacket {
   address_state: string | null;
   address_postal: string | null;
   address_country: string | null;
+  /** (#212) Estimated employee count extracted from Apollo's
+   *  source_payload.apollo_estimated_num_employees JSON field. May be
+   *  null for non-Apollo leads or Apollo orgs Apollo didn't size. */
+  employee_count_est: string | null;
   challenge: string | null;
   audit_content: string | null;
   audit_generated: string | null;
@@ -105,6 +109,7 @@ export async function GET(
       `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
               enrichment_status, enriched_at,
               address_street, address_city, address_state, address_postal, address_country,
+              JSON_UNQUOTE(JSON_EXTRACT(source_payload, '$.apollo_estimated_num_employees')) AS employee_count_est,
               challenge, audit_content, audit_generated, is_approved, approval_date,
               approved_by, submission_date, lead_status, follow_up_date, notes,
               ai_score, ai_score_band, ai_score_reason, ai_score_breakdown, ai_audit,
@@ -152,6 +157,9 @@ export async function GET(
         addressState: r.address_state,
         addressPostal: r.address_postal,
         addressCountry: r.address_country,
+        employeeCount: r.employee_count_est && /^\d+$/.test(r.employee_count_est)
+          ? Number(r.employee_count_est)
+          : null,
         challenge: r.challenge,
         auditContent: r.audit_content,
         auditGenerated: r.audit_generated,
