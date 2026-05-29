@@ -18,6 +18,8 @@ import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import WaveDivider from '@/app/_components/WaveDivider';
 import LeadQuickActions from './LeadQuickActions';
+import IcpFitPill from '@/app/_components/IcpFitPill';
+import AuditStalePill from '@/app/_components/AuditStalePill';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -170,6 +172,21 @@ export default async function ClientLeadsPreview({ params }: { params: { client_
                   </div>
                   <ScorePill lead={l} />
                 </div>
+
+                {/* (#95) ICP fit signal — mirrors what the client sees.
+                    (#90) Audit-stale pill: in the operator mirror the tooltip
+                    points val at the RefreshIntelPanel as the action. */}
+                {(l.icpFitScore != null || l.auditStale) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {l.icpFitScore != null && (
+                      <IcpFitPill score={l.icpFitScore} reasoning={l.icpFitReasoning} />
+                    )}
+                    <AuditStalePill stale={l.auditStale} actionable />
+                    {l.icpFitReasoning && (
+                      <span className="text-[11px] text-muted/85 italic">{l.icpFitReasoning}</span>
+                    )}
+                  </div>
+                )}
 
                 {l.painSummary && <p className="text-sm text-muted mt-3 leading-relaxed">{l.painSummary}</p>}
 

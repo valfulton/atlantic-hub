@@ -102,6 +102,26 @@ export default async function ClientDetailPage({ params }: { params: { client_id
     if (typeof w === 'string' && w.trim()) defaultIntakeUrl = w.trim();
   } catch { /* non-fatal */ }
 
+  // (#90) Stale-audit count: how many of this client's leads were audited
+  // BEFORE the latest brief edit. Surfaces above the RefreshIntelPanel so val
+  // sees the audit-refresh need at a glance instead of having to scan the
+  // pipeline for amber pills.
+  let staleAuditCount = 0;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { stale_count: number })[]>(
+      `SELECT COUNT(*) AS stale_count
+         FROM leads l
+         JOIN creative_briefs cb
+           ON cb.client_id = l.client_id AND cb.tenant_id = 'av'
+        WHERE l.client_id = ?
+          AND l.archived_at IS NULL
+          AND (l.audit_generated IS NULL OR l.audit_generated < cb.updated_at)`,
+      [clientId]
+    );
+    staleAuditCount = Number(rows[0]?.stale_count ?? 0);
+  } catch { /* non-fatal */ }
+
   // Unassigned leads available to hand to this client (bulk handoff #79).
   let unassigned: { auditId: string; company: string; industry: string | null; email: string | null; score: number | null; band: string | null }[] = [];
   try {
@@ -366,6 +386,22 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* Enrich this client's leads on their behalf (Hunter contact details). */}
       <EnrichClientLeadsButton clientId={clientId} clientName={d.name} />
+
+      {/* (#90) Stale audit hint — when val edits the brief, this surfaces a
+          calm amber chip telling her how many lead audits were grounded in
+          the older positioning. Acts as a nudge to click RefreshIntelPanel. */}
+      {staleAuditCount > 0 && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.05] p-3 text-[12.5px] text-amber-200/90 flex items-start gap-2">
+          <span aria-hidden="true">&#9203;</span>
+          <span>
+            <span className="font-medium text-amber-200">{staleAuditCount} audit{staleAuditCount === 1 ? '' : 's'} catching up</span> —
+            the brief was edited after these leads were audited.{' '}
+            <span className="text-amber-100/70">
+              Use &ldquo;Refresh AI intel&rdquo; below (audits + call scripts) to re-ground them in the current brief.
+            </span>
+          </span>
+        </div>
+      )}
 
       {/* (#203) Force-regenerate AI intel for this client's leads (replaces
           phpMyAdmin SQL pattern). Audits + call scripts + outreach drafts. */}

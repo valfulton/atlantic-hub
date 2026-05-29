@@ -26,6 +26,8 @@ import AccessPaused from '@/app/client/_components/AccessPaused';
 import WaveDivider from '@/app/_components/WaveDivider';
 import DiscoverPanel from './DiscoverPanel';
 import ClientLeadReject from '@/app/client/_components/ClientLeadReject';
+import IcpFitPill from '@/app/_components/IcpFitPill';
+import AuditStalePill from '@/app/_components/AuditStalePill';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -175,6 +177,25 @@ export default async function ClientLeadsPage() {
                   </div>
                   <ScorePill lead={l} />
                 </div>
+
+                {/* (#95) ICP fit pill + one-liner reasoning. Only renders when
+                    val has scored this client's pipeline. Surfaces immediately
+                    above the pain summary so the fit signal is the first thing
+                    Tim's eye lands on after the score number.
+                    (#90) Audit-stale pill sits alongside — when the brief was
+                    edited after the audit ran, the client sees a calm "Audit
+                    catching up" indicator. */}
+                {(l.icpFitScore != null || l.auditStale) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {l.icpFitScore != null && (
+                      <IcpFitPill score={l.icpFitScore} reasoning={l.icpFitReasoning} />
+                    )}
+                    <AuditStalePill stale={l.auditStale} />
+                    {l.icpFitReasoning && (
+                      <span className="text-[11px] text-muted/85 italic">{l.icpFitReasoning}</span>
+                    )}
+                  </div>
+                )}
 
                 {l.painSummary && <p className="text-sm text-muted mt-3 leading-relaxed">{l.painSummary}</p>}
 

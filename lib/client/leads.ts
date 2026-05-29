@@ -50,6 +50,19 @@ export interface ClientLead {
   /** The visible Living Score: combined when present, else fit-only. */
   score: number | null;
   band: LeadBand;
+  /** (#95) 0-100 fit score against THIS client's brief + ICP. NULL when the
+   *  lead hasn't been scored yet OR when the client has no brief to score
+   *  against. Distinct from `score` (which is the generic AV audit signal). */
+  icpFitScore: number | null;
+  /** One-sentence reason the scorer wrote; surfaces as a tooltip / subline. */
+  icpFitReasoning: string | null;
+  /** (#90) When the lead's audit was last regenerated. NULL = never audited. */
+  auditGeneratedAt: string | null;
+  /** (#90) True when the audit was generated BEFORE the owning client's brief
+   *  was last edited — i.e. the audit is grounded in an outdated brief and
+   *  should be re-run via the RefreshIntelPanel. Also true when there's no
+   *  audit at all and a brief exists. */
+  auditStale: boolean;
   /** A short, human pain summary if one has been extracted; else null. */
   painSummary: string | null;
   /** The "what to say on the call" script from the lead's pain profile. */
@@ -81,6 +94,12 @@ interface LeadRow extends RowDataPacket {
   ai_score: number | null;
   ai_combined_score: number | null;
   ai_score_band: LeadBand;
+  // (#95) Per-client ICP-fit score + reasoning. Populated by the bulk-scorer
+  // run from the client page.
+  client_icp_fit_score: number | null;
+  client_icp_fit_reasoning: string | null;
+  // (#90) When the lead's audit was last regenerated.
+  audit_generated: string | Date | null;
   pain_point_profile: string | object | null;
   submission_date: string | Date | null;
 }
@@ -160,16 +179,37 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
   if (!Number.isInteger(clientId) || clientId <= 0) return [];
 
   const db = getAvDb();
+
+  // (#90) Fetch the client's brief updated_at ONCE so we can stamp every
+  // lead with whether its audit is stale relative to the current brief. The
+  // brief is the canonical source the audit was grounded in — if val edited
+  // the brief after the audit ran, that audit is grounding in old positioning.
+  let briefUpdatedAt: Date | null = null;
+  try {
+    const [briefRows] = await db.execute<(RowDataPacket & { updated_at: string | Date })[]>(
+      `SELECT updated_at FROM creative_briefs
+        WHERE tenant_id = 'av' AND client_id = ?
+        ORDER BY updated_at DESC LIMIT 1`,
+      [clientId]
+    );
+    const rawTs = briefRows[0]?.updated_at;
+    briefUpdatedAt = rawTs ? new Date(rawTs) : null;
+  } catch { /* non-fatal: staleness silently false everywhere */ }
+
   const [rows] = await db.execute<LeadRow[]>(
     `SELECT id, audit_id, company, industry, contact_name, email, phone, website,
             website_status,
             address_street, address_city, address_state, address_postal, address_country,
             lead_status, ai_score, ai_combined_score, ai_score_band,
+            client_icp_fit_score, client_icp_fit_reasoning,
+            audit_generated,
             pain_point_profile, submission_date
        FROM leads
       WHERE archived_at IS NULL
         AND client_id = ?
-      ORDER BY ai_combined_score IS NULL ASC,
+      ORDER BY client_icp_fit_score IS NULL ASC,
+               client_icp_fit_score DESC,
+               ai_combined_score IS NULL ASC,
                ai_combined_score DESC,
                submission_date DESC,
                id DESC
@@ -200,6 +240,18 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
           ? Number(r.ai_score)
           : null,
     band: r.ai_score_band,
+    icpFitScore: r.client_icp_fit_score == null ? null : Number(r.client_icp_fit_score),
+    icpFitReasoning: r.client_icp_fit_reasoning && r.client_icp_fit_reasoning.trim() ? r.client_icp_fit_reasoning.trim() : null,
+    auditGeneratedAt: toIso(r.audit_generated),
+    // (#90) Stale when: brief exists AND (audit is missing OR audit is older
+    // than the latest brief edit). If no brief is on file yet, nothing is
+    // "stale" -- there's no canonical positioning to be out of sync with.
+    auditStale: (() => {
+      if (!briefUpdatedAt) return false;
+      if (!r.audit_generated) return true; // brief exists, audit doesn't
+      const auditTs = new Date(r.audit_generated as string | Date);
+      return auditTs.getTime() < briefUpdatedAt.getTime();
+    })(),
     painSummary: painSummaryOf(r.pain_point_profile),
     callScript: callScriptOf(r.pain_point_profile),
     submittedAt: toIso(r.submission_date)
