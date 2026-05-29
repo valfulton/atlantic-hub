@@ -34,6 +34,10 @@ export default function RefreshIntelPanel({
   const [result, setResult] = useState<RefreshResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // (#223) Separate state for the lighter "flush guidance only" action.
+  const [flushBusy, setFlushBusy] = useState(false);
+  const [flushMsg, setFlushMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   const nothingSelected = !audits && !callScripts && !outreach;
 
   async function run() {
@@ -86,6 +90,33 @@ export default function RefreshIntelPanel({
     }
   }
 
+  // (#223) Lightweight "just clear the dashboard cache" -- no AI, instant,
+  // safe to click whenever cards look stale. The cards recompose on next
+  // dashboard load using the latest code + latest data.
+  async function flushGuidance() {
+    setFlushBusy(true);
+    setFlushMsg(null);
+    try {
+      const res = await fetch(`/api/admin/av/clients/${clientId}/clear-guidance`, {
+        method: 'POST'
+      });
+      const rawText = await res.text();
+      let data: { ok?: boolean; rowsDeleted?: number; error?: string } | null = null;
+      try { data = JSON.parse(rawText); } catch {
+        throw new Error(`Server returned HTTP ${res.status} (non-JSON).`);
+      }
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      setFlushMsg({
+        ok: true,
+        text: `Cleared ${data?.rowsDeleted ?? 0} cached guidance row(s). Reload ${clientName}'s dashboard to see fresh cards.`
+      });
+    } catch (err) {
+      setFlushMsg({ ok: false, text: (err as Error).message });
+    } finally {
+      setFlushBusy(false);
+    }
+  }
+
   const cb = (checked: boolean) =>
     'inline-flex items-center gap-2 cursor-pointer select-none ' +
     (busy ? 'opacity-50 cursor-not-allowed' : '');
@@ -130,23 +161,55 @@ export default function RefreshIntelPanel({
         </label>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={run}
-          disabled={busy || nothingSelected}
+          disabled={busy || nothingSelected || flushBusy}
           className={
             'rounded-lg px-4 py-2 text-[13px] font-medium transition ' +
-            (busy || nothingSelected
+            (busy || nothingSelected || flushBusy
               ? 'bg-white/10 text-white/40 cursor-not-allowed'
               : 'bg-amber-400/90 text-black hover:bg-amber-300')
           }
         >
           {busy ? 'Regenerating…' : 'Refresh AI intel'}
         </button>
-        {nothingSelected && !busy && (
-          <span className="text-[11px] text-white/40">Pick at least one to refresh.</span>
+
+        {/* (#223) Lighter alternative when dashboard cards look stale but you
+            don't want to spend OpenAI tokens. Just clears the cached
+            next_best_moves + momentum_signals; next dashboard load
+            recomposes from latest code + data. */}
+        <button
+          onClick={flushGuidance}
+          disabled={busy || flushBusy}
+          title="Clears cached dashboard guidance ONLY. No AI calls. Use after a code change to lib/client/guidance.ts."
+          className={
+            'rounded-lg px-3 py-2 text-[12px] font-medium transition border ' +
+            (busy || flushBusy
+              ? 'border-white/10 text-white/30 cursor-not-allowed'
+              : 'border-white/20 text-white/70 hover:border-white/40 hover:text-white')
+          }
+        >
+          {flushBusy ? 'Flushing…' : 'Flush dashboard cache only (no AI)'}
+        </button>
+
+        {nothingSelected && !busy && !flushBusy && (
+          <span className="text-[11px] text-white/40">Pick at least one to refresh, or just flush.</span>
         )}
       </div>
+
+      {flushMsg && (
+        <div
+          className={
+            'mt-3 rounded-md border px-3 py-2 text-[12px] ' +
+            (flushMsg.ok
+              ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-100'
+              : 'border-rose-500/40 bg-rose-500/10 text-rose-200')
+          }
+        >
+          {flushMsg.text}
+        </div>
+      )}
 
       {error && (
         <div className="mt-3 rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[12px] text-rose-200">

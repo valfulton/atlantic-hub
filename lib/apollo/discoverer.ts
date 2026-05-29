@@ -181,14 +181,22 @@ async function insertApolloOrgAsLead(org: ApolloOrganization, clientId: number |
 
   try {
     const targetBusiness = inferTargetBusiness(industry);
+    // (#224) Persist the org's city/state/country to the address_* columns so
+    // lead cards, AI prompts (#196 audit grounding), and the freshness view all
+    // see the address. apollo_location stays in source_payload for traceability.
+    const addrCity = (org.city && org.city.trim()) || null;
+    const addrState = (org.state && org.state.trim()) || null;
+    const addrCountry = (org.country && org.country.trim()) || null;
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
          audit_id, company, email, phone, website,
          industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
-         client_id, last_activity_at
+         client_id, last_activity_at,
+         address_city, address_state, address_country
        )
-       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW())`,
-      [auditId, company, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId]
+       VALUES (?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+      [auditId, company, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId,
+       addrCity, addrState, addrCountry]
     );
 
     const newLeadId = result.insertId;
@@ -283,14 +291,22 @@ async function insertApolloPersonAsLead(
 
   try {
     const targetBusiness = inferTargetBusiness(industry);
+    // (#224) Use the ORG's city/state/country for the address columns even on
+    // the person path -- the company location is the actionable one for sales
+    // outreach; the person's city is often just their LinkedIn residence.
+    const addrCity = (org.city && org.city.trim()) || null;
+    const addrState = (org.state && org.state.trim()) || null;
+    const addrCountry = (org.country && org.country.trim()) || null;
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO leads (
          audit_id, company, contact_name, contact_title, email, phone, website,
          industry, lead_status, source_type, target_business, source_payload, apollo_person_id,
-         client_id, last_activity_at
+         client_id, last_activity_at,
+         address_city, address_state, address_country
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW())`,
-      [auditId, company, name, title, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'api', ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+      [auditId, company, name, title, placeholderEmail, phone, website, industry, targetBusiness, JSON.stringify(sourcePayload), dedupKey, clientId,
+       addrCity, addrState, addrCountry]
     );
 
     const newLeadId = result.insertId;
