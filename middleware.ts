@@ -82,7 +82,10 @@ const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   '/api/admin/cron/run',
   // (#216 v2) Weekly digest sweep — called by the dispatcher with the
   // ENRICHMENT_CRON_SECRET. Iterates active clients and sends each digest.
-  '/api/admin/av/digest-sweep'
+  '/api/admin/av/digest-sweep',
+  // (#245) ICP backfill sweep — catches clients whose briefs bypassed
+  // saveBriefPayload (SQL onboards). Daily; idempotent.
+  '/api/admin/av/icp-backfill-sweep'
 ]);
 
 export const config = {

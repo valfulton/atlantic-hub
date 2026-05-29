@@ -34,7 +34,12 @@ const GROUPS: Record<string, Job[]> = {
     { path: '/api/admin/av/pain-sweep', secret: 'enrich' },
     { path: '/api/admin/pr/discover-sweep', secret: 'enrich' },
     { path: '/api/admin/av/nurture-wake', secret: 'enrich' },
-    { path: '/api/client/guidance/prewarm', secret: 'enrich' }
+    { path: '/api/client/guidance/prewarm', secret: 'enrich' },
+    // (#245) Catch clients whose briefs landed via raw SQL / direct DB
+    // writes — the autopilot hook only fires inside saveBriefPayload, so
+    // SQL-loaded onboards (Tim, Skip, Mike, Adriana) need this sweep to
+    // populate their ICP. Idempotent: skips already-populated rows.
+    { path: '/api/admin/av/icp-backfill-sweep', secret: 'enrich' }
   ],
   weekly: [
     // (#216 v2) Weekly digest sweep — iterates active clients, sends each
