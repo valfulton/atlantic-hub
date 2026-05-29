@@ -22,6 +22,7 @@ import { formatUsd } from '@/lib/sales/deal_model';
 import type { ClientDashboardData } from '@/lib/client/dashboard_data';
 import ClientHero from '@/app/client/_components/ClientHero';
 import GuidanceFeed from '@/app/client/_components/GuidanceFeed';
+import ThisWeekFeed from '@/app/client/_components/ThisWeekFeed';
 import CreativeBrief from '@/app/client/_components/CreativeBrief';
 import Collapsible from '@/app/client/_components/Collapsible';
 import PublishToNewsroom from '@/app/client/_components/PublishToNewsroom';
@@ -44,7 +45,7 @@ export default function ClientDashboardBody({
   preview?: boolean;
   leadsHref?: string;
 }) {
-  const { firstName, tier, audit, leadCount, guidance, campaign, liveCount, inMotion, clientCampaigns, brief, monthlyPipelineCents, team, features } = data;
+  const { firstName, tier, audit, leadCount, guidance, campaign, liveCount, inMotion, clientCampaigns, brief, monthlyPipelineCents, team, features, clientId } = data;
 
   // (#187) Decide what's worth showing. A Day-1 client has no content, no
   // campaigns, no audit — those collapsibles render as empty placeholders that
@@ -69,6 +70,13 @@ export default function ClientDashboardBody({
                 : 'Your campaign is being set in motion. Everything we create for you will appear here.'}
         </p>
       </ClientHero>
+
+      {/* (#242 / #216 v0) "This week" activity feed — surfaces system events
+          the client cares about (new leads, hot fits, press matches, audit
+          refresh) since their last visit. Hides itself for Day-1 clients
+          with no activity yet, so it appears the first time the system
+          does meaningful work. Server component fetches its own data. */}
+      <ThisWeekFeed clientId={clientId} firstName={firstName} />
 
       <GuidanceFeed guidance={guidance} firstName={firstName} />
 

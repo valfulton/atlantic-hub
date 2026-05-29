@@ -75,6 +75,9 @@ export interface ClientDashboardData {
   monthlyPipelineCents: number | null;
   team: TeamRep[];
   features: (typeof TIER_FEATURES)[ClientTier];
+  // (#242) Passed through so the dashboard body can mount client-scoped
+  // server components (ThisWeekFeed) without re-resolving the actor.
+  clientId: number | null;
 }
 
 export async function getClientDashboardData(client: DashboardClient): Promise<ClientDashboardData> {
@@ -125,6 +128,7 @@ export async function getClientDashboardData(client: DashboardClient): Promise<C
     brief,
     monthlyPipelineCents,
     team,
-    features: TIER_FEATURES[client.tier]
+    features: TIER_FEATURES[client.tier],
+    clientId: client.clientId
   };
 }
