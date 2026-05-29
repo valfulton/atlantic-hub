@@ -182,6 +182,27 @@ export async function POST(req: NextRequest) {
       result.outreach.deleted = del.affectedRows;
     }
 
+    // (#177 fix) Bust dashboard guidance cache for every client that owns ANY
+    // of the leads we just touched. Otherwise the client's "Here's where to
+    // focus" panel keeps serving stale cards even after we regenerated the
+    // underlying lead data.
+    try {
+      const [delResult] = await db.execute<ResultSetHeader>(
+        `DELETE FROM intelligence_objects
+          WHERE object_type IN ('next_best_moves', 'momentum_signals')
+            AND tenant_id IN (
+              SELECT CONCAT('client:', cu.client_user_id)
+                FROM client_users cu
+                JOIN leads l ON l.client_id = cu.client_id
+               WHERE l.id IN (${idPh})
+            )`,
+        leadIds
+      );
+      console.log(`[leads:refresh-intel] cleared ${delResult.affectedRows} cached guidance objects across affected clients`);
+    } catch (err) {
+      console.error('[leads:refresh-intel:guidance-clear]', (err as Error).message);
+    }
+
     result.elapsedMs = Date.now() - start;
 
     await logEvent({

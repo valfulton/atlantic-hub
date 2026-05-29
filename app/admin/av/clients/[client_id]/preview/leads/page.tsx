@@ -207,6 +207,20 @@ export default async function ClientLeadsPreview({ params }: { params: { client_
                     <a href={l.website} target="_blank" rel="noopener" className="text-brand hover:underline">Website &rarr;</a>
                   )}
                 </div>
+
+                {/* (#207 follow-up) Address line at the bottom of each card --
+                    matches the live /client/leads view so operator preview
+                    mirrors what the client sees. */}
+                {(l.addressStreet || l.addressCity) && (
+                  <div className="mt-1 text-[11px] text-muted/80">
+                    <span className="text-muted/60">Address:</span>{' '}
+                    <span className="text-ink/85">
+                      {[l.addressStreet, l.addressCity, l.addressState, l.addressPostal, l.addressCountry]
+                        .filter((v): v is string => !!(v && v.trim()))
+                        .join(', ')}
+                    </span>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

@@ -302,9 +302,21 @@ export async function composeClientGuidance(args: {
 // ===========================================================================
 
 /**
- * The client's primary lead/account record. Mirrors the client_id-or-email join
- * used by /api/client/me and /client/dashboard (leads.client_id is mostly NULL,
- * so email is the stable key). Most recent audited row wins.
+ * The client's primary "self" lead/account record -- the lead row that
+ * represents THIS CLIENT'S OWN BUSINESS (e.g. Skip's own EHP account record),
+ * NOT one of their pipeline prospects.
+ *
+ * (#177 fix) Previously the ORDER BY preferred any lead with client_id matching
+ * the client (i.e. their pipeline prospects), so Skip's dashboard treated Carrier
+ * HVAC's pain profile AS IF IT WERE SKIP'S OWN PAIN. That's the headline-of-a-
+ * prospect-rendered-as-the-client bug. Now: strictly prefer the email match
+ * (Skip-as-prospect-of-A&V's original lead row if it exists) and explicitly
+ * EXCLUDE any lead owned by the client (their pipeline prospects).
+ *
+ * If no self-record exists -- which is common for clients who came in directly
+ * via intake without ever being an AV-pipeline lead -- returns null and the
+ * composer routes to a brief-derived path instead of inventing a pain from
+ * someone else's data.
  */
 async function loadPrimaryLead(client: ClientIdentity): Promise<PrimaryLeadRow | null> {
   const db = getAvDb();
@@ -313,15 +325,12 @@ async function loadPrimaryLead(client: ClientIdentity): Promise<PrimaryLeadRow |
             ai_score, ai_score_band, ai_combined_score, score_history, lead_status
        FROM leads
       WHERE archived_at IS NULL
-        AND (
-          (? IS NOT NULL AND client_id = ?)
-          OR email = ?
-        )
-      ORDER BY (client_id = ?) DESC,
-               (audit_content IS NOT NULL) DESC,
+        AND email = ?
+        AND (client_id IS NULL OR client_id <> ?)
+      ORDER BY (audit_content IS NOT NULL) DESC,
                COALESCE(audit_generated, created_at) DESC
       LIMIT 1`,
-    [client.clientId, client.clientId, client.email, client.clientId]
+    [client.email, client.clientId ?? 0]
   );
   return rows[0] ?? null;
 }
@@ -387,11 +396,14 @@ async function loadTopEngagementFormat(
         AND status = 'success'
         AND event_type IN (
           'social.published',
-          'ai.social_content_generated',
           'pr.pitch.generated',
-          'pr.release.drafted',
-          'ai.audit_generated'
+          'pr.release.drafted'
         )
+        -- (#177 fix) Removed 'ai.audit_generated' and 'ai.social_content_generated'
+        -- from this set. Those events fire on INTERNAL work (regenerating an
+        -- audit; drafting social content). They are not audience engagement, and
+        -- counting them as such made the dashboard say "Your strategic audit is
+        -- the format earning the most engagement" any time we re-scored a lead.
       GROUP BY event_type
       ORDER BY c DESC
       LIMIT 1`,
@@ -519,8 +531,11 @@ function composeItems(args: {
   }
 
   // --- Signal E: focus on the biggest gap (pain_point_profile) ---
+  // (#177 fix) Only use pain_point_profile as a focus headline when the lead
+  // is the client's OWN self-record (lead.client_id IS NULL after the
+  // loadPrimaryLead change). Pipeline-prospect pain is about THEM, not us.
   const pain = topPain(lead?.pain_point_profile);
-  if (pain) {
+  if (pain && lead && (lead as PrimaryLeadRow & { client_id?: number | null }).client_id == null) {
     out.push({
       key: 'focus-pain',
       rank: 40,
@@ -548,6 +563,26 @@ function composeItems(args: {
       whyNow: `Doubling down on what is already working is the lowest-risk way to grow from here.`,
       valueFrame: `Highest-engagement format for your audience -- proven by your own numbers.`,
       topic: formatStat.label
+    });
+  } else {
+    // (#177 fix) No real engagement signal yet -- DON'T fabricate one. Surface
+    // a concrete next-step suggestion instead. This is the "what can I do
+    // right now to feed the system signal" card that turns a blank dashboard
+    // into a usable one for a brand-new client.
+    out.push({
+      key: 'next-step',
+      rank: 70,
+      kind: 'format',
+      headline: `We're still collecting engagement signal for you.`,
+      whyItMatters:
+        `As content lands and conversations happen, the platform learns which formats and angles` +
+        ` move your audience -- and surfaces what is working back to you here.`,
+      whyNow:
+        `In the meantime, the highest-leverage moves you can make today: (1) review your most` +
+        ` recent lead audits and pick three to reach out to, (2) approve any pending content` +
+        ` so we can publish to your channels, (3) open the call scripts on your hot leads and` +
+        ` use them on your next call.`,
+      valueFrame: `Action now creates the signal we use to coach you later -- and converts at the same time.`
     });
   }
 

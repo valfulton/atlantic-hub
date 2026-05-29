@@ -173,6 +173,26 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       result.outreach.deleted = del.affectedRows;
     }
 
+    // (#177 fix) Bust the dashboard-guidance cache for every client_user under
+    // this client, so the next dashboard load recomposes from the freshly
+    // regenerated lead data instead of serving the old cached cards. Stale
+    // guidance was the reason Skip's dashboard kept showing Carrier HVAC's pain
+    // even after we re-extracted pain profiles in EHP voice.
+    try {
+      const [delResult] = await db.execute<ResultSetHeader>(
+        `DELETE FROM intelligence_objects
+          WHERE object_type IN ('next_best_moves', 'momentum_signals')
+            AND tenant_id IN (
+              SELECT CONCAT('client:', client_user_id) FROM client_users WHERE client_id = ?
+            )`,
+        [clientId]
+      );
+      // Just log this -- never let it block the response.
+      console.log(`[refresh-intel] cleared ${delResult.affectedRows} cached guidance objects for client ${clientId}`);
+    } catch (err) {
+      console.error('[refresh-intel:guidance-clear]', (err as Error).message);
+    }
+
     result.elapsedMs = Date.now() - start;
 
     await logEvent({
