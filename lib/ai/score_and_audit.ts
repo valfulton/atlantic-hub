@@ -300,22 +300,40 @@ async function generateAuditPayload(lead: LeadRow, briefContext: string | null):
     return null;
   }
 
-  const aiScore = Math.max(0, Math.min(100, Math.round(parsed.ai_score)));
-  const aiScoreBand: ScoreBand =
-    parsed.ai_score_band === 'hot' || parsed.ai_score_band === 'warm' || parsed.ai_score_band === 'cool'
-      ? parsed.ai_score_band
-      : aiScore >= 75
-      ? 'hot'
-      : aiScore >= 50
-      ? 'warm'
-      : 'cool';
-  const aiScoreReason = typeof parsed.ai_score_reason === 'string' ? parsed.ai_score_reason.slice(0, 2000) : null;
+  let aiScore = Math.max(0, Math.min(100, Math.round(parsed.ai_score)));
+  let aiScoreReason = typeof parsed.ai_score_reason === 'string' ? parsed.ai_score_reason.slice(0, 2000) : null;
   const aiScoreBreakdown: ScoreBreakdown = {
     fit: clamp01(parsed.ai_score_breakdown?.fit),
     intent: clamp01(parsed.ai_score_breakdown?.intent),
     reachability: clamp01(parsed.ai_score_breakdown?.reachability),
     icp_match: clamp01(parsed.ai_score_breakdown?.icp_match)
   };
+
+  // (#195) Website-status floor / cap. The LLM is instructed in the prompt to
+  // downweight placeholder/dead URLs, but we ALSO apply a deterministic cap in
+  // code so a fake-URL lead can never silently score hot — regardless of what
+  // the model returned.
+  //   placeholder -> ai_score capped at 60, intent <= 30, reachability <= 25
+  //   dead        -> ai_score capped at 45, intent <= 20, reachability <= 15
+  // Both append a one-line reason note so val can see why the cap fired.
+  if (lead.website_status === 'placeholder' || lead.website_status === 'dead') {
+    const cap = lead.website_status === 'dead' ? 45 : 60;
+    const intentCap = lead.website_status === 'dead' ? 20 : 30;
+    const reachCap = lead.website_status === 'dead' ? 15 : 25;
+    if (aiScore > cap) aiScore = cap;
+    if (aiScoreBreakdown.intent > intentCap) aiScoreBreakdown.intent = intentCap;
+    if (aiScoreBreakdown.reachability > reachCap) aiScoreBreakdown.reachability = reachCap;
+    const note = lead.website_status === 'dead'
+      ? '(Website is unreachable — reachability + intent capped, score floored at warm/cool boundary.)'
+      : '(Website is a synthetic placeholder — reachability + intent capped, score capped at warm.)';
+    aiScoreReason = aiScoreReason ? `${aiScoreReason} ${note}` : note;
+  }
+
+  // Band is computed AFTER the website-status cap so a capped score never sits
+  // in the wrong band.
+  const aiScoreBand: ScoreBand =
+    aiScore >= 75 ? 'hot' : aiScore >= 50 ? 'warm' : 'cool';
+
   const auditContent = typeof parsed.audit_content === 'string' ? parsed.audit_content : null;
 
   return {
