@@ -117,9 +117,25 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
                     <span className="text-[13px] text-white/80">{f.label}</span>
                     {f.hint && <span className="block text-[11px] text-white/40">{f.hint}</span>}
                     {f.area ? (
-                      <textarea className={ta + ' mt-1'} rows={2} value={payload[f.key] ?? ''} onChange={(e) => setField(f.key, e.target.value)} />
+                      <textarea
+                        className={ta + ' mt-1'}
+                        rows={f.example && f.example.length > 80 ? 3 : 2}
+                        placeholder={f.example ?? ''}
+                        value={payload[f.key] ?? ''}
+                        onChange={(e) => setField(f.key, e.target.value)}
+                      />
                     ) : (
-                      <input className={ta + ' mt-1'} value={payload[f.key] ?? ''} onChange={(e) => setField(f.key, e.target.value)} />
+                      <input
+                        className={ta + ' mt-1'}
+                        placeholder={f.example ?? ''}
+                        value={payload[f.key] ?? ''}
+                        onChange={(e) => setField(f.key, e.target.value)}
+                      />
+                    )}
+                    {f.why && (
+                      <span className="block text-[10.5px] text-amber-300/55 mt-1 italic">
+                        Used for: {f.why}
+                      </span>
                     )}
                   </label>
                 ))}

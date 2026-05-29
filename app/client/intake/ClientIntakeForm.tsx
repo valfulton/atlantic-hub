@@ -8,25 +8,17 @@
  *
  * Edits merge over the full stored payload so any fields this form doesn't render
  * (operator-only knobs) are preserved.
+ *
+ * (#200) Now reads from the canonical CLIENT_INTAKE_GROUPS in
+ * lib/client/intake_fields.ts -- previously this file carried its own local
+ * 12-question list which silently drifted from the canonical 50-field set,
+ * which is the root cause of why Skip + Mike's intake_payload was missing
+ * every Tier 1/2/3 field. They never saw those questions on the form they
+ * filled. Forcing-function labels (Fix 1), example placeholders (Fix 2), and
+ * "Used for:" why-captions (Fix 3) are all driven from the same source now.
  */
 import { useMemo, useState } from 'react';
-
-const QUESTIONS: { key: string; label: string; hint: string; area?: boolean }[] = [
-  { key: 'key_message', label: 'If a customer remembers one thing about you, what should it be?', hint: 'Your single most important message', area: true },
-  { key: 'target_audience', label: 'Who are your ideal customers?', hint: 'The people you most want to reach', area: true },
-  { key: 'audience_insights', label: 'What do you know about them?', hint: 'What they want, worry about, or already believe', area: true },
-  { key: 'why_advertise', label: 'What are you hoping to achieve right now?', hint: 'Why this matters to you today' },
-  { key: 'goals', label: 'What would success look like in 90 days?', hint: 'Bookings, leads, awareness, a launch…' },
-  { key: 'message_support', label: 'Why should customers believe it?', hint: 'Results, reviews, awards, credentials' },
-  { key: 'differentiators', label: 'What makes you different?', hint: 'What only you can credibly claim' },
-  { key: 'competitors', label: 'Who else do customers consider?', hint: 'Your main competitors' },
-  { key: 'brand_voice', label: 'How should your brand sound?', hint: 'e.g. warm, confident, playful, refined' },
-  { key: 'preferred_channels', label: 'Where do your customers spend time?', hint: 'LinkedIn, email, Instagram…' },
-  { key: 'brand_colors', label: 'Brand colors', hint: 'If you have them' },
-  { key: 'timeline', label: 'Busy seasons or key dates?', hint: 'When timing matters for you' }
-];
-
-const KEYS = QUESTIONS.map((q) => q.key);
+import { CLIENT_INTAKE_GROUPS, CLIENT_INTAKE_KEYS } from '@/lib/client/intake_fields';
 
 export default function ClientIntakeForm({
   initial,
@@ -41,7 +33,7 @@ export default function ClientIntakeForm({
 }) {
   const seeded = useMemo(() => {
     const o: Record<string, string> = {};
-    for (const k of KEYS) o[k] = typeof initial[k] === 'string' ? (initial[k] as string) : '';
+    for (const k of CLIENT_INTAKE_KEYS) o[k] = typeof initial[k] === 'string' ? (initial[k] as string) : '';
     return o;
   }, [initial]);
 
@@ -50,7 +42,7 @@ export default function ClientIntakeForm({
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const filled = KEYS.filter((k) => (fields[k] || '').trim()).length;
+  const filled = CLIENT_INTAKE_KEYS.filter((k) => (fields[k] || '').trim()).length;
 
   function set(k: string, v: string) {
     setFields((p) => ({ ...p, [k]: v }));
@@ -62,7 +54,7 @@ export default function ClientIntakeForm({
     setSaving(true);
     setMsg(null);
     try {
-      // Merge over the full stored payload so unrendered keys survive.
+      // Merge over the full stored payload so unrendered (operator-only) keys survive.
       const merged: Record<string, unknown> = { ...initial, ...fields };
       const res = await fetch(shareToken ? '/api/client/intake-form' : '/api/client/intake-update', {
         method: 'POST',
@@ -91,7 +83,7 @@ export default function ClientIntakeForm({
 
   const input =
     'w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm text-ink ' +
-    'placeholder-muted/60 focus:outline-none focus:border-brand';
+    'placeholder-muted/50 focus:outline-none focus:border-brand';
 
   return (
     <div className="space-y-6">
@@ -103,24 +95,45 @@ export default function ClientIntakeForm({
           and add what we missed. The more you share, the sharper everything we create for you will be.
           You can come back and update this any time.
         </p>
-        <div className="mt-3 text-xs text-muted">{filled} of {KEYS.length} answered</div>
+        <div className="mt-3 text-xs text-muted">{filled} of {CLIENT_INTAKE_KEYS.length} answered</div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        {QUESTIONS.map((q) => (
-          <label key={q.key} className={q.area ? 'block sm:col-span-2' : 'block'}>
-            <span className="text-sm text-ink font-medium">{q.label}</span>
-            <span className="block text-[11px] text-muted mb-1">{q.hint}</span>
-            {q.area ? (
-              <textarea className={input} rows={2} value={fields[q.key]} onChange={(e) => set(q.key, e.target.value)} />
-            ) : (
-              <input className={input} value={fields[q.key]} onChange={(e) => set(q.key, e.target.value)} />
-            )}
-          </label>
-        ))}
-      </div>
+      {CLIENT_INTAKE_GROUPS.map((grp) => (
+        <div key={grp.group} className="rounded-2xl border border-border bg-surface p-5">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-brand/80 mb-3">{grp.group}</div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {grp.fields.map((f) => (
+              <label key={f.key} className={f.area ? 'block sm:col-span-2' : 'block'}>
+                <span className="text-sm text-ink font-medium">{f.label}</span>
+                {f.hint && <span className="block text-[11px] text-muted mb-1">{f.hint}</span>}
+                {f.area ? (
+                  <textarea
+                    className={input}
+                    rows={f.example && f.example.length > 80 ? 3 : 2}
+                    placeholder={f.example ?? ''}
+                    value={fields[f.key] ?? ''}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                ) : (
+                  <input
+                    className={input}
+                    placeholder={f.example ?? ''}
+                    value={fields[f.key] ?? ''}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                )}
+                {f.why && (
+                  <span className="block text-[11px] text-brand/70 mt-1 italic">
+                    Used for: {f.why}
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 sticky bottom-4">
         <button
           onClick={save}
           disabled={saving || !dirty}
