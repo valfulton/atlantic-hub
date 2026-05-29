@@ -16,6 +16,9 @@ import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import RefreshIntelPanel from './RefreshIntelPanel';
 import { ClientPrPanel } from './ClientPrPanel';
 import PrInboxPanel from './PrInboxPanel';
+import PrVoicePicker from './PrVoicePicker';
+import ClientInfluenceCard from '@/app/_components/ClientInfluenceCard';
+import { getIntelConfig } from '@/lib/client/brief_store';
 import { getInboxRecord } from '@/lib/clients/pr_inbox';
 import PrSourcesPanel from './PrSourcesPanel';
 import { listSourcesForClient } from '@/lib/pr/client_sources';
@@ -76,6 +79,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
   // Prefilled-intake share link -> the live website intake form, prefilled via token.
   const intakeShareUrl = `https://atlanticandvine.netlify.app/client-intake?t=${await signIntakeShareToken(clientId)}`;
+
+  // (#88) Per-client PR drafter voice + posture, read from the brief payload.
+  // Both null when val hasn't picked any yet.
+  const intelCfg = await getIntelConfig('av', clientId);
 
   // Unassigned leads available to hand to this client (bulk handoff #79).
   let unassigned: { auditId: string; company: string; industry: string | null; email: string | null; score: number | null; band: string | null }[] = [];
@@ -242,6 +249,22 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* Find leads scoped to THIS client (their hub only — never the AV pipeline). */}
       <FindLeadsForClient clientId={clientId} clientName={d.name} />
+
+      {/* (#98) What this client cares about — at-a-glance snapshot of their
+          key message / voice / authority topics / dream outlets pulled from
+          their brief. Sits right above the PR section so val sees it while
+          reading/working their PR pipeline. */}
+      <ClientInfluenceCard clientId={clientId} />
+
+      {/* (#88) Per-client PR voice + posture picker. Flips THIS brand's
+          drafter voice (client/advisory/congratulatory) without opening the
+          full brief editor. Takes effect on the next draft. */}
+      <PrVoicePicker
+        clientId={clientId}
+        clientName={d.name}
+        initialVoice={intelCfg.defaultVoice}
+        initialPosture={intelCfg.posture}
+      />
 
       {/* (#213 Part A) Their PR pipeline -- opportunities matched to this
           client's leads. Was previously only visible in the global PR inbox. */}

@@ -264,6 +264,82 @@ export async function getBriefSeed(
   return extractBriefSeedFromIntake(payload);
 }
 
+/**
+ * (#88) Write the PR intel posture + default voice into the brief payload
+ * without clobbering the rest of the brief. Used by the per-client PR voice
+ * picker on the operator client page so val can flip a brand's pitch voice
+ * without opening the full brief editor.
+ *
+ * Either field is optional; missing keys are simply not written.
+ */
+export async function setIntelConfig(args: {
+  tenantId: string;
+  clientId: number | null;
+  defaultVoice?: IntelVoice | null;
+  posture?: IntelPosture | null;
+  changedBy?: string | null;
+}): Promise<boolean> {
+  const { tenantId, clientId } = args;
+  try {
+    // Pull whatever's there now and shallow-merge the two writable fields.
+    const current = (await getBriefPayload(tenantId, clientId)) ?? {};
+    const next: BriefPayload = { ...current };
+    if (args.defaultVoice !== undefined) {
+      if (args.defaultVoice === null) delete (next as Record<string, unknown>).default_voice;
+      else next.default_voice = args.defaultVoice;
+    }
+    if (args.posture !== undefined) {
+      if (args.posture === null) delete (next as Record<string, unknown>).intel_posture;
+      else next.intel_posture = args.posture;
+    }
+    return await saveBriefPayload(tenantId, clientId, next, {
+      changedBy: args.changedBy ?? null,
+      source: 'voice_picker'
+    });
+  } catch (err) {
+    console.error('[brief_store:setIntelConfig]', (err as Error).message);
+    return false;
+  }
+}
+
+/**
+ * (#88) Build a compact VOICE_LOCK block for the pitch / release drafter user
+ * prompt. The BRAND_IDENTITY block already carries voice + key_message + PR
+ * fields, but those land buried inside a long block — the model attends
+ * weakly. This puts the 4-5 fields the drafter MUST honor on top with
+ * explicit labels ("SPEAK_AS:", "TONE:") so the pitch actually sounds like
+ * this brand and not generic A&V.
+ *
+ * Returns null when no brief is on file (drafter falls back to the editable
+ * system prompt's default voice rules — no behavior change for un-briefed
+ * tenants).
+ */
+export async function getVoiceLockBlock(
+  tenantId: string,
+  clientId: number | null
+): Promise<string | null> {
+  const seed = await getBriefSeed(tenantId, clientId);
+  if (!seed) return null;
+  const lines: string[] = ['VOICE_LOCK (drafter MUST honor — pulled from this brand\'s brief):'];
+  if (seed.prSpokesperson && seed.prSpokesperson.trim()) {
+    lines.push(`  SPEAK_AS: ${seed.prSpokesperson.trim().slice(0, 280)}`);
+  }
+  if (seed.brandVoice && seed.brandVoice.trim()) {
+    lines.push(`  TONE: ${seed.brandVoice.trim().slice(0, 400)}`);
+  }
+  if (seed.keyMessage && seed.keyMessage.trim()) {
+    lines.push(`  KEY_MESSAGE_TO_REINFORCE: ${seed.keyMessage.trim().slice(0, 400)}`);
+  }
+  if (seed.prExpertTopics && seed.prExpertTopics.trim()) {
+    lines.push(`  AUTHORITY_TOPICS: ${seed.prExpertTopics.trim().slice(0, 400)}`);
+  }
+  if (seed.prNewsHooks && seed.prNewsHooks.trim()) {
+    lines.push(`  TIMELY_HOOKS: ${seed.prNewsHooks.trim().slice(0, 400)}`);
+  }
+  // No useful fields? Don't emit the block at all -- avoids a bare header.
+  return lines.length > 1 ? lines.join('\n') : null;
+}
+
 /** Resolve a human brand name for a scope: client_name for a client, else the house brand. */
 async function resolveBrandName(
   tenantId: string,

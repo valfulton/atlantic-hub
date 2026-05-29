@@ -30,6 +30,7 @@ import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import { parseOpportunity } from '@/lib/pr/drafter';
 import { applyPrResponsiveBump } from '@/lib/pr/responsive_bump';
+import { applyTopicOverlapBump } from '@/lib/pr/topic_overlap_bump';
 import {
   DEFAULT_TENANT,
   PR_EVENTS,
@@ -200,7 +201,11 @@ export async function ingestRawItem(args: {
     // "fast-turnaround available" on intake (pr_responsive=yes). Non-fatal:
     // helper returns the base score unchanged on any miss/error.
     const baseRelevance = RELEVANCE_BY_ORIGIN[origin] ?? 60;
-    const relevance = await applyPrResponsiveBump(baseRelevance, parsed.matchedLeadId);
+    const afterResponsive = await applyPrResponsiveBump(baseRelevance, parsed.matchedLeadId);
+    // (#214 v2) Bump again by overlap between the opportunity's topic_tags
+    // and the matched client's intake pr_expert_topics. Free, deterministic,
+    // and the only signal we have for "this client can actually speak to it."
+    const relevance = await applyTopicOverlapBump(afterResponsive, parsed.matchedLeadId, parsed.topicTags ?? []);
     const [res] = await db.execute<ResultSetHeader>(
       `INSERT INTO pr_opportunities
          (tenant_id, source, outlet, journalist, query_text, topic_tags, why_it_matters,

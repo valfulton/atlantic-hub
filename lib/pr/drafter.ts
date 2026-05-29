@@ -37,7 +37,7 @@ import {
   OpenAIKeyMissingError,
   OpenAIApiError
 } from '@/lib/openai/client';
-import { getBriefForPrompt, getIntelConfig } from '@/lib/client/brief_store';
+import { getBriefForPrompt, getIntelConfig, getVoiceLockBlock } from '@/lib/client/brief_store';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -258,9 +258,21 @@ export async function draftPitch(args: {
     fallbackName: intel.lead?.company ?? null
   });
 
+  // (#88) Voice lock: surface the brand's voice + key_message + spokesperson +
+  // authority topics as a top-of-prompt VOICE_LOCK block so the drafter
+  // actually sounds like THIS client and not generic A&V. Null when no brief
+  // is on file (older clients) — behavior unchanged in that case.
+  const voiceLockBlock = await getVoiceLockBlock(tenantId, clientId);
+
   const started = Date.now();
   const systemPrompt = await getSystemPrompt(`pr_pitch_${mode}`);
-  const userPrompt = buildPitchUserPrompt({ opportunity: args.opportunity, intel, mode, brandBlock: brand.block });
+  const userPrompt = buildPitchUserPrompt({
+    opportunity: args.opportunity,
+    intel,
+    mode,
+    brandBlock: brand.block,
+    voiceLockBlock
+  });
 
   let completion;
   try {
@@ -346,15 +358,23 @@ export async function draftRelease(args: {
     intel = await loadClientIntelligence(tenantId, null);
   }
 
+  const releaseClientId = intel.lead?.client_id ?? null;
   const brand = await getBriefForPrompt({
     tenantId,
-    clientId: intel.lead?.client_id ?? null,
+    clientId: releaseClientId,
     fallbackName: intel.lead?.company ?? null
   });
+  // (#88) Same voice lock applies to press releases written for this client.
+  const voiceLockBlock = await getVoiceLockBlock(tenantId, releaseClientId);
 
   const started = Date.now();
   const systemPrompt = await getSystemPrompt('pr_release');
-  const userPrompt = buildReleaseUserPrompt({ announcement: args.announcement, intel, brandBlock: brand.block });
+  const userPrompt = buildReleaseUserPrompt({
+    announcement: args.announcement,
+    intel,
+    brandBlock: brand.block,
+    voiceLockBlock
+  });
 
   let completion;
   try {
@@ -651,10 +671,13 @@ function resolveDefaultMode(source: PrSource): PitchMode {
 // (lib/ai/prompt_registry.ts) under keys pr_pitch_advisory / pr_pitch_client_voice
 // / pr_pitch_congratulatory, read at call time via getSystemPrompt(`pr_pitch_${mode}`).
 
-function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientIntelligence; mode: PitchMode; brandBlock?: string }): string {
-  const { opportunity, intel, mode, brandBlock } = args;
+function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientIntelligence; mode: PitchMode; brandBlock?: string; voiceLockBlock?: string | null }): string {
+  const { opportunity, intel, mode, brandBlock, voiceLockBlock } = args;
   const parts: string[] = [];
   if (brandBlock && brandBlock.trim()) { parts.push(brandBlock.trim()); parts.push(``); }
+  // (#88) Voice lock sits BETWEEN the brand block and the opportunity facts so
+  // the model attends to it right when picking voice/spokesperson/topic.
+  if (voiceLockBlock && voiceLockBlock.trim()) { parts.push(voiceLockBlock.trim()); parts.push(``); }
   parts.push(`MODE: ${mode}${mode === 'client_voice' ? ' (write AS the client)' : ' (write TO the prospect as Atlantic & Vine -- do NOT claim anything as them)'}`);
   parts.push(`OPPORTUNITY_SOURCE: ${opportunity.source}`);
   if (opportunity.outlet) parts.push(`OUTLET: ${opportunity.outlet}`);
@@ -671,9 +694,10 @@ function buildPitchUserPrompt(args: { opportunity: PrOpportunity; intel: ClientI
   return parts.join('\n');
 }
 
-function buildReleaseUserPrompt(args: { announcement: string; intel: ClientIntelligence; brandBlock?: string }): string {
+function buildReleaseUserPrompt(args: { announcement: string; intel: ClientIntelligence; brandBlock?: string; voiceLockBlock?: string | null }): string {
   const parts: string[] = [];
   if (args.brandBlock && args.brandBlock.trim()) { parts.push(args.brandBlock.trim()); parts.push(``); }
+  if (args.voiceLockBlock && args.voiceLockBlock.trim()) { parts.push(args.voiceLockBlock.trim()); parts.push(``); }
   parts.push(`ANNOUNCEMENT (the win/launch to announce):`);
   parts.push(args.announcement.trim().slice(0, 4000));
   parts.push(``);
