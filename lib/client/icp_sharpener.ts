@@ -1,0 +1,211 @@
+/**
+ * lib/client/icp_sharpener.ts  (#239)
+ *
+ * The "right" half of #95: an LLM-powered ICP sharpener that reads a client's
+ * full brief/intake (ideal_client, audience_insights, market_position, geo_focus,
+ * notable_clients, additional_info excludes, etc.) and produces a STRUCTURED
+ * ICP — industries[], geographies[], excludedIndustries[], companySizeMin/Max
+ * — that Apollo/Places discovery can use directly.
+ *
+ * Eliminates the duplicate source of truth: val populates the intake once;
+ * this writes the curated ICP table from that intake. No more "intake is rich
+ * but client_icps row is empty so discovery defaults to Saint Croix."
+ *
+ * Two modes, like the intake-web-filler (#235):
+ *   - 'preview' -> return suggestions, never write
+ *   - 'apply'   -> persist to client_icps via saveClientIcp with provenance
+ *                  'ai_intake' so the IcpEditor chips render distinctly from
+ *                  val's hand-curated values.
+ *
+ * Prompt is editable via prompt_registry key 'client_icp_sharpener'.
+ */
+import {
+  openaiChatCompletion,
+  parseOpenAIJson,
+  OpenAIKeyMissingError,
+  OpenAIApiError
+} from '@/lib/openai/client';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
+import { getBriefSeed, getBriefPayload } from '@/lib/client/brief_store';
+import { logEvent } from '@/lib/events/log';
+
+const MODEL = 'gpt-4o-mini';
+const TEMPERATURE = 0.2;
+const MAX_TOKENS = 800;
+
+export interface SharpenedIcp {
+  industries: string[];
+  geographies: string[];
+  excludedIndustries: string[];
+  companySizeMin: number | null;
+  companySizeMax: number | null;
+  reasoning: string;
+  tokensUsed: number;
+  model: string;
+}
+
+export class IcpSharpenerError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message);
+    this.name = 'IcpSharpenerError';
+  }
+}
+
+/**
+ * Read everything in the brief that informs ICP and lay it out for the model.
+ * Conservative: we DON'T include the entire intake payload as raw JSON —
+ * structured fields keep the model anchored on the right answer.
+ */
+function buildUserPrompt(args: {
+  brandName: string;
+  seedAudience: string | null;
+  seedGeoFocus: string | null;
+  ideal_client: string | null;
+  target_audience: string | null;
+  audience_insights: string | null;
+  client_problems: string | null;
+  market_position: string | null;
+  notable_clients: string | null;
+  additional_info: string | null;
+  company_size: string | null;
+}): string {
+  const parts: string[] = [];
+  parts.push(`BRAND: ${args.brandName}`);
+  parts.push('');
+  const addBlock = (label: string, v: string | null) => {
+    if (v && v.trim()) {
+      parts.push(`${label}:`);
+      parts.push(v.trim());
+      parts.push('');
+    }
+  };
+  addBlock('IDEAL_CLIENT', args.ideal_client || args.seedAudience);
+  addBlock('TARGET_AUDIENCE', args.target_audience);
+  addBlock('AUDIENCE_INSIGHTS', args.audience_insights);
+  addBlock('WHEN_THEY_COME_TO_US', args.client_problems);
+  addBlock('MARKET_POSITION', args.market_position);
+  addBlock('NOTABLE_CLIENTS', args.notable_clients);
+  addBlock('GEO_FOCUS', args.seedGeoFocus);
+  addBlock('COMPANY_SIZE_HINT', args.company_size);
+  addBlock('ADDITIONAL_INFO (may contain explicit excludes / sensitivities)', args.additional_info);
+  parts.push('Produce the JSON object now.');
+  return parts.join('\n');
+}
+
+/**
+ * Read the brief, run the LLM, return structured ICP. Never throws on
+ * model/API failure — returns null so callers can degrade gracefully.
+ */
+export async function sharpenIcpFromBrief(args: {
+  clientId: number;
+  brandName: string;
+}): Promise<SharpenedIcp | null> {
+  const seed = await getBriefSeed('av', args.clientId);
+  const payload = (await getBriefPayload('av', args.clientId)) as Record<string, unknown> | null;
+
+  // If neither source has signal we have nothing to sharpen.
+  if (!seed && (!payload || Object.keys(payload).length === 0)) return null;
+
+  const pickStr = (key: string): string | null => {
+    const v = payload?.[key];
+    return typeof v === 'string' && v.trim() ? v.trim() : null;
+  };
+
+  const systemPrompt = await getSystemPrompt('client_icp_sharpener');
+  const userPrompt = buildUserPrompt({
+    brandName: args.brandName,
+    seedAudience: seed?.audience ?? null,
+    seedGeoFocus: seed?.geoFocus ?? null,
+    ideal_client: pickStr('ideal_client'),
+    target_audience: pickStr('target_audience'),
+    audience_insights: pickStr('audience_insights'),
+    client_problems: pickStr('client_problems'),
+    market_position: pickStr('market_position'),
+    notable_clients: pickStr('notable_clients'),
+    additional_info: pickStr('additional_info'),
+    company_size: pickStr('company_size')
+  });
+
+  let completion;
+  try {
+    completion = await openaiChatCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      { model: MODEL, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, json: true }
+    );
+  } catch (err) {
+    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
+      await logEvent({
+        eventType: 'icp.sharpen.llm_failed',
+        source: 'openai',
+        status: 'failure',
+        errorMessage: err.message,
+        payload: { client_id: args.clientId }
+      });
+    }
+    return null;
+  }
+
+  const parsed = parseOpenAIJson<{
+    industries?: string[];
+    geographies?: string[];
+    excluded_industries?: string[];
+    company_size_min?: number | null;
+    company_size_max?: number | null;
+    reasoning?: string;
+  }>(completion.text);
+
+  if (!parsed) {
+    await logEvent({
+      eventType: 'icp.sharpen.parse_failed',
+      source: 'openai',
+      status: 'failure',
+      payload: { client_id: args.clientId, raw_excerpt: completion.text.slice(0, 400) }
+    });
+    return null;
+  }
+
+  const sanitizeStringArray = (arr: unknown): string[] => {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((x): x is string => typeof x === 'string')
+      .map((x) => x.trim())
+      .filter((x) => x.length >= 2 && x.length <= 120)
+      .slice(0, 12);
+  };
+
+  const clampSize = (n: unknown): number | null => {
+    if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+    const r = Math.round(n);
+    if (r < 1) return null;
+    if (r > 1_000_000) return 1_000_000;
+    return r;
+  };
+
+  const result: SharpenedIcp = {
+    industries: sanitizeStringArray(parsed.industries),
+    geographies: sanitizeStringArray(parsed.geographies),
+    excludedIndustries: sanitizeStringArray(parsed.excluded_industries),
+    companySizeMin: clampSize(parsed.company_size_min),
+    companySizeMax: clampSize(parsed.company_size_max),
+    reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning.slice(0, 1000) : '',
+    tokensUsed: completion.usage.totalTokens,
+    model: completion.model
+  };
+
+  await logEvent({
+    eventType: 'icp.sharpen.suggested',
+    source: 'openai',
+    payload: {
+      client_id: args.clientId,
+      industries_count: result.industries.length,
+      geographies_count: result.geographies.length,
+      excluded_count: result.excludedIndustries.length,
+      tokens: result.tokensUsed
+    }
+  });
+
+  return result;
+}

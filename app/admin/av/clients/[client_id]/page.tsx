@@ -12,12 +12,14 @@ import PortalAccessToggle from './PortalAccessToggle';
 import PrefilledIntakeLink from './PrefilledIntakeLink';
 import FindLeadsForClient from './FindLeadsForClient';
 import IcpEditor from './IcpEditor';
+import SharpenIcpPanel from './SharpenIcpPanel';
 import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import RefreshIntelPanel from './RefreshIntelPanel';
 import { ClientPrPanel } from './ClientPrPanel';
 import PrInboxPanel from './PrInboxPanel';
 import PrVoicePicker from './PrVoicePicker';
 import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
+import IcpFitScorePanel from './IcpFitScorePanel';
 import ClientInfluenceCard from '@/app/_components/ClientInfluenceCard';
 import { getIntelConfig } from '@/lib/client/brief_store';
 import { getInboxRecord } from '@/lib/clients/pr_inbox';
@@ -271,6 +273,12 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         )}
       </div>
 
+      {/* (#239) AI ICP sharpener — reads the brief, proposes structured ICP
+          (industries / locations / excludes / size range). Sits ABOVE the
+          IcpEditor so val can sharpen → review → manually tweak. AI-applied
+          items render with a distinct chip in the editor below. */}
+      <SharpenIcpPanel clientId={clientId} clientName={d.name} />
+
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
       <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />
 
@@ -350,6 +358,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
             band: l.band
           }))}
       />
+
+      {/* (#95) Score this client's pipeline against their ICP + brief. Sits
+          next to enrich + refresh because they're all "make their pipeline
+          actionable" actions. */}
+      <IcpFitScorePanel clientId={clientId} clientName={d.name} />
 
       {/* Enrich this client's leads on their behalf (Hunter contact details). */}
       <EnrichClientLeadsButton clientId={clientId} clientName={d.name} />

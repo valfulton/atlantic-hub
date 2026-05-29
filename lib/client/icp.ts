@@ -46,7 +46,7 @@ export const EMPTY_ICP: ClientIcp = {
 };
 
 /** Who authored an ICP item: the operator (val) or the client (their intake). */
-export type IcpItemSource = 'operator' | 'client';
+export type IcpItemSource = 'operator' | 'client' | 'ai_intake';
 
 /** Per-item authorship, keyed by lowercased item value within each list field. */
 export interface IcpProvenance {

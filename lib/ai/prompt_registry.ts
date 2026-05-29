@@ -236,6 +236,78 @@ const INTAKE_INTELLIGENCE_EXTRACTOR_DEFAULT = [
   `}`
 ].join('\n');
 
+// --- Client ICP sharpener (#239). Used by lib/client/icp_sharpener.ts. ---
+// Reads a client's brief / intake and produces a STRUCTURED ICP table
+// (industries[], geographies[], excludedIndustries[], company size range)
+// that Apollo + Google Places discovery can use directly. This is the LLM
+// half of #95 — eliminates the duplicate source of truth where the intake
+// is rich but client_icps stays empty so discovery falls back to defaults.
+const CLIENT_ICP_SHARPENER_DEFAULT = [
+  `You read a client's brief (their answers to "who do you sell to, where, what excludes a prospect") and produce a STRUCTURED ICP that lead-discovery APIs can use directly.`,
+  ``,
+  `INPUT in the user message:`,
+  `- BRAND: the client's company name.`,
+  `- IDEAL_CLIENT / TARGET_AUDIENCE: free-text descriptions of who their best customer is.`,
+  `- AUDIENCE_INSIGHTS: what those customers believe / what triggers them to buy.`,
+  `- WHEN_THEY_COME_TO_US: the moment / pain that drives the buyer to pick up the phone.`,
+  `- MARKET_POSITION: where this client sits vs alternatives.`,
+  `- NOTABLE_CLIENTS: name-droppable customers.`,
+  `- GEO_FOCUS: where the client sells.`,
+  `- COMPANY_SIZE_HINT: their own size (a signal of who they typically serve).`,
+  `- ADDITIONAL_INFO: free-text — may contain explicit exclusions (e.g. "don't pitch direct competitors", "skip municipal water").`,
+  ``,
+  `OUTPUT this JSON:`,
+  `{`,
+  `  "industries": [...up to 8...],         // searchable industry/category terms an Apollo/Places query would accept`,
+  `  "geographies": [...up to 5...],         // place names ("Los Angeles, California", "United States", "Southern California")`,
+  `  "excluded_industries": [...up to 5...], // categories to NEVER return`,
+  `  "company_size_min": number | null,      // typical lower bound of their target prospect's employee count`,
+  `  "company_size_max": number | null,      // typical upper bound (null = unbounded)`,
+  `  "reasoning": "..."                      // one-paragraph operator-facing explanation of how you read the brief`,
+  `}`,
+  ``,
+  `RULES — never break these:`,
+  `1. INDUSTRIES are the prospect's industry, not the client's. If the client sells luxury water systems to spas + estates, "wellness spa" / "luxury home" go here — NOT "water technology."`,
+  `2. Use plain, searchable terms (1-4 words each). Avoid noise like "high-end" alone — say "luxury estates" or "high-net-worth households."`,
+  `3. GEOGRAPHIES: parse free-text geo. "Southern California base; sells nationally" -> ["Southern California", "United States"]. Skip "[infer]" / "confirm with X" boilerplate.`,
+  `4. EXCLUDED_INDUSTRIES: only emit when ADDITIONAL_INFO or other fields EXPLICITLY exclude something. Never invent exclusions — empty array is fine.`,
+  `5. COMPANY_SIZE: read with judgment. "Luxury estates" prospects are typically households (1-10). "Wellness spas" + "longevity clinics" are typically 11-50. "Hotels" might be 51-500. Provide the WIDEST plausible range that still matches the description.`,
+  `6. If a field is genuinely absent from the brief, emit an empty array / null. Do NOT fabricate.`,
+  `7. NEVER include pricing, dollar amounts, or any per-unit AI/API cost.`,
+  `8. "reasoning" is for the operator — explain how the brief mapped to each output bucket so val can audit your read.`
+].join('\n');
+
+// --- Client ICP fit scorer (#95). Used by lib/ai/client_icp_fit.ts. ---
+// Scores a single prospect lead against the OWNING CLIENT'S full brief + ICP
+// (NOT a generic AV audit). Output is a 0-100 score + one-sentence reason
+// the operator + client see on the lead card.
+const CLIENT_ICP_FIT_SCORER_DEFAULT = [
+  `You score a single prospect business 0-100 on how well it fits THIS specific client's Ideal Customer Profile (ICP) — not a generic "is this a quality business" judgment.`,
+  ``,
+  `INPUT in the user message:`,
+  `- BRAND_IDENTITY: the client's brief (who they are, what they sell, their KEY_MESSAGE, AUDIENCE, AUDIENCE_INSIGHTS, MARKET_POSITION, NOTABLE_CLIENTS, GEO_FOCUS, etc.). The client = the OPERATOR'S customer; the LEAD is a PROSPECT for that client.`,
+  `- STORED_ICP: operator-curated explicit filters (industries, geographies, excluded_industries, company size).`,
+  `- PROSPECT_LEAD: facts about the prospect (company, industry, location, employees, website, stated challenge, audit excerpt).`,
+  ``,
+  `SCORING SCALE (be conservative; the score guides where the client spends time):`,
+  `  85-100: Strong fit — matches multiple ICP signals (industry + geo + size + situation) AND no excluded-industry red flags. The client would want to call this prospect THIS WEEK.`,
+  `  65-84:  Plausible fit — matches the broad category but missing some signals or has minor mismatches. Worth calling but not the top of the queue.`,
+  `  40-64:  Weak fit — adjacent industry / wrong size / wrong geo / unclear match. Could work but not where the client should focus.`,
+  `  0-39:   Poor fit or explicit miss — wrong industry, in excluded list, wrong geo with no expansion signal, or facts contradict the ICP.`,
+  ``,
+  `RULES:`,
+  `1. Anchor in EVIDENCE from the inputs. If the lead's industry directly matches an excluded_industry, score ≤ 25 regardless of other factors.`,
+  `2. If the BRAND_IDENTITY says nothing useful (mostly empty brief), output score=null and say so in reasoning — do NOT fabricate a fit signal.`,
+  `3. reasoning: ONE sentence, plain language, names the specific signals you weighed. Example: "Strong industry + geo match (CA estate audience, luxury residence) but employee count suggests too small to install whole-home system."`,
+  `4. NEVER mention pricing, dollar amounts, or any AI/API mechanism.`,
+  ``,
+  `RESPONSE FORMAT: respond with ONLY this JSON object:`,
+  `{`,
+  `  "score": 0-100,`,
+  `  "reasoning": "..."`,
+  `}`
+].join('\n');
+
 // --- Web-to-intake filler (#235). Used by lib/client/intake_web_filler.ts. ---
 // Reads cleaned plaintext from a client's public website and drafts a partial
 // intake payload (canonical keys only). Conservative — leaves fields blank if
@@ -422,6 +494,24 @@ export const PROMPT_DEFS: PromptDef[] = [
     defaultSystem: PAIN_EXTRACTOR_DEFAULT,
     userPromptNote:
       'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197 + #198 + #199): the brief now includes plain-language identity ("What they sell", "Their tagline"), name-drops ("Names they can drop"), what the client is already running for lead-gen, AND "Topics they can speak to as an authority" (pr_expert_topics) so the rep has a natural domain-led opener that sidesteps pitch energy.'
+  },
+  {
+    key: 'client_icp_sharpener',
+    label: 'Client ICP sharpener (#239)',
+    description:
+      'Reads a client\'s brief / intake (ideal_client, audience_insights, market_position, geo_focus, additional_info excludes) and produces a STRUCTURED ICP (industries[], geographies[], excluded_industries[], company size range) that Apollo/Places discovery uses directly. Eliminates the duplicate source of truth where val populates the intake but the client_icps table stays empty.',
+    defaultSystem: CLIENT_ICP_SHARPENER_DEFAULT,
+    userPromptNote:
+      'At call time the system appends the client\'s BRAND name + the relevant brief blocks (IDEAL_CLIENT, AUDIENCE_INSIGHTS, MARKET_POSITION, GEO_FOCUS, NOTABLE_CLIENTS, COMPANY_SIZE_HINT, ADDITIONAL_INFO). You edit the scoring scale + rules above.'
+  },
+  {
+    key: 'client_icp_fit_scorer',
+    label: 'Client ICP-fit scorer (#95)',
+    description:
+      'Scores a single prospect 0-100 on how well it fits THIS specific client\'s ICP — not a generic audit. Reads the client\'s brief + operator-curated ICP (industries / geographies / excludes / size) + the lead\'s facts, and returns a score + one-sentence reason. Used by the "Score this client\'s leads against their ICP" button on the client page.',
+    defaultSystem: CLIENT_ICP_FIT_SCORER_DEFAULT,
+    userPromptNote:
+      'At call time the system appends the client\'s BRAND_IDENTITY block (from their brief), the STORED_ICP filters, and the prospect\'s facts (company, industry, location, employees, website, challenge, audit excerpt). You edit the scoring scale + rules above.'
   },
   {
     key: 'intake_web_filler',

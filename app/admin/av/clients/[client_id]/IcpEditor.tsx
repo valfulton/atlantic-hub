@@ -32,11 +32,23 @@ const toNum = (s: string): number | null => {
 };
 
 // Inline styles (not palette classes) so the colors always render regardless of
-// Tailwind purge. Amber = operator (val), teal = client, muted = new/unsaved.
-const CHIP_STYLE: Record<'operator' | 'client' | 'new', CSSProperties> = {
+// Tailwind purge.
+//   amber  = operator (val)
+//   teal   = client
+//   violet = ai_intake (#239 — sharpener from brief)
+//   muted  = new/unsaved
+const CHIP_STYLE: Record<'operator' | 'client' | 'ai_intake' | 'new', CSSProperties> = {
   operator: { borderColor: 'rgba(255,199,61,0.45)', color: '#FFC73D', background: 'rgba(255,199,61,0.10)' },
   client: { borderColor: 'rgba(94,234,212,0.45)', color: '#5eead4', background: 'rgba(94,234,212,0.10)' },
+  ai_intake: { borderColor: 'rgba(167,139,250,0.45)', color: '#c4b5fd', background: 'rgba(167,139,250,0.10)' },
   new: { borderColor: 'var(--border, rgba(255,255,255,0.15))', color: 'var(--muted, #9aa)', background: 'transparent' }
+};
+
+const CHIP_TITLE: Record<'operator' | 'client' | 'ai_intake' | 'new', string> = {
+  operator: 'You added this',
+  client: 'Client added this',
+  ai_intake: 'Sharpened from intake (review + edit any time)',
+  new: 'New — save to keep'
 };
 
 /** Live chips beneath a list field, colored by who authored each item. New items
@@ -48,13 +60,17 @@ function ProvenanceChips({ value, sources }: { value: string; sources: Record<st
     <div className="flex flex-wrap gap-1.5 mt-1.5">
       {items.map((it, i) => {
         const src = sources[it.toLowerCase()];
-        const key = src === 'client' ? 'client' : src === 'operator' ? 'operator' : 'new';
+        const key: 'operator' | 'client' | 'ai_intake' | 'new' =
+          src === 'client' ? 'client'
+          : src === 'operator' ? 'operator'
+          : src === 'ai_intake' ? 'ai_intake'
+          : 'new';
         return (
           <span
             key={`${it}-${i}`}
             className="text-[11px] px-2 py-0.5 rounded-full border"
             style={CHIP_STYLE[key]}
-            title={src === 'client' ? 'Client added this' : src === 'operator' ? 'You added this' : 'New — save to keep'}
+            title={CHIP_TITLE[key]}
           >
             {it}
           </span>
