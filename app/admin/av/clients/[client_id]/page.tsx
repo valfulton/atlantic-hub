@@ -15,6 +15,8 @@ import IcpEditor from './IcpEditor';
 import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import RefreshIntelPanel from './RefreshIntelPanel';
 import { ClientPrPanel } from './ClientPrPanel';
+import PrInboxPanel from './PrInboxPanel';
+import { getInboxRecord } from '@/lib/clients/pr_inbox';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import { getClientIcpWithProvenance } from '@/lib/client/icp';
 import { signIntakeShareToken } from '@/lib/auth/intake-share';
@@ -242,6 +244,19 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       {/* (#213 Part A) Their PR pipeline -- opportunities matched to this
           client's leads. Was previously only visible in the global PR inbox. */}
       <ClientPrPanel clientId={clientId} clientName={d.name} />
+
+      {/* (#226) Per-client PR ingest mailbox. Address goes on John White's
+          media list, etc., and routes journalist requests straight into the
+          PR pipeline -- ending the val-as-middleware pattern. */}
+      <PrInboxPanel
+        clientId={clientId}
+        clientName={d.name}
+        initial={await getInboxRecord(clientId).then((r) => ({
+          slug: r?.slug ?? null,
+          email: r?.email ?? null,
+          setAt: r?.setAt ?? null
+        })).catch(() => ({ slug: null, email: null, setAt: null }))}
+      />
 
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}
       <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />

@@ -169,6 +169,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // (#226) Per-client PR inbox: /api/pr/inbox/<slug>. The slug IS the auth.
+  // Slugs are 72-bit-entropy random strings stored in clients.pr_inbox_slug;
+  // the route returns 404 for any unknown value. Prefix-matched so every
+  // per-client slug routes through without an explicit allow-list entry.
+  if (pathname.startsWith('/api/pr/inbox/')) {
+    return NextResponse.next();
+  }
+
   // Social OAuth callbacks return from a third-party provider (LinkedIn / X)
   // as a cross-site top-level navigation, so the SameSite=Strict operator
   // session cookie is NOT sent and we would 401 here. The callback instead
