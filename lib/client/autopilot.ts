@@ -27,9 +27,15 @@
 import { getClientIcp, saveClientIcp, type ClientIcp, type IcpProvenance } from '@/lib/client/icp';
 import { sharpenIcpFromBrief } from '@/lib/client/icp_sharpener';
 import { scoreClientLeadsBulk } from '@/lib/ai/client_icp_fit';
+import { scoreAndAuditLead } from '@/lib/ai/score_and_audit';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket } from 'mysql2';
+
+/** Top-N stale audits to regen per autopilot trigger. Higher-fit leads first. */
+const STALE_AUDIT_REGEN_TOP_N = 5;
+/** Don't re-fire autopilot audit regen for the same client within this window. */
+const AUDIT_REGEN_RATE_LIMIT_HOURS = 6;
 
 /**
  * Run the ICP sharpener for a client IF their ICP table is currently empty.
@@ -154,6 +160,92 @@ export async function maybeScoreDiscoveryBatch(args: {
   } catch (err) {
     await logEvent({
       eventType: 'autopilot.discovery_score_failed',
+      source: 'autopilot',
+      status: 'failure',
+      errorMessage: (err as Error).message
+    });
+  }
+}
+
+/**
+ * (#90 inc 2) After a brief save, if this client has stale audits (audit was
+ * generated before the latest brief edit), regen the TOP-N highest-fit ones
+ * in the background so the audit/call-script stays aligned with the current
+ * positioning. Bounded:
+ *   - max STALE_AUDIT_REGEN_TOP_N leads per fire
+ *   - rate-limited per client (AUDIT_REGEN_RATE_LIMIT_HOURS)
+ *   - sequential (one LLM call at a time, so a 5-lead refresh costs ~5 calls)
+ *
+ * Operator can ALSO click "Refresh AI intel" any time for the full set.
+ * This is the "keep up automatically" layer for the highest-leverage leads.
+ */
+export async function maybeRegenerateStaleAudits(args: { clientId: number | null }): Promise<void> {
+  try {
+    const { clientId } = args;
+    if (!clientId) return;
+
+    // Rate-limit: have we run this for this client in the last N hours?
+    const db = getAvDb();
+    const [recent] = await db.execute<(RowDataPacket & { id: number })[]>(
+      `SELECT id FROM system_events
+        WHERE event_type = 'autopilot.audit_regen_started'
+          AND organization_id = ?
+          AND created_at > DATE_SUB(NOW(), INTERVAL ? HOUR)
+        ORDER BY created_at DESC LIMIT 1`,
+      [clientId, AUDIT_REGEN_RATE_LIMIT_HOURS]
+    );
+    if (recent[0]) {
+      // We already fired recently. Stay quiet -- val can hit the manual
+      // refresh button if she needs the full set right now.
+      return;
+    }
+
+    // Find the top-N stale audits, prioritized by ICP fit (the leads val
+    // most likely cares about regenerating first).
+    const [staleRows] = await db.execute<(RowDataPacket & { id: number })[]>(
+      `SELECT l.id
+         FROM leads l
+         JOIN creative_briefs cb
+           ON cb.client_id = l.client_id AND cb.tenant_id = 'av'
+        WHERE l.client_id = ?
+          AND l.archived_at IS NULL
+          AND (l.audit_generated IS NULL OR l.audit_generated < cb.updated_at)
+        ORDER BY (l.client_icp_fit_score IS NULL) ASC,
+                 l.client_icp_fit_score DESC,
+                 l.id DESC
+        LIMIT ?`,
+      [clientId, STALE_AUDIT_REGEN_TOP_N]
+    );
+
+    if (staleRows.length === 0) return;
+
+    await logEvent({
+      eventType: 'autopilot.audit_regen_started',
+      organizationId: clientId,
+      source: 'autopilot',
+      payload: { lead_count: staleRows.length, rate_limit_hours: AUDIT_REGEN_RATE_LIMIT_HOURS }
+    });
+
+    let regenerated = 0;
+    let failed = 0;
+    for (const r of staleRows) {
+      try {
+        const res = await scoreAndAuditLead(r.id);
+        if (res && !res.skipped) regenerated += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    await logEvent({
+      eventType: 'autopilot.audit_regen_completed',
+      organizationId: clientId,
+      source: 'autopilot',
+      payload: { attempted: staleRows.length, regenerated, failed }
+    });
+  } catch (err) {
+    await logEvent({
+      eventType: 'autopilot.audit_regen_failed',
       source: 'autopilot',
       status: 'failure',
       errorMessage: (err as Error).message

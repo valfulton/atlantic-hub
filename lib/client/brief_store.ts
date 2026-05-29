@@ -160,9 +160,16 @@ export async function saveBriefPayload(
       // autopilot lib imports brief_store-adjacent things (icp.ts) and
       // top-level import would create a cycle. Dynamic import is fine in a
       // background task that doesn't await.
-      void import('@/lib/client/autopilot').then(({ maybeSharpenIcpAfterBriefSave }) =>
-        maybeSharpenIcpAfterBriefSave({ clientId, source: opts.source }).catch(() => undefined)
-      );
+      void import('@/lib/client/autopilot').then(async (autopilot) => {
+        // Skip lifecycle events that aren't real intake/brief writes
+        // (the per-helper logic also filters, but skip here too to avoid
+        // even loading those helpers for tiny touches).
+        if (opts.source === 'voice_picker' || opts.source === 'restore') return;
+        // Independent fire-and-forget for each lifecycle: ICP sharpener +
+        // (#90 inc 2) audit regen for the top stale leads.
+        autopilot.maybeSharpenIcpAfterBriefSave({ clientId, source: opts.source }).catch(() => undefined);
+        autopilot.maybeRegenerateStaleAudits({ clientId }).catch(() => undefined);
+      });
     }
 
     return true;

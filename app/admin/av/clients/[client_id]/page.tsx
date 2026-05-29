@@ -20,6 +20,7 @@ import PrInboxPanel from './PrInboxPanel';
 import PrVoicePicker from './PrVoicePicker';
 import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
+import AutopilotActivity from './AutopilotActivity';
 import ClientInfluenceCard from '@/app/_components/ClientInfluenceCard';
 import { getIntelConfig } from '@/lib/client/brief_store';
 import { getInboxRecord } from '@/lib/clients/pr_inbox';
@@ -298,6 +299,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           IcpEditor so val can sharpen → review → manually tweak. AI-applied
           items render with a distinct chip in the editor below. */}
       <SharpenIcpPanel clientId={clientId} clientName={d.name} />
+
+      {/* (#241) Autopilot activity — what the system did automatically for
+          this client (sharpened ICP, scored leads, refreshed audits). Hidden
+          when there's no history yet (fresh client stays clean). */}
+      <AutopilotActivity clientId={clientId} />
 
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
       <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />
