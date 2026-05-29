@@ -22,6 +22,7 @@ import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
 import BrandKitPanel from './BrandKitPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
+import WeeklyDigestPanel from './WeeklyDigestPanel';
 import ClientInfluenceCard from '@/app/_components/ClientInfluenceCard';
 import { getIntelConfig } from '@/lib/client/brief_store';
 import { getInboxRecord } from '@/lib/clients/pr_inbox';
@@ -316,6 +317,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           this client (sharpened ICP, scored leads, refreshed audits). Hidden
           when there's no history yet (fresh client stays clean). */}
       <AutopilotActivity clientId={clientId} />
+
+      {/* (#216 v1) Weekly digest — preview + manually send the email
+          summarizing the client's week. Pairs with AutopilotActivity since
+          they're both "what we did for them" surfaces — this one outbound. */}
+      <WeeklyDigestPanel clientId={clientId} clientName={d.name} />
 
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
       <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />
