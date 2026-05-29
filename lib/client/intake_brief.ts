@@ -58,6 +58,11 @@ export interface BriefSeed {
   prSpokesperson: string | null;
   notableClients: string | null;
   pressAwards: string | null;
+  // Plain-language identity fields the client wrote in the basics section.
+  // Wired through (#197) so lead audits / call scripts / outreach can ground in
+  // "what they do" and "their tagline" -- previously stored but never read.
+  businessDescription: string | null;
+  slogan: string | null;
   /** Ready-to-use seed for createLane(...) — a candidate line from their own words. */
   lineSeed: NarrativeLineFields & { name: string };
 }
@@ -98,6 +103,8 @@ export function extractBriefSeedFromIntake(intakePayload: unknown): BriefSeed {
     prSpokesperson: pick(o, ['pr_spokesperson']),
     notableClients: pick(o, ['notable_clients']),
     pressAwards: pick(o, ['press_awards']),
+    businessDescription: pick(o, ['business_description']),
+    slogan: pick(o, ['slogan']),
     lineSeed: {
       name: keyMessage ? keyMessage.slice(0, 80) : (company ? `${company} — opening line` : 'Opening narrative line'),
       thesis: keyMessage,

@@ -271,7 +271,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Scores every new lead (fit / intent / reachability / ICP) and writes its strategic marketing audit. Runs on every new lead and on Re-score. The audit it produces is what the PR pitch drafter and other surfaces later ground on, so this prompt is foundational.',
     defaultSystem: AV_LEAD_AUDIT_DEFAULT,
     userPromptNote:
-      'At call time the system appends the lead facts (company, industry, website + website_status flag, ADDRESS / city / state / country when known, contact, self-reported challenge) and — when the lead belongs to a client — that client\'s creative brief. You edit the strategy/rubric above; the per-lead data is added automatically. NEW (#180/#196): geography is now passed; consider local market context where relevant. website_status \'placeholder\' or \'dead\' means the URL is synthetic / unreachable — downweight reachability and intent accordingly.'
+      'At call time the system appends the lead facts (company, industry, website + website_status flag, ADDRESS / city / state / country when known, contact, self-reported challenge) and — when the lead belongs to a client — that client\'s creative brief. You edit the strategy/rubric above; the per-lead data is added automatically. NEW (#197): the client brief block now starts with "What they do" (business_description) and "Their tagline" (slogan) before positioning, and ends with "Notable clients / names they drop" (notable_clients) — three intake fields that were stored but never reached this prompt.'
   },
   {
     key: 'pr_opportunity_parse',
@@ -343,7 +343,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Reads everything we know about a lead (audit, challenge, recent replies) and produces the JSON pain-point profile that drives the "What to say on the call" panel on every lead. The conversation_starters + do_not_say arrays end up in front of the sales rep every call.',
     defaultSystem: PAIN_EXTRACTOR_DEFAULT,
     userPromptNote:
-      'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#196): geography + website_status now flow in; if address is present use local market context; if website_status is placeholder/dead, treat the URL as no positive signal.'
+      'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197): the brief now includes "What they sell" (business_description), "Their tagline" (slogan), and "Names they can drop" (notable_clients) so the rep\'s opener is grounded in the client\'s plain-language identity, not just positioning.'
   },
   {
     key: 'outreach_drafter',
@@ -352,7 +352,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Drafts the subject + body of a cold outreach email for one lead, grounded in that lead\'s audit. Used by the campaign drafter on a per-lead basis. PLURAL voice; never founder name; constrained JSON output.',
     defaultSystem: OUTREACH_DRAFTER_DEFAULT,
     userPromptNote:
-      'At call time the system appends: COMPANY, INDUSTRY, CONTACT_NAME, CONTACT_TITLE, ADDRESS (when known), WEBSITE + WEBSITE_STATUS, plus the campaign context (SENDER_DISPLAY_NAME, CAMPAIGN_NAME, OFFER_SUMMARY, CTA, SIGNATURE) and the AUDIT_EXCERPT. NEW (#180/#196): geography may ground the hook lightly in local context; if WEBSITE_STATUS is placeholder/dead, the body must NOT reference the website.'
+      'At call time the system appends: COMPANY, INDUSTRY, CONTACT_NAME, CONTACT_TITLE, ADDRESS (when known), WEBSITE + WEBSITE_STATUS, plus the campaign context (SENDER_DISPLAY_NAME, CAMPAIGN_NAME, OFFER_SUMMARY, CTA, SIGNATURE) and the AUDIT_EXCERPT. NEW (#197): when the lead belongs to a client, the prompt now also receives a CLIENT_OFFER block (business description, tagline, key message, differentiators, audience, proof, name-drops, brand voice) so the email is written from THAT client\'s vantage — previously the drafter saw zero client positioning.'
   }
 ];
 

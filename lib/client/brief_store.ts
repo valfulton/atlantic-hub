@@ -316,6 +316,10 @@ export async function getBriefForPrompt(args: {
 
   const lines: string[] = [`BRAND_IDENTITY:`, `  BRAND: ${brandName}`];
   const add = (label: string, v: string | null) => { if (v && v.trim()) lines.push(`  ${label}: ${v.trim()}`); };
+  // (#197) Plain-language identity comes FIRST so prompts anchor on what the
+  // brand is and how it talks about itself before we layer positioning on top.
+  add('BUSINESS_DESCRIPTION', seed.businessDescription);
+  add('SLOGAN', seed.slogan);
   add('WHY_WE_ADVERTISE', seed.whyAdvertise);
   add('GOALS', seed.goals);
   add('AUDIENCE', seed.audience);

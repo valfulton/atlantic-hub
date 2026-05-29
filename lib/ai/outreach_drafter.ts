@@ -28,6 +28,7 @@ import {
 } from '@/lib/openai/client';
 import { logEvent } from '@/lib/events/log';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
+import { getBriefSeed } from '@/lib/client/brief_store';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const MODEL = 'gpt-4o-mini';
@@ -77,6 +78,8 @@ export class OutreachDraftInsufficientDataError extends Error {
 interface LeadRow extends RowDataPacket {
   id: number;
   audit_id: string;
+  /** (#197) Client owner — drives briefContext lookup (their offer + voice). */
+  client_id: number | null;
   company: string;
   contact_name: string | null;
   contact_title: string | null;
@@ -125,7 +128,11 @@ export async function generateOutreachDraft(args: {
   // Operator-editable system prompt — getSystemPrompt returns the override from
   // ai_prompt_overrides if set, else OUTREACH_DRAFTER_DEFAULT (#80).
   const systemPrompt = await getSystemPrompt('outreach_drafter');
-  const userPrompt = buildUserPrompt({ lead, campaign: args.campaign, auditExcerpt });
+  // (#197) Pull the client's brief (offer / voice / name-drops) when this lead
+  // belongs to a client. House leads get null and fall back to the campaign
+  // offerSummary that's already part of the prompt.
+  const briefContext = await buildOutreachBriefContext(lead.client_id);
+  const userPrompt = buildUserPrompt({ lead, campaign: args.campaign, auditExcerpt, briefContext });
 
   let completion;
   try {
@@ -261,8 +268,10 @@ function buildUserPrompt(args: {
   lead: LeadRow;
   campaign: OutreachDraftCampaignContext;
   auditExcerpt: string | null;
+  /** (#197) Optional CLIENT_OFFER block built from the lead's client brief. */
+  briefContext?: string | null;
 }): string {
-  const { lead, campaign, auditExcerpt } = args;
+  const { lead, campaign, auditExcerpt, briefContext } = args;
   const parts: string[] = [];
   parts.push(`COMPANY: ${lead.company}`);
   if (lead.industry) parts.push(`INDUSTRY: ${lead.industry}`);
@@ -291,6 +300,13 @@ function buildUserPrompt(args: {
   if (campaign.offerSummary) parts.push(`OFFER_SUMMARY: ${campaign.offerSummary}`);
   if (campaign.cta) parts.push(`CTA: ${campaign.cta}`);
   if (campaign.signature) parts.push(`SIGNATURE: ${campaign.signature}`);
+  // (#197) CLIENT_OFFER block — when the lead belongs to a client, the model
+  // sees their offer, voice, key message, and name-drops so the email leads
+  // with what THEY sell, not a generic outreach. House leads skip this block.
+  if (briefContext && briefContext.trim()) {
+    parts.push(``);
+    parts.push(briefContext.trim());
+  }
   parts.push(``);
   if (auditExcerpt) {
     parts.push(`AUDIT_EXCERPT (single most useful source -- hook on one observation from this):`);
@@ -310,7 +326,7 @@ function buildUserPrompt(args: {
 async function loadLead(auditId: string): Promise<LeadRow | null> {
   const db = getAvDb();
   const [rows] = await db.execute<LeadRow[]>(
-    `SELECT id, audit_id, company, contact_name, contact_title, email, industry,
+    `SELECT id, audit_id, client_id, company, contact_name, contact_title, email, industry,
             website, website_status,
             address_street, address_city, address_state, address_postal, address_country,
             audit_content, challenge, ai_score, ai_score_band, ai_score_reason
@@ -320,6 +336,43 @@ async function loadLead(auditId: string): Promise<LeadRow | null> {
     [auditId]
   );
   return rows[0] ?? null;
+}
+
+/**
+ * (#197) Build the CLIENT_OFFER block for outreach grounding.
+ *
+ * Mirrors buildBriefContextForLens in score_and_audit.ts: when the lead is
+ * attached to a client, pull THAT client's intake-derived brief so the cold
+ * email leads with what the client actually sells (their offer, voice,
+ * key message, name-drops). House leads (client_id IS NULL) return null and
+ * fall back to the campaign offerSummary that's already in the prompt.
+ *
+ * Non-fatal: any error returns null and the draft still runs ungrounded.
+ */
+async function buildOutreachBriefContext(clientId: number | null): Promise<string | null> {
+  if (!clientId) return null;
+  try {
+    const seed = await getBriefSeed('av', clientId);
+    if (!seed) return null;
+    const parts: string[] = [];
+    if (seed.businessDescription) parts.push(`What they sell: ${seed.businessDescription}`);
+    if (seed.slogan) parts.push(`Tagline: ${seed.slogan}`);
+    if (seed.keyMessage) parts.push(`Their single key message: ${seed.keyMessage}`);
+    if (seed.differentiators) parts.push(`What makes them different: ${seed.differentiators}`);
+    if (seed.audience) parts.push(`Who they target: ${seed.audience}`);
+    if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
+    if (seed.notableClients) parts.push(`Names they can drop: ${seed.notableClients}`);
+    if (seed.brandVoice) parts.push(`Brand voice: ${seed.brandVoice}`);
+    if (!parts.length) return null;
+    return (
+      'CLIENT OFFER -- the prospect is a SALES TARGET for our client. Write the email ' +
+      'from the client\'s vantage (we are reaching out on their behalf). Lean on the lines below ' +
+      'when choosing the specific observation, the hook, and any name-drop. Do not mention ' +
+      'Atlantic & Vine. The client\'s offer in their own words:\n- ' + parts.join('\n- ')
+    );
+  } catch {
+    return null;
+  }
 }
 
 function clampSubject(s: string): string {

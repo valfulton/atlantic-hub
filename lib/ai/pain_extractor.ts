@@ -189,11 +189,16 @@ async function buildPainBriefContextForLens(lens: string): Promise<string | null
       const seed = await getBriefSeed('av', parsed.clientId);
       if (!seed) return null;
       const parts: string[] = [];
+      // (#197) Plain-language identity first so the rep's opener is grounded.
+      if (seed.businessDescription) parts.push(`What they sell: ${seed.businessDescription}`);
+      if (seed.slogan) parts.push(`Their tagline: ${seed.slogan}`);
       if (seed.whyAdvertise) parts.push(`Why they sell: ${seed.whyAdvertise}`);
       if (seed.keyMessage) parts.push(`Their key message: ${seed.keyMessage}`);
       if (seed.audience) parts.push(`Who they target: ${seed.audience}`);
       if (seed.differentiators) parts.push(`What sets them apart: ${seed.differentiators}`);
       if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
+      // (#197) Name-drops the rep can use mid-call.
+      if (seed.notableClients) parts.push(`Names they can drop: ${seed.notableClients}`);
       if (!parts.length) return null;
       return (
         'CLIENT OFFER -- the rep sells THIS client\'s offer to the prospect. Coach the call around it; ' +

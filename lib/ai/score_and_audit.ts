@@ -189,6 +189,9 @@ async function buildBriefContextForLens(lens: string): Promise<string | null> {
       const seed = await getBriefSeed('av', parsed.clientId);
       if (!seed) return null;
       const parts: string[] = [];
+      // (#197) Plain-language identity anchors the prompt before positioning.
+      if (seed.businessDescription) parts.push(`What they do: ${seed.businessDescription}`);
+      if (seed.slogan) parts.push(`Their tagline: ${seed.slogan}`);
       if (seed.whyAdvertise) parts.push(`Why they advertise: ${seed.whyAdvertise}`);
       if (seed.goals) parts.push(`Their 90-day goals: ${seed.goals}`);
       if (seed.audience) parts.push(`Their target audience: ${seed.audience}`);
@@ -198,6 +201,8 @@ async function buildBriefContextForLens(lens: string): Promise<string | null> {
       if (seed.differentiators) parts.push(`What makes them different: ${seed.differentiators}`);
       if (seed.brandVoice) parts.push(`Brand voice: ${seed.brandVoice}`);
       if (seed.competitors) parts.push(`Competitors they named: ${seed.competitors}`);
+      // (#197) "Names we drop" is a credibility hook the audit can lean on.
+      if (seed.notableClients) parts.push(`Notable clients / names they drop: ${seed.notableClients}`);
       if (!parts.length) return null;
       return (
         'CLIENT OFFER -- this prospect is a SALES TARGET for our client, who sells the following. ' +
