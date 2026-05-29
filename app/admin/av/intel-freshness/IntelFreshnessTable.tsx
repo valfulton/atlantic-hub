@@ -180,9 +180,20 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
   }
 
   async function callRefresh(auditIds: string[]): Promise<BulkResult> {
-    const res = await fetch('/api/admin/av/leads/refresh-intel', {
+    // (#225) When the HostGator worker URL is configured, route bulk refresh
+    // to it instead of the Netlify endpoint. The worker has no 60s ceiling
+    // and runs Express on HostGator's Node app manager. Same request body
+    // shape; auth via X-Worker-Secret header (set from env at build time).
+    const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL;
+    const workerSecret = process.env.NEXT_PUBLIC_WORKER_SECRET;
+    const endpoint = workerUrl
+      ? `${workerUrl.replace(/\/$/, '')}/refresh-intel`
+      : '/api/admin/av/leads/refresh-intel';
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (workerUrl && workerSecret) headers['X-Worker-Secret'] = workerSecret;
+    const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         auditIds,
         audits: refreshAudits,
@@ -245,12 +256,16 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
     if (refreshOutreach) parts.push('outreach drafts');
     const sentence = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
 
-    // (#206 + #221) Pick a safe chunk size so each backend request finishes
-    // within the 60s Netlify ceiling. After #201/#202's longer Mode-A prompts,
-    // individual gpt-4o-mini calls can run 12-20s. We aim for ~30s of inline
-    // work per request (matching the server's SOFT_DEADLINE_MS).
+    // (#206 + #221 + #225) Chunk size depends on whether we are routing to the
+    // Netlify endpoint (60s ceiling -> small chunks) or to the HostGator
+    // worker (5-minute soft deadline -> large chunks). When NEXT_PUBLIC_WORKER_URL
+    // is set we know the request lands on the worker, which can chew through
+    // 50+ leads per call comfortably.
     const heavyArtifacts = (refreshAudits ? 1 : 0) + (refreshCallScripts ? 1 : 0);
-    const chunkSize = heavyArtifacts >= 2 ? 2 : heavyArtifacts === 1 ? 3 : 50;
+    const isWorker = !!process.env.NEXT_PUBLIC_WORKER_URL;
+    const chunkSize = isWorker
+      ? heavyArtifacts >= 2 ? 20 : heavyArtifacts === 1 ? 40 : 200
+      : heavyArtifacts >= 2 ? 2  : heavyArtifacts === 1 ? 3  : 50;
     const batches: string[][] = [];
     for (let i = 0; i < ids.length; i += chunkSize) {
       batches.push(ids.slice(i, i + chunkSize));
