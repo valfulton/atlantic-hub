@@ -14,6 +14,7 @@ import FindLeadsForClient from './FindLeadsForClient';
 import IcpEditor from './IcpEditor';
 import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import RefreshIntelPanel from './RefreshIntelPanel';
+import { ClientPrPanel } from './ClientPrPanel';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import { getClientIcpWithProvenance } from '@/lib/client/icp';
 import { signIntakeShareToken } from '@/lib/auth/intake-share';
@@ -237,6 +238,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* Find leads scoped to THIS client (their hub only — never the AV pipeline). */}
       <FindLeadsForClient clientId={clientId} clientName={d.name} />
+
+      {/* (#213 Part A) Their PR pipeline -- opportunities matched to this
+          client's leads. Was previously only visible in the global PR inbox. */}
+      <ClientPrPanel clientId={clientId} clientName={d.name} />
 
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}
       <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />
