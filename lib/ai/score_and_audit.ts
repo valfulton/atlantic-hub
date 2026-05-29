@@ -203,6 +203,14 @@ async function buildBriefContextForLens(lens: string): Promise<string | null> {
       if (seed.competitors) parts.push(`Competitors they named: ${seed.competitors}`);
       // (#197) "Names we drop" is a credibility hook the audit can lean on.
       if (seed.notableClients) parts.push(`Notable clients / names they drop: ${seed.notableClients}`);
+      // (#198) Geographic fit + seasonality + dedicated credibility line.
+      // - geoFocus: lets the model reason about prospect-vs-client territory.
+      // - timeline (busy_seasons / key_dates): timing fit drives lead value.
+      // - pressAwards was only a messageSupport FALLBACK before -- promoting
+      //   it to a dedicated line so press/awards never gets crowded out.
+      if (seed.geoFocus) parts.push(`Where they sell: ${seed.geoFocus}`);
+      if (seed.timeline) parts.push(`Their busy seasons / key dates: ${seed.timeline}`);
+      if (seed.pressAwards) parts.push(`Press / awards / certifications: ${seed.pressAwards}`);
       if (!parts.length) return null;
       return (
         'CLIENT OFFER -- this prospect is a SALES TARGET for our client, who sells the following. ' +

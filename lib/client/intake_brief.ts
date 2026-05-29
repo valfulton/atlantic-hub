@@ -63,6 +63,11 @@ export interface BriefSeed {
   // "what they do" and "their tagline" -- previously stored but never read.
   businessDescription: string | null;
   slogan: string | null;
+  // (#198) Geographic focus (where they want to sell) and what they're already
+  // running for lead-gen. Audit consumes geoFocus; call script consumes
+  // currentLeadgen so the rep knows what the prospect is comparing against.
+  geoFocus: string | null;
+  currentLeadgen: string | null;
   /** Ready-to-use seed for createLane(...) — a candidate line from their own words. */
   lineSeed: NarrativeLineFields & { name: string };
 }
@@ -105,6 +110,8 @@ export function extractBriefSeedFromIntake(intakePayload: unknown): BriefSeed {
     pressAwards: pick(o, ['press_awards']),
     businessDescription: pick(o, ['business_description']),
     slogan: pick(o, ['slogan']),
+    geoFocus: pick(o, ['geo_focus']),
+    currentLeadgen: pick(o, ['current_leadgen']),
     lineSeed: {
       name: keyMessage ? keyMessage.slice(0, 80) : (company ? `${company} — opening line` : 'Opening narrative line'),
       thesis: keyMessage,

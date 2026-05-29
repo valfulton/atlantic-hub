@@ -329,6 +329,11 @@ export async function getBriefForPrompt(args: {
   add('VOICE', seed.brandVoice);
   add('DIFFERENTIATORS', seed.differentiators);
   add('COMPETITORS', seed.competitors);
+  // (#198) Where they sell, when their busy seasons are, and what they're
+  // already running for lead-gen. Available to every consumer of this block.
+  add('GEO_FOCUS', seed.geoFocus);
+  add('BUSY_SEASONS', seed.timeline);
+  add('CURRENT_LEADGEN', seed.currentLeadgen);
   // PR & authority — what they can speak to, where they want to land, and the
   // proof that makes them quotable. Drives PR pitch/release grounding so a pitch
   // leads with THEIR expertise aimed at THEIR target outlets.

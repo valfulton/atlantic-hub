@@ -271,7 +271,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Scores every new lead (fit / intent / reachability / ICP) and writes its strategic marketing audit. Runs on every new lead and on Re-score. The audit it produces is what the PR pitch drafter and other surfaces later ground on, so this prompt is foundational.',
     defaultSystem: AV_LEAD_AUDIT_DEFAULT,
     userPromptNote:
-      'At call time the system appends the lead facts (company, industry, website + website_status flag, ADDRESS / city / state / country when known, contact, self-reported challenge) and — when the lead belongs to a client — that client\'s creative brief. You edit the strategy/rubric above; the per-lead data is added automatically. NEW (#197): the client brief block now starts with "What they do" (business_description) and "Their tagline" (slogan) before positioning, and ends with "Notable clients / names they drop" (notable_clients) — three intake fields that were stored but never reached this prompt.'
+      'At call time the system appends the lead facts (company, industry, website + website_status flag, ADDRESS / city / state / country when known, contact, self-reported challenge) and — when the lead belongs to a client — that client\'s creative brief. You edit the strategy/rubric above; the per-lead data is added automatically. NEW (#197 + #198): the client brief block now leads with plain-language identity ("What they do" / "Their tagline"), and adds geographic fit ("Where they sell"), seasonality ("Their busy seasons / key dates"), notable clients ("Notable clients / names they drop"), and a dedicated press/awards line — six intake fields previously stored but never reaching this prompt. Use geo overlap to reason about prospect-vs-client territory, and let busy-season fit influence timing scores.'
   },
   {
     key: 'pr_opportunity_parse',
@@ -343,7 +343,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Reads everything we know about a lead (audit, challenge, recent replies) and produces the JSON pain-point profile that drives the "What to say on the call" panel on every lead. The conversation_starters + do_not_say arrays end up in front of the sales rep every call.',
     defaultSystem: PAIN_EXTRACTOR_DEFAULT,
     userPromptNote:
-      'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197): the brief now includes "What they sell" (business_description), "Their tagline" (slogan), and "Names they can drop" (notable_clients) so the rep\'s opener is grounded in the client\'s plain-language identity, not just positioning.'
+      'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197 + #198): the brief now includes plain-language identity ("What they sell", "Their tagline"), name-drops ("Names they can drop"), and what the client is already running for lead-gen ("What they\'re already running for lead-gen") so the rep knows what the prospect is comparing against and doesn\'t fight the wrong objection.'
   },
   {
     key: 'outreach_drafter',

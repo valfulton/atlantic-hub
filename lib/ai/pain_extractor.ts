@@ -199,6 +199,10 @@ async function buildPainBriefContextForLens(lens: string): Promise<string | null
       if (seed.messageSupport) parts.push(`Proof behind it: ${seed.messageSupport}`);
       // (#197) Name-drops the rep can use mid-call.
       if (seed.notableClients) parts.push(`Names they can drop: ${seed.notableClients}`);
+      // (#198) What they're already running for lead-gen -- the rep should
+      // know what the prospect is comparing against ("already on LinkedIn ads",
+      // "referrals only", etc.) so the call doesn't fight the wrong objection.
+      if (seed.currentLeadgen) parts.push(`What they're already running for lead-gen: ${seed.currentLeadgen}`);
       if (!parts.length) return null;
       return (
         'CLIENT OFFER -- the rep sells THIS client\'s offer to the prospect. Coach the call around it; ' +
