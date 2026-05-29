@@ -149,6 +149,22 @@ export async function saveBriefPayload(
         [tenantId, clientId, json]
       );
     }
+
+    // (#240) Autopilot: if this is a client-scoped write and the ICP table is
+    // currently empty, fire-and-forget the LLM sharpener so the discovery
+    // form auto-fills next time val opens it. Fully isolated — never blocks
+    // this return and never throws. Source filter inside skips small touches
+    // like voice_picker / restore.
+    if (clientId != null) {
+      // Late-bind the import so brief_store stays a leaf module — the
+      // autopilot lib imports brief_store-adjacent things (icp.ts) and
+      // top-level import would create a cycle. Dynamic import is fine in a
+      // background task that doesn't await.
+      void import('@/lib/client/autopilot').then(({ maybeSharpenIcpAfterBriefSave }) =>
+        maybeSharpenIcpAfterBriefSave({ clientId, source: opts.source }).catch(() => undefined)
+      );
+    }
+
     return true;
   } catch (err) {
     console.error('[brief_store:save]', (err as Error).message);

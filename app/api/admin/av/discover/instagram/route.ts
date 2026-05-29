@@ -77,6 +77,17 @@ export async function POST(req: NextRequest) {
         .map((r) => r.leadId);
       await assignDiscoveredLeads(leadIds, assignToUserId, guard.actor.userId ?? null);
     }
+
+    // (#240) Autopilot: score newly-inserted leads against the client's ICP.
+    if (destClientId && batch.insertedCount > 0) {
+      void import('@/lib/client/autopilot').then(({ maybeScoreDiscoveryBatch }) =>
+        maybeScoreDiscoveryBatch({
+          clientId: destClientId,
+          insertedCount: batch.insertedCount
+        }).catch(() => undefined)
+      );
+    }
+
     return NextResponse.json({
       source: 'instagram',
       inputCount: usernames.length,

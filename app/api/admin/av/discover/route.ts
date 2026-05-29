@@ -106,6 +106,22 @@ export async function POST(req: NextRequest) {
         .map((r) => r.leadId);
       await assignDiscoveredLeads(leadIds, assignToUserId, guard.actor.userId ?? null);
     }
+
+    // (#240) Autopilot: if the batch landed in a client's hub, score the new
+    // leads against their ICP in the background so the fit pills appear when
+    // the page refreshes. Fire-and-forget — never blocks this response and
+    // never throws.
+    if (destClientId) {
+      const insertedCount = summary.results.filter(
+        (r) => r.outcome === 'inserted_person' || r.outcome === 'inserted_company_shell'
+      ).length;
+      if (insertedCount > 0) {
+        void import('@/lib/client/autopilot').then(({ maybeScoreDiscoveryBatch }) =>
+          maybeScoreDiscoveryBatch({ clientId: destClientId, insertedCount }).catch(() => undefined)
+        );
+      }
+    }
+
     return NextResponse.json(summary);
   } catch (err) {
     console.error('[av:discover:post]', (err as Error).message);
