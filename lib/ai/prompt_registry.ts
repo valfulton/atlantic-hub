@@ -236,6 +236,38 @@ const INTAKE_INTELLIGENCE_EXTRACTOR_DEFAULT = [
   `}`
 ].join('\n');
 
+// --- Brand-kit extractor (#208). Used by lib/client/brand_kit_extractor.ts. ---
+// Reads a client's public website + deterministic HTML signals (inline CSS
+// hex codes, og:image, header logos, Google Fonts imports) and returns a
+// structured brand kit: 1-4 brand colors as hex, logo URL, aesthetic vibe,
+// typography family. Powers branded commercials / social cards / blog hero.
+const BRAND_KIT_EXTRACTOR_DEFAULT = [
+  `You extract the VISUAL brand kit from a client's public website — colors, logo, typography, aesthetic — so Atlantic & Vine can brand assets in their real identity without the operator typing colors by hand.`,
+  ``,
+  `INPUT in the user message:`,
+  `- BRAND_NAME_HINT (often present): the client's company name.`,
+  `- SOURCE_URL: the page we fetched.`,
+  `- DETERMINISTIC_SIGNALS: the repeated inline-CSS hex codes (excluding pure black/white), Google Fonts imports, and logo candidates already pulled from the HTML.`,
+  `- PAGE_TEXT: cleaned plain text body, for aesthetic / vibe cues only.`,
+  ``,
+  `OUTPUT this JSON:`,
+  `{`,
+  `  "colors": ["#RRGGBB", ...],  // 0-4 brand colors, MOST PROMINENT FIRST. Strict format: #RRGGBB lowercase.`,
+  `  "logo_url": "https://...",   // best logo URL or null. Prefer og:image / header-region img; favicon only as last resort.`,
+  `  "aesthetic": "...",           // ONE short phrase: "modern minimalist navy + gold", "warm community bilingual", "premium-wellness biohacker"`,
+  `  "typography": "...",          // primary font family or family pattern ("Inter sans-serif", "serif + script pairing"). Read from Google Fonts list when available.`,
+  `  "reasoning": "..."            // 1-2 sentences explaining your read so the operator can audit`,
+  `}`,
+  ``,
+  `RULES — never break these:`,
+  `1. COLORS: ground in the DETERMINISTIC_SIGNALS hex list. Don't invent colors that aren't in the inline CSS. Order by visual prominence; primary first.`,
+  `2. LOGO: pick the BEST candidate from the LOGO_CANDIDATES list. Don't fabricate URLs.`,
+  `3. AESTHETIC: should be useful to a designer in 5 seconds. Reference both the vibe and the visual treatment. Skip generic words ("clean", "professional") -- be specific.`,
+  `4. TYPOGRAPHY: if Google Fonts are imported, name them. Otherwise infer ("classic serif", "geometric sans") from page text vibe, but mark it [infer] in your reasoning.`,
+  `5. If a field is genuinely absent (no colors detected, no logo candidate, etc.), emit null/empty array. Do NOT fabricate.`,
+  `6. NEVER include pricing, dollar amounts, or any per-unit AI/API cost.`
+].join('\n');
+
 // --- Client ICP sharpener (#239). Used by lib/client/icp_sharpener.ts. ---
 // Reads a client's brief / intake and produces a STRUCTURED ICP table
 // (industries[], geographies[], excludedIndustries[], company size range)
@@ -494,6 +526,15 @@ export const PROMPT_DEFS: PromptDef[] = [
     defaultSystem: PAIN_EXTRACTOR_DEFAULT,
     userPromptNote:
       'At call time the system appends the lead facts (company, industry, ADDRESS / city / state / country when known, website + website_status, contact, challenge, audit excerpt) and — when the lead belongs to a client — that client\'s creative brief. NEW (#197 + #198 + #199): the brief now includes plain-language identity ("What they sell", "Their tagline"), name-drops ("Names they can drop"), what the client is already running for lead-gen, AND "Topics they can speak to as an authority" (pr_expert_topics) so the rep has a natural domain-led opener that sidesteps pitch energy.'
+  },
+  {
+    key: 'brand_kit_extractor',
+    label: 'Brand-kit extractor (#208)',
+    description:
+      'Reads a client\'s website + deterministic HTML signals (inline CSS hex codes, og:image, header logos, Google Fonts) and returns structured colors / logo URL / aesthetic / typography. Powers branded commercials, social cards, and blog hero images without the operator typing brand colors by hand.',
+    defaultSystem: BRAND_KIT_EXTRACTOR_DEFAULT,
+    userPromptNote:
+      'At call time the system appends BRAND_NAME_HINT, SOURCE_URL, DETERMINISTIC_SIGNALS (repeated hex codes, Google Fonts, logo candidates), and PAGE_TEXT (cleaned plain text body). You edit the output rules above.'
   },
   {
     key: 'client_icp_sharpener',

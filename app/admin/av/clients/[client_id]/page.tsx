@@ -19,6 +19,7 @@ import { ClientPrPanel } from './ClientPrPanel';
 import PrInboxPanel from './PrInboxPanel';
 import PrVoicePicker from './PrVoicePicker';
 import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
+import BrandKitPanel from './BrandKitPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import ClientInfluenceCard from '@/app/_components/ClientInfluenceCard';
@@ -189,6 +190,17 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           onboarding path. Preview-first; reversible via brief versions. */}
       <div className="mb-5">
         <FillIntakeFromWebPanel
+          clientId={clientId}
+          clientName={d.name}
+          defaultUrl={defaultIntakeUrl}
+        />
+      </div>
+
+      {/* (#208) Brand-kit extractor — same URL, pulls VISUAL kit (colors /
+          logo / aesthetic / typography). Pair with FillIntake for a full
+          onboard from one paste. Powers branded commercials + social cards. */}
+      <div className="mb-5">
+        <BrandKitPanel
           clientId={clientId}
           clientName={d.name}
           defaultUrl={defaultIntakeUrl}
