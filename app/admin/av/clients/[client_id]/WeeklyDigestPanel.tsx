@@ -36,12 +36,30 @@ interface SendResponse {
   reason?: string;
 }
 
+function relativeTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '';
+  const secs = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
 export default function WeeklyDigestPanel({
   clientId,
-  clientName
+  clientName,
+  lastSentAt
 }: {
   clientId: number;
   clientName: string;
+  /** ISO string of the most-recent client.digest.sent event for this client.
+   *  Renders a "Last sent X ago" line so val knows whether the Friday cron
+   *  already covered them. */
+  lastSentAt?: string | null;
 }) {
   const [busy, setBusy] = useState<'idle' | 'previewing' | 'sending'>('idle');
   const [err, setErr] = useState<string | null>(null);
@@ -109,13 +127,21 @@ export default function WeeklyDigestPanel({
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-1">
-        Weekly digest email for {clientName}
+      <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+        <div className="text-[11px] uppercase tracking-[0.12em] text-muted">
+          Weekly digest email for {clientName}
+        </div>
+        {lastSentAt && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
+            Last sent {relativeTime(lastSentAt)}
+          </span>
+        )}
       </div>
       <div className="text-[12.5px] text-white/70 mb-3 leading-relaxed">
         Send {clientName} a branded summary of what Atlantic &amp; Vine moved this week — same data
-        as the &ldquo;This week for you&rdquo; widget on their dashboard. v2 will run this on a Friday cron;
-        v1 lets you preview + send manually so we can ship it right.
+        as the &ldquo;This week for you&rdquo; widget on their dashboard. The Friday cron runs this
+        automatically across all active clients; this panel lets you preview or trigger ad-hoc.
       </div>
 
       {!preview && !sendResult && (

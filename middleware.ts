@@ -79,7 +79,10 @@ const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   '/api/admin/av/outreach/replies/poll',
   // Cron dispatcher (#73): one HostGator cron pings this; it fans out to the
   // sweep endpoints above. Validates x-cron-secret internally.
-  '/api/admin/cron/run'
+  '/api/admin/cron/run',
+  // (#216 v2) Weekly digest sweep — called by the dispatcher with the
+  // ENRICHMENT_CRON_SECRET. Iterates active clients and sends each digest.
+  '/api/admin/av/digest-sweep'
 ]);
 
 export const config = {

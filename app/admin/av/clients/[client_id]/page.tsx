@@ -105,6 +105,23 @@ export default async function ClientDetailPage({ params }: { params: { client_id
     if (typeof w === 'string' && w.trim()) defaultIntakeUrl = w.trim();
   } catch { /* non-fatal */ }
 
+  // (#216 v2) When was the last successful digest sent to this client?
+  // Surfaces in WeeklyDigestPanel as "Last sent X ago" so val knows whether
+  // the Friday cron already covered them.
+  let lastDigestSentAt: string | null = null;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { created_at: string | Date })[]>(
+      `SELECT created_at FROM system_events
+        WHERE event_type = 'client.digest.sent'
+          AND organization_id = ?
+        ORDER BY created_at DESC LIMIT 1`,
+      [clientId]
+    );
+    const ts = rows[0]?.created_at;
+    if (ts) lastDigestSentAt = new Date(ts).toISOString();
+  } catch { /* non-fatal */ }
+
   // (#90) Stale-audit count: how many of this client's leads were audited
   // BEFORE the latest brief edit. Surfaces above the RefreshIntelPanel so val
   // sees the audit-refresh need at a glance instead of having to scan the
@@ -318,10 +335,16 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           when there's no history yet (fresh client stays clean). */}
       <AutopilotActivity clientId={clientId} />
 
-      {/* (#216 v1) Weekly digest — preview + manually send the email
+      {/* (#216 v1+v2) Weekly digest — preview + manually send the email
           summarizing the client's week. Pairs with AutopilotActivity since
-          they're both "what we did for them" surfaces — this one outbound. */}
-      <WeeklyDigestPanel clientId={clientId} clientName={d.name} />
+          they're both "what we did for them" surfaces — this one outbound.
+          Friday cron also sends automatically; lastDigestSentAt lets val
+          see at a glance whether the cron already covered them. */}
+      <WeeklyDigestPanel
+        clientId={clientId}
+        clientName={d.name}
+        lastSentAt={lastDigestSentAt}
+      />
 
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
       <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />

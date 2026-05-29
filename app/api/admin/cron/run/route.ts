@@ -21,7 +21,8 @@ export const maxDuration = 60;
 type SecretName = 'enrich' | 'publish';
 interface Job { path: string; secret: SecretName }
 
-/** Which sweeps run in each group. 'frequent' = every ~15 min, 'daily' = once a day. */
+/** Which sweeps run in each group. 'frequent' = every ~15 min, 'daily' = once
+ *  a day, 'weekly' = once a week (Friday morning, the client digest). */
 const GROUPS: Record<string, Job[]> = {
   frequent: [
     { path: '/api/admin/social/publish-due', secret: 'publish' },
@@ -34,6 +35,11 @@ const GROUPS: Record<string, Job[]> = {
     { path: '/api/admin/pr/discover-sweep', secret: 'enrich' },
     { path: '/api/admin/av/nurture-wake', secret: 'enrich' },
     { path: '/api/client/guidance/prewarm', secret: 'enrich' }
+  ],
+  weekly: [
+    // (#216 v2) Weekly digest sweep — iterates active clients, sends each
+    // their summary email. Empty weeks are skipped server-side.
+    { path: '/api/admin/av/digest-sweep', secret: 'enrich' }
   ]
 };
 
