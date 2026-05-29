@@ -17,6 +17,7 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import WaveDivider from '@/app/_components/WaveDivider';
+import LeadQuickActions from './LeadQuickActions';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -220,6 +221,17 @@ export default async function ClientLeadsPreview({ params }: { params: { client_
                         .join(', ')}
                     </span>
                   </div>
+                )}
+
+                {/* (#222) Inline log-call / log-email / draft-email actions.
+                    Stays on the card so val + reps never have to navigate to
+                    log effort. */}
+                {l.auditId && (
+                  <LeadQuickActions
+                    auditId={l.auditId}
+                    company={l.company}
+                    contactEmail={l.email}
+                  />
                 )}
               </li>
             ))}
