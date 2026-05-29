@@ -60,9 +60,23 @@ export default function RefreshIntelPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ audits, callScripts, outreach })
       });
-      const data = await res.json();
+      // (#221) Read text first so a Netlify 60s timeout surfaces as an
+      // actionable status code instead of res.json() throwing the cryptic
+      // "did not match the expected pattern".
+      const rawText = await res.text();
+      let data: (RefreshResult & { error?: string; message?: string }) | null = null;
+      try {
+        data = JSON.parse(rawText) as RefreshResult & { error?: string; message?: string };
+      } catch {
+        throw new Error(
+          `Server returned HTTP ${res.status} (non-JSON). ` +
+          `Likely a Netlify 60s timeout while regenerating intel. ` +
+          `Try un-checking one of the boxes (audits OR call scripts, not both) and run again, ` +
+          `or use the per-row Refresh on /admin/av/intel-freshness.`
+        );
+      }
       if (!res.ok) {
-        throw new Error(data?.error || data?.message || 'refresh_failed');
+        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
       }
       setResult(data);
     } catch (err) {

@@ -37,11 +37,11 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// (#206) Lowered from 55s to 40s. Each AI call can take 5-10s, so 55s left no
-// room for the final in-flight call to finish before Netlify's 60s ceiling.
-// At 40s, the worst case is ~50s total (40s + one in-flight ~10s call) which
-// stays under the platform timeout cleanly.
-const SOFT_DEADLINE_MS = 40_000;
+// (#206 + later tightening) After moving to longer Mode-A prompts in #201/#202,
+// individual gpt-4o-mini calls can run 12-20s -- so 40s left room for one
+// last call to push us past 60s. Tightened to 30s, which leaves room for one
+// in-flight 20s call to finish before Netlify's 60s hard ceiling.
+const SOFT_DEADLINE_MS = 30_000;
 const MAX_LEADS_PER_REQUEST = 200;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

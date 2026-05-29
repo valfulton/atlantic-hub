@@ -190,8 +190,23 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
         outreach: refreshOutreach
       })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || data?.message || 'refresh_failed');
+    // (#206 follow-up) Read as text first so a non-JSON Netlify timeout/error
+    // page surfaces as a real status code instead of the cryptic JS error
+    // "the string did not match the expected pattern" from res.json() choking
+    // on HTML. When Netlify hits its 60s ceiling mid-batch the response IS HTML.
+    const rawText = await res.text();
+    let data: (BulkResult & { error?: string; message?: string }) | null = null;
+    try {
+      data = JSON.parse(rawText) as BulkResult & { error?: string; message?: string };
+    } catch {
+      // Non-JSON response -- almost always a Netlify gateway timeout or
+      // platform-level error page. Tell val what actually happened.
+      throw new Error(
+        `Server returned HTTP ${res.status} (non-JSON). Likely a Netlify 60s timeout mid-batch. ` +
+        `Reduce the batch size and try again, or refresh one row at a time.`
+      );
+    }
+    if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
     return data;
   }
 
@@ -230,11 +245,12 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
     if (refreshOutreach) parts.push('outreach drafts');
     const sentence = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
 
-    // (#206) Pick a safe chunk size so each backend request finishes within
-    // the 60s Netlify ceiling. Each AI call takes ~7s; audits + call scripts
-    // together = ~12s per lead. We aim for ~40s of inline work per request.
+    // (#206 + #221) Pick a safe chunk size so each backend request finishes
+    // within the 60s Netlify ceiling. After #201/#202's longer Mode-A prompts,
+    // individual gpt-4o-mini calls can run 12-20s. We aim for ~30s of inline
+    // work per request (matching the server's SOFT_DEADLINE_MS).
     const heavyArtifacts = (refreshAudits ? 1 : 0) + (refreshCallScripts ? 1 : 0);
-    const chunkSize = heavyArtifacts >= 2 ? 3 : heavyArtifacts === 1 ? 5 : 50;
+    const chunkSize = heavyArtifacts >= 2 ? 2 : heavyArtifacts === 1 ? 3 : 50;
     const batches: string[][] = [];
     for (let i = 0; i < ids.length; i += chunkSize) {
       batches.push(ids.slice(i, i + chunkSize));
