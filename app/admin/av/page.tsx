@@ -175,7 +175,15 @@ export default async function AvPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-1">Atlantic &amp; Vine</h1>
+      <div className="flex items-baseline justify-between gap-4 mb-1">
+        <h1 className="text-2xl font-semibold">Atlantic &amp; Vine</h1>
+        <Link
+          href="/admin/av/intel-freshness"
+          className="text-[12px] text-white/50 hover:text-amber-300 transition shrink-0"
+        >
+          Intel freshness →
+        </Link>
+      </div>
       <p className="text-sm text-muted mb-6">Lead pipeline · read-only in v1</p>
 
       <HotLeadConfetti candidates={confettiCandidates} />

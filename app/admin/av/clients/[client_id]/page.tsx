@@ -13,6 +13,7 @@ import PrefilledIntakeLink from './PrefilledIntakeLink';
 import FindLeadsForClient from './FindLeadsForClient';
 import IcpEditor from './IcpEditor';
 import EnrichClientLeadsButton from './EnrichClientLeadsButton';
+import RefreshIntelPanel from './RefreshIntelPanel';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import { getClientIcpWithProvenance } from '@/lib/client/icp';
 import { signIntakeShareToken } from '@/lib/auth/intake-share';
@@ -259,6 +260,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* Enrich this client's leads on their behalf (Hunter contact details). */}
       <EnrichClientLeadsButton clientId={clientId} clientName={d.name} />
+
+      {/* (#203) Force-regenerate AI intel for this client's leads (replaces
+          phpMyAdmin SQL pattern). Audits + call scripts + outreach drafts. */}
+      <RefreshIntelPanel clientId={clientId} clientName={d.name} />
 
       {/* Their pipeline — with per-row Delete to clear strays. */}
       <div className="rounded-2xl border border-border bg-surface p-4">
