@@ -9,6 +9,13 @@
  * `preview` makes it read-only (client-only actions like Publish render as a
  * label, not a button). `leadsHref` lets the preview point the brief's lead links
  * at the operator client page instead of the live (session-scoped) portal.
+ *
+ * (#187) Chill pass: empty sections are HIDDEN rather than rendered as
+ * "nothing yet" cards. A Day-1 client (like Tim before content drafts land)
+ * sees the hero + guidance + brief + their team + a single "your plan"
+ * footer — not seven stacked empty placeholders. More breath between
+ * sections (space-y-10), audit + content + campaigns only render when there
+ * is real content to render.
  */
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import { formatUsd } from '@/lib/sales/deal_model';
@@ -39,8 +46,18 @@ export default function ClientDashboardBody({
 }) {
   const { firstName, tier, audit, leadCount, guidance, campaign, liveCount, inMotion, clientCampaigns, brief, monthlyPipelineCents, team, features } = data;
 
+  // (#187) Decide what's worth showing. A Day-1 client has no content, no
+  // campaigns, no audit — those collapsibles render as empty placeholders that
+  // crowd the page without conveying anything. Hide them entirely until they
+  // have signal. The hero + guidance + brief carry the page on their own; new
+  // sections appear as work lands.
+  const hasContent = campaign.length > 0;
+  const hasCampaigns = clientCampaigns.length > 0;
+  const hasAudit = !!audit;
+  const hasTeam = team.length > 0;
+
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
+    <main className="max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10">
       <ClientHero firstName={firstName} pipeline={brief.pipeline} monthlyPipelineCents={monthlyPipelineCents}>
         <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
           {brief.pipeline.hot > 0
@@ -57,7 +74,7 @@ export default function ClientDashboardBody({
 
       <CreativeBrief brief={brief} firstName={firstName} {...(leadsHref ? { leadsHref } : {})} />
 
-      {team.length > 0 && (
+      {hasTeam && (
         <Collapsible title="Your sales team" meta={`${team.length} rep${team.length === 1 ? '' : 's'}`} defaultOpen>
           <ul className="grid sm:grid-cols-2 gap-3">
             {team.map((rep) => (
@@ -80,16 +97,11 @@ export default function ClientDashboardBody({
         </Collapsible>
       )}
 
-      <section className="mb-8">
-        <p className="text-muted text-sm">
-          You&apos;re on the <span className="text-ink font-medium">{TIER_LABEL[tier]}</span> plan.{' '}
-          {audit
-            ? 'Your Strategic Marketing Audit and what is included are below.'
-            : 'Your audit will appear here once it has been generated.'}
-        </p>
-      </section>
+      {/* (#187) Removed the "You're on the X plan + your audit will appear..."
+          paragraph here -- the tier already shows in PortalHeader, and the
+          audit hint is folded into the "Your plan" section at the bottom. */}
 
-      {clientCampaigns.length > 0 && (
+      {hasCampaigns && (
         <Collapsible title="Your campaigns" meta={`${clientCampaigns.length} campaign${clientCampaigns.length === 1 ? '' : 's'}`}>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {clientCampaigns.map((c) => (
@@ -109,16 +121,12 @@ export default function ClientDashboardBody({
         </Collapsible>
       )}
 
-      <Collapsible title="Your content" meta={liveCount > 0 ? `${liveCount} live` : (campaign.length ? `${campaign.length} in motion` : 'nothing yet')} defaultOpen={campaign.length > 0}>
-        {campaign.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-surface p-6">
-            <p className="text-sm text-ink font-medium">Your campaign is being set in motion.</p>
-            <p className="text-sm text-muted mt-1.5 leading-relaxed">
-              As we draft content, ready it for approval, and publish it on your behalf, every
-              piece will appear here — so you can watch your campaign move.
-            </p>
-          </div>
-        ) : (
+      {/* (#187) "Your content" only renders when there's actually something
+          in motion. The empty-state copy was crowding the page for Day-1
+          clients with nothing to show -- the hero already says "Your campaign
+          is being set in motion." */}
+      {hasContent && (
+        <Collapsible title="Your content" meta={liveCount > 0 ? `${liveCount} live` : `${campaign.length} in motion`} defaultOpen>
           <ul className="grid sm:grid-cols-2 gap-3">
             {campaign.map((c) => {
               const tone =
@@ -163,32 +171,28 @@ export default function ClientDashboardBody({
               );
             })}
           </ul>
-        )}
-      </Collapsible>
+        </Collapsible>
+      )}
 
-      <Collapsible title="Strategic Marketing Audit" meta={audit ? 'ready' : 'pending'}>
-        <div className="flex items-start justify-between gap-4 mb-3">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted">Strategic Marketing Audit</div>
-            <h2 id="audit-h" className="text-lg font-semibold text-ink mt-1">
-              {audit?.company || firstName || 'Your business audit'}
-            </h2>
+      {/* (#187) Audit section only renders when there's a real audit. The
+          "we're working on it" placeholder was just adding noise for fresh
+          clients — they hear the same message in their welcome email. */}
+      {hasAudit && audit && (
+        <Collapsible title="Strategic Marketing Audit" meta="ready" defaultOpen>
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted">Strategic Marketing Audit</div>
+              <h2 id="audit-h" className="text-lg font-semibold text-ink mt-1">
+                {audit.company || firstName || 'Your business audit'}
+              </h2>
+            </div>
+            {!preview && (
+              <a href="/client/audit" className="shrink-0 text-sm text-brand hover:underline">Read full audit -&gt;</a>
+            )}
           </div>
-          {audit && !preview && (
-            <a href="/client/audit" className="shrink-0 text-sm text-brand hover:underline">Read full audit -&gt;</a>
-          )}
-        </div>
 
-        {audit ? (
           <div className="text-sm text-ink whitespace-pre-line leading-relaxed">{auditPreview(audit.audit_content)}</div>
-        ) : (
-          <div className="text-sm text-muted">
-            We&apos;re working on your audit. It will appear here automatically once our team finishes it. If it&apos;s
-            been more than 48 hours, reply to your intake confirmation email and we&apos;ll check on it.
-          </div>
-        )}
 
-        {audit && (
           <div className="mt-4 pt-4 border-t border-border text-xs text-muted flex flex-wrap gap-x-4 gap-y-1">
             {audit.industry && (
               <span><span className="text-muted/70">Industry:</span> <span className="text-ink">{audit.industry}</span></span>
@@ -199,41 +203,56 @@ export default function ClientDashboardBody({
             </span>
             <span><span className="text-muted/70">Leads tracked:</span> <span className="text-ink">{leadCount}</span></span>
           </div>
-        )}
-      </Collapsible>
-
-      <Collapsible title="What's included in your plan">
-        <ul className="grid sm:grid-cols-2 gap-2">
-          {features.included.map((feature) => (
-            <li key={feature} className="flex items-start gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink">
-              <span aria-hidden="true" className="text-brand mt-0.5 shrink-0">&#x2713;</span>
-              <span>{feature}</span>
-            </li>
-          ))}
-        </ul>
-      </Collapsible>
-
-      {features.locked.length > 0 && (
-        <section aria-labelledby="locked-h" className="mb-12">
-          <div className="flex items-end justify-between gap-4 mb-3">
-            <h2 id="locked-h" className="text-lg font-semibold text-ink">Unlock more with an upgrade</h2>
-            <a href="https://atlanticandvine.netlify.app/#pricing" target="_blank" rel="noopener" className="text-sm text-brand hover:underline">
-              See all tiers -&gt;
-            </a>
-          </div>
-          <ul className="grid sm:grid-cols-2 gap-2">
-            {features.locked.map((feature) => (
-              <li key={feature.name} className="relative flex items-start gap-2 rounded-xl border border-dashed border-border bg-surface/60 px-4 py-3 text-sm">
-                <span aria-hidden="true" className="text-muted mt-0.5 shrink-0">&#x1F512;</span>
-                <div className="flex-1">
-                  <div className="text-muted">{feature.name}</div>
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-brand mt-1">Available in {feature.tier}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
+        </Collapsible>
       )}
+
+      {/* (#187) Merged "What's included" + "Unlock more" into a single
+          collapsed-by-default "Your plan" section. Two separate sections at
+          the bottom of every dashboard was overkill -- val asked for fewer
+          competing signals. The hint about a pending audit (when there isn't
+          one yet) lives in the meta line so it's subtle, not a whole section. */}
+      <Collapsible
+        title="Your plan"
+        meta={hasAudit ? TIER_LABEL[tier] : `${TIER_LABEL[tier]} · audit pending`}
+      >
+        <div className="space-y-5">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.14em] text-brand/85 mb-2">Included</div>
+            <ul className="grid sm:grid-cols-2 gap-2">
+              {features.included.map((feature) => (
+                <li key={feature} className="flex items-start gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-ink">
+                  <span aria-hidden="true" className="text-brand mt-0.5 shrink-0">&#x2713;</span>
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {features.locked.length > 0 && (
+            <div>
+              <div className="flex items-end justify-between gap-4 mb-2">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted">
+                  Unlock more with an upgrade
+                </div>
+                <a href="https://atlanticandvine.netlify.app/#pricing" target="_blank" rel="noopener" className="text-xs text-brand hover:underline">
+                  See all tiers -&gt;
+                </a>
+              </div>
+              <ul className="grid sm:grid-cols-2 gap-2">
+                {features.locked.map((feature) => (
+                  <li key={feature.name} className="relative flex items-start gap-2 rounded-xl border border-dashed border-border bg-surface/60 px-4 py-3 text-sm">
+                    <span aria-hidden="true" className="text-muted mt-0.5 shrink-0">&#x1F512;</span>
+                    <div className="flex-1">
+                      <div className="text-muted">{feature.name}</div>
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-brand mt-1">Available in {feature.tier}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </Collapsible>
 
       <footer className="border-t border-border pt-5 text-xs text-muted text-center">
         &copy; {new Date().getFullYear()} Atlantic And Vine LLC. Signed in as <span className="text-ink">{email}</span>.
