@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getClientIcp } from '@/lib/client/icp';
+import { getBriefSeed } from '@/lib/client/brief_store';
 
 export const runtime = 'nodejs';
 export const maxDuration = 10;
@@ -48,6 +49,20 @@ function bucketsForRange(min: number | null, max: number | null): string[] {
     .map((b) => b.value);
 }
 
+/**
+ * Crude tokenizer for the free-text intake fields (ideal_client, geo_focus).
+ * Splits on commas / semicolons / pipes / " and " / newlines, trims, strips
+ * obvious noise. Not a parser — just gets the operator unblocked when their
+ * structured ICP table is empty but their intake is rich.
+ */
+function tokenizeFreeText(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[,;|\n]| and /i)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2 && s.length <= 80);
+}
+
 export async function GET(req: NextRequest, { params }: { params: { client_id: string } }) {
   const guard = await guardAdminRequest(req, {
     targetResource: '/api/admin/av/clients/[client_id]/icp-for-discovery:GET',
@@ -65,12 +80,48 @@ export async function GET(req: NextRequest, { params }: { params: { client_id: s
 
   try {
     const icp = await getClientIcp(clientId);
+
+    // Primary path: the curated ICP table has values, use them as-is.
+    let industries = icp.industries;
+    let geographies = icp.geographies;
+    let employeeRanges = bucketsForRange(icp.companySizeMin, icp.companySizeMax);
+    let source: 'icp' | 'brief_fallback' | 'mixed' | 'none' =
+      industries.length || geographies.length || employeeRanges.length ? 'icp' : 'none';
+
+    // Fallback (#95 followup): the ICP table is empty for keys val didn't
+    // explicitly curate. Read the brief seed and use ideal_client / geo_focus
+    // as a stop-gap so "Find leads for Tim" works the moment his intake is in
+    // — operator doesn't have to also fill IcpEditor by hand. This is
+    // imperfect (free-text split, no semantic weighting) but it's the
+    // difference between "form auto-fills" and "form sits empty."
+    if (industries.length === 0 || geographies.length === 0) {
+      const seed = await getBriefSeed('av', clientId);
+      if (seed) {
+        if (industries.length === 0 && seed.audience) {
+          industries = tokenizeFreeText(seed.audience).slice(0, 8);
+        }
+        if (geographies.length === 0 && seed.geoFocus) {
+          geographies = tokenizeFreeText(seed.geoFocus).slice(0, 5);
+        }
+        // Mark mixed (some from ICP, some inferred) vs pure brief_fallback.
+        const usedFallback = (industries.length > 0 || geographies.length > 0);
+        if (usedFallback) {
+          source = source === 'none' ? 'brief_fallback' : 'mixed';
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
-      industries: icp.industries,
-      geographies: icp.geographies,
+      industries,
+      geographies,
       excludedIndustries: icp.excludedIndustries,
-      employeeRanges: bucketsForRange(icp.companySizeMin, icp.companySizeMax)
+      employeeRanges,
+      source,
+      hint:
+        source === 'brief_fallback' || source === 'mixed'
+          ? 'Some fields were inferred from the brief because this client\'s ICP table is empty. Open IcpEditor on their client page to curate it.'
+          : null
     });
   } catch (err) {
     return NextResponse.json(

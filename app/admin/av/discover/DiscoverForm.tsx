@@ -129,7 +129,16 @@ export function DiscoverForm({
   // the search criteria from THAT client's stored ICP. State below tracks the
   // last applied client so we don't clobber edits she made AFTER the auto-fill
   // and gives her a one-click "undo" if the saved ICP isn't what she wants.
-  const [autoFilledFromClient, setAutoFilledFromClient] = useState<{ clientId: number; name: string } | null>(null);
+  // (#95 followup) Also tracks SOURCE ('icp' / 'brief_fallback' / 'mixed' /
+  // 'none') so the banner is honest about whether the client has a real saved
+  // ICP or we just inferred from the brief.
+  const [autoFilledFromClient, setAutoFilledFromClient] = useState<{
+    clientId: number;
+    name: string;
+    source: 'icp' | 'brief_fallback' | 'mixed' | 'none';
+    appliedCount: number;
+    hint: string | null;
+  } | null>(null);
   const [autoFillBusy, setAutoFillBusy] = useState(false);
 
   useEffect(() => {
@@ -147,25 +156,39 @@ export function DiscoverForm({
     fetch(`/api/admin/av/clients/${clientId}/icp-for-discovery`, { cache: 'no-store' })
       .then(async (res) => {
         const raw = await res.text();
-        let data: { industries?: string[]; geographies?: string[]; excludedIndustries?: string[]; employeeRanges?: string[] } = {};
+        let data: {
+          industries?: string[];
+          geographies?: string[];
+          excludedIndustries?: string[];
+          employeeRanges?: string[];
+          source?: 'icp' | 'brief_fallback' | 'mixed' | 'none';
+          hint?: string | null;
+        } = {};
         try { data = JSON.parse(raw); } catch { throw new Error(`HTTP ${res.status} (non-JSON)`); }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         if (cancelled) return;
         // Apply each field only when the client has saved values for it, so a
         // partially-filled ICP doesn't wipe out val's typed criteria.
+        let applied = 0;
         if (Array.isArray(data.geographies) && data.geographies.length > 0) {
           setOrganizationLocations(data.geographies.join(', '));
-        }
-        if (Array.isArray(data.excludedIndustries) && data.excludedIndustries.length > 0) {
-          setOrganizationNotLocations((prev) => prev); // excludes are industries, not locations — leave locations
+          applied += 1;
         }
         if (Array.isArray(data.industries) && data.industries.length > 0) {
           setQOrganizationKeywordTags(data.industries.join(', '));
+          applied += 1;
         }
         if (Array.isArray(data.employeeRanges) && data.employeeRanges.length > 0) {
           setSelectedRanges(data.employeeRanges);
+          applied += 1;
         }
-        setAutoFilledFromClient({ clientId, name: clientName });
+        setAutoFilledFromClient({
+          clientId,
+          name: clientName,
+          source: data.source ?? 'none',
+          appliedCount: applied,
+          hint: data.hint ?? null
+        });
       })
       .catch(() => {
         // Non-fatal: if the ICP fetch fails the form stays as-is and val types
@@ -260,33 +283,73 @@ export function DiscoverForm({
 
       <form onSubmit={runSearch} className="bg-surface border border-border rounded-lg p-5 space-y-4">
         <DestinationSelect value={dest} onChange={setDest} clients={clients} employees={employees} />
-        {/* (#238) Auto-fill banner: shows when a client destination triggered
-            the ICP fill. Val can see at a glance what got loaded + has a
-            one-click reset if the saved ICP isn't the angle she wants. */}
+        {/* (#238 + #95 followup) Auto-fill banner: distinguishes whether
+            anything actually loaded, and whether it came from the curated ICP
+            table or was inferred from the brief as a fallback. Three states:
+              - icp / mixed: green tone, "Loaded from X's ICP"
+              - brief_fallback: amber-warning tone, "Inferred from brief"
+              - none: rose tone, "No ICP yet — open IcpEditor on their page" */}
         {autoFillBusy && (
           <div className="text-[11px] text-amber-300/70 -mt-2">Loading their saved ICP…</div>
         )}
         {!autoFillBusy && autoFilledFromClient && (
-          <div className="-mt-2 flex items-center gap-2 flex-wrap text-[11.5px] text-amber-200/85">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 font-medium">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-300" aria-hidden="true" />
-              Filled from {autoFilledFromClient.name}&apos;s saved ICP
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setOrganizationLocations('');
-                setQOrganizationKeywordTags('');
-                setSelectedRanges([]);
-                setAutoFilledFromClient(null);
-              }}
-              className="text-[10.5px] uppercase tracking-wider text-white/55 hover:text-white/85"
-            >
-              clear
-            </button>
-            <span className="text-white/40 text-[10.5px]">
-              Edit any field below before running — your changes win.
-            </span>
+          <div className="-mt-2 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap text-[11.5px]">
+              {autoFilledFromClient.source === 'icp' && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2 py-0.5 font-medium text-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
+                  Loaded from {autoFilledFromClient.name}&apos;s ICP ({autoFilledFromClient.appliedCount} field{autoFilledFromClient.appliedCount === 1 ? '' : 's'})
+                </span>
+              )}
+              {autoFilledFromClient.source === 'mixed' && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 font-medium text-amber-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300" aria-hidden="true" />
+                  Mixed — part from {autoFilledFromClient.name}&apos;s ICP, part inferred from brief
+                </span>
+              )}
+              {autoFilledFromClient.source === 'brief_fallback' && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 font-medium text-amber-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300" aria-hidden="true" />
+                  Inferred from {autoFilledFromClient.name}&apos;s brief — ICP not curated yet
+                </span>
+              )}
+              {autoFilledFromClient.source === 'none' && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-400/10 px-2 py-0.5 font-medium text-rose-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-300" aria-hidden="true" />
+                  No ICP saved yet for {autoFilledFromClient.name}
+                </span>
+              )}
+              {autoFilledFromClient.appliedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrganizationLocations('');
+                    setQOrganizationKeywordTags('');
+                    setSelectedRanges([]);
+                    setAutoFilledFromClient(null);
+                  }}
+                  className="text-[10.5px] uppercase tracking-wider text-white/55 hover:text-white/85"
+                >
+                  clear
+                </button>
+              )}
+              <a
+                href={`/admin/av/clients/${autoFilledFromClient.clientId}`}
+                className="text-[10.5px] uppercase tracking-wider text-amber-300/75 hover:text-amber-200"
+              >
+                Open their ICP editor →
+              </a>
+            </div>
+            {autoFilledFromClient.hint && (
+              <div className="text-[10.5px] text-white/55 italic leading-snug">
+                {autoFilledFromClient.hint}
+              </div>
+            )}
+            {autoFilledFromClient.source === 'none' && (
+              <div className="text-[10.5px] text-white/55 italic leading-snug">
+                Their brief isn&apos;t populated either, or doesn&apos;t mention industries/locations. Type the criteria below or fill their intake first.
+              </div>
+            )}
           </div>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
