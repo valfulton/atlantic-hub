@@ -16,7 +16,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-screen">
       <Sidebar showAv={showAv} showEbw={showEbw} />
-      <main className="flex-1 px-8 py-8 max-w-7xl">
+      {/* (#270) max-w-7xl was clipping the long action button row on lead
+          detail at typical zoom levels. Remove the hard width cap and let the
+          flex container breathe — sidebar is 256px fixed, content fills the
+          rest. Add a max-w of 1600px so on ultrawide monitors text doesn't
+          stretch past readable line length, but on standard 1440-1920 screens
+          it'll use the full width. */}
+      <main className="flex-1 px-8 py-8 min-w-0" style={{ maxWidth: '1600px' }}>
         {isOperator && <IntelTicker />}
         {children}
       </main>

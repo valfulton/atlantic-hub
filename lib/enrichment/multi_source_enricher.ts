@@ -53,7 +53,9 @@ export type EnrichmentSource =
   | 'instagram_apify'
   | 'website_scrape'
   | 'apollo_org'
+  | 'apollo_person'
   | 'hunter_io'
+  | 'whois_rdap'
   | 'manual_operator';
 
 /**

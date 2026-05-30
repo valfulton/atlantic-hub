@@ -390,6 +390,7 @@ export interface EnrichLeadFromInstagramResult {
 interface PerLeadIgEnrichRow extends RowDataPacket {
   id: number;
   company: string | null;
+  website: string | null;
   source_payload: string | object | null;
 }
 
@@ -459,7 +460,7 @@ export async function enrichLeadFromInstagram(args: {
   }
   const db = getAvDb();
   const [rows] = await db.execute<PerLeadIgEnrichRow[]>(
-    `SELECT id, company, source_payload FROM leads WHERE id = ? AND archived_at IS NULL LIMIT 1`,
+    `SELECT id, company, website, source_payload FROM leads WHERE id = ? AND archived_at IS NULL LIMIT 1`,
     [args.leadId]
   );
   const lead = rows[0];
@@ -483,6 +484,37 @@ export async function enrichLeadFromInstagram(args: {
       handleSource = typeof sp.ig_username === 'string' ? 'previous_enrich' : 'scraped';
     }
   }
+
+  // (#270) Auto-trigger a contact-page scrape if we still don't have a
+  // handle and the lead has a website. "manual googling × 100 clients" is
+  // not the answer — we have a working scraper already, just call it. This
+  // costs no API credits (regex-over-HTML), so it's free to try.
+  if (!handle && (lead.website ?? '').trim()) {
+    try {
+      const scraped = await scrapeContactPage(lead.website!.trim());
+      const igUrl = scraped.socials?.instagram ?? null;
+      if (igUrl) {
+        const norm = normalizeInstagramHandle(igUrl);
+        if (norm) {
+          handle = norm;
+          handleSource = 'scraped';
+          // Persist the scraped handle to source_payload so the next call
+          // skips the scrape entirely. Non-fatal if it fails.
+          await db.execute(
+            `UPDATE leads SET source_payload = JSON_MERGE_PATCH(
+                COALESCE(source_payload, JSON_OBJECT()),
+                CAST(? AS JSON)
+              )
+              WHERE id = ?`,
+            [JSON.stringify({ scraped_socials: scraped.socials ?? {} }), lead.id]
+          ).catch(() => { /* non-fatal */ });
+        }
+      }
+    } catch {
+      // scraper failures fall through to the company-name guess
+    }
+  }
+
   if (!handle && lead.company && lead.company.trim()) {
     handle = guessHandleFromCompany(lead.company);
     handleSource = 'company_name_fallback';

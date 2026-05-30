@@ -12,8 +12,7 @@ import { RescoreButton } from './RescoreButton';
 import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
 import { IntakeDraftEditor } from './IntakeDraftEditor';
 import { LeadNarrativeLines } from './LeadNarrativeLines';
-import { EnrichFromPlacesButton } from './EnrichFromPlacesButton';
-import { EnrichFromInstagramButton } from './EnrichFromInstagramButton';
+import { EnrichFromSourcesMenu } from './EnrichFromSourcesMenu';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
 import { AssignToClientControl } from './AssignToClientControl';
@@ -95,14 +94,14 @@ export default async function AvLeadDetailPage({
               column (industry, contact, phone) + stashes the full intake-shape
               draft on source_payload for the #253 lead→client carryover. */}
           <SmartEnrichButton auditId={lead.auditId} hasWebsite={!!lead.website} />
-          {/* (#268) Per-lead Google Places enrich — one click, real endpoint,
-              blanks-only fill. Refuses cleanly on no/ambiguous match. Replaces
-              the earlier deep-link approach. */}
-          <EnrichFromPlacesButton auditId={lead.auditId} hasCompany={!!(lead.company && lead.company.trim())} />
-          {/* (#269) Per-lead IG enrich. Resolves handle from scraped socials /
-              prior enrich / company-name guess; falls back to an override
-              input when auto-resolution fails. */}
-          <EnrichFromInstagramButton auditId={lead.auditId} />
+          {/* (#270) Consolidated enrich menu — Places, Instagram, WHOIS in
+              one dropdown so the action row stops sprawling. Each source
+              POSTs to its dedicated endpoint and reports back inline. */}
+          <EnrichFromSourcesMenu
+            auditId={lead.auditId}
+            hasWebsite={!!(lead.website && lead.website.trim())}
+            hasCompany={!!(lead.company && lead.company.trim())}
+          />
           {/* (#252 Inc 3) One-Apollo-credit re-call: skip the current contact's
               title + any ICP-excluded titles, insert the first survivor as a
               new sibling lead at the same company. Disabled with a tooltip
