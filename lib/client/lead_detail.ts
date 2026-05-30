@@ -230,7 +230,7 @@ function callScriptOf(raw: string | object | null): ClientCallScript | null {
  *   - "[ask]" sentinels from the intake filler are filtered out so the UI
  *     never renders the model's "I couldn't infer this" marker.
  */
-function prospectIntelFrom(raw: string | object | null): ProspectIntel | null {
+export function prospectIntelFrom(raw: string | object | null): ProspectIntel | null {
   const sp = asObj(raw);
   if (!sp) return null;
   const draftBlob = sp['lead_intake_draft'];

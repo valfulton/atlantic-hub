@@ -11,6 +11,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import type { ClientLeadDetail } from '@/lib/client/lead_detail';
+import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
 
 const TABS = ['Audit', 'Calls', 'Notes', 'AI Scoring', 'Outreach', 'Identity', 'Commercials'] as const;
 type Tab = (typeof TABS)[number];
@@ -238,77 +239,11 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
       </div>
 
       {/* (#253) "About this prospect" — distilled prospect-research the LLM
-          pulled from their own website. Only renders when there's at least
-          one populated field. Sits ABOVE the call script because it's the
-          context a rep wants BEFORE reading the script — what does this
-          company actually do? who do they sell to? Then "what to say." */}
-      {lead.prospectIntel && (
-        <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
-          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-amber-300">
-              About this prospect
-            </div>
-            <div className="text-[10px] text-muted">From their website</div>
-          </div>
-          <ul className="space-y-2">
-            {lead.prospectIntel.businessDescription && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">What they do</span>
-                <span className="text-ink">{lead.prospectIntel.businessDescription}</span>
-              </li>
-            )}
-            {lead.prospectIntel.slogan && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">Their tagline</span>
-                <span className="text-ink italic">&ldquo;{lead.prospectIntel.slogan}&rdquo;</span>
-              </li>
-            )}
-            {lead.prospectIntel.targetAudience && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">Who they sell to</span>
-                <span className="text-ink">{lead.prospectIntel.targetAudience}</span>
-              </li>
-            )}
-            {lead.prospectIntel.keyMessage && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">Their key message</span>
-                <span className="text-ink">{lead.prospectIntel.keyMessage}</span>
-              </li>
-            )}
-            {lead.prospectIntel.differentiators && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">What sets them apart</span>
-                <span className="text-ink">{lead.prospectIntel.differentiators}</span>
-              </li>
-            )}
-            {lead.prospectIntel.notableClients && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">Names they drop</span>
-                <span className="text-ink">{lead.prospectIntel.notableClients}</span>
-              </li>
-            )}
-            {lead.prospectIntel.pressAwards && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">Press / awards</span>
-                <span className="text-ink">{lead.prospectIntel.pressAwards}</span>
-              </li>
-            )}
-            {lead.prospectIntel.founderStory && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">Founder angle</span>
-                <span className="text-ink">{lead.prospectIntel.founderStory}</span>
-              </li>
-            )}
-            {lead.prospectIntel.brandVoice && (
-              <li className="text-sm leading-relaxed">
-                <span className="text-muted text-[11px] uppercase tracking-wider mr-2">Their voice</span>
-                <span className="text-ink">{lead.prospectIntel.brandVoice}</span>
-                <span className="text-[10.5px] text-muted ml-2">(match this when you reach out)</span>
-              </li>
-            )}
-          </ul>
-        </div>
-      )}
+          pulled from their own website. Shared component so operator + client
+          surfaces can't drift. Renders nothing when intel is null/empty. */}
+      <div className="mt-4">
+        <ProspectIntelPanel intel={lead.prospectIntel} />
+      </div>
 
       {/* "What to say on the call" — the highest-value thing, kept up top */}
       {lead.callScript && (lead.callScript.openers.length > 0 || lead.callScript.primaryPain) && (

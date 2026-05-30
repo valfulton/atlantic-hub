@@ -8,6 +8,7 @@ import { LeadCampaigns } from './LeadCampaigns';
 import { SocialContentButton } from './SocialContentButton';
 import { SmartEnrichButton } from './SmartEnrichButton';
 import { RescoreButton } from './RescoreButton';
+import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
 import { AssignToClientControl } from './AssignToClientControl';
@@ -103,6 +104,16 @@ export default async function AvLeadDetailPage({
       </div>
 
       <LeadCampaigns leadId={lead.id} />
+
+      {/* (#253) Same prospect-intel card the client sees on their lead view —
+          shared component so the two surfaces can't drift. Renders nothing
+          when the smart scraper hasn't run yet, in which case there's no
+          new visual weight on the page. */}
+      {lead.prospectIntel && (
+        <div className="mb-4">
+          <ProspectIntelPanel intel={lead.prospectIntel} />
+        </div>
+      )}
 
       <div className="bg-surface border border-border rounded-xl p-6">
         <LeadDetailTabs lead={lead} />

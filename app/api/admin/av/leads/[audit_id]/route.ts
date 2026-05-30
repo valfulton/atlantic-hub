@@ -4,6 +4,7 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled, mysqlBoolToJs } from '@/lib/feature-flags';
 import { getClientDealModel, leadMonthlyCents, annualCents } from '@/lib/sales/deal_model';
 import { listLeadAudits } from '@/lib/ai/lead_audits';
+import { prospectIntelFrom } from '@/lib/client/lead_detail';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -79,6 +80,8 @@ interface LeadDetailRow extends RowDataPacket {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  /** (#253) Raw provenance + smart-scrape stash for the prospect-intel panel. */
+  source_payload: string | object | null;
 }
 
 export async function GET(
@@ -110,6 +113,7 @@ export async function GET(
               enrichment_status, enriched_at,
               address_street, address_city, address_state, address_postal, address_country,
               JSON_UNQUOTE(JSON_EXTRACT(source_payload, '$.apollo_estimated_num_employees')) AS employee_count_est,
+              source_payload,
               challenge, audit_content, audit_generated, is_approved, approval_date,
               approved_by, submission_date, lead_status, follow_up_date, notes,
               ai_score, ai_score_band, ai_score_reason, ai_score_breakdown, ai_audit,
@@ -201,6 +205,11 @@ export async function GET(
         dealMonthlyCents,
         dealAnnualCents: annualCents(dealMonthlyCents),
         auditLenses,
+        // (#253) Distilled prospect-research the smart scraper pulled from the
+        // lead's website. Renders identical on the operator + client views
+        // (shared ProspectIntelPanel component). Returns null when no Smart
+        // enrich has run yet, in which case the page hides the panel cleanly.
+        prospectIntel: prospectIntelFrom(r.source_payload),
         archivedAt: r.archived_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at
