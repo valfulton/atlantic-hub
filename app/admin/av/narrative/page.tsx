@@ -6,6 +6,7 @@ import {
 import { outcomesForLines, type LineOutcomes } from '@/lib/campaigns/line_outcomes';
 import { NarrativeCockpit } from './NarrativeCockpit';
 import { LineBackfillButton } from './LineBackfillButton';
+import { ClientFeedbackFeed } from './ClientFeedbackFeed';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +66,10 @@ export default async function NarrativePage() {
       <div className="mb-6">
         <LineBackfillButton />
       </div>
+      {/* (#61 Inc 4-polish-A) Client feedback on queued drafts — collapsed by
+          default, hides when there's nothing to read. Sits above the cockpit
+          so val sees comments without leaving the page. */}
+      <ClientFeedbackFeed />
       <NarrativeCockpit
         customers={customers}
         initialLines={lines.map(toClient)}

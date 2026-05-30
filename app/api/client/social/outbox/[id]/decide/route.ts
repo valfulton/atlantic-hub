@@ -54,7 +54,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'decision must be "approve" or "reject"' }, { status: 400 });
   }
 
-  const result = await decideClientReviewItem({ clientId, outboxId, decision });
+  // (#61 Inc 4-polish-A) Optional fields — the lib sanitizes (trim + slice).
+  const editedBody = typeof body.editedBody === 'string' ? body.editedBody : null;
+  const notes = typeof body.notes === 'string' ? body.notes : null;
+
+  const result = await decideClientReviewItem({ clientId, outboxId, decision, editedBody, notes });
   if (!result.ok) {
     return NextResponse.json({ error: result.reason ?? 'could not record decision' }, { status: 409 });
   }
