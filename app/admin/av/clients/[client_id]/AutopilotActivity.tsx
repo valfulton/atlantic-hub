@@ -71,8 +71,26 @@ const FRIENDLY: Record<string, { icon: string; label: (p: Record<string, unknown
       return `Pulled brand kit from website${bits ? ` (${bits})` : ''}`;
     }
   },
+  'autopilot.discovery_audit_started': {
+    icon: '▸',
+    label: (p) => {
+      const n = Number(p.lead_count ?? 0);
+      return `Started auditing ${n} top-fit new lead${n === 1 ? '' : 's'}`;
+    }
+  },
+  'autopilot.discovery_audited': {
+    icon: '✓',
+    label: (p) => {
+      const a = Number(p.audited ?? 0);
+      const s = Number(p.scripted ?? 0);
+      const f = Number(p.failed ?? 0);
+      const tail = f > 0 ? ` (${f} failed)` : '';
+      return `Audited ${a} + drafted ${s} call script${s === 1 ? '' : 's'} for top-fit new leads${tail}`;
+    }
+  },
   'autopilot.icp_sharpen_failed': { icon: '!', label: () => 'ICP sharpen failed (will retry next brief edit)' },
   'autopilot.discovery_score_failed': { icon: '!', label: () => 'Discovery-batch scoring failed' },
+  'autopilot.discovery_audit_failed': { icon: '!', label: () => 'Discovery audit failed' },
   'autopilot.audit_regen_failed': { icon: '!', label: () => 'Audit regen failed' },
   'autopilot.brand_kit_extract_failed': { icon: '!', label: () => 'Brand-kit extraction failed' }
 };

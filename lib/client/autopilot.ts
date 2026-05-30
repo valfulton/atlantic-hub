@@ -28,6 +28,7 @@ import { getClientIcp, saveClientIcp, type ClientIcp, type IcpProvenance } from 
 import { sharpenIcpFromBrief } from '@/lib/client/icp_sharpener';
 import { scoreClientLeadsBulk } from '@/lib/ai/client_icp_fit';
 import { scoreAndAuditLead } from '@/lib/ai/score_and_audit';
+import { extractPainProfileForLead } from '@/lib/ai/pain_extractor';
 import { extractBrandKitFromUrl } from '@/lib/client/brand_kit_extractor';
 import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
@@ -39,6 +40,16 @@ const STALE_AUDIT_REGEN_TOP_N = 5;
 const AUDIT_REGEN_RATE_LIMIT_HOURS = 6;
 /** Don't re-fire autopilot brand-kit extraction for the same client within this window. */
 const BRAND_KIT_RATE_LIMIT_HOURS = 24;
+/**
+ * (#193) After a discovery batch, the top-N highest-fit just-discovered leads
+ * get the FULL regrounded audit + call script inline so val opens the lead
+ * immediately and sees coaching framed in THEIR client's offer — not "no
+ * intel, check back tomorrow" while the daily cron catches up. Capped to keep
+ * LLM spend bounded per discovery run; the rest still ride the daily cron.
+ */
+const DISCOVERY_AUDIT_TOP_N = 5;
+/** Minimum ICP-fit score before autopilot bothers auditing — skip cold leads. */
+const DISCOVERY_AUDIT_MIN_FIT = 60;
 
 /**
  * Run the ICP sharpener for a client IF their ICP table is currently empty.
@@ -160,9 +171,116 @@ export async function maybeScoreDiscoveryBatch(args: {
         inserted_count: insertedCount
       }
     });
+
+    // (#193) Now that ICP-fit scores are populated for this batch, audit
+    // (regrounded in the CLIENT's offer) + extract a call script for the
+    // TOP-N hottest fits. Fixes the symptom "newly-discovered lead has no
+    // call script for 24h until the cron sweep catches it" — by then val
+    // has already opened the lead, seen blanks, and concluded that
+    // regrounding doesn't work. With this hook, the top fits are
+    // audit+script-ready within minutes of discovery.
+    //
+    // Fire-and-forget (no await) so the parent autopilot loop logs the
+    // ICP-fit completion immediately. The downstream function logs its own
+    // success/failure event.
+    void maybeAuditAndScriptTopFits({ clientId }).catch(() => undefined);
   } catch (err) {
     await logEvent({
       eventType: 'autopilot.discovery_score_failed',
+      source: 'autopilot',
+      status: 'failure',
+      errorMessage: (err as Error).message
+    });
+  }
+}
+
+/**
+ * (#193) Audit + extract call script for the TOP-N highest-fit leads on a
+ * client that don't yet have an audit. Closes the "no call script for 24h"
+ * gap between discovery and the daily score-sweep / pain-sweep crons.
+ *
+ * Hard caps:
+ *   - DISCOVERY_AUDIT_TOP_N leads per fire (cost ceiling)
+ *   - DISCOVERY_AUDIT_MIN_FIT score floor (don't audit cold leads)
+ *   - 50s hard deadline (one batch worth of LLM calls)
+ *   - Sequential (one LLM call at a time)
+ *
+ * Both scoreAndAuditLead and extractPainProfileForLead go through the
+ * lens-aware regrounded path (lensForClient(lead.client_id)), so the call
+ * script lands in THIS client's selling voice — not the AV marketing audit.
+ *
+ * NEVER throws. Logs autopilot.discovery_audit_* events for auditability.
+ */
+export async function maybeAuditAndScriptTopFits(args: {
+  clientId: number | null;
+}): Promise<void> {
+  try {
+    const { clientId } = args;
+    if (!clientId) return;
+
+    const db = getAvDb();
+    const [topRows] = await db.execute<(RowDataPacket & { id: number; fit: number | null })[]>(
+      `SELECT id, client_icp_fit_score AS fit
+         FROM leads
+        WHERE client_id = ?
+          AND archived_at IS NULL
+          AND audit_content IS NULL
+          AND client_icp_fit_score IS NOT NULL
+          AND client_icp_fit_score >= ?
+        ORDER BY client_icp_fit_score DESC, id DESC
+        LIMIT ?`,
+      [clientId, DISCOVERY_AUDIT_MIN_FIT, DISCOVERY_AUDIT_TOP_N]
+    );
+    if (topRows.length === 0) return;
+
+    await logEvent({
+      eventType: 'autopilot.discovery_audit_started',
+      organizationId: clientId,
+      source: 'autopilot',
+      payload: { lead_count: topRows.length, min_fit: DISCOVERY_AUDIT_MIN_FIT }
+    });
+
+    const hardDeadline = Date.now() + 50_000;
+    let audited = 0;
+    let scripted = 0;
+    let failed = 0;
+
+    for (const r of topRows) {
+      if (Date.now() > hardDeadline) break;
+      try {
+        // Step 1: regrounded audit (writes leads.audit_content + lens row).
+        const auditRes = await scoreAndAuditLead(r.id);
+        if (!auditRes || auditRes.skipped) {
+          continue;
+        }
+        audited += 1;
+
+        // Step 2: regrounded pain extraction (reads the just-written audit_content
+        // through extractPainProfileForLead, which queries the lead fresh).
+        if (Date.now() > hardDeadline) break;
+        const painRes = await extractPainProfileForLead(r.id);
+        if (painRes) scripted += 1;
+      } catch (err) {
+        failed += 1;
+        console.error('[autopilot:discovery_audit]', r.id, (err as Error).message);
+      }
+    }
+
+    await logEvent({
+      eventType: 'autopilot.discovery_audited',
+      organizationId: clientId,
+      source: 'autopilot',
+      payload: {
+        attempted: topRows.length,
+        audited,
+        scripted,
+        failed,
+        top_fit: topRows[0]?.fit ?? null
+      }
+    });
+  } catch (err) {
+    await logEvent({
+      eventType: 'autopilot.discovery_audit_failed',
       source: 'autopilot',
       status: 'failure',
       errorMessage: (err as Error).message
