@@ -270,16 +270,25 @@ export default function FillIntakeFromWebPanel({
                     )}
                   </div>
                   {/* Show the existing value for overwrite keys so val can see what's
-                      about to be replaced. Muted, line-through to read as "current →
-                      will become". */}
-                  {currentValue && (
-                    <div className="mb-1.5 rounded border border-white/5 bg-black/25 px-2 py-1">
-                      <div className="text-[9px] uppercase tracking-[0.14em] text-white/35 mb-0.5">
-                        Current
+                      about to be replaced. Strikethrough to read as "currently this
+                      → becomes the textarea below". High-contrast rose tint over the
+                      card so it can't be missed. */}
+                  {!isBlank && (
+                    <div className="mb-2 rounded-md border border-rose-400/30 bg-rose-500/[0.12] px-2.5 py-2">
+                      <div className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.14em] text-rose-200/80 mb-1 font-medium">
+                        <span>Currently</span>
+                        <span className="text-rose-200/50">→</span>
+                        <span className="text-amber-300/85">replaced with the value below</span>
                       </div>
-                      <div className="text-[11px] text-white/55 leading-snug whitespace-pre-wrap break-words">
-                        {currentValue}
-                      </div>
+                      {currentValue ? (
+                        <div className="text-[11.5px] text-rose-100/85 leading-snug whitespace-pre-wrap break-words line-through decoration-rose-300/60">
+                          {currentValue}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-rose-200/55 italic">
+                          (existing value not available — re-read to refresh)
+                        </div>
+                      )}
                     </div>
                   )}
                   <textarea
