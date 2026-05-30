@@ -179,6 +179,31 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
   }, []);
 
   const [genStatus, setGenStatus] = useState<Record<number, { loading: boolean; msg: string | null }>>({});
+
+  // (#61 Inc 1) Per-asset branding state for line-born commercials. Keyed by
+  // asset id (not line id) so multiple commercials on the same line can be
+  // branded in parallel without trampling each other's state.
+  const [brandingAsset, setBrandingAsset] = useState<Record<number, { loading: boolean; msg: string | null; ok?: boolean }>>({});
+  const brandLineCommercial = useCallback(async (lineId: number, assetId: number) => {
+    setBrandingAsset((s) => ({ ...s, [assetId]: { loading: true, msg: null } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${lineId}/commercial/${assetId}/brand-video`, { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBrandingAsset((s) => ({ ...s, [assetId]: { loading: false, msg: j.error ?? `HTTP ${res.status}`, ok: false } }));
+        return;
+      }
+      // Update the local commercial card so brandedStatus flips to ready
+      // immediately — no full reload needed.
+      setCommercials((m) => ({
+        ...m,
+        [lineId]: (m[lineId] ?? []).map((c) => c.id === assetId ? { ...c, brandedStatus: 'ready' } : c)
+      }));
+      setBrandingAsset((s) => ({ ...s, [assetId]: { loading: false, msg: 'Branded ✓', ok: true } }));
+    } catch (e) {
+      setBrandingAsset((s) => ({ ...s, [assetId]: { loading: false, msg: (e as Error).message, ok: false } }));
+    }
+  }, []);
   const generateCommercial = useCallback(async (id: number) => {
     const pd = promptDraft[id];
     if (!pd?.text?.trim()) return;
@@ -486,7 +511,7 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
     return out;
   };
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes, promotable: new Set<number>() };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes, promotable: new Set<number>(), brandingAsset, brandLineCommercial };
 
   return (
     <div>
@@ -627,6 +652,10 @@ interface EditorProps {
    *  customer's weakest active line — surfaced as a "promote candidate?"
    *  hint on those rows. Computed per customer at the parent level. */
   promotable: Set<number>;
+  /** (#61 Inc 1) Per-asset branding state — drives the "Brand it" button
+   *  on line-born commercial cards (loading / ok / error). */
+  brandingAsset: Record<number, { loading: boolean; msg: string | null; ok?: boolean }>;
+  brandLineCommercial: (lineId: number, assetId: number) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -715,7 +744,7 @@ function Collapsible({ title, hint, defaultOpen = false, children }: { title: st
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, brandingAsset, brandLineCommercial }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -1125,19 +1154,65 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8 }}>
-            {comms.map((c) => (
-              <div key={c.id} style={{ border: '1px solid rgba(148,163,184,0.16)', borderRadius: 10, padding: 10, fontSize: 12, color: '#cbd5e1' }}>
-                <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{c.assetType}</div>
-                {c.generationStatus && GEN_STATUS_LABEL[c.generationStatus] && (
-                  <div style={{ color: GEN_STATUS_LABEL[c.generationStatus].fg, fontSize: 11, marginTop: 1 }}>
-                    {GEN_STATUS_LABEL[c.generationStatus].label}
-                  </div>
-                )}
-                {c.campaignName && <div style={{ color: '#94a3b8' }}>{c.campaignName}</div>}
-                {c.company && <div style={{ color: '#64748b' }}>{c.company}</div>}
-                {c.brandedStatus && <div style={{ color: '#6ee7b7', marginTop: 2 }}>{c.brandedStatus}</div>}
-              </div>
-            ))}
+            {comms.map((c) => {
+              // (#61 Inc 1) Brand-it eligibility: video commercials that have
+              // finished generating but haven't been branded yet. Image
+              // commercials get their branding inline via the prompt — only
+              // videos need the ffmpeg logo overlay pass.
+              const canBrand =
+                c.assetType === 'video' &&
+                c.generationStatus === 'succeeded' &&
+                c.brandedStatus !== 'ready' &&
+                c.brandedStatus !== 'processing';
+              const branding = brandingAsset[c.id];
+              return (
+                <div key={c.id} style={{ border: '1px solid rgba(148,163,184,0.16)', borderRadius: 10, padding: 10, fontSize: 12, color: '#cbd5e1' }}>
+                  <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{c.assetType}</div>
+                  {c.generationStatus && GEN_STATUS_LABEL[c.generationStatus] && (
+                    <div style={{ color: GEN_STATUS_LABEL[c.generationStatus].fg, fontSize: 11, marginTop: 1 }}>
+                      {GEN_STATUS_LABEL[c.generationStatus].label}
+                    </div>
+                  )}
+                  {c.campaignName && <div style={{ color: '#94a3b8' }}>{c.campaignName}</div>}
+                  {c.company && <div style={{ color: '#64748b' }}>{c.company}</div>}
+                  {c.brandedStatus === 'ready' && (
+                    <div style={{ color: '#6ee7b7', marginTop: 2 }}>✓ branded</div>
+                  )}
+                  {c.brandedStatus === 'processing' && (
+                    <div style={{ color: '#fcd34d', marginTop: 2 }}>processing…</div>
+                  )}
+                  {c.brandedStatus === 'failed' && (
+                    <div style={{ color: '#fca5a5', marginTop: 2 }}>brand failed</div>
+                  )}
+                  {canBrand && (
+                    <button
+                      type="button"
+                      onClick={() => brandLineCommercial(line.id, c.id)}
+                      disabled={branding?.loading}
+                      title="Overlay the customer's logo onto this video via ffmpeg."
+                      style={{
+                        marginTop: 6,
+                        fontSize: 11,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        background: branding?.loading ? 'rgba(148,163,184,0.10)' : 'rgba(253,191,107,0.10)',
+                        border: '1px solid ' + (branding?.loading ? 'rgba(148,163,184,0.25)' : 'rgba(253,191,107,0.40)'),
+                        color: branding?.loading ? '#94a3b8' : '#fbbf24',
+                        cursor: branding?.loading ? 'not-allowed' : 'pointer',
+                        width: '100%'
+                      }}
+                    >
+                      {branding?.loading ? '✨ branding…' : '✨ Brand it'}
+                    </button>
+                  )}
+                  {branding?.msg && (
+                    <div style={{ marginTop: 4, fontSize: 11, color: branding.ok ? '#6ee7b7' : '#fca5a5' }}>
+                      {branding.msg}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </Collapsible>

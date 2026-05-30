@@ -107,6 +107,77 @@ export async function getBrandKitLogoBuffer(
 }
 
 /**
+ * (#61 Inc 1) Latest brand kit for ANY of a customer's leads — used when we
+ * need to brand an asset that isn't tied to one specific lead (line-born
+ * commercials). Strategy: pick the most recently UPDATED kit among leads
+ * owned by this client_id, on the theory that the freshest kit is the
+ * customer's current logo/treatment. House lines (clientId=null) fall back
+ * to the most recent kit across all operator leads — the brand's own logo.
+ *
+ * Returns null when there's no kit anywhere for the customer (UI surfaces
+ * an honest message asking val to set one up). Fails soft on missing table.
+ */
+export async function getBrandKitForClient(
+  clientId: number | null,
+  options: { includeDataUrl?: boolean } = {}
+): Promise<BrandKitRecord | null> {
+  const db = getAvDb();
+  try {
+    const where = clientId && clientId > 0 ? 'l.client_id = ?' : 'l.client_id IS NULL';
+    const params: unknown[] = clientId && clientId > 0 ? [clientId] : [];
+    const [rows] = await db.execute<BrandKitRow[]>(
+      `SELECT bk.id, bk.lead_id, bk.logo_data, bk.logo_mime_type, bk.logo_filename,
+              bk.logo_width, bk.logo_height, bk.default_position, bk.default_opacity,
+              bk.default_scale, bk.default_padding, bk.auto_apply, bk.created_at,
+              bk.updated_at, bk.created_by_user_id
+         FROM lead_brand_kits bk
+         JOIN leads l ON l.id = bk.lead_id
+        WHERE ${where}
+          AND bk.logo_data IS NOT NULL
+        ORDER BY bk.updated_at DESC
+        LIMIT 1`,
+      params
+    );
+    return rows[0] ? rowToRecord(rows[0], !!options.includeDataUrl) : null;
+  } catch (err) {
+    const msg = (err as Error).message || '';
+    if (msg.includes("Table") && msg.includes("doesn't exist")) return null;
+    throw err;
+  }
+}
+
+/** Same as getBrandKitForClient but returns just the logo bytes — used in
+ *  hot paths (video compositor) that don't need the rest of the record. */
+export async function getBrandKitLogoBufferForClient(
+  clientId: number | null
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const db = getAvDb();
+  try {
+    const where = clientId && clientId > 0 ? 'l.client_id = ?' : 'l.client_id IS NULL';
+    const params: unknown[] = clientId && clientId > 0 ? [clientId] : [];
+    const [rows] = await db.execute<
+      (RowDataPacket & { logo_data: Buffer | null; logo_mime_type: string | null })[]
+    >(
+      `SELECT bk.logo_data, bk.logo_mime_type
+         FROM lead_brand_kits bk
+         JOIN leads l ON l.id = bk.lead_id
+        WHERE ${where}
+          AND bk.logo_data IS NOT NULL
+        ORDER BY bk.updated_at DESC
+        LIMIT 1`,
+      params
+    );
+    const row = rows[0];
+    if (!row || !row.logo_data || !row.logo_mime_type) return null;
+    return { buffer: row.logo_data, mimeType: row.logo_mime_type };
+  } catch (err) {
+    const msg = (err as Error).message || '';
+    if (msg.includes("Table") && msg.includes("doesn't exist")) return null;
+    throw err;
+  }
+}
+
+/**
  * Create or update the brand kit for a lead. Idempotent on lead_id.
  * Only fields explicitly set in input are written; nulls are kept where
  * the caller did not provide a value.
