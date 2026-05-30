@@ -11,6 +11,7 @@ import { FindAnotherPocButton } from './FindAnotherPocButton';
 import { RescoreButton } from './RescoreButton';
 import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
 import { IntakeDraftEditor } from './IntakeDraftEditor';
+import { LeadNarrativeLines } from './LeadNarrativeLines';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
 import { AssignToClientControl } from './AssignToClientControl';
@@ -111,6 +112,13 @@ export default async function AvLeadDetailPage({
       </div>
 
       <LeadCampaigns leadId={lead.id} />
+
+      {/* (#46 spine Inc 1) The narrative spine, seen FROM the lead — which of
+          this owner's active lines does this lead support, with one-click
+          link/role/unlink. Hides entirely when the owner has no active lines,
+          so it adds zero visual weight on day one and lights up the moment
+          val starts steering on a thesis. */}
+      <LeadNarrativeLines auditId={lead.auditId} />
 
       {/* (#253) Same prospect-intel card the client sees on their lead view —
           shared component so the two surfaces can't drift. Renders nothing
