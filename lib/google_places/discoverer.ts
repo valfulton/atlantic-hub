@@ -21,13 +21,101 @@ import { inferTargetBusinessFromRaw, type TargetBusiness } from '@/lib/leads/tar
 import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/leads/dedup';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { enrichLeadFromSource } from '@/lib/enrichment/multi_source_enricher';
 
 export type PlacesDiscoverOutcome =
   | 'inserted'
   | 'duplicate_existing'
   | 'duplicate_target_upgraded'
+  /** (#251 Inc 1) Lead already existed but THIS Places call fetched fresh
+   *  data we didn't have yet (phone, address, rating, etc.) and wrote it
+   *  onto the existing row instead of throwing it away. */
+  | 'duplicate_enriched'
   | 'no_phone_or_website'
   | 'insert_failed';
+
+/**
+ * (#251 Inc 1) Best-effort parse of Google's formattedAddress into the
+ * canonical leads.address_* columns. Google doesn't return structured
+ * components at our field-mask tier — we'd have to bump to the more
+ * expensive Enterprise SKU. Cheap heuristic split on commas works for the
+ * 80% case (US addresses arrive as "street, city, state postal, country").
+ * Anything ambiguous gets left out (we never fabricate a city when the
+ * pattern doesn't match — the enricher only writes the fields that parsed
+ * cleanly). The full formattedAddress always lands in sourceMetadata so
+ * nothing is lost.
+ */
+function parseFormattedAddress(formatted: string | null | undefined): {
+  street?: string;
+  city?: string;
+  state?: string;
+  postal?: string;
+  country?: string;
+} {
+  if (!formatted || typeof formatted !== 'string') return {};
+  const parts = formatted.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length < 2) return {};
+  const country = parts.length >= 3 ? parts[parts.length - 1] : undefined;
+  const stateLine = parts.length >= 3 ? parts[parts.length - 2] : parts[parts.length - 1];
+  const city = parts.length >= 3 ? parts[parts.length - 3] : parts[parts.length - 2];
+  const street = parts.length >= 4 ? parts.slice(0, parts.length - 3).join(', ') : parts[0];
+  // "CA 90210" or "NY 10001-1234" — split on whitespace to peel postal off the state.
+  let state: string | undefined;
+  let postal: string | undefined;
+  const m = /^([A-Za-z .]+?)\s+([0-9A-Za-z\- ]+)$/.exec(stateLine ?? '');
+  if (m) {
+    state = m[1].trim();
+    postal = m[2].trim();
+  } else {
+    state = stateLine?.trim();
+  }
+  return {
+    street: street && street !== city ? street : undefined,
+    city: city?.trim() || undefined,
+    state: state || undefined,
+    postal: postal || undefined,
+    country: country?.trim() || undefined
+  };
+}
+
+/**
+ * (#251 Inc 1) Build the enrichment patch shape from a Google Places result.
+ * Used by BOTH dedup branches (client-scoped + operator-scoped) to keep the
+ * blank-fill behavior identical across paths. The metadata blob captures the
+ * Places-specific signal that doesn't fit a column — rating, hours, business
+ * status, types — so the lead detail can later surface "this came from Places
+ * on 2026-05-30, has 4.6 stars from 312 reviews."
+ */
+function buildPlacesPatch(
+  det: PlaceDetails,
+  phone: string | null,
+  website: string | null,
+  industry: string | null
+) {
+  const addr = parseFormattedAddress(det.formattedAddress);
+  return {
+    fields: {
+      phone: phone ?? undefined,
+      website: website ?? undefined,
+      industry: industry ?? undefined,
+      address_street: addr.street,
+      address_city: addr.city,
+      address_state: addr.state,
+      address_postal: addr.postal,
+      address_country: addr.country
+    },
+    sourceMetadata: {
+      place_id: det.id,
+      primary_type: det.primaryType,
+      types: det.types,
+      rating: det.rating,
+      user_rating_count: det.userRatingCount,
+      business_status: det.businessStatus,
+      formatted_address: det.formattedAddress
+    },
+    note: 'duplicate-hit enrichment'
+  };
+}
 
 export interface PlacesDiscoverResult {
   placeId: string;
@@ -49,6 +137,10 @@ export interface PlacesDiscoverBatchResult {
   resultsCount: number;
   insertedCount: number;
   duplicateCount: number;
+  /** (#251 Inc 1) Existing leads whose data this sweep filled with fresh
+   *  Places info (phone / address / industry / metadata). Counted separately
+   *  from duplicateCount so the operator can see compounding intelligence. */
+  enrichedCount: number;
   results: PlacesDiscoverResult[];
   nextPageToken: string | null;
 }
@@ -79,18 +171,36 @@ async function insertOnePlace(db: Pool, det: PlaceDetails, clientId: number | nu
         [clientId, domain]
       );
       if (dupDomain.length > 0) {
+        // (#251 Inc 1) Don't throw away the rich data Places just fetched —
+        // enrich the existing client-scoped lead with anything we don't have
+        // yet (phone, address parts, industry). source_payload gets a merged
+        // provenance entry so val can audit who filled what.
+        const enrichment = await enrichLeadFromSource({
+          leadId: dupDomain[0].id,
+          source: 'google_places',
+          patch: buildPlacesPatch(det, phone, website, industry)
+        });
         return {
           placeId: det.id,
-          outcome: 'duplicate_existing',
+          outcome: enrichment.filled > 0 ? 'duplicate_enriched' : 'duplicate_existing',
           leadId: dupDomain[0].id,
           details: { company, domain: domain ?? undefined, industry, primaryType: det.primaryType, rating: det.rating, userRatingCount: det.userRatingCount }
         };
       }
     }
   } else {
-    // Operator path (unchanged): global domain dedup + target_business merge.
+    // Operator path: global domain dedup + target_business merge + (#251) enrichment.
     const existing = await findExistingLead(db, { domain: website, phone, mode: 'loose' });
     if (existing) {
+      // (#251 Inc 1) Same enrichment write as the client path — fill any
+      // blanks on the existing operator-pipeline lead from Places' new data.
+      // Runs BEFORE the target_business merge so the outcome label below
+      // can still distinguish a target_upgrade from a pure enrichment.
+      const enrichment = await enrichLeadFromSource({
+        leadId: existing.leadId,
+        source: 'google_places',
+        patch: buildPlacesPatch(det, phone, website, industry)
+      });
       const merged = mergeTargetBusiness(existing.targetBusiness ?? 'av', targetBusiness);
       if (merged !== existing.targetBusiness) {
         await db.execute(`UPDATE leads SET target_business = ?, last_activity_at = NOW() WHERE id = ?`, [
@@ -106,7 +216,7 @@ async function insertOnePlace(db: Pool, det: PlaceDetails, clientId: number | nu
       }
       return {
         placeId: det.id,
-        outcome: 'duplicate_existing',
+        outcome: enrichment.filled > 0 ? 'duplicate_enriched' : 'duplicate_existing',
         leadId: existing.leadId,
         details: { company, domain: domain ?? undefined, industry, primaryType: det.primaryType, rating: det.rating, userRatingCount: det.userRatingCount }
       };
@@ -242,12 +352,23 @@ export async function runPlacesDiscoveryBatch(
     results.push(await insertOnePlace(db, details, clientId));
   }
   const insertedCount = results.filter((r) => r.outcome === 'inserted').length;
-  const duplicateCount = results.filter((r) => r.outcome === 'duplicate_existing' || r.outcome === 'duplicate_target_upgraded').length;
+  const enrichedCount = results.filter((r) => r.outcome === 'duplicate_enriched').length;
+  // (#251 Inc 1) duplicateCount now counts BOTH pure duplicates (nothing new
+  // to add) AND target_upgrades (only the target_business field changed) AND
+  // enriched duplicates — same as before so the existing UI doesn't regress.
+  // enrichedCount is broken out separately for the new "compounding intel"
+  // chip on the discovery summary panel.
+  const duplicateCount = results.filter((r) =>
+    r.outcome === 'duplicate_existing' ||
+    r.outcome === 'duplicate_target_upgraded' ||
+    r.outcome === 'duplicate_enriched'
+  ).length;
   return {
     filters,
     resultsCount: search.places.length,
     insertedCount,
     duplicateCount,
+    enrichedCount,
     results,
     nextPageToken: search.nextPageToken
   };
