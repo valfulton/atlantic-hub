@@ -45,6 +45,40 @@ export interface ClientOutreachMessage {
   repliedAt: string | null;
 }
 
+/**
+ * (#253) "About this prospect" — distilled view of the smart-scraped intake
+ * draft that lives in source_payload.lead_intake_draft. This is the layer
+ * that turns a lead's row into actual prospect research a rep can read
+ * before a call. Every field is OPTIONAL; an empty object means we have no
+ * smart-scrape draft for this lead yet (Smart enrich button hasn't been
+ * pressed, or the page-read failed).
+ *
+ * Only the fields a salesperson actually USES are surfaced. The full draft
+ * has 12+ keys; some of them (brand_colors, preferred_channels, etc.) are
+ * about the prospect's own marketing strategy — irrelevant to someone
+ * selling TO them. We hide those here intentionally.
+ */
+export interface ProspectIntel {
+  /** Plain-language "what they actually do" — the rep's opener anchor. */
+  businessDescription: string | null;
+  /** Their tagline — sometimes paraphrases nicely into a warm-call line. */
+  slogan: string | null;
+  /** How they position themselves to their own customers. */
+  keyMessage: string | null;
+  /** Who they sell to — helps the rep talk to peers, not generically. */
+  targetAudience: string | null;
+  /** What they emphasize as their angle — usually the right hook. */
+  differentiators: string | null;
+  /** Names they drop — credibility bridge if the rep recognizes any. */
+  notableClients: string | null;
+  /** Press / awards / certifications — proof points the rep can mirror back. */
+  pressAwards: string | null;
+  /** Founder story — warm-call angle, personal connection. */
+  founderStory: string | null;
+  /** Brand voice the prospect uses — rep matches tone in outreach. */
+  brandVoice: string | null;
+}
+
 export interface ClientLeadDetail {
   id: number;
   auditId: string | null;
@@ -80,6 +114,12 @@ export interface ClientLeadDetail {
   submittedAt: string | null;
   /** Read-only history of outreach messages sent for this lead. */
   outreach: ClientOutreachMessage[];
+  /**
+   * (#253) Smart-scraped prospect intel — what the LLM read off the prospect's
+   * own website. ALL fields null/empty when no Smart enrich has run yet. The
+   * client surface renders the panel only when at least one field is populated.
+   */
+  prospectIntel: ProspectIntel | null;
 }
 
 interface DetailRow extends RowDataPacket {
@@ -109,6 +149,8 @@ interface DetailRow extends RowDataPacket {
   audit_generated: string | Date | null;
   pain_point_profile: string | object | null;
   submission_date: string | Date | null;
+  /** (#253) Source provenance + the smart-scrape intake stash. */
+  source_payload: string | object | null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -171,6 +213,53 @@ function callScriptOf(raw: string | object | null): ClientCallScript | null {
   return { primaryPain, urgency, openers, avoid };
 }
 
+/**
+ * (#253) Pull the smart-scraped intake stash out of source_payload and
+ * project it down to the salesperson-relevant fields. Returns null when the
+ * draft is absent or empty — the UI panel skips render in that case.
+ *
+ * Field selection notes:
+ *   - business_description, slogan, key_message, target_audience,
+ *     differentiators, notable_clients, press_awards, founder_story,
+ *     brand_voice ARE included — these are research the rep would normally
+ *     do manually before a call.
+ *   - brand_colors, preferred_channels, brand_kit, etc are INTENTIONALLY
+ *     excluded — they're about the prospect's own marketing strategy and
+ *     irrelevant to a salesperson selling TO them. Keeping the panel lean
+ *     beats showing every available field.
+ *   - "[ask]" sentinels from the intake filler are filtered out so the UI
+ *     never renders the model's "I couldn't infer this" marker.
+ */
+function prospectIntelFrom(raw: string | object | null): ProspectIntel | null {
+  const sp = asObj(raw);
+  if (!sp) return null;
+  const draftBlob = sp['lead_intake_draft'];
+  if (!draftBlob || typeof draftBlob !== 'object' || Array.isArray(draftBlob)) return null;
+  const draft = draftBlob as Record<string, unknown>;
+  const pick = (k: string): string | null => {
+    const v = draft[k];
+    if (typeof v !== 'string') return null;
+    const t = v.trim();
+    if (!t || /^\[ask\]?/i.test(t)) return null;
+    return t;
+  };
+  const intel: ProspectIntel = {
+    businessDescription: pick('business_description'),
+    slogan: pick('slogan'),
+    keyMessage: pick('key_message'),
+    targetAudience: pick('target_audience'),
+    differentiators: pick('differentiators'),
+    notableClients: pick('notable_clients'),
+    pressAwards: pick('press_awards'),
+    founderStory: pick('founder_story'),
+    brandVoice: pick('brand_voice')
+  };
+  // If every field came back null, no point returning an empty shell — the
+  // UI uses `=== null` as its "skip render" signal.
+  if (Object.values(intel).every((v) => v === null)) return null;
+  return intel;
+}
+
 function toIso(v: string | Date | null): string | null {
   if (!v) return null;
   if (v instanceof Date) return v.toISOString();
@@ -197,7 +286,7 @@ export async function getClientLeadDetail(
             address_street, address_city, address_state, address_postal, address_country,
             lead_status, ai_score, ai_combined_score, ai_engagement_score, ai_score_band,
             ai_score_reason, ai_score_breakdown, audit_content, audit_generated,
-            pain_point_profile, submission_date
+            pain_point_profile, submission_date, source_payload
        FROM leads
       WHERE archived_at IS NULL
         AND audit_id = ?
@@ -265,6 +354,7 @@ export async function getClientLeadDetail(
     painSummary: painSummaryOf(r.pain_point_profile),
     callScript: callScriptOf(r.pain_point_profile),
     submittedAt: toIso(r.submission_date),
-    outreach
+    outreach,
+    prospectIntel: prospectIntelFrom(r.source_payload)
   };
 }
