@@ -20,6 +20,8 @@ import {
   apifyInstagramProfiles,
   extractContactFromBio,
   instagramCategoryToIndustry,
+  normalizeInstagramHandle,
+  ApifyTokenMissingError,
   type InstagramProfile
 } from '@/lib/apify/instagram';
 import { inferTargetBusinessFromRaw, type TargetBusiness } from '@/lib/leads/target_business';
@@ -342,5 +344,237 @@ export async function runInstagramDiscoveryBatch(usernames: string[], opts: { cl
     duplicateCount,
     enrichedCount,
     results
+  };
+}
+
+/* ===========================================================================
+ * (#269) Per-lead Instagram enrichment.
+ *
+ * Given a single existing lead, find their IG handle (from prior smart-scrape
+ * captures in source_payload OR a normalized-company-name guess), fetch the
+ * profile via Apify, run enrichLeadFromSource with the existing
+ * buildInstagramPatch. Blanks-only — never overwrites curated data.
+ *
+ * Handle resolution priority:
+ *   1. Explicit handle passed in args.handleOverride (operator-supplied)
+ *   2. source_payload.scraped_socials.instagram or source_payload.socials.instagram
+ *      (whatever the contact-page scraper or smart-LLM scraper captured)
+ *   3. source_payload.ig_username (already enriched once before)
+ *   4. Fallback: normalized company name (e.g. "NDVIP Solutions" → "ndvipsolutions")
+ *
+ * The fallback is best-effort — IG handles often don't match company names
+ * exactly, so we surface "no profile found" honestly when Apify returns blanks.
+ * Never throws — soft failures return {ok: false, reason}.
+ * =========================================================================== */
+export interface EnrichLeadFromInstagramResult {
+  ok: boolean;
+  /** How many lead columns were filled (excludes source_payload metadata). */
+  filled?: number;
+  fields?: string[];
+  /** The IG handle we landed on (so val can verify the right account). */
+  matchedHandle?: string;
+  matchedProfile?: {
+    username: string;
+    fullName: string | null;
+    profileUrl: string | null;
+    biography: string | null;
+    businessCategory: string | null;
+    followersCount: number | null;
+    isVerified: boolean | null;
+  };
+  /** Where the handle came from — gives val confidence in the match. */
+  handleSource?: 'override' | 'scraped' | 'previous_enrich' | 'company_name_fallback';
+  reason?: string;
+}
+
+interface PerLeadIgEnrichRow extends RowDataPacket {
+  id: number;
+  company: string | null;
+  source_payload: string | object | null;
+}
+
+function asObj(raw: string | object | null): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const v = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Pull an IG handle out of whatever shape source_payload captured it as.
+ *  Different scrapers / discovery paths store under slightly different keys;
+ *  this consolidates them. Returns null if nothing usable found. */
+function extractStoredIgHandle(sp: Record<string, unknown>): string | null {
+  // Direct fields stamped by previous IG enrichments
+  const ig1 = typeof sp.ig_username === 'string' ? sp.ig_username : null;
+  if (ig1) {
+    const n = normalizeInstagramHandle(ig1);
+    if (n) return n;
+  }
+  // Smart-scraper / contact-page scraper formats
+  const candidates: unknown[] = [];
+  const scraped = sp.scraped_socials;
+  if (scraped && typeof scraped === 'object') {
+    const obj = scraped as Record<string, unknown>;
+    candidates.push(obj.instagram);
+  }
+  const socials = sp.socials;
+  if (socials && typeof socials === 'object') {
+    const obj = socials as Record<string, unknown>;
+    candidates.push(obj.instagram);
+  }
+  // Smart LLM scraper sometimes stamps a flat key
+  if (typeof sp.instagram_url === 'string') candidates.push(sp.instagram_url);
+  if (typeof sp.instagram === 'string') candidates.push(sp.instagram);
+
+  for (const c of candidates) {
+    if (typeof c !== 'string') continue;
+    const n = normalizeInstagramHandle(c);
+    if (n) return n;
+  }
+  return null;
+}
+
+/** Cheap company-name → handle guess. "NDVIP Solutions, LLC" → "ndvipsolutions".
+ *  Strips legal suffixes + punctuation + lowercases. Returns null when the
+ *  result is too short (< 3 chars) to be a plausible handle. */
+function guessHandleFromCompany(company: string): string | null {
+  const cleaned = company
+    .toLowerCase()
+    .replace(/\b(llc|inc|ltd|co|corp|company|llp|gmbh|sa|sas|pte|plc|holdings?)\b/g, '')
+    .replace(/[^a-z0-9._]/g, '')
+    .slice(0, 30);
+  return cleaned.length >= 3 ? cleaned : null;
+}
+
+export async function enrichLeadFromInstagram(args: {
+  leadId: number;
+  handleOverride?: string | null;
+  actorUserId?: number | null;
+}): Promise<EnrichLeadFromInstagramResult> {
+  if (!Number.isInteger(args.leadId) || args.leadId <= 0) {
+    return { ok: false, reason: 'invalid lead id' };
+  }
+  const db = getAvDb();
+  const [rows] = await db.execute<PerLeadIgEnrichRow[]>(
+    `SELECT id, company, source_payload FROM leads WHERE id = ? AND archived_at IS NULL LIMIT 1`,
+    [args.leadId]
+  );
+  const lead = rows[0];
+  if (!lead) return { ok: false, reason: 'lead not found or archived' };
+
+  // Resolve which handle to use, in priority order.
+  let handle: string | null = null;
+  let handleSource: EnrichLeadFromInstagramResult['handleSource'];
+  if (args.handleOverride && args.handleOverride.trim()) {
+    handle = normalizeInstagramHandle(args.handleOverride.trim());
+    handleSource = 'override';
+  }
+  if (!handle) {
+    const sp = asObj(lead.source_payload);
+    const stored = extractStoredIgHandle(sp);
+    if (stored) {
+      handle = stored;
+      // Distinguish a handle already stamped by a previous IG enrich from one
+      // freshly captured by the website scraper, since val should trust them
+      // differently in the UI.
+      handleSource = typeof sp.ig_username === 'string' ? 'previous_enrich' : 'scraped';
+    }
+  }
+  if (!handle && lead.company && lead.company.trim()) {
+    handle = guessHandleFromCompany(lead.company);
+    handleSource = 'company_name_fallback';
+  }
+  if (!handle) {
+    return {
+      ok: false,
+      reason: 'No IG handle on file and the company name was too short to guess one. Either Smart-enrich the website first (we capture social links) or set a company name.'
+    };
+  }
+
+  // Fetch profile from Apify. apifyInstagramProfiles always returns one entry
+  // per input — a profile with all-nulls means Apify couldn't find that
+  // handle (private/banned/typo). We treat that as a soft fail.
+  let profiles: InstagramProfile[];
+  try {
+    profiles = await apifyInstagramProfiles([handle]);
+  } catch (err) {
+    await logEvent({
+      eventType: 'instagram.lead_enrich_failed',
+      leadId: lead.id,
+      userId: args.actorUserId ?? null,
+      source: 'instagram',
+      status: 'failure',
+      errorMessage: (err as Error).message.slice(0, 400),
+      payload: { stage: 'apify_fetch', handle, handle_source: handleSource }
+    });
+    if (err instanceof ApifyTokenMissingError) {
+      return { ok: false, reason: 'Apify token not configured — set APIFY_TOKEN in Netlify env.' };
+    }
+    return { ok: false, reason: `Instagram fetch failed: ${(err as Error).message.slice(0, 240)}` };
+  }
+
+  const prof = profiles[0];
+  // "Apify returned nothing useful" check — fullName + biography + followers
+  // all null is the signal Apify couldn't actually load the profile.
+  const usable = prof && (prof.fullName || prof.biography || prof.followersCount != null || prof.externalUrl);
+  if (!prof || !usable) {
+    const hint = handleSource === 'company_name_fallback'
+      ? ` (we guessed "@${handle}" from the company name — try Smart-enriching the website first so we can capture the real handle, or paste it in directly)`
+      : '';
+    return {
+      ok: false,
+      matchedHandle: handle,
+      handleSource,
+      reason: `Instagram couldn't load a profile for @${handle}${hint}.`
+    };
+  }
+
+  // Derive the same fields the discovery path would: bio-parsed contact,
+  // chosen email (business email or bio-parsed), phone, website, industry.
+  const bioContact = extractContactFromBio(prof.biography);
+  const email = prof.businessEmail || bioContact.email || null;
+  const phone = prof.businessPhoneNumber || bioContact.phone || null;
+  const website = prof.externalUrl || bioContact.bookingUrl || null;
+  const industry = instagramCategoryToIndustry(prof.businessCategoryName);
+  const patch = buildInstagramPatch(prof, email, phone, website, industry, bioContact);
+
+  const result = await enrichLeadFromSource({
+    leadId: lead.id,
+    source: 'instagram_apify',
+    patch
+  });
+
+  await logEvent({
+    eventType: 'instagram.lead_enriched',
+    leadId: lead.id,
+    userId: args.actorUserId ?? null,
+    source: 'instagram',
+    status: 'success',
+    payload: {
+      handle,
+      handle_source: handleSource,
+      filled: result.filled,
+      filled_fields: result.fields
+    }
+  });
+
+  return {
+    ok: true,
+    filled: result.filled,
+    fields: result.fields,
+    matchedHandle: handle,
+    handleSource,
+    matchedProfile: {
+      username: prof.username,
+      fullName: prof.fullName,
+      profileUrl: prof.profileUrl,
+      biography: prof.biography,
+      businessCategory: prof.businessCategoryName,
+      followersCount: prof.followersCount,
+      isVerified: prof.isVerified
+    }
   };
 }

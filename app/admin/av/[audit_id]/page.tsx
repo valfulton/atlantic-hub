@@ -13,6 +13,7 @@ import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
 import { IntakeDraftEditor } from './IntakeDraftEditor';
 import { LeadNarrativeLines } from './LeadNarrativeLines';
 import { EnrichFromPlacesButton } from './EnrichFromPlacesButton';
+import { EnrichFromInstagramButton } from './EnrichFromInstagramButton';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
 import { AssignToClientControl } from './AssignToClientControl';
@@ -98,17 +99,10 @@ export default async function AvLeadDetailPage({
               blanks-only fill. Refuses cleanly on no/ambiguous match. Replaces
               the earlier deep-link approach. */}
           <EnrichFromPlacesButton auditId={lead.auditId} hasCompany={!!(lead.company && lead.company.trim())} />
-          {/* (#267) Instagram still uses a deep-link until the matching
-              per-lead endpoint lands — same pattern, follow-up ticket. */}
-          {lead.company && (
-            <Link
-              href={`/admin/av/discover?source=instagram&q=${encodeURIComponent(lead.company)}`}
-              title="Search Instagram for this company — if found, fills any blank fields (handle, bio, contact email)."
-              className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border border-border text-ink hover:border-amber-400/40 bg-black/20 transition"
-            >
-              📷 Try IG
-            </Link>
-          )}
+          {/* (#269) Per-lead IG enrich. Resolves handle from scraped socials /
+              prior enrich / company-name guess; falls back to an override
+              input when auto-resolution fails. */}
+          <EnrichFromInstagramButton auditId={lead.auditId} />
           {/* (#252 Inc 3) One-Apollo-credit re-call: skip the current contact's
               title + any ICP-excluded titles, insert the first survivor as a
               new sibling lead at the same company. Disabled with a tooltip
