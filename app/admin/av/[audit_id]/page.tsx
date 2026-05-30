@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { LeadDetailTabs } from './LeadDetailTabs';
 import { LeadCampaigns } from './LeadCampaigns';
 import { SocialContentButton } from './SocialContentButton';
+import { SmartEnrichButton } from './SmartEnrichButton';
 import { RescoreButton } from './RescoreButton';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
@@ -82,6 +83,11 @@ export default async function AvLeadDetailPage({
             currentClientId={lead.clientId ?? null}
           />
           <SocialContentButton auditId={lead.auditId} />
+          {/* (#251 Inc 1c-prime) Operator-side trigger for the smart LLM
+              scraper. One click reads the lead's website and fills any blank
+              column (industry, contact, phone) + stashes the full intake-shape
+              draft on source_payload for the #253 lead→client carryover. */}
+          <SmartEnrichButton auditId={lead.auditId} hasWebsite={!!lead.website} />
           <ArchiveLeadButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
           <AnimatedScoreReveal
