@@ -67,6 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
     // unassigned or moved to a different client), wipe stale next_best_moves +
     // momentum_signals under the prior client's tenant pegged to this lead.
     let guidanceCleaned = 0;
+    let lensCleaned = 0;
     if (prior.client_id != null && prior.client_id !== clientId) {
       const [delRes] = await db.execute<ResultSetHeader>(
         `DELETE FROM intelligence_objects
@@ -76,9 +77,21 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
         [`client:${prior.client_id}`, prior.id]
       );
       guidanceCleaned = delRes.affectedRows ?? 0;
+      // (#192) ALSO wipe the prior client's LENS row in lead_audits. That row
+      // holds audit_content + pain_point_profile framed for the prior client's
+      // offer — under the new owner it's actively misleading (the call script
+      // would coach a rep to sell client A's offer to a lead that's now in
+      // client B's hub). Memory: per-lens audits are no-drift, but only while
+      // the lens still matches who owns the lead. When ownership leaves, the
+      // lens row's freshness guarantee is gone.
+      const [delLens] = await db.execute<ResultSetHeader>(
+        `DELETE FROM lead_audits WHERE lead_id = ? AND lens = ?`,
+        [prior.id, `client:${prior.client_id}`]
+      );
+      lensCleaned = delLens.affectedRows ?? 0;
     }
 
-    return NextResponse.json({ ok: true, clientId, guidanceCleaned });
+    return NextResponse.json({ ok: true, clientId, guidanceCleaned, lensCleaned });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }

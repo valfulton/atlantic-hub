@@ -408,8 +408,38 @@ export async function PATCH(
         ]
       );
 
+      // (#192) On ARCHIVE, sweep this lead's stale per-client guidance + the
+      // client-lens audit row so an archived lead never surfaces stale "next
+      // best move" cards on the owner's dashboard, and a future restore-to-the
+      // -same-client regenerates fresh intel grounded in whatever the brief
+      // says NOW. The 'av' lens row stays as forensic history.
+      // Same #188 cleanup pattern; runs inside the same transaction so a
+      // partial archive can't leave dangling intel.
+      let archiveGuidanceCleaned = 0;
+      let archiveLensCleaned = 0;
+      if (eventPayload.archived === true && lead.client_id != null) {
+        const [delGuidance] = await conn.execute<ResultSetHeader>(
+          `DELETE FROM intelligence_objects
+            WHERE tenant_id = ?
+              AND object_type IN ('next_best_moves','momentum_signals')
+              AND lead_id = ?`,
+          [`client:${lead.client_id}`, lead.id]
+        );
+        archiveGuidanceCleaned = delGuidance.affectedRows ?? 0;
+        const [delLens] = await conn.execute<ResultSetHeader>(
+          `DELETE FROM lead_audits WHERE lead_id = ? AND lens = ?`,
+          [lead.id, `client:${lead.client_id}`]
+        );
+        archiveLensCleaned = delLens.affectedRows ?? 0;
+      }
+
       await conn.commit();
-      return NextResponse.json({ ok: true, updated: result.affectedRows });
+      return NextResponse.json({
+        ok: true,
+        updated: result.affectedRows,
+        archiveGuidanceCleaned,
+        archiveLensCleaned
+      });
     } catch (txErr) {
       await conn.rollback();
       throw txErr;

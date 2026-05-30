@@ -62,6 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     // lead_ids would otherwise orphan and surface in the dashboard as stale
     // content the next time the cache picks the wrong (older) row.
     let guidanceCleaned = 0;
+    let lensCleaned = 0;
     if (releasedLeadIds.length > 0) {
       const leadPlaceholders = releasedLeadIds.map(() => '?').join(',');
       const [delRes] = await db.execute<ResultSetHeader>(
@@ -72,12 +73,24 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         [`client:${clientId}`, ...releasedLeadIds]
       );
       guidanceCleaned = delRes.affectedRows ?? 0;
+      // (#192) Wipe the client's LENS rows in lead_audits for the released
+      // leads. Those rows hold audit_content + pain_point_profile framed for
+      // THIS client's offer — back in the house pipeline they would mislead
+      // the next operator. The 'av' lens row stays untouched, so the lead's
+      // house-pipeline audit history is preserved.
+      const [delLens] = await db.execute<ResultSetHeader>(
+        `DELETE FROM lead_audits
+          WHERE lens = ? AND lead_id IN (${leadPlaceholders})`,
+        [`client:${clientId}`, ...releasedLeadIds]
+      );
+      lensCleaned = delLens.affectedRows ?? 0;
     }
 
     return NextResponse.json({
       ok: true,
       released: res.affectedRows ?? 0,
-      guidanceCleaned
+      guidanceCleaned,
+      lensCleaned
     });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
