@@ -438,7 +438,55 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes };
+  // (#218 Inc 2a) Spine recommendations per customer — turn outcomes into an
+  // actionable signal at the top of each customer block. Two computations:
+  //   topLine: the customer's best-converting line (wins → qualified → reach).
+  //            Only surfaces when SOMETHING positive exists; we don't recommend
+  //            on noise.
+  //   promoteCandidates: candidate-state lines whose outcomes outperform the
+  //            customer's WEAKEST active line (strict: wins > or wins= AND qualified >).
+  //            These are the ones worth promoting.
+  function rankOutcomes(a: CockpitOutcomes, b: CockpitOutcomes): number {
+    if (b.converted !== a.converted) return b.converted - a.converted;
+    if (b.qualified !== a.qualified) return b.qualified - a.qualified;
+    return b.leadsLinked - a.leadsLinked;
+  }
+  function hasPositive(o: CockpitOutcomes | undefined): boolean {
+    return !!o && (o.converted > 0 || o.qualified > 0);
+  }
+  function outperforms(c: CockpitOutcomes, a: CockpitOutcomes): boolean {
+    if (c.converted > a.converted) return true;
+    if (c.converted === a.converted && c.qualified > a.qualified) return true;
+    return false;
+  }
+  const topLineFor = (key: string): Line | null => {
+    const own = linesFor(key);
+    const scored = own
+      .map((l) => ({ l, o: initialOutcomes[l.id] }))
+      .filter((s) => hasPositive(s.o));
+    if (scored.length === 0) return null;
+    scored.sort((a, b) => rankOutcomes(a.o!, b.o!));
+    return scored[0].l;
+  };
+  const promotableCandidatesFor = (key: string): Set<number> => {
+    const own = linesFor(key);
+    const actives = own.filter((l) => l.state === 'active' || l.state === 'reinforcing');
+    if (actives.length === 0) return new Set();
+    const weakestActiveOutcomes = actives
+      .map((l) => initialOutcomes[l.id])
+      .filter((o): o is CockpitOutcomes => !!o)
+      .sort((a, b) => rankOutcomes(b, a))[0]; // first after reverse sort = weakest
+    if (!weakestActiveOutcomes) return new Set();
+    const out = new Set<number>();
+    for (const l of own) {
+      if (l.state !== 'candidate') continue;
+      const co = initialOutcomes[l.id];
+      if (co && hasPositive(co) && outperforms(co, weakestActiveOutcomes)) out.add(l.id);
+    }
+    return out;
+  };
+
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes, promotable: new Set<number>() };
 
   return (
     <div>
@@ -481,6 +529,11 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
         const own = linesFor(c.key);
         const activeN = activeCountFor(c.key);
         const open = openCustomer === c.key;
+        // (#218 Inc 2a) Per-customer spine recommendations.
+        const topLine = topLineFor(c.key);
+        const topOutcomes = topLine ? initialOutcomes[topLine.id] : undefined;
+        const promotable = promotableCandidatesFor(c.key);
+        const customerEditorProps = { ...editorProps, promotable };
         return (
           <div key={c.key} style={card}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setOpenCustomer(open ? null : c.key)}>
@@ -490,12 +543,41 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
               <span style={{ fontSize: 12, color: '#64748b' }}>· {own.length} line{own.length === 1 ? '' : 's'}</span>
               <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: 18 }}>{open ? '−' : '+'}</span>
             </div>
+            {/* (#218 Inc 2a) Spine-recommends ribbon — small, only when there's
+                a real signal. Sits between the customer header and the line
+                groups so it reads as "here's what the spine sees for THIS
+                customer," not a generic hint. */}
+            {topLine && topOutcomes && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(110,231,183,0.30)',
+                  background: 'rgba(16,185,129,0.07)',
+                  fontSize: 12,
+                  color: '#a7f3d0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap'
+                }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#86efac', letterSpacing: 0.2 }}>📈 Spine recommends</span>
+                <span style={{ color: '#e2e8f0' }}>
+                  <strong>{topLine.name}</strong> is {c.label}&apos;s top-converting story
+                </span>
+                <span style={{ color: '#86efac' }}>
+                  · {outcomesStrip(topOutcomes)}
+                </span>
+              </div>
+            )}
             {open && (
               <div style={{ marginTop: 12 }}>
                 {own.length === 0 && <div style={{ fontSize: 12, color: '#64748b' }}>No lines yet. Use the form above (pick {c.label}) to add one.</div>}
-                <StateGroup title="Steering content now" lines={own.filter((l) => l.state === 'active' || l.state === 'reinforcing')} {...editorProps} />
-                <StateGroup title="Candidates (parking lot)" lines={own.filter((l) => l.state === 'candidate')} {...editorProps} />
-                <StateGroup title="Retiring" lines={own.filter((l) => l.state === 'retiring')} {...editorProps} />
+                <StateGroup title="Steering content now" lines={own.filter((l) => l.state === 'active' || l.state === 'reinforcing')} {...customerEditorProps} />
+                <StateGroup title="Candidates (parking lot)" lines={own.filter((l) => l.state === 'candidate')} {...customerEditorProps} />
+                <StateGroup title="Retiring" lines={own.filter((l) => l.state === 'retiring')} {...customerEditorProps} />
               </div>
             )}
           </div>
@@ -541,11 +623,15 @@ interface EditorProps {
   /** (#46 Inc 4) Per-line outcomes rollup (leads · qualified · won), seeded
    *  on the server so the collapsed row strip renders from page load. */
   outcomes: Record<number, CockpitOutcomes>;
+  /** (#218 Inc 2a) Candidate line ids whose outcomes outperform the
+   *  customer's weakest active line — surfaced as a "promote candidate?"
+   *  hint on those rows. Computed per customer at the parent level. */
+  promotable: Set<number>;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
   if (lines.length === 0) return null;
-  const { openId, toggleLine, outcomes } = props;
+  const { openId, toggleLine, outcomes, promotable, changeState } = props;
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#64748b', marginBottom: 6 }}>{title}</div>
@@ -577,6 +663,31 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
                 >
                   📈 {strip}
                 </span>
+              )}
+              {/* (#218 Inc 2a) Promote-candidate hint — only on candidate-state
+                  rows where outcomes outperform the weakest active line for
+                  this customer. One-click promote without opening the editor. */}
+              {l.state === 'candidate' && promotable.has(l.id) && (
+                <button
+                  type="button"
+                  title="This candidate is converting better than your weakest active line. Promote it?"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    changeState(l.id, 'active');
+                  }}
+                  style={{
+                    fontSize: 11,
+                    color: '#fde68a',
+                    padding: '2px 9px',
+                    borderRadius: 999,
+                    background: 'rgba(253,224,71,0.10)',
+                    border: '1px solid rgba(253,224,71,0.45)',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  ↑ Promote — outperforming an active line
+                </button>
               )}
               <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: 18 }}>{open ? '−' : '+'}</span>
             </div>

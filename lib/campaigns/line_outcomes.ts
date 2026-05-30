@@ -100,6 +100,52 @@ export async function outcomesForLine(lineId: number): Promise<LineOutcomes> {
 }
 
 /**
+ * (#218 Inc 2a) Rank lines by conversion strength so the cockpit can SAY
+ * "this is your top-converting story" instead of just listing them. The
+ * spine's first real recommendation. Sort key: wins desc, then qualified
+ * desc, then total leads-linked desc (tiebreaker — more reach matters when
+ * conversion is equal). Lines with zero leads are excluded — nothing to say.
+ *
+ * Returns the rows already ordered. Caller picks the top N for display.
+ * Never throws; empty array on lookup failure.
+ */
+export interface LineRanking {
+  lineId: number;
+  outcomes: LineOutcomes;
+}
+
+function rankCompare(a: LineOutcomes, b: LineOutcomes): number {
+  if (b.converted !== a.converted) return b.converted - a.converted;
+  if (b.qualified !== a.qualified) return b.qualified - a.qualified;
+  return b.leadsLinked - a.leadsLinked;
+}
+
+export async function rankLinesByConversion(lineIds: number[]): Promise<LineRanking[]> {
+  const map = await outcomesForLines(lineIds);
+  const rows: LineRanking[] = Object.entries(map)
+    .map(([id, outcomes]) => ({ lineId: Number(id), outcomes }))
+    .filter((r) => r.outcomes.leadsLinked > 0);
+  rows.sort((a, b) => rankCompare(a.outcomes, b.outcomes));
+  return rows;
+}
+
+/** Has this line shown ANY positive signal (won or qualified)? Used to gate
+ *  the "promote this candidate?" hint — we don't recommend promoting a
+ *  candidate that only has contacted/lost leads (that's noise, not signal). */
+export function lineHasPositiveSignal(o: LineOutcomes): boolean {
+  return o.converted > 0 || o.qualified > 0;
+}
+
+/** Strict outperformance: candidate beats active on wins; if wins tied,
+ *  candidate beats on qualified. We want HIGH-CONFIDENCE promotion hints,
+ *  not "the candidate has slightly more leads-linked." */
+export function candidateOutperformsActive(candidate: LineOutcomes, active: LineOutcomes): boolean {
+  if (candidate.converted > active.converted) return true;
+  if (candidate.converted === active.converted && candidate.qualified > active.qualified) return true;
+  return false;
+}
+
+/**
  * Short human strip for chip-style display ("8 leads · 2 qualified · 1 won").
  * Returns an empty string when there's literally nothing to show — caller
  * just hides the row in that case.
