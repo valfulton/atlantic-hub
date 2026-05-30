@@ -32,6 +32,7 @@ import {
   OpenAIKeyMissingError,
   OpenAIApiError
 } from '@/lib/openai/client';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -100,10 +101,13 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       : buildForProspectPrompt(lead, count);
 
   const startMs = Date.now();
+  // (#80) Operator-editable system prompt: getSystemPrompt returns the override
+  // from ai_prompt_overrides if set, else SOCIAL_CONTENT_GENERATOR_DEFAULT.
+  const editableSystemPrompt = await getSystemPrompt('social_content_generator');
   try {
     const completion = await openaiChatCompletion(
       [
-        { role: 'system', content: SYSTEM_INSTRUCTIONS },
+        { role: 'system', content: editableSystemPrompt },
         { role: 'user', content: systemPrompt }
       ],
       { json: true, temperature: 0.85, maxTokens: 1800 }
@@ -228,22 +232,9 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
   }
 }
 
-const SYSTEM_INSTRUCTIONS = `You are a senior B2B social media copywriter for Atlantic & Vine, an AI-native marketing intelligence platform.
-
-Your output is ALWAYS valid JSON matching this exact shape:
-{
-  "linkedin": [string, string, ...],
-  "twitter": [string, string, ...],
-  "instagram": [string, string, ...]
-}
-
-Each platform's posts must be tuned to platform conventions:
-- LinkedIn: 3-5 sentences, professional but human, hook in line 1, no hashtag stuffing (1-3 max at end), no emojis except sparingly
-- Twitter/X: under 280 chars each, punchy, conversational, one idea per post, 0-2 hashtags max
-- Instagram: 2-4 sentences + line break + 5-10 relevant hashtags. Slightly warmer tone, can use 1-2 emojis if it fits
-
-Never use placeholder text like "[Insert thing here]". Generate real, ready-to-publish posts.
-Never wrap output in markdown code fences. Return JSON only.`;
+// System prompt now lives in lib/ai/prompt_registry.ts under the
+// 'social_content_generator' PROMPT_DEF (operator-editable, #80). Live calls
+// above read it via getSystemPrompt('social_content_generator').
 
 function buildForProspectPrompt(lead: LeadRow, count: number): string {
   const industry = lead.industry ?? 'small business';

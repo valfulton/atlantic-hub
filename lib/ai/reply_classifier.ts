@@ -17,6 +17,7 @@ import {
   openaiChatCompletion,
   parseOpenAIJson
 } from '@/lib/openai/client';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 
 const MODEL = 'gpt-4o-mini';
 const TEMPERATURE = 0.2;
@@ -55,21 +56,9 @@ export async function classifyReply(args: {
     return { ...heuristic, model: 'heuristic', tokensUsed: 0 };
   }
 
-  const system = [
-    `You classify the FIRST inbound reply to a cold-but-personalized outreach email.`,
-    `Output one of: positive | interested | neutral | negative | autoresponder | unsubscribe | unknown.`,
-    ``,
-    `Definitions:`,
-    `- positive       => recipient wants to take a meeting, book a call, or otherwise engage commercially. "yes, send a time", "let's chat", "interested in seeing more".`,
-    `- interested     => recipient asks a relevant follow-up question or signals curiosity but did not commit. "tell me more about pricing", "how does it work".`,
-    `- neutral        => non-committal acknowledgment. "thanks, will look later", forwarding to a colleague.`,
-    `- negative       => clearly says no. "not interested", "we already have this", "stop emailing me but not unsubscribe-y".`,
-    `- autoresponder  => out-of-office, vacation, holiday, automatic reply, ticket-system noreply.`,
-    `- unsubscribe    => explicit unsubscribe request, "remove me from your list", "do not contact".`,
-    `- unknown        => cannot tell.`,
-    ``,
-    `Respond ONLY with JSON: { "classification": "...", "confidence": 0.0-1.0 }`
-  ].join('\n');
+  // (#80) Operator-editable system prompt: getSystemPrompt returns the override
+  // from ai_prompt_overrides if set, else REPLY_CLASSIFIER_DEFAULT.
+  const system = await getSystemPrompt('reply_classifier');
 
   const user = [
     `FROM: ${args.fromAddress}`,

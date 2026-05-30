@@ -444,6 +444,76 @@ const OUTREACH_DRAFTER_DEFAULT = [
   `}`
 ].join('\n');
 
+/**
+ * Visual brief generator (#80 sweep) — per-lead structured creative direction
+ * for AI image/video generation. Powers branded commercials.
+ */
+const VISUAL_BRIEF_DEFAULT = `You are a senior creative director at Atlantic & Vine, a brand-led marketing studio.
+
+Your job: read a strategic sales audit for a small business and convert it into a STRUCTURED VISUAL BRIEF that an AI image / video model can use to create on-brand commercial content. You are NOT writing copy; you are writing visual direction.
+
+Output is ALWAYS strict JSON matching exactly this shape (no markdown fences, no commentary):
+
+{
+  "heroShot": "1-2 sentences describing the dominant visual concept for a hero image / opening video shot. Concrete, specific, includes lighting and composition cues.",
+  "brandMood": "3-5 mood adjectives separated by commas. e.g. 'warm, premium, confident, lived-in'.",
+  "palette": ["color/tone 1", "color/tone 2", "color/tone 3"],
+  "motifs": ["recurring visual element 1", "element 2", "element 3"],
+  "donts": ["thing to avoid 1", "thing to avoid 2"],
+  "customerPersona": "1-2 sentences describing the ideal customer who would respond to this commercial. Concrete.",
+  "videoPacing": "one of: cinematic-slow, fluid-confident, punchy-fast, observational",
+  "textOverlayHook": "a 4-7 word hook line that could appear as on-screen text. Optional — leave empty string if none fits."
+}
+
+Rules:
+- No banned content (no logos, no copyrighted characters, no real people).
+- No vague filler ("modern", "professional", "high quality"). Each phrase must give a model something concrete to render.
+- The brief should feel like THIS specific business, not a generic version of their industry.
+`;
+
+/**
+ * Reply classifier (#80 sweep) — classifies one inbound reply into
+ * positive / interested / neutral / negative / autoresponder / unsubscribe / unknown.
+ * Drives lead_status advancement and the celebratory "positive reply" toast.
+ */
+const REPLY_CLASSIFIER_DEFAULT = [
+  `You classify the FIRST inbound reply to a cold-but-personalized outreach email.`,
+  `Output one of: positive | interested | neutral | negative | autoresponder | unsubscribe | unknown.`,
+  ``,
+  `Definitions:`,
+  `- positive       => recipient wants to take a meeting, book a call, or otherwise engage commercially. "yes, send a time", "let's chat", "interested in seeing more".`,
+  `- interested     => recipient asks a relevant follow-up question or signals curiosity but did not commit. "tell me more about pricing", "how does it work".`,
+  `- neutral        => non-committal acknowledgment. "thanks, will look later", forwarding to a colleague.`,
+  `- negative       => clearly says no. "not interested", "we already have this", "stop emailing me but not unsubscribe-y".`,
+  `- autoresponder  => out-of-office, vacation, holiday, automatic reply, ticket-system noreply.`,
+  `- unsubscribe    => explicit unsubscribe request, "remove me from your list", "do not contact".`,
+  `- unknown        => cannot tell.`,
+  ``,
+  `Respond ONLY with JSON: { "classification": "...", "confidence": 0.0-1.0 }`
+].join('\n');
+
+/**
+ * Social content generator (#80 sweep) — drafts LinkedIn / Twitter / Instagram
+ * posts grounded in a lead's audit. Used both as audit deliverable and as
+ * operator outbound material.
+ */
+const SOCIAL_CONTENT_GENERATOR_DEFAULT = `You are a senior B2B social media copywriter for Atlantic & Vine, an AI-native marketing intelligence platform.
+
+Your output is ALWAYS valid JSON matching this exact shape:
+{
+  "linkedin": [string, string, ...],
+  "twitter": [string, string, ...],
+  "instagram": [string, string, ...]
+}
+
+Each platform's posts must be tuned to platform conventions:
+- LinkedIn: 3-5 sentences, professional but human, hook in line 1, no hashtag stuffing (1-3 max at end), no emojis except sparingly
+- Twitter/X: under 280 chars each, punchy, conversational, one idea per post, 0-2 hashtags max
+- Instagram: 2-4 sentences + line break + 5-10 relevant hashtags. Slightly warmer tone, can use 1-2 emojis if it fits
+
+Never use placeholder text like "[Insert thing here]". Generate real, ready-to-publish posts.
+Never wrap output in markdown code fences. Return JSON only.`;
+
 /** Every prompt the operator can view/edit. Add an entry to expose a new prompt. */
 export const PROMPT_DEFS: PromptDef[] = [
   {
@@ -571,6 +641,33 @@ export const PROMPT_DEFS: PromptDef[] = [
     defaultSystem: OUTREACH_DRAFTER_DEFAULT,
     userPromptNote:
       'At call time the system appends: COMPANY, INDUSTRY, CONTACT_NAME, CONTACT_TITLE, ADDRESS (when known), WEBSITE + WEBSITE_STATUS, plus the campaign context (SENDER_DISPLAY_NAME, CAMPAIGN_NAME, OFFER_SUMMARY, CTA, SIGNATURE) and the AUDIT_EXCERPT. NEW (#197): when the lead belongs to a client, the prompt now also receives a CLIENT_OFFER block (business description, tagline, key message, differentiators, audience, proof, name-drops, brand voice) so the email is written from THAT client\'s vantage — previously the drafter saw zero client positioning.'
+  },
+  {
+    key: 'visual_brief',
+    label: 'Visual brief (commercials / hero imagery)',
+    description:
+      'Per-lead structured visual direction. Reads the lead\'s audit (and optional active narrative line) and returns hero shot, palette, motifs, do-nots, customer persona, video pacing, and a text-overlay hook. Powers branded commercials, hero images on blog posts, and any AI image/video generation downstream. Surface formerly hardcoded — surfaced #80 sweep.',
+    defaultSystem: VISUAL_BRIEF_DEFAULT,
+    userPromptNote:
+      'At call time the system appends the lead\'s company, industry, website, contact title, stated challenge, the audit excerpt, and (when present) the active narrative-line context block. You edit the structured-JSON rules + rules-of-craft above. Keep the RESPONSE FORMAT JSON shape intact or persistence fails.'
+  },
+  {
+    key: 'reply_classifier',
+    label: 'Reply classifier (inbound)',
+    description:
+      'Classifies every inbound reply to a cold-but-personalized outreach email as positive / interested / neutral / negative / autoresponder / unsubscribe / unknown. Drives automatic lead_status advancement, the celebratory "positive reply" toast, and recent-replies sorting in the UI. Surface formerly hardcoded — surfaced #80 sweep.',
+    defaultSystem: REPLY_CLASSIFIER_DEFAULT,
+    userPromptNote:
+      'At call time the system appends FROM, SUBJECT, BODY (first 2000 chars). You edit the label definitions + voice above. Keep the JSON response shape ({"classification","confidence"}) intact or sorting falls back to "unknown". Cheap autoresponder/unsubscribe heuristics short-circuit before the LLM call — see lib/ai/reply_classifier.ts.'
+  },
+  {
+    key: 'social_content_generator',
+    label: 'Social content generator (per-lead posts)',
+    description:
+      'Drafts LinkedIn / Twitter/X / Instagram posts for a specific lead — either FOR the prospect (content they could publish on their own channels) or ABOUT their industry (content the operator can publish to warm them up). Used as an audit deliverable + outbound material. Surface formerly hardcoded — surfaced #80 sweep.',
+    defaultSystem: SOCIAL_CONTENT_GENERATOR_DEFAULT,
+    userPromptNote:
+      'At call time the system appends the per-variant generation instructions (for_prospect or about_industry) including company, industry, website, audit excerpt, and the requested per-platform count. You edit the platform-convention rules + voice above. Keep the JSON response shape ({"linkedin","twitter","instagram"}) intact or generation fails.'
   }
 ];
 

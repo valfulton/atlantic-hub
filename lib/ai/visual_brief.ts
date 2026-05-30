@@ -25,6 +25,7 @@
 
 import { getAvDb } from '@/lib/db/av';
 import { openaiChatCompletion, parseOpenAIJson, OpenAIApiError, OpenAIKeyMissingError } from '@/lib/openai/client';
+import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -87,28 +88,9 @@ interface BriefRow extends RowDataPacket {
   created_by_user_id: number | null;
 }
 
-const SYSTEM_INSTRUCTIONS = `You are a senior creative director at Atlantic & Vine, a brand-led marketing studio.
-
-Your job: read a strategic sales audit for a small business and convert it into a STRUCTURED VISUAL BRIEF that an AI image / video model can use to create on-brand commercial content. You are NOT writing copy; you are writing visual direction.
-
-Output is ALWAYS strict JSON matching exactly this shape (no markdown fences, no commentary):
-
-{
-  "heroShot": "1-2 sentences describing the dominant visual concept for a hero image / opening video shot. Concrete, specific, includes lighting and composition cues.",
-  "brandMood": "3-5 mood adjectives separated by commas. e.g. 'warm, premium, confident, lived-in'.",
-  "palette": ["color/tone 1", "color/tone 2", "color/tone 3"],
-  "motifs": ["recurring visual element 1", "element 2", "element 3"],
-  "donts": ["thing to avoid 1", "thing to avoid 2"],
-  "customerPersona": "1-2 sentences describing the ideal customer who would respond to this commercial. Concrete.",
-  "videoPacing": "one of: cinematic-slow, fluid-confident, punchy-fast, observational",
-  "textOverlayHook": "a 4-7 word hook line that could appear as on-screen text. Optional — leave empty string if none fits."
-}
-
-Rules:
-- No banned content (no logos, no copyrighted characters, no real people).
-- No vague filler ("modern", "professional", "high quality"). Each phrase must give a model something concrete to render.
-- The brief should feel like THIS specific business, not a generic version of their industry.
-`;
+// System prompt now lives in lib/ai/prompt_registry.ts under the
+// 'visual_brief' PROMPT_DEF (operator-editable, #80). Live calls below read
+// it via getSystemPrompt('visual_brief').
 
 function buildUserPrompt(lead: LeadContextRow, narrativeContext?: string | null): string {
   const industry = lead.industry ? lead.industry.replace(/_/g, ' ') : 'small business';
@@ -226,10 +208,13 @@ export async function generateVisualBriefForLead(
   }
 
   const startMs = Date.now();
+  // (#80) Operator-editable system prompt: getSystemPrompt returns the override
+  // from ai_prompt_overrides if set, else VISUAL_BRIEF_DEFAULT.
+  const systemPrompt = await getSystemPrompt('visual_brief');
   try {
     const completion = await openaiChatCompletion(
       [
-        { role: 'system', content: SYSTEM_INSTRUCTIONS },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: buildUserPrompt(lead, opts.narrativeContext) }
       ],
       { json: true, temperature: 0.6, maxTokens: 1200 }
