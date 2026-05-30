@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation';
 import {
   listLinesForCockpit, listCockpitCustomers, lineOwnerKey, MAX_ACTIVE_LINES, type NarrativeLane
 } from '@/lib/campaigns/store';
+import { outcomesForLines, type LineOutcomes } from '@/lib/campaigns/line_outcomes';
 import { NarrativeCockpit } from './NarrativeCockpit';
+import { LineBackfillButton } from './LineBackfillButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +30,14 @@ export default async function NarrativePage() {
     /* render empty; the cockpit shows a graceful empty state */
   }
 
+  // (#46 Inc 4) One outcomes query for every line on the cockpit, passed in
+  // as initialOutcomes so each row renders its track record from page load —
+  // no per-line fetch needed. Empty map on error so the cockpit still renders.
+  let outcomes: Record<number, LineOutcomes> = {};
+  try {
+    outcomes = await outcomesForLines(lines.map((l) => l.id));
+  } catch { /* empty map — strips hide */ }
+
   return (
     <div className="max-w-5xl">
       <h1 className="text-3xl font-semibold tracking-tight mb-1">
@@ -44,14 +54,21 @@ export default async function NarrativePage() {
           Lines
         </span>
       </h1>
-      <p className="text-sm text-muted mb-6 max-w-2xl">
+      <p className="text-sm text-muted mb-3 max-w-2xl">
         Each line is a believable <em>market thesis</em> that steers a customer&apos;s PR, social, blog, and
         commercials. Grouped by customer — your brands and each client. Keep{' '}
         <strong>{MAX_ACTIVE_LINES} active at most per customer</strong>; park the rest as candidates.
       </p>
+      {/* (#46 Inc 6) Backfill walks legacy un-threaded leads to their best-fit
+          line so the spine catches up on everything created before Inc 2 wired
+          auto-thread into discovery. Capped batch, fails soft. */}
+      <div className="mb-6">
+        <LineBackfillButton />
+      </div>
       <NarrativeCockpit
         customers={customers}
         initialLines={lines.map(toClient)}
+        initialOutcomes={outcomes}
         maxActive={MAX_ACTIVE_LINES}
       />
     </div>

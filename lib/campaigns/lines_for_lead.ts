@@ -210,6 +210,79 @@ export async function bestLineForLead(leadId: number): Promise<{ lineId: number;
 }
 
 /**
+ * (#46 Inc 6) One-shot backfill: walk leads that are NOT yet linked to ANY
+ * narrative line, run bestLineForLead on each, link the ones with a confident
+ * fit. Capped batch so a single button-press doesn't run the table; the soft
+ * MIN_OVERLAP floor in bestLineForLead means a lead with no clear fit stays
+ * unlinked rather than getting threaded to a random line.
+ *
+ * Returns { scanned, linked, skipped } so the UI can show "linked 23 of 41
+ * un-threaded leads — 18 had no clear fit." Owner-triggered; never throws.
+ */
+export interface BackfillResult {
+  scanned: number;
+  linked: number;
+  skipped: number;
+  cappedAt: number;
+}
+
+const BACKFILL_CAP = 200;
+
+export async function backfillLeadsToLines(opts?: { tenantId?: string; limit?: number }): Promise<BackfillResult> {
+  const tenantId = opts?.tenantId ?? 'av';
+  const limit = Math.min(Math.max(opts?.limit ?? BACKFILL_CAP, 1), BACKFILL_CAP);
+  const out: BackfillResult = { scanned: 0, linked: 0, skipped: 0, cappedAt: limit };
+  try {
+    const db = getAvDb();
+    // Un-threaded = no row in narrative_line_links for asset_type='lead'.
+    // LEFT JOIN + IS NULL is cheap with the existing idx_asset index. We
+    // scope to non-archived leads only; archived ones are sediment.
+    const [rows] = await db.execute<(RowDataPacket & { id: number })[]>(
+      `SELECT l.id
+         FROM leads l
+         LEFT JOIN narrative_line_links nll
+                ON nll.asset_type = 'lead' AND nll.asset_id = l.id
+        WHERE l.archived_at IS NULL AND nll.id IS NULL
+        ORDER BY l.id DESC
+        LIMIT ?`,
+      [limit]
+    );
+    for (const r of rows) {
+      out.scanned += 1;
+      try {
+        const best = await bestLineForLead(r.id);
+        if (!best) { out.skipped += 1; continue; }
+        const [lineRow] = await db.execute<(RowDataPacket & { tenant_id: string })[]>(
+          `SELECT tenant_id FROM narrative_lanes WHERE id = ? LIMIT 1`,
+          [best.lineId]
+        );
+        const tid = lineRow[0]?.tenant_id ?? tenantId;
+        const ok = await linkAssetToLine({
+          tenantId: tid,
+          narrativeLineId: best.lineId,
+          assetType: 'lead',
+          assetId: r.id,
+          role: 'advances',
+          note: `backfill (matched on: ${best.shared.join(', ')})`
+        });
+        if (ok) out.linked += 1; else out.skipped += 1;
+      } catch {
+        out.skipped += 1;
+      }
+    }
+    await logEvent({
+      eventType: 'content.line_backfill_run',
+      source: 'narrative_spine',
+      status: 'success',
+      payload: { tenant_id: tenantId, scanned: out.scanned, linked: out.linked, skipped: out.skipped }
+    }).catch(() => {});
+  } catch (err) {
+    console.error('[lines_for_lead:backfill]', (err as Error).message);
+  }
+  return out;
+}
+
+/**
  * Fire-and-forget auto-thread of a freshly-inserted lead to its best-fit
  * line. Drop next to scoreAndAuditLeadBackground() in any insert path so
  * every new lead lands ALREADY attached to a story (when there's a clear

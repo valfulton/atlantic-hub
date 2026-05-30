@@ -102,9 +102,29 @@ const btnGhost: React.CSSProperties = { background: 'rgba(148,163,184,0.12)', co
 const linesToText = (a: string[]) => a.join('\n');
 const textToLines = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean);
 
-export function NarrativeCockpit({ customers, initialLines, maxActive }: {
+interface CockpitOutcomes {
+  leadsLinked: number;
+  contacted: number;
+  qualified: number;
+  converted: number;
+  lost: number;
+}
+
+/** Mirrors lib/campaigns/line_outcomes.ts:outcomesStrip — kept in client so
+ *  the collapsed row can render without a per-line fetch. */
+function outcomesStrip(o: CockpitOutcomes | undefined): string {
+  if (!o || o.leadsLinked === 0) return '';
+  const parts: string[] = [`${o.leadsLinked} lead${o.leadsLinked === 1 ? '' : 's'}`];
+  if (o.qualified > 0) parts.push(`${o.qualified} qualified`);
+  if (o.converted > 0) parts.push(`${o.converted} won`);
+  if (o.lost > 0 && o.converted === 0 && o.qualified === 0) parts.push(`${o.lost} lost`);
+  return parts.join(' · ');
+}
+
+export function NarrativeCockpit({ customers, initialLines, initialOutcomes, maxActive }: {
   customers: Customer[];
   initialLines: Line[];
+  initialOutcomes: Record<number, CockpitOutcomes>;
   maxActive: number;
 }) {
   const [lines, setLines] = useState<Line[]>(initialLines);
@@ -418,7 +438,7 @@ export function NarrativeCockpit({ customers, initialLines, maxActive }: {
   const linesFor = (key: string) => lines.filter((l) => l.ownerKey === key);
   const activeCountFor = (key: string) => linesFor(key).filter((l) => l.state === 'active' || l.state === 'reinforcing').length;
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes };
 
   return (
     <div>
@@ -518,11 +538,14 @@ interface EditorProps {
   generateThesisIdeas: (id: number) => void;
   parkedIdeas: Record<string, 'saving' | 'done' | 'error'>;
   parkThesisIdea: (line: Line, thesis: string) => void;
+  /** (#46 Inc 4) Per-line outcomes rollup (leads · qualified · won), seeded
+   *  on the server so the collapsed row strip renders from page load. */
+  outcomes: Record<number, CockpitOutcomes>;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
   if (lines.length === 0) return null;
-  const { openId, toggleLine } = props;
+  const { openId, toggleLine, outcomes } = props;
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#64748b', marginBottom: 6 }}>{title}</div>
@@ -533,11 +556,28 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
         // green-glow border + tinted background so the chosen thesis dominates the
         // candidates/suggestions around it.
         const isLive = l.state === 'active' || l.state === 'reinforcing';
+        // (#46 Inc 4) Outcomes strip so val ranks her stories by track record at
+        // a glance — green when there's a win, amber when there's only qualified,
+        // muted otherwise. Hidden when there's literally nothing to say.
+        const o = outcomes[l.id];
+        const strip = outcomesStrip(o);
+        const stripColor =
+          o && o.converted > 0 ? '#86efac'
+          : o && o.qualified > 0 ? '#fde68a'
+          : 'rgba(148,163,184,0.7)';
         return (
           <div key={l.id} style={{ border: `1px solid ${isLive ? 'rgba(16,185,129,0.55)' : 'rgba(148,163,184,0.14)'}`, borderRadius: 12, background: isLive ? 'rgba(16,185,129,0.09)' : 'rgba(2,6,23,0.35)', boxShadow: isLive ? '0 0 20px rgba(16,185,129,0.18)' : undefined, padding: 12, marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => toggleLine(l)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexWrap: 'wrap' }} onClick={() => toggleLine(l)}>
               <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 999, background: tone.bg, color: tone.fg }}>{tone.label}</span>
               <span style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{l.name}</span>
+              {strip && (
+                <span
+                  title="Outcomes across leads linked to this narrative line"
+                  style={{ fontSize: 11, color: stripColor, padding: '1px 8px', borderRadius: 999, background: 'rgba(2,6,23,0.5)', border: '1px solid rgba(148,163,184,0.18)' }}
+                >
+                  📈 {strip}
+                </span>
+              )}
               <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: 18 }}>{open ? '−' : '+'}</span>
             </div>
             {!open && l.thesis && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>{l.thesis}</div>}
