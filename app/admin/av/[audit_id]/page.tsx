@@ -71,6 +71,7 @@ export default async function AvLeadDetailPage({
           />
           <RescoreButton auditId={lead.auditId} />
           <MakeClientButton
+            auditId={lead.auditId}
             email={lead.email ?? null}
             company={lead.company ?? null}
             contactName={lead.contactName ?? null}
