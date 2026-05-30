@@ -7,6 +7,7 @@ import { LeadDetailTabs } from './LeadDetailTabs';
 import { LeadCampaigns } from './LeadCampaigns';
 import { SocialContentButton } from './SocialContentButton';
 import { SmartEnrichButton } from './SmartEnrichButton';
+import { FindAnotherPocButton } from './FindAnotherPocButton';
 import { RescoreButton } from './RescoreButton';
 import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
 import { IntakeDraftEditor } from './IntakeDraftEditor';
@@ -91,6 +92,11 @@ export default async function AvLeadDetailPage({
               column (industry, contact, phone) + stashes the full intake-shape
               draft on source_payload for the #253 lead→client carryover. */}
           <SmartEnrichButton auditId={lead.auditId} hasWebsite={!!lead.website} />
+          {/* (#252 Inc 3) One-Apollo-credit re-call: skip the current contact's
+              title + any ICP-excluded titles, insert the first survivor as a
+              new sibling lead at the same company. Disabled with a tooltip
+              when the lead isn't Apollo-sourced. */}
+          <FindAnotherPocButton auditId={lead.auditId} hasApolloOrg={!!lead.hasApolloOrg} />
           <ArchiveLeadButton auditId={lead.auditId} />
           <StatusBadge value={lead.leadStatus} />
           <AnimatedScoreReveal

@@ -17,6 +17,16 @@ function safeParse(val: string | object | null | undefined): object | null {
   try { return JSON.parse(val); } catch { return null; }
 }
 
+/** (#252 Inc 3) True when source_payload carries an apollo_organization_id —
+ *  gates the "Find another POC" button which can only re-call Apollo when
+ *  the lead originally came from organization_top_people. */
+function hasApolloOrgFrom(raw: string | object | null): boolean {
+  const o = safeParse(raw);
+  if (!o || typeof o !== 'object') return false;
+  const v = (o as Record<string, unknown>)['apollo_organization_id'];
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
 interface LeadDetailRow extends RowDataPacket {
   id: number;
   audit_id: string;
@@ -210,6 +220,10 @@ export async function GET(
         // (shared ProspectIntelPanel component). Returns null when no Smart
         // enrich has run yet, in which case the page hides the panel cleanly.
         prospectIntel: prospectIntelFrom(r.source_payload),
+        // (#252 Inc 3) True when source_payload has an apollo_organization_id.
+        // Gates the "Find another POC" button — it only works for leads that
+        // originally came from Apollo (we need the org id to re-call).
+        hasApolloOrg: hasApolloOrgFrom(r.source_payload),
         archivedAt: r.archived_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at

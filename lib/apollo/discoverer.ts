@@ -254,7 +254,7 @@ async function insertApolloOrgAsLead(org: ApolloOrganization, clientId: number |
  * named lead. Dedups on apollo_person_id (the real Apollo person id, not
  * the org id). Stores full company context on the row.
  */
-async function insertApolloPersonAsLead(
+export async function insertApolloPersonAsLead(
   person: ApolloPersonAtOrg,
   org: ApolloOrganization,
   clientId: number | null
