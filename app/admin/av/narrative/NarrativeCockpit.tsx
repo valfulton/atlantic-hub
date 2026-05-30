@@ -180,10 +180,29 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
 
   const [genStatus, setGenStatus] = useState<Record<number, { loading: boolean; msg: string | null }>>({});
 
-  // (#61 Inc 1) Per-asset branding state for line-born commercials. Keyed by
-  // asset id (not line id) so multiple commercials on the same line can be
-  // branded in parallel without trampling each other's state.
+  // (#61 Inc 1+2) Per-asset state for line-born commercial actions (brand /
+  // queue-to-social). Keyed by asset id so multiple commercials on the same
+  // line stay independent.
   const [brandingAsset, setBrandingAsset] = useState<Record<number, { loading: boolean; msg: string | null; ok?: boolean }>>({});
+  const [queueingAsset, setQueueingAsset] = useState<Record<number, { loading: boolean; msg: string | null; ok?: boolean }>>({});
+  const queueLineCommercial = useCallback(async (lineId: number, assetId: number) => {
+    setQueueingAsset((s) => ({ ...s, [assetId]: { loading: true, msg: null } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${lineId}/commercial/${assetId}/queue-social`, { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setQueueingAsset((s) => ({ ...s, [assetId]: { loading: false, msg: j.error ?? `HTTP ${res.status}`, ok: false } }));
+        return;
+      }
+      const providers = Array.isArray(j.providers) && j.providers.length ? ` (${j.providers.join(', ')})` : '';
+      setQueueingAsset((s) => ({
+        ...s,
+        [assetId]: { loading: false, msg: `Queued ${j.queued} draft${j.queued === 1 ? '' : 's'}${providers} — review in Calendar.`, ok: true }
+      }));
+    } catch (e) {
+      setQueueingAsset((s) => ({ ...s, [assetId]: { loading: false, msg: (e as Error).message, ok: false } }));
+    }
+  }, []);
   const brandLineCommercial = useCallback(async (lineId: number, assetId: number) => {
     setBrandingAsset((s) => ({ ...s, [assetId]: { loading: true, msg: null } }));
     try {
@@ -511,7 +530,7 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
     return out;
   };
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes, promotable: new Set<number>(), brandingAsset, brandLineCommercial };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes, promotable: new Set<number>(), brandingAsset, brandLineCommercial, queueingAsset, queueLineCommercial };
 
   return (
     <div>
@@ -656,6 +675,10 @@ interface EditorProps {
    *  on line-born commercial cards (loading / ok / error). */
   brandingAsset: Record<number, { loading: boolean; msg: string | null; ok?: boolean }>;
   brandLineCommercial: (lineId: number, assetId: number) => void;
+  /** (#61 Inc 2) Per-asset queue-to-social state — drives the "Queue for
+   *  review" button on branded commercial cards. */
+  queueingAsset: Record<number, { loading: boolean; msg: string | null; ok?: boolean }>;
+  queueLineCommercial: (lineId: number, assetId: number) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -744,7 +767,7 @@ function Collapsible({ title, hint, defaultOpen = false, children }: { title: st
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, brandingAsset, brandLineCommercial }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, brandingAsset, brandLineCommercial, queueingAsset, queueLineCommercial }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -1165,6 +1188,14 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                 c.brandedStatus !== 'ready' &&
                 c.brandedStatus !== 'processing';
               const branding = brandingAsset[c.id];
+              // (#61 Inc 2) Queue-to-social eligibility: succeeded image OR
+              // branded video. Image commercials skip the brand step (their
+              // branding is inline at generation). Branded videos pass the
+              // approval-gate's brand half before they can be queued.
+              const canQueue =
+                c.generationStatus === 'succeeded' &&
+                (c.assetType === 'image' || c.brandedStatus === 'ready');
+              const queueing = queueingAsset[c.id];
               return (
                 <div key={c.id} style={{ border: '1px solid rgba(148,163,184,0.16)', borderRadius: 10, padding: 10, fontSize: 12, color: '#cbd5e1' }}>
                   <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{c.assetType}</div>
@@ -1208,6 +1239,40 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                   {branding?.msg && (
                     <div style={{ marginTop: 4, fontSize: 11, color: branding.ok ? '#6ee7b7' : '#fca5a5' }}>
                       {branding.msg}
+                    </div>
+                  )}
+                  {canQueue && (
+                    <button
+                      type="button"
+                      onClick={() => queueLineCommercial(line.id, c.id)}
+                      disabled={queueing?.loading || queueing?.ok}
+                      title="Queue this commercial as a DRAFT social post (never auto-publishes). Review and publish in Calendar."
+                      style={{
+                        marginTop: 6,
+                        fontSize: 11,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        background: queueing?.ok
+                          ? 'rgba(110,231,183,0.10)'
+                          : queueing?.loading
+                            ? 'rgba(148,163,184,0.10)'
+                            : 'rgba(147,197,253,0.10)',
+                        border: '1px solid ' + (queueing?.ok
+                          ? 'rgba(110,231,183,0.40)'
+                          : queueing?.loading
+                            ? 'rgba(148,163,184,0.25)'
+                            : 'rgba(147,197,253,0.40)'),
+                        color: queueing?.ok ? '#6ee7b7' : queueing?.loading ? '#94a3b8' : '#93c5fd',
+                        cursor: queueing?.loading || queueing?.ok ? 'default' : 'pointer',
+                        width: '100%'
+                      }}
+                    >
+                      {queueing?.loading ? '📅 queueing…' : queueing?.ok ? '✓ queued for review' : '📅 Queue for review'}
+                    </button>
+                  )}
+                  {queueing?.msg && (
+                    <div style={{ marginTop: 4, fontSize: 11, color: queueing.ok ? '#6ee7b7' : '#fca5a5', lineHeight: 1.35 }}>
+                      {queueing.msg}
                     </div>
                   )}
                 </div>
