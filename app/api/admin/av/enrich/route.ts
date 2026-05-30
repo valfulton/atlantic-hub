@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
 
   // ---------- Path A: admin cookie ----------
   let adminAuthorized = false;
+  let actorRole: 'owner' | 'staff' | 'client_user' | null = null;
   if (!cronAuthorized) {
     const guard = await guardAdminRequest(req, {
       targetResource: '/api/admin/av/enrich',
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
     adminAuthorized = true;
+    actorRole = guard.actor.role;
   }
 
   if (!cronAuthorized && !adminAuthorized) {
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   const triggerSource: EnrichmentTriggerSource = cronAuthorized ? 'cron' : 'manual';
 
-  let payload: { limit?: unknown } = {};
+  let payload: { limit?: unknown; monthlyCeilingOverride?: unknown } = {};
   try {
     payload = await req.json();
   } catch {
@@ -70,10 +72,25 @@ export async function POST(req: NextRequest) {
       ? Math.max(1, Math.min(50, Math.floor(payload.limit)))
       : 5;
 
+  // (#250) Owner-only ceiling override. Only honored when the actor role is
+  // 'owner' — staff sends are silently ignored. Bounded 1..1000 to prevent a
+  // typo from authorizing a runaway batch. Cron-trigger NEVER takes an
+  // override; the cron is supposed to respect the env-configured ceiling.
+  let monthlyCeilingOverride: number | undefined;
+  if (
+    actorRole === 'owner' &&
+    typeof payload.monthlyCeilingOverride === 'number' &&
+    Number.isFinite(payload.monthlyCeilingOverride)
+  ) {
+    const n = Math.floor(payload.monthlyCeilingOverride);
+    if (n >= 1 && n <= 1000) monthlyCeilingOverride = n;
+  }
+
   try {
     const summary = await runEnrichmentBatch({
       limit,
-      triggerSource
+      triggerSource,
+      ...(monthlyCeilingOverride !== undefined ? { monthlyCeiling: monthlyCeilingOverride } : {})
     });
 
     // After a successful enrichment batch, suggest the next operator action.

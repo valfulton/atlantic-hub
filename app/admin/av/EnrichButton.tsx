@@ -30,26 +30,75 @@ interface EnrichmentBatchSummary {
   suggestedNextAction: 'send_outreach_email_series' | 'review_results' | null;
 }
 
-export function EnrichButton({ defaultLimit = 5 }: { defaultLimit?: number }) {
+/**
+ * (#250) Map an HTTP status + server error string into operator-honest copy.
+ * The previous code rendered raw `error: unauthorized` for both expired
+ * sessions and cap-rejected runs, which made it impossible to tell what
+ * actually happened. This translates the two real causes into the language
+ * val can act on.
+ */
+function honestError(status: number, raw: string | null): string {
+  if (status === 401) return 'Session expired — reload the page and log in again.';
+  if (status === 403) return 'Not permitted — only owner / staff can run enrichment.';
+  if (status === 429) return 'Slow down — too many requests in a row. Try again in a minute.';
+  if (raw === 'av tab disabled') return 'The AV tab is disabled in feature flags.';
+  if (raw && /cap|ceiling|credit/i.test(raw)) return raw; // server-side cap copy passes through unchanged
+  if (raw) return raw;
+  return `HTTP ${status}`;
+}
+
+export function EnrichButton({
+  defaultLimit = 5,
+  creditsRemaining,
+  monthlyCeiling,
+  isOwner = false
+}: {
+  defaultLimit?: number;
+  /** Credits left this month — drives the inline badge so val never has to guess. */
+  creditsRemaining?: number;
+  /** This month's cap — used to bound the owner "raise ceiling" override. */
+  monthlyCeiling?: number;
+  /** When true, surface the owner-only "raise ceiling for this batch" form. */
+  isOwner?: boolean;
+}) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<EnrichmentBatchSummary | null>(null);
   const [showResult, setShowResult] = useState(false);
+  // (#250) Owner-only ceiling override input. Only sent when isOwner + non-empty.
+  const [showRaise, setShowRaise] = useState(false);
+  const [raiseTo, setRaiseTo] = useState<string>('');
+
+  const lowCredits =
+    typeof creditsRemaining === 'number' && typeof monthlyCeiling === 'number' &&
+    monthlyCeiling > 0 && creditsRemaining <= Math.max(5, Math.round(monthlyCeiling * 0.15));
+  const outOfCredits =
+    typeof creditsRemaining === 'number' && creditsRemaining <= 0;
 
   async function runEnrichment() {
     setRunning(true);
     setError(null);
     setSummary(null);
     try {
+      const body: Record<string, unknown> = { limit: defaultLimit };
+      // (#250) Owner-only override — only honored server-side when the actor
+      // role is 'owner'. Sending it as non-owner is a no-op.
+      if (isOwner && showRaise) {
+        const n = Number(raiseTo);
+        if (Number.isFinite(n) && n > 0 && n <= 1000) {
+          body.monthlyCeilingOverride = Math.floor(n);
+        }
+      }
       const res = await fetch('/api/admin/av/enrich', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ limit: defaultLimit })
+        body: JSON.stringify(body)
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || j.message || `HTTP ${res.status}`);
+        const raw: string | null = j.error || j.message || null;
+        throw new Error(honestError(res.status, raw));
       }
       const data: EnrichmentBatchSummary = await res.json();
       setSummary(data);
@@ -64,13 +113,23 @@ export function EnrichButton({ defaultLimit = 5 }: { defaultLimit?: number }) {
     }
   }
 
+  // (#250) Badge text — "Enrich next 5 · 14 left" so val sees status inline.
+  const badge =
+    typeof creditsRemaining === 'number'
+      ? ` · ${creditsRemaining} left`
+      : '';
+
   return (
     <>
       <button
         onClick={runEnrichment}
-        disabled={running}
+        disabled={running || outOfCredits}
         className="text-sm px-3 py-1.5 bg-brand text-white rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
-        title="Find real names + emails for placeholder prospects"
+        title={
+          outOfCredits
+            ? 'Monthly Hunter credits exhausted — top up your Hunter plan or wait for next month’s reset.'
+            : 'Find real names + emails for placeholder prospects'
+        }
       >
         {running ? (
           <>
@@ -78,12 +137,62 @@ export function EnrichButton({ defaultLimit = 5 }: { defaultLimit?: number }) {
             Enriching…
           </>
         ) : (
-          <>✨ Enrich next {defaultLimit}</>
+          <>
+            ✨ Enrich next {defaultLimit}
+            {badge && (
+              <span
+                className="text-[10px] font-medium"
+                style={{
+                  color: outOfCredits ? '#fecaca' : lowCredits ? '#fde68a' : 'rgba(255,255,255,0.85)'
+                }}
+              >
+                {badge}
+              </span>
+            )}
+          </>
         )}
       </button>
 
+      {/* (#250) Owner-only ceiling override toggle. Kept inline + dismissable
+          so it doesn't clutter the page for non-owners or when val isn't
+          actively pushing past the soft cap. */}
+      {isOwner && !running && !outOfCredits && (
+        <span className="ml-2 inline-flex items-center gap-1.5 text-[11px] text-muted">
+          {!showRaise ? (
+            <button
+              type="button"
+              onClick={() => setShowRaise(true)}
+              className="underline-offset-2 hover:underline"
+              title="Owner override — temporarily raise the monthly cap for THIS batch only."
+            >
+              raise ceiling
+            </button>
+          ) : (
+            <>
+              <span>raise to</span>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={raiseTo}
+                onChange={(e) => setRaiseTo(e.target.value)}
+                placeholder={monthlyCeiling ? String(monthlyCeiling) : '100'}
+                className="w-16 px-1.5 py-0.5 text-[11px] bg-black/30 border border-white/15 rounded text-ink"
+              />
+              <button
+                type="button"
+                onClick={() => { setShowRaise(false); setRaiseTo(''); }}
+                className="text-muted hover:text-ink"
+              >
+                cancel
+              </button>
+            </>
+          )}
+        </span>
+      )}
+
       {error && (
-        <span className="ml-3 text-xs text-red-600">Error: {error}</span>
+        <span className="ml-3 text-xs" style={{ color: '#fca5a5' }}>{error}</span>
       )}
 
       {showResult && summary && (

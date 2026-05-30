@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { MetricCard } from '@/components/MetricCard';
 import { serverFetch } from '@/lib/server-fetch';
 import { AvLeadsTable } from './AvLeadsTable';
@@ -10,6 +11,7 @@ import { LeadOfTheDay } from '@/components/LeadOfTheDay';
 import { HotLeadConfetti } from '@/components/HotLeadConfetti';
 import { PipelineValueCard } from '@/components/PipelineValueCard';
 import { listClientAccounts } from '@/lib/av/clients_overview';
+import { getHunterCreditStatus } from '@/lib/enrichment/enricher';
 
 interface Stats {
   total: number;
@@ -55,6 +57,12 @@ export default async function AvPage({
     client?: string;
   };
 }) {
+  // (#250) Surface live credit status + actor role so EnrichButton can render
+  // its inline badge, gate the owner-only "raise ceiling" override, and skip
+  // the run when credits are exhausted (no point hitting the API to learn it).
+  const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
+  const hunter = await getHunterCreditStatus().catch(() => ({ used: 0, ceiling: 0, remaining: 0 }));
+
   const stageParam = STAGES.includes(searchParams?.stage as (typeof STAGES)[number])
     ? (searchParams!.stage as string)
     : '';
@@ -383,7 +391,16 @@ export default async function AvPage({
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
             <CoachCallsButton defaultLimit={25} />
-            <EnrichButton defaultLimit={5} />
+            {/* (#250) Pass live credit-remaining + role so the button shows an
+                inline badge ("Enrich next 5 · 14 left"), surfaces an owner-only
+                "raise ceiling" override, and translates HTTP 401/403/cap-hit
+                into honest copy instead of the previous raw 'unauthorized'. */}
+            <EnrichButton
+              defaultLimit={5}
+              creditsRemaining={hunter.remaining}
+              monthlyCeiling={hunter.ceiling}
+              isOwner={role === 'owner'}
+            />
           </div>
         </div>
         <VendorStatus />
