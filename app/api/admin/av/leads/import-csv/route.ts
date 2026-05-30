@@ -27,6 +27,7 @@ import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/le
 import { inferTargetBusiness, isTargetBusiness, type TargetBusiness } from '@/lib/leads/target_business';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { autoThreadLeadByFitBackground } from '@/lib/campaigns/lines_for_lead';
 import type { ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -248,6 +249,8 @@ async function processRow(
     }
   });
   scoreAndAuditLeadBackground(newLeadId);
+  // (#46 spine Inc 2) Auto-thread to the best-fit narrative line.
+  autoThreadLeadByFitBackground(newLeadId);
 
   return {
     outcome: 'inserted',

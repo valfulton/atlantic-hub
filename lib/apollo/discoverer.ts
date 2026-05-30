@@ -35,6 +35,7 @@ import {
 import { inferTargetBusiness } from '@/lib/leads/target_business';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { autoThreadLeadByFitBackground } from '@/lib/campaigns/lines_for_lead';
 import { getClientIcp } from '@/lib/client/icp';
 import { buildTitlePrefs, filterAndRank, hasTitleFilters, type TitlePrefs } from '@/lib/leads/title_filter';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -226,6 +227,10 @@ async function insertApolloOrgAsLead(org: ApolloOrganization, clientId: number |
       }
     });
     scoreAndAuditLeadBackground(newLeadId);
+    // (#46 spine Inc 2) Auto-thread to the best-fit narrative line for this
+    // lead's owner. Fire-and-forget; no-op when there's no clear match. Score
+    // pass and thread pass are independent — neither blocks the other.
+    autoThreadLeadByFitBackground(newLeadId);
 
     return {
       apolloOrganizationId: apolloOrgId,
@@ -344,6 +349,10 @@ export async function insertApolloPersonAsLead(
       }
     });
     scoreAndAuditLeadBackground(newLeadId);
+    // (#46 spine Inc 2) Auto-thread to the best-fit narrative line for this
+    // lead's owner. Fire-and-forget; no-op when there's no clear match. Score
+    // pass and thread pass are independent — neither blocks the other.
+    autoThreadLeadByFitBackground(newLeadId);
 
     return {
       apolloOrganizationId: apolloOrgId,

@@ -27,6 +27,7 @@ import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/le
 import { scrapeContactPage } from '@/lib/scraper/contact_page';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { autoThreadLeadByFitBackground } from '@/lib/campaigns/lines_for_lead';
 import { enrichLeadFromSource } from '@/lib/enrichment/multi_source_enricher';
 import type { InstagramProfile as IgProfile } from '@/lib/apify/instagram';
 
@@ -281,6 +282,8 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile, clientId: numb
       }
     });
     scoreAndAuditLeadBackground(newLeadId);
+    // (#46 spine Inc 2) Auto-thread to the best-fit narrative line.
+    autoThreadLeadByFitBackground(newLeadId);
     return {
       username: prof.username,
       outcome: 'inserted',

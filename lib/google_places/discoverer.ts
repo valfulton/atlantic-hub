@@ -21,6 +21,7 @@ import { inferTargetBusinessFromRaw, type TargetBusiness } from '@/lib/leads/tar
 import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/leads/dedup';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { autoThreadLeadByFitBackground } from '@/lib/campaigns/lines_for_lead';
 import { enrichLeadFromSource } from '@/lib/enrichment/multi_source_enricher';
 
 export type PlacesDiscoverOutcome =
@@ -299,6 +300,8 @@ async function insertOnePlace(db: Pool, det: PlaceDetails, clientId: number | nu
       }
     });
     scoreAndAuditLeadBackground(newLeadId);
+    // (#46 spine Inc 2) Auto-thread to the best-fit narrative line.
+    autoThreadLeadByFitBackground(newLeadId);
     return {
       placeId: det.id,
       outcome: 'inserted',

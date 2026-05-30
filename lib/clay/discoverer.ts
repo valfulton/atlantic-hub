@@ -27,6 +27,7 @@ import { findExistingLead, normalizeDomain } from '@/lib/leads/dedup';
 import { inferTargetBusinessFromRaw } from '@/lib/leads/target_business';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { autoThreadLeadByFitBackground } from '@/lib/campaigns/lines_for_lead';
 import type { ClayPayload } from '@/lib/clay/webhook';
 
 export type ClayOutcome = 'inserted' | 'updated' | 'duplicate' | 'invalid' | 'error';
@@ -265,6 +266,8 @@ export async function ingestClayRow(
     // Fire background score + audit. The helper itself is fire-and-forget,
     // never throws, and tolerates missing OpenAI key (logs + skips).
     scoreAndAuditLeadBackground(newLeadId);
+    // (#46 spine Inc 2) Auto-thread to the best-fit narrative line.
+    autoThreadLeadByFitBackground(newLeadId);
 
     return { outcome: 'inserted', leadId: newLeadId };
   } catch (err) {

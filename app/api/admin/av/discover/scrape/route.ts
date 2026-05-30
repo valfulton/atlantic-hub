@@ -24,6 +24,7 @@ import { findExistingLead, normalizeDomain, mergeTargetBusiness, normalizePhone 
 import { inferTargetBusiness, isTargetBusiness, type TargetBusiness } from '@/lib/leads/target_business';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { autoThreadLeadByFitBackground } from '@/lib/campaigns/lines_for_lead';
 import { assignDiscoveredLeads, parseAssignToUserId } from '@/lib/leads/assign_discovered';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -261,6 +262,8 @@ async function handleNewMode(payload: Record<string, unknown>, actorUserId: numb
     }
   });
   scoreAndAuditLeadBackground(newLeadId);
+  // (#46 spine Inc 2) Auto-thread to the best-fit narrative line.
+  autoThreadLeadByFitBackground(newLeadId);
 
   return NextResponse.json({
     ok: true,
