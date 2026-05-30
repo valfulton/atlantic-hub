@@ -9,6 +9,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
+import WelcomePopover from '@/app/client/_components/WelcomePopover';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
@@ -66,6 +67,16 @@ export default async function ClientDashboardPage() {
   return (
     <>
       <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="dashboard" />
+      {/* (#189) First-login welcome card-flip popovers. Self-dismisses on
+          tour-complete, persists in localStorage so it shows once per
+          identity. Operator preview never renders it (renders directly
+          inside ClientDashboardBody only on the live page). */}
+      <WelcomePopover
+        clientUserId={user.client_user_id}
+        firstName={data.firstName}
+        brandName={user.display_name || data.firstName || 'your business'}
+        tier={user.tier}
+      />
       <ClientDashboardBody data={data} email={user.email} />
     </>
   );
