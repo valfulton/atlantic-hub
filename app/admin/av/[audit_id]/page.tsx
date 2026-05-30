@@ -93,6 +93,30 @@ export default async function AvLeadDetailPage({
               column (industry, contact, phone) + stashes the full intake-shape
               draft on source_payload for the #253 lead→client carryover. */}
           <SmartEnrichButton auditId={lead.auditId} hasWebsite={!!lead.website} />
+          {/* (#267) Deep-links to the other Find-New-Leads sources, prefilled
+              with this lead's company so val can quickly re-search Places or
+              Instagram. The discovery page's dedup automatically ENRICHES the
+              existing lead when it finds a match (#251 Inc 1) — so this is the
+              honest "look this company up again" affordance the lead detail
+              was missing. */}
+          {lead.company && (
+            <>
+              <Link
+                href={`/admin/av/discover?source=places&q=${encodeURIComponent(lead.company)}`}
+                title="Search Google Places for this company — if found, fills any blank fields (phone, address, rating)."
+                className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border border-border text-ink hover:border-amber-400/40 bg-black/20 transition"
+              >
+                🗺️ Try Places
+              </Link>
+              <Link
+                href={`/admin/av/discover?source=instagram&q=${encodeURIComponent(lead.company)}`}
+                title="Search Instagram for this company — if found, fills any blank fields (handle, bio, contact email)."
+                className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border border-border text-ink hover:border-amber-400/40 bg-black/20 transition"
+              >
+                📷 Try IG
+              </Link>
+            </>
+          )}
           {/* (#252 Inc 3) One-Apollo-credit re-call: skip the current contact's
               title + any ICP-excluded titles, insert the first survivor as a
               new sibling lead at the same company. Disabled with a tooltip

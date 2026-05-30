@@ -147,12 +147,23 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
   const [genBusy, setGenBusy] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
 
-  // Identity tab — editable status + follow-up date
+  // Identity tab — editable status + follow-up date + identity fields
   const [status, setStatus] = useState(lead.leadStatus);
   const [followUp, setFollowUp] = useState(lead.followUpDate ? lead.followUpDate.slice(0, 10) : '');
   const [savingIdent, setSavingIdent] = useState(false);
   const [identSavedAt, setIdentSavedAt] = useState<string | null>(null);
   const [identError, setIdentError] = useState<string | null>(null);
+  // (#267) Editable identity fields — once val learns the real values she
+  // overwrites the placeholders (NDVIP came in as "Ndvip", needs real name).
+  // Initial state is the lead's current value; dirty-detection is at save time
+  // by comparing against the original `lead.*` prop.
+  const [companyEdit, setCompanyEdit] = useState<string>(lead.company ?? '');
+  const [contactNameEdit, setContactNameEdit] = useState<string>(lead.contactName ?? '');
+  const [contactTitleEdit, setContactTitleEdit] = useState<string>(lead.contactTitle ?? '');
+  const [emailEdit, setEmailEdit] = useState<string>(lead.email ?? '');
+  const [phoneEdit, setPhoneEdit] = useState<string>(lead.phone ?? '');
+  const [websiteEdit, setWebsiteEdit] = useState<string>(lead.website ?? '');
+  const [industryEdit, setIndustryEdit] = useState<string>(lead.industry ?? '');
 
   // Notes tab
   const [notes, setNotes] = useState<NoteEntry[]>([]);
@@ -203,6 +214,18 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
       const body: Record<string, unknown> = {};
       if (status !== lead.leadStatus) body.leadStatus = status;
       body.followUpDate = followUp || null;
+      // (#267) Identity field edits — only send fields that changed so we
+      // don't no-op-stomp values another process just updated (e.g. an
+      // in-flight enrichment writing email while val saves contact name).
+      const nullEq = (a: string, b: string | null | undefined) =>
+        (a.trim() === '' && (b == null || b === '')) || a.trim() === (b ?? '').trim();
+      if (!nullEq(companyEdit, lead.company)) body.company = companyEdit.trim() || null;
+      if (!nullEq(contactNameEdit, lead.contactName)) body.contactName = contactNameEdit.trim() || null;
+      if (!nullEq(contactTitleEdit, lead.contactTitle)) body.contactTitle = contactTitleEdit.trim() || null;
+      if (!nullEq(emailEdit, lead.email)) body.email = emailEdit.trim() || null;
+      if (!nullEq(phoneEdit, lead.phone)) body.phone = phoneEdit.trim() || null;
+      if (!nullEq(websiteEdit, lead.website)) body.website = websiteEdit.trim() || null;
+      if (!nullEq(industryEdit, lead.industry)) body.industry = industryEdit.trim() || null;
       const res = await fetch(`/api/admin/av/leads/${lead.auditId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -308,13 +331,16 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
 
       {active === 'Identity' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Company" value={lead.company} />
-          <Field label="Contact name" value={lead.contactName} />
-          <Field label="Contact title" value={lead.contactTitle} />
-          <Field label="Email" value={lead.email} />
-          <Field label="Phone" value={lead.phone} />
-          <Field label="Website" value={lead.website} />
-          <Field label="Industry" value={lead.industry} />
+          {/* (#267) Editable identity fields. Each input keeps its own local
+              state; saveIdentity sends only the deltas vs the lead's current
+              value, so we don't stomp concurrent enrichment writes. */}
+          <EditableField label="Company" value={companyEdit} onChange={setCompanyEdit} placeholder="e.g. NDVIP" />
+          <EditableField label="Contact name" value={contactNameEdit} onChange={setContactNameEdit} placeholder="Full name" />
+          <EditableField label="Contact title" value={contactTitleEdit} onChange={setContactTitleEdit} placeholder="e.g. CEO" />
+          <EditableField label="Email" value={emailEdit} onChange={setEmailEdit} placeholder="name@company.com" type="email" />
+          <EditableField label="Phone" value={phoneEdit} onChange={setPhoneEdit} placeholder="+1 …" type="tel" />
+          <EditableField label="Website" value={websiteEdit} onChange={setWebsiteEdit} placeholder="https://…" type="url" />
+          <EditableField label="Industry" value={industryEdit} onChange={setIndustryEdit} placeholder="e.g. Healthcare Technology" />
           {/* (#212) Employee count from Apollo enrichment. Shows nothing when
               the lead wasn't Apollo-sourced or Apollo didn't size the org. */}
           {typeof lead.employeeCount === 'number' && lead.employeeCount > 0 && (
@@ -744,6 +770,36 @@ function Field({ label, value }: { label: string; value: string | null | undefin
     <div>
       <div className="field-label">{label}</div>
       <div className="text-sm mt-0.5">{value ?? <span className="text-muted">—</span>}</div>
+    </div>
+  );
+}
+
+/** (#267) Editable lead identity field. Same visual rhythm as Field, but with
+ *  a thin underline input. Local state lives in the parent so saveIdentity
+ *  can read all fields at once. */
+function EditableField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text'
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: 'text' | 'email' | 'url' | 'tel';
+}) {
+  return (
+    <div>
+      <div className="field-label">{label}</div>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-0.5 w-full text-sm bg-transparent border-b border-border focus:border-amber-400/50 focus:outline-none py-1 transition-colors"
+      />
     </div>
   );
 }

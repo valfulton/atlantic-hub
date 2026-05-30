@@ -373,6 +373,34 @@ export async function PATCH(
     eventPayload.dealValueChanged = true;
   }
 
+  // (#267) Editable identity fields — once val (or a manual enrich) learns
+  // the real company name / contact / email / phone / industry / website, she
+  // can overwrite the placeholder. Each is trim-and-coerce-to-null so empty
+  // strings clear the field. Length caps mirror the schema column sizes.
+  const IDENT_FIELDS: Array<{ key: string; col: string; max: number }> = [
+    { key: 'company',      col: 'company',       max: 255 },
+    { key: 'contactName',  col: 'contact_name',  max: 255 },
+    { key: 'contactTitle', col: 'contact_title', max: 255 },
+    { key: 'email',        col: 'email',         max: 320 },
+    { key: 'phone',        col: 'phone',         max: 64  },
+    { key: 'website',      col: 'website',       max: 1024 },
+    { key: 'industry',     col: 'industry',      max: 128 }
+  ];
+  for (const f of IDENT_FIELDS) {
+    if (!(f.key in payload)) continue;
+    const v = payload[f.key];
+    if (v !== null && typeof v !== 'string') {
+      return NextResponse.json({ error: `${f.key} must be string or null` }, { status: 400 });
+    }
+    const norm = v === null ? null : String(v).trim();
+    if (norm !== null && norm.length > f.max) {
+      return NextResponse.json({ error: `${f.key} max ${f.max} chars` }, { status: 400 });
+    }
+    updates.push(`${f.col} = ?`);
+    values.push(norm && norm.length > 0 ? norm : null);
+    eventPayload[f.key] = norm;
+  }
+
   // Soft delete / undelete. archived=true → archived_at = NOW().
   // archived=false → archived_at = NULL (restore). Filtered out of the
   // leads list by the WHERE archived_at IS NULL clause on GET.
