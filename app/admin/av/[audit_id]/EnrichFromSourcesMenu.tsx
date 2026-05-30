@@ -63,26 +63,43 @@ interface WhoisResponse {
   reason?: string;
 }
 
-const SOURCE_META: Record<SourceKey, { icon: string; label: string; hint: string }> = {
+/** (#270) Each source gets a brand color so the operator can scan the menu
+ *  + future provenance chips and instantly know "that field came from
+ *  Places" vs "that field came from WHOIS". The colors are chosen to map
+ *  to each platform's identity at low saturation so they read on the dark
+ *  surface without screaming. */
+const SOURCE_META: Record<SourceKey, { icon: string; label: string; hint: string; color: string; bg: string; border: string }> = {
   smart: {
     icon: '✨',
     label: 'Smart enrich (website)',
-    hint: 'Reads the website with an LLM and fills any blanks (industry, contact, phone).'
+    hint: 'Reads the website with an LLM and fills any blanks (industry, contact, phone).',
+    color: '#fbbf24',                 // amber — the "AI" actions site-wide
+    bg: 'rgba(251,191,36,0.10)',
+    border: 'rgba(251,191,36,0.40)'
   },
   places: {
     icon: '🗺️',
     label: 'Google Places',
-    hint: 'Searches Places by company + city. Fills address, phone, rating, types.'
+    hint: 'Searches Places by company + city. Fills address, phone, rating, types.',
+    color: '#4ade80',                 // Google Maps green
+    bg: 'rgba(74,222,128,0.10)',
+    border: 'rgba(74,222,128,0.40)'
   },
   instagram: {
     icon: '📷',
     label: 'Instagram',
-    hint: 'Finds the IG handle (via scraped socials, then a company-name guess) and fills profile data.'
+    hint: 'Finds the IG handle (via scraped socials, then a company-name guess) and fills profile data.',
+    color: '#f472b6',                 // Instagram pink/magenta
+    bg: 'rgba(244,114,182,0.10)',
+    border: 'rgba(244,114,182,0.40)'
   },
   whois: {
     icon: '🌐',
     label: 'WHOIS / Domain registration',
-    hint: 'RDAP lookup. Registrant name + email (when not privacy-redacted), registration date, registrar, nameservers.'
+    hint: 'RDAP lookup. Registrant name + email (when not privacy-redacted), registration date, registrar, nameservers.',
+    color: '#a78bfa',                 // purple — the "system/registry" channel
+    bg: 'rgba(167,139,250,0.10)',
+    border: 'rgba(167,139,250,0.40)'
   }
 };
 
@@ -229,9 +246,23 @@ export function EnrichFromSourcesMenu({
                       (s.loading || row.disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer')
                     }
                   >
-                    <span className="text-base leading-tight">{meta.icon}</span>
+                    {/* Color tile keyed to the source — so val sees the
+                        same color show up later as a chip on enriched fields */}
+                    <span
+                      className="text-base leading-tight inline-flex items-center justify-center"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        background: meta.bg,
+                        border: `1px solid ${meta.border}`,
+                        color: meta.color
+                      }}
+                    >
+                      {meta.icon}
+                    </span>
                     <span className="flex-1 min-w-0">
-                      <span className="block text-sm text-ink font-medium">
+                      <span className="block text-sm font-medium" style={{ color: meta.color }}>
                         {meta.label}
                         {s.loading && <span className="ml-2 text-[10px] text-muted">running…</span>}
                       </span>
