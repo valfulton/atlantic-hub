@@ -108,16 +108,20 @@ interface CockpitOutcomes {
   qualified: number;
   converted: number;
   lost: number;
+  postsPublished: number;
 }
 
 /** Mirrors lib/campaigns/line_outcomes.ts:outcomesStrip — kept in client so
  *  the collapsed row can render without a per-line fetch. */
 function outcomesStrip(o: CockpitOutcomes | undefined): string {
-  if (!o || o.leadsLinked === 0) return '';
-  const parts: string[] = [`${o.leadsLinked} lead${o.leadsLinked === 1 ? '' : 's'}`];
+  if (!o) return '';
+  if (o.leadsLinked === 0 && o.postsPublished === 0) return '';
+  const parts: string[] = [];
+  if (o.leadsLinked > 0) parts.push(`${o.leadsLinked} lead${o.leadsLinked === 1 ? '' : 's'}`);
   if (o.qualified > 0) parts.push(`${o.qualified} qualified`);
   if (o.converted > 0) parts.push(`${o.converted} won`);
   if (o.lost > 0 && o.converted === 0 && o.qualified === 0) parts.push(`${o.lost} lost`);
+  if (o.postsPublished > 0) parts.push(`${o.postsPublished} posted`);
   return parts.join(' · ');
 }
 

@@ -42,7 +42,7 @@ export default async function NarrativePage() {
   return (
     <div className="max-w-5xl">
       <h1 className="text-3xl font-semibold tracking-tight mb-1">
-        Narrative{' '}
+        Your{' '}
         <span
           className="font-bold italic"
           style={{
@@ -52,13 +52,14 @@ export default async function NarrativePage() {
             color: 'transparent'
           }}
         >
-          Lines
+          Campaigns
         </span>
       </h1>
       <p className="text-sm text-muted mb-3 max-w-2xl">
-        Each line is a believable <em>market thesis</em> that steers a customer&apos;s PR, social, blog, and
-        commercials. Grouped by customer — your brands and each client. Keep{' '}
-        <strong>{MAX_ACTIVE_LINES} active at most per customer</strong>; park the rest as candidates.
+        Every campaign is a believable <em>market thesis</em> (a &ldquo;narrative line&rdquo;) that
+        steers a customer&apos;s PR, social, blog, and commercials. Grouped by customer — your brands
+        and each client. Keep <strong>{MAX_ACTIVE_LINES} active at most per customer</strong>; park
+        the rest as candidates.
       </p>
       {/* (#46 Inc 6) Backfill walks legacy un-threaded leads to their best-fit
           line so the spine catches up on everything created before Inc 2 wired

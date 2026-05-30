@@ -94,6 +94,7 @@ export interface ClientLeadNarrativeLine {
     qualified: number;
     converted: number;
     lost: number;
+    postsPublished: number;
   };
 }
 

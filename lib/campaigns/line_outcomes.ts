@@ -29,9 +29,14 @@ export interface LineOutcomes {
   converted: number;
   /** Closed-lost. */
   lost: number;
+  /** (#218 Inc 2b) Social posts linked to this line that have actually
+   *  published (status='published' in social_outbox). The asset-side
+   *  half of the spine's learning signal — content that made it OUT and
+   *  was approved, joined here through narrative_line_links. */
+  postsPublished: number;
 }
 
-const EMPTY: LineOutcomes = { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0 };
+const EMPTY: LineOutcomes = { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0, postsPublished: 0 };
 
 interface OutcomeRow extends RowDataPacket {
   narrative_line_id: number;
@@ -86,6 +91,30 @@ export async function outcomesForLines(lineIds: number[]): Promise<Record<number
         default: /* 'new' or legacy — counted in leadsLinked only */ break;
       }
     }
+
+    // (#218 Inc 2b) Second query — count social_outbox rows that have
+    // actually published, joined through the same narrative_line_links
+    // table. Asset side of the learning signal. One query for all lines.
+    interface PostRow extends RowDataPacket {
+      narrative_line_id: number;
+      n: number | string;
+    }
+    const [postRows] = await db.execute<PostRow[]>(
+      `SELECT nll.narrative_line_id, COUNT(*) AS n
+         FROM narrative_line_links nll
+         JOIN social_outbox o ON o.id = nll.asset_id
+        WHERE nll.asset_type = 'social_post'
+          AND nll.narrative_line_id IN (${placeholders})
+          AND o.status = 'published'
+          AND o.archived_at IS NULL
+        GROUP BY nll.narrative_line_id`,
+      ids
+    );
+    for (const r of postRows) {
+      const bucket = result[r.narrative_line_id];
+      if (!bucket) continue;
+      bucket.postsPublished += Number(r.n) || 0;
+    }
   } catch (err) {
     console.error('[line_outcomes]', (err as Error).message);
     /* empty buckets already seeded above */
@@ -117,6 +146,10 @@ export interface LineRanking {
 function rankCompare(a: LineOutcomes, b: LineOutcomes): number {
   if (b.converted !== a.converted) return b.converted - a.converted;
   if (b.qualified !== a.qualified) return b.qualified - a.qualified;
+  // (#218 Inc 2b) Published posts as a tiebreaker BEFORE raw lead count —
+  // a line that's been pushed into the world is steering content, which
+  // is what the cap-of-2-to-4 is meant to reward. Reach is the last word.
+  if (b.postsPublished !== a.postsPublished) return b.postsPublished - a.postsPublished;
   return b.leadsLinked - a.leadsLinked;
 }
 
@@ -151,14 +184,23 @@ export function candidateOutperformsActive(candidate: LineOutcomes, active: Line
  * just hides the row in that case.
  */
 export function outcomesStrip(o: LineOutcomes): string {
-  if (o.leadsLinked === 0) return '';
-  const parts: string[] = [`${o.leadsLinked} lead${o.leadsLinked === 1 ? '' : 's'}`];
+  // (#218 Inc 2b) Lines with published posts but zero leads still deserve a
+  // strip — "this story has been told 5 times" is itself a signal. Strip
+  // hides only when there's nothing on EITHER side.
+  if (o.leadsLinked === 0 && o.postsPublished === 0) return '';
+  const parts: string[] = [];
+  if (o.leadsLinked > 0) {
+    parts.push(`${o.leadsLinked} lead${o.leadsLinked === 1 ? '' : 's'}`);
+  }
   if (o.qualified > 0) parts.push(`${o.qualified} qualified`);
   if (o.converted > 0) parts.push(`${o.converted} won`);
   if (o.lost > 0 && o.converted === 0 && o.qualified === 0) {
     // Only surface losses when there's nothing positive yet — otherwise we'd
     // drown the good signal. Operator can always look deeper on the cockpit.
     parts.push(`${o.lost} lost`);
+  }
+  if (o.postsPublished > 0) {
+    parts.push(`${o.postsPublished} posted`);
   }
   return parts.join(' · ');
 }

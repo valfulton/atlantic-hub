@@ -170,7 +170,7 @@ export async function linesForLead(leadId: number): Promise<LineForLead[]> {
       audience: line.audience,
       role: linkedRole.get(line.id) ?? null,
       shared,
-      outcomes: outcomeMap[line.id] ?? { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0 }
+      outcomes: outcomeMap[line.id] ?? { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0, postsPublished: 0 }
     };
   });
 }
@@ -251,7 +251,7 @@ export async function linkedLinesForLead(leadId: number): Promise<LinkedLineForL
       name: r.name,
       thesis: r.thesis,
       role: r.role,
-      outcomes: outcomes[r.narrative_line_id] ?? { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0 }
+      outcomes: outcomes[r.narrative_line_id] ?? { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0, postsPublished: 0 }
     }));
   } catch (err) {
     console.error('[lines_for_lead:linked]', (err as Error).message);
