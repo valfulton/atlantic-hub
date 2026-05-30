@@ -6,7 +6,7 @@ interface PortalHeaderProps {
   displayName: string | null;
   email: string;
   tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
-  active: 'dashboard' | 'audit' | 'leads' | 'details' | 'pr';
+  active: 'dashboard' | 'audit' | 'leads' | 'details' | 'pr' | 'review';
 }
 
 const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
@@ -100,6 +100,23 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
               }`}
             >
               Your Press
+            </a>
+          )}
+          {/* (#61 Inc 3) Review queue — line-born social drafts awaiting the
+              client's approval. Hidden for audit_only since their hub doesn't
+              produce content yet. Lights up by URL alone; an unread-count
+              badge can come in a follow-up. */}
+          {tier !== 'audit_only' && (
+            <a
+              href="/client/social/review"
+              aria-current={active === 'review' ? 'page' : undefined}
+              className={`px-3 py-1.5 rounded-md text-sm ${
+                active === 'review'
+                  ? 'bg-surface-2 text-ink'
+                  : 'text-muted hover:text-ink hover:bg-surface-2'
+              }`}
+            >
+              To Review
             </a>
           )}
           <a
