@@ -17,6 +17,7 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { setBrandMember } from '@/lib/client/membership';
 import { setClientAccess } from '@/lib/av/client_access';
 import { extractBriefSeedFromIntake } from '@/lib/client/intake_brief';
+import { saveBriefPayload } from '@/lib/client/brief_store';
 import { createLane } from '@/lib/campaigns/store';
 import { sendEmail } from '@/lib/email/smtp';
 import { buildMagicLinkEmail } from '@/lib/email/magic-link-template';
@@ -43,6 +44,10 @@ export interface CreateClientResult {
   magicLink: string;
   emailSent: boolean;
   lineSeeded: boolean;
+  /** (#253 step 7) True when the creative brief was populated from the intake
+   *  payload on creation. Lets the UI tell val "brief is ready" so she knows
+   *  she doesn't need to open the brief editor to fill it in. */
+  briefSeeded: boolean;
   created: boolean;
   /** How many of this person's prospect leads were marked 'converted'. */
   leadsConverted: number;
@@ -132,6 +137,34 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { /* non-fatal: lead can be marked converted manually */ }
   }
 
+  // (#253 step 7) Materialize the CREATIVE BRIEF from the same intake payload
+  // we just put on client_users. Without this, the brief stayed empty on every
+  // operator-created client — the intake was on the user but the brief, the
+  // audit-grounding source, the PR-voice anchor, the drafter context, never
+  // got built. Worse: the autopilot lifecycle hooks (#240) hang off
+  // saveBriefPayload, so ICP sharpening + brand-kit extraction + audit
+  // regen never fired either. One saveBriefPayload call unblocks all of it.
+  //
+  // The intake_brief mapper handles the heavy lifting (translating canonical
+  // intake keys + intake_web_filler stash fields into the brief shape) and
+  // saveBriefPayload triggers the autopilot lifecycle via its dynamic-import
+  // hook — same pattern used by every other intake-write surface.
+  let briefSeeded = false;
+  if (clientId) {
+    try {
+      const ok = await saveBriefPayload('av', clientId, intakePayload, {
+        changedBy: 'operator:create_client',
+        source: 'operator_create'
+      });
+      if (ok) briefSeeded = true;
+    } catch (err) {
+      // Non-fatal: client creation succeeded, brief just didn't materialize.
+      // The "Refresh AI intel" button + the intake-backfill sweep both cover
+      // this case in case the write fails transiently.
+      console.error('[create_client:saveBriefPayload]', (err as Error).message);
+    }
+  }
+
   // Seed a candidate narrative line from whatever brief answers were entered.
   let lineSeeded = false;
   if (clientId) {
@@ -160,5 +193,5 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { emailSent = false; }
   }
 
-  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, created, leadsConverted };
+  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, briefSeeded, created, leadsConverted };
 }

@@ -33,6 +33,9 @@ export function MakeClientButton(props: {
     emailSent: boolean;
     /** (#253) How many intake fields the smart-scrape draft contributed. */
     draftFieldsMerged?: number;
+    /** (#253 step 7) True when saveBriefPayload landed on creation —
+     *  the new client's brief is already populated + autopilot fired. */
+    briefSeeded?: boolean;
   } | null>(null);
   const [tier, setTier] = useState<Tier>('scale');
   const [trialDays, setTrialDays] = useState('30');
@@ -72,7 +75,8 @@ export function MakeClientButton(props: {
           clientId: j.clientId ?? null,
           magicLink: j.magicLink,
           emailSent: j.emailSent,
-          draftFieldsMerged: typeof j.draftFieldsMerged === 'number' ? j.draftFieldsMerged : 0
+          draftFieldsMerged: typeof j.draftFieldsMerged === 'number' ? j.draftFieldsMerged : 0,
+          briefSeeded: j.briefSeeded === true
         });
         router.refresh();
       } else {
@@ -124,8 +128,26 @@ export function MakeClientButton(props: {
                   >
                     ✨ <span className="font-medium">{done.draftFieldsMerged}</span>{' '}
                     intake field{done.draftFieldsMerged === 1 ? '' : 's'} carried over from this
-                    lead&apos;s smart-scrape draft. Their brief is already partly populated — open
-                    the client page to review.
+                    lead&apos;s smart-scrape draft.
+                    {done.briefSeeded ? (
+                      <>
+                        {' '}<span className="font-medium">Brief built + autopilot kicked off</span>
+                        {' '}(ICP sharpening, brand kit, audits regenerating).
+                      </>
+                    ) : (
+                      <> Their brief is already partly populated — open the client page to review.</>
+                    )}
+                  </div>
+                ) : done.briefSeeded ? (
+                  <div
+                    className="rounded-md border px-3 py-2 text-xs leading-relaxed"
+                    style={{
+                      borderColor: 'rgba(110,231,183,0.35)',
+                      background: 'rgba(110,231,183,0.08)',
+                      color: '#86efac'
+                    }}
+                  >
+                    ✨ Brief built + autopilot kicked off (ICP sharpening, brand kit, audits regenerating).
                   </div>
                 ) : props.auditId ? (
                   <div className="text-[11px] text-muted">
