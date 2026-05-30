@@ -19,6 +19,7 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
 import { scrapeContactPage } from '@/lib/scraper/contact_page';
+import { enrichLeadFromSmartScrapeByAuditId } from '@/lib/scraper/smart_lead_scraper';
 import { findExistingLead, normalizeDomain, mergeTargetBusiness, normalizePhone } from '@/lib/leads/dedup';
 import { inferTargetBusiness, isTargetBusiness, type TargetBusiness } from '@/lib/leads/target_business';
 import { logEvent } from '@/lib/events/log';
@@ -51,17 +52,58 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid json body' }, { status: 400 });
   }
 
-  const mode = payload.mode === 'fill' ? 'fill' : 'new';
+  // (#251 Inc 1c-prime) New mode='smart_fill' uses the LLM-driven intake
+  // scraper (lib/scraper/smart_lead_scraper.ts) instead of the regex one.
+  // Same input (auditId) — way better output (industry, contact, address
+  // hints, business description, slogan, key message). Costs ~$0.01/page
+  // vs regex's $0, but returns 10x the structured intelligence. The old
+  // mode='fill' (regex) stays as a fallback so existing UI doesn't break.
+  const mode =
+    payload.mode === 'fill'       ? 'fill' :
+    payload.mode === 'smart_fill' ? 'smart_fill' :
+    'new';
 
   try {
     if (mode === 'fill') {
       return await handleFillMode(payload);
+    }
+    if (mode === 'smart_fill') {
+      return await handleSmartFillMode(payload);
     }
     return await handleNewMode(payload, guard.actor.userId ?? null);
   } catch (err) {
     console.error('[av:discover:scrape]', (err as Error).message);
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }
+}
+
+/**
+ * (#251 Inc 1c-prime) Smart fill — call the LLM-driven scraper for one lead.
+ * Same shape as handleFillMode but powered by intake_web_filler instead of
+ * regex. Returns a payload the operator UI can render directly.
+ */
+async function handleSmartFillMode(payload: Record<string, unknown>) {
+  const auditId = typeof payload.auditId === 'string' ? payload.auditId : '';
+  if (!UUID_RE.test(auditId)) {
+    return NextResponse.json({ error: 'auditId is required (uuid format)' }, { status: 400 });
+  }
+  const result = await enrichLeadFromSmartScrapeByAuditId(auditId);
+  if (!result.fetched) {
+    return NextResponse.json({
+      ok: false,
+      reason: result.reason ?? 'fetch failed',
+      fetchedUrl: null
+    }, { status: 422 });
+  }
+  return NextResponse.json({
+    ok: true,
+    fetchedUrl: result.fetchedUrl,
+    pageSummary: result.pageSummary,
+    proposedFieldCount: result.proposedFieldCount,
+    filledFieldCount: result.enrichment.filled,
+    filledFields: result.enrichment.fields,
+    metadataMerged: result.enrichment.metadataMerged
+  });
 }
 
 async function handleFillMode(payload: Record<string, unknown>) {
