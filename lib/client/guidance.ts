@@ -236,7 +236,7 @@ export async function composeClientGuidance(args: {
     const leadId = lead?.id ?? null;
 
     const [objects, opps, formatStat] = await Promise.all([
-      leadId != null ? loadIntelObjects(leadId) : Promise.resolve([] as IntelObjRow[]),
+      leadId != null ? loadIntelObjects(leadId, lead?.industry ?? null) : Promise.resolve([] as IntelObjRow[]),
       leadId != null ? loadDeadlineOpportunities(leadId) : Promise.resolve([] as PrOppRow[]),
       leadId != null ? loadTopEngagementFormat(leadId) : Promise.resolve(null)
     ]);
@@ -336,18 +336,32 @@ async function loadPrimaryLead(client: ClientIdentity): Promise<PrimaryLeadRow |
 }
 
 /**
- * Accumulated intelligence_objects for THIS business only — strictly lead-scoped.
+ * Accumulated intelligence_objects for THIS business — two-layered:
  *
- * NO-BLEED: we deliberately do NOT pull tenant-level (lead_id IS NULL) 'av'
- * objects here. Those are house/agency-wide intelligence (and, in practice,
- * leftover test artifacts like a debt-collection authority topic); reading them
- * into one client's guidance leaked unrelated themes into every client's "what
- * matters most" panel regardless of who they were. A client's guidance must
- * ground only on their own lead's intelligence.
+ *   Layer 1 (strictly lead-scoped):
+ *     intelligence_objects WHERE tenant='av' AND lead_id=<thisLead>. This is
+ *     the original lead-scoped read. Everything the system has extracted
+ *     specifically about THIS business.
+ *
+ *   Layer 2 (#182 — restores the PR engine → client guidance loop):
+ *     intelligence_objects WHERE tenant='av' AND lead_id IS NULL
+ *       AND source='pr_discovery'
+ *       AND industry overlaps this lead's industry.
+ *     The PR engine writes media_friendly_topics as tenant-level rows keyed
+ *     on industry. Without this layer the engine's output was write-only —
+ *     no client surface ever read it.
+ *
+ * NO-BLEED guarantee preserved: the original guard refused ALL tenant-level
+ * rows because leftover test artifacts (and house-wide intel that doesn't
+ * belong to one client) bled into every client's guidance. Two filters
+ * preserve that intent on Layer 2:
+ *   - source='pr_discovery' excludes leftover test rows (different source)
+ *   - industry-overlap excludes rows where THIS client isn't a plausible owner
+ * If either filter is violated upstream, this surface still won't show the row.
  */
-async function loadIntelObjects(leadId: number): Promise<IntelObjRow[]> {
+async function loadIntelObjects(leadId: number, industry: string | null): Promise<IntelObjRow[]> {
   const db = getAvDb();
-  const [rows] = await db.execute<IntelObjRow[]>(
+  const [leadScoped] = await db.execute<IntelObjRow[]>(
     `SELECT object_type, object_json, confidence, updated_at
        FROM intelligence_objects
       WHERE tenant_id = ?
@@ -356,7 +370,50 @@ async function loadIntelObjects(leadId: number): Promise<IntelObjRow[]> {
       LIMIT 40`,
     [SOURCE_TENANT, leadId]
   );
-  return rows;
+
+  // (#182) Layer 2 — PR-discovery tenant-level intel. Only fires when this
+  // lead has a recorded industry; without one, no plausible match.
+  let prDiscovery: IntelObjRow[] = [];
+  const industryNorm = (industry ?? '').trim().toLowerCase();
+  if (industryNorm.length >= 3) {
+    try {
+      const [prRows] = await db.execute<IntelObjRow[]>(
+        `SELECT object_type, object_json, confidence, updated_at
+           FROM intelligence_objects
+          WHERE tenant_id = ?
+            AND lead_id IS NULL
+            AND source = 'pr_discovery'
+          ORDER BY confidence DESC, updated_at DESC
+          LIMIT 40`,
+        [SOURCE_TENANT]
+      );
+      prDiscovery = prRows.filter((r) => {
+        const json: unknown = typeof r.object_json === 'string'
+          ? safeParseObj(r.object_json)
+          : r.object_json;
+        const rowIndustry = json && typeof (json as Record<string, unknown>).industry === 'string'
+          ? ((json as Record<string, unknown>).industry as string).trim().toLowerCase()
+          : '';
+        if (!rowIndustry) return false;
+        return rowIndustry.includes(industryNorm) || industryNorm.includes(rowIndustry);
+      });
+    } catch {
+      // Non-fatal — the lead-scoped layer is the floor; layer 2 is an
+      // additive signal, never blocking.
+      prDiscovery = [];
+    }
+  }
+
+  return [...leadScoped, ...prDiscovery];
+}
+
+function safeParseObj(s: string): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(s);
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
