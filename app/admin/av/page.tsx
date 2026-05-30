@@ -10,6 +10,7 @@ import { CoachCallsButton } from './CoachCallsButton';
 import { LeadOfTheDay } from '@/components/LeadOfTheDay';
 import { HotLeadConfetti } from '@/components/HotLeadConfetti';
 import { PipelineValueCard } from '@/components/PipelineValueCard';
+import { QuickScrapeWidget } from './QuickScrapeWidget';
 import { listClientAccounts } from '@/lib/av/clients_overview';
 import { getHunterCreditStatus } from '@/lib/enrichment/enricher';
 
@@ -193,6 +194,10 @@ export default async function AvPage({
         </Link>
       </div>
       <p className="text-sm text-muted mb-6">Lead pipeline · read-only in v1</p>
+
+      {/* Quick-add via smart scraper — same engine as Find new leads, surfaced
+          right where val is when she spots a URL worth chasing (NDVIP). */}
+      <QuickScrapeWidget />
 
       <HotLeadConfetti candidates={confettiCandidates} />
       <PipelineValueCard />
