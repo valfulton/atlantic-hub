@@ -171,13 +171,31 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
   if (lines === null) return null;
   if (lines.length === 0) return null;
 
+  // (#271) Default-collapsed per val's feedback that this section is
+  // distracting at the lead-creation / pre-audit stage. The full panel
+  // expands on click; the summary still shows useful at-a-glance signal
+  // (how many lines, whether anything's already linked).
+  const linkedCount = lines.filter((l) => l.role != null).length;
+
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 mb-4">
+    <details className="bg-surface border border-border rounded-xl mb-4 group">
+      <summary
+        className="cursor-pointer list-none p-4 flex items-baseline justify-between gap-3"
+      >
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="inline-block text-muted text-[10px] transition-transform group-open:rotate-90">▶</span>
+          <h2 className="text-sm font-semibold text-ink">Narrative lines this lead supports</h2>
+          <span className="text-[11px] text-muted">
+            ({lines.length} active{linkedCount > 0 ? ` · ${linkedCount} linked` : ''})
+          </span>
+        </div>
+        <span className="text-[11px] text-muted group-open:hidden">expand</span>
+      </summary>
+      <div className="px-4 pb-4">
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">Narrative lines this lead supports</h2>
-          <p className="text-[11px] text-muted mt-0.5">
-            Link the lead to a story so every asset for it advances the same thesis.
+          <p className="text-[11px] text-muted">
+            Link the lead to a story so every asset for it advances the same thesis. Best used AFTER you&apos;ve done the audit.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -329,6 +347,7 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
           );
         })}
       </ul>
-    </div>
+      </div>
+    </details>
   );
 }
