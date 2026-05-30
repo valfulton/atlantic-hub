@@ -35,6 +35,9 @@ interface PreviewResponse {
   model: string;
   blankKeys: string[];
   overwriteKeys: string[];
+  /** Current stored value for each overwrite key (truncated to ~800 chars).
+   *  Surfaced inline so val can compare current vs suggested before applying. */
+  existing: Record<string, string>;
 }
 
 interface ApplyResponse {
@@ -230,6 +233,7 @@ export default function FillIntakeFromWebPanel({
           <ul className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
             {Object.entries(preview.suggestions).map(([k, original]) => {
               const isBlank = preview.blankKeys.includes(k);
+              const currentValue = !isBlank ? preview.existing?.[k] : null;
               return (
                 <li
                   key={k}
@@ -265,6 +269,19 @@ export default function FillIntakeFromWebPanel({
                       </span>
                     )}
                   </div>
+                  {/* Show the existing value for overwrite keys so val can see what's
+                      about to be replaced. Muted, line-through to read as "current →
+                      will become". */}
+                  {currentValue && (
+                    <div className="mb-1.5 rounded border border-white/5 bg-black/25 px-2 py-1">
+                      <div className="text-[9px] uppercase tracking-[0.14em] text-white/35 mb-0.5">
+                        Current
+                      </div>
+                      <div className="text-[11px] text-white/55 leading-snug whitespace-pre-wrap break-words">
+                        {currentValue}
+                      </div>
+                    </div>
+                  )}
                   <textarea
                     value={edits[k] ?? ''}
                     onChange={(e) => setEdits((p) => ({ ...p, [k]: e.target.value }))}

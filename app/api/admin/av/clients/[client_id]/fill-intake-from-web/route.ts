@@ -90,17 +90,26 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       const current = (await getBriefPayload('av', clientId)) ?? {};
       const blankKeys: string[] = [];
       const overwriteKeys: string[] = [];
+      // For overwrite keys, also return the EXISTING stored value so the UI
+      // can show val what's about to be replaced ("Current: …" line above the
+      // suggested value). Truncated to keep the payload sane.
+      const existing: Record<string, string> = {};
       for (const k of Object.keys(result.suggestions)) {
-        const existing = (current as Record<string, unknown>)[k];
-        const isBlank = typeof existing !== 'string' || existing.trim().length === 0;
-        if (isBlank) blankKeys.push(k);
-        else overwriteKeys.push(k);
+        const stored = (current as Record<string, unknown>)[k];
+        const isBlank = typeof stored !== 'string' || stored.trim().length === 0;
+        if (isBlank) {
+          blankKeys.push(k);
+        } else {
+          overwriteKeys.push(k);
+          existing[k] = (stored as string).slice(0, 800);
+        }
       }
       return NextResponse.json({
         ok: true,
         ...result,
         blankKeys,
-        overwriteKeys
+        overwriteKeys,
+        existing
       });
     } catch (err) {
       if (err instanceof IntakeWebFetchError) {
