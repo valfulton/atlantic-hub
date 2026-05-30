@@ -600,7 +600,7 @@ function PostToCommercialBridge({
                 Download
               </a>
               <a
-                href={`/admin/av/${auditId}`}
+                href={`/admin/av/lead/${auditId}`}
                 className="text-[11px] px-2 py-1 rounded border border-border hover:border-pink-400 text-muted hover:text-ink ml-auto"
               >
                 View in Commercials tab

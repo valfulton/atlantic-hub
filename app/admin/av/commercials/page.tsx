@@ -118,7 +118,7 @@ export default async function CommercialsPage({ searchParams }: { searchParams: 
             <div key={a.id} className="relative rounded-2xl border border-border bg-surface overflow-hidden hover:border-pink-400/40 transition-colors">
               <DeleteCommercialButton auditId={a.audit_id} assetId={a.id} />
               <a
-                href={`/admin/av/${a.audit_id}`}
+                href={`/admin/av/lead/${a.audit_id}`}
                 className="block no-underline"
               >
               <div className="aspect-video bg-black flex items-center justify-center">

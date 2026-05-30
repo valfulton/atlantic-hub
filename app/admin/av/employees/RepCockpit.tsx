@@ -164,7 +164,7 @@ export default function RepCockpit({ data, repName }: { data: RepDashboard; repN
       {/* Best opportunity */}
       {stats.topLead && stats.topLead.auditId && (
         <Link
-          href={`/admin/av/${stats.topLead.auditId}`}
+          href={`/admin/av/lead/${stats.topLead.auditId}`}
           className="block rounded-2xl border border-border bg-surface p-4 hover:border-brand transition-colors"
         >
           <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-1">⭐ Best opportunity</div>
@@ -234,7 +234,7 @@ function LeadRowCard({ lead }: { lead: RepLead }) {
     <li className="rounded-xl border border-border bg-bg/40 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link href={lead.auditId ? `/admin/av/${lead.auditId}` : '#'} className="text-sm font-semibold text-ink hover:text-brand truncate block">
+          <Link href={lead.auditId ? `/admin/av/lead/${lead.auditId}` : '#'} className="text-sm font-semibold text-ink hover:text-brand truncate block">
             {lead.company}
           </Link>
           <div className="text-[11px] text-muted mt-0.5 flex flex-wrap items-center gap-x-2">
@@ -277,7 +277,7 @@ function LeadRowCard({ lead }: { lead: RepLead }) {
         )}
         {lead.auditId && <QuickLogCall auditId={lead.auditId} />}
         {lead.auditId && (
-          <Link href={`/admin/av/${lead.auditId}`} className="text-[11px] px-2 py-1 rounded-md text-[#1a1207] font-medium" style={{ background: AMBER }}>
+          <Link href={`/admin/av/lead/${lead.auditId}`} className="text-[11px] px-2 py-1 rounded-md text-[#1a1207] font-medium" style={{ background: AMBER }}>
             Open lead →
           </Link>
         )}
