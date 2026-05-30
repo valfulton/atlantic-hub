@@ -210,6 +210,56 @@ export async function bestLineForLead(leadId: number): Promise<{ lineId: number;
 }
 
 /**
+ * (#46 Inc 5) Just the LINKED lines for a lead — no overlap math, no
+ * candidates. Used by the client lead view (read-only mirror) where we only
+ * want to surface facts the client should see ("this lead supports the
+ * Founder Story line"), never the operator-side machinery. Includes outcomes
+ * so the client can see track record. Empty array when there's nothing
+ * linked yet — UI hides the panel.
+ */
+export interface LinkedLineForLead {
+  lineId: number;
+  name: string;
+  thesis: string | null;
+  role: LinkRole;
+  outcomes: LineOutcomes;
+}
+
+export async function linkedLinesForLead(leadId: number): Promise<LinkedLineForLead[]> {
+  if (!Number.isInteger(leadId) || leadId <= 0) return [];
+  try {
+    const db = getAvDb();
+    // One JOIN — links + the line's display fields. Filtered by asset_type
+    // and the lead's id. Lines that have been archived since the link was
+    // written drop out via the IS NULL guard, so we never surface a deleted
+    // line to the client.
+    const [rows] = await db.execute<(RowDataPacket & {
+      narrative_line_id: number; role: LinkRole; name: string; thesis: string | null;
+    })[]>(
+      `SELECT nll.narrative_line_id, nll.role, nl.name, nl.thesis
+         FROM narrative_line_links nll
+         JOIN narrative_lanes nl ON nl.id = nll.narrative_line_id
+        WHERE nll.asset_type = 'lead' AND nll.asset_id = ?
+          AND nl.archived_at IS NULL
+        ORDER BY FIELD(nll.role,'advances','reinforces','tests'), nll.created_at DESC`,
+      [leadId]
+    );
+    if (rows.length === 0) return [];
+    const outcomes = await outcomesForLines(rows.map((r) => r.narrative_line_id));
+    return rows.map((r) => ({
+      lineId: r.narrative_line_id,
+      name: r.name,
+      thesis: r.thesis,
+      role: r.role,
+      outcomes: outcomes[r.narrative_line_id] ?? { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0 }
+    }));
+  } catch (err) {
+    console.error('[lines_for_lead:linked]', (err as Error).message);
+    return [];
+  }
+}
+
+/**
  * (#46 Inc 6) One-shot backfill: walk leads that are NOT yet linked to ANY
  * narrative line, run bestLineForLead on each, link the ones with a confident
  * fit. Capped batch so a single button-press doesn't run the table; the soft

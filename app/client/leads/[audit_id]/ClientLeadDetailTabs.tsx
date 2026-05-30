@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ClientLeadDetail } from '@/lib/client/lead_detail';
 import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
+import { ClientLeadNarrativeLinesPanel } from '@/app/_components/ClientLeadNarrativeLinesPanel';
 
 const TABS = ['Audit', 'Calls', 'Notes', 'AI Scoring', 'Outreach', 'Identity', 'Commercials'] as const;
 type Tab = (typeof TABS)[number];
@@ -236,6 +237,14 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
         >
           &#x1F4DE; Log a call
         </button>
+      </div>
+
+      {/* (#46 Inc 5) Read-only mirror of the operator's narrative-lines
+          panel. Shows ONLY linked lines + outcomes (no candidates, no
+          machinery) so the client sees the story the work is advancing
+          and the track record behind it. Hidden when no lines linked yet. */}
+      <div className="mt-4">
+        <ClientLeadNarrativeLinesPanel lines={lead.narrativeLines} />
       </div>
 
       {/* (#253) "About this prospect" — distilled prospect-research the LLM

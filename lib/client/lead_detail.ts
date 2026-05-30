@@ -19,6 +19,7 @@
  * already authenticated as a client_user.
  */
 import { getAvDb } from '@/lib/db/av';
+import { linkedLinesForLead } from '@/lib/campaigns/lines_for_lead';
 import type { RowDataPacket } from 'mysql2';
 
 export type LeadBand = 'hot' | 'warm' | 'cool' | null;
@@ -79,6 +80,23 @@ export interface ProspectIntel {
   brandVoice: string | null;
 }
 
+/** (#46 Inc 5) Client-safe read-only view of a narrative line this lead is
+ *  linked to. Includes outcomes so the client sees track record but never the
+ *  operator-side machinery (no candidates, no overlap math, no link buttons). */
+export interface ClientLeadNarrativeLine {
+  lineId: number;
+  name: string;
+  thesis: string | null;
+  role: 'advances' | 'reinforces' | 'tests';
+  outcomes: {
+    leadsLinked: number;
+    contacted: number;
+    qualified: number;
+    converted: number;
+    lost: number;
+  };
+}
+
 export interface ClientLeadDetail {
   id: number;
   auditId: string | null;
@@ -120,6 +138,9 @@ export interface ClientLeadDetail {
    * client surface renders the panel only when at least one field is populated.
    */
   prospectIntel: ProspectIntel | null;
+  /** (#46 Inc 5) Narrative lines this lead is linked to (read-only mirror of
+   *  the operator panel). Empty array = panel hides — no day-one weight. */
+  narrativeLines: ClientLeadNarrativeLine[];
 }
 
 interface DetailRow extends RowDataPacket {
@@ -322,6 +343,10 @@ export async function getClientLeadDetail(
     outreach = [];
   }
 
+  // (#46 Inc 5) Linked narrative lines for the client mirror — read-only,
+  // no candidates, no machinery. Never throws; empty array hides the panel.
+  const narrativeLines = await linkedLinesForLead(r.id);
+
   return {
     id: r.id,
     auditId: r.audit_id,
@@ -355,6 +380,7 @@ export async function getClientLeadDetail(
     callScript: callScriptOf(r.pain_point_profile),
     submittedAt: toIso(r.submission_date),
     outreach,
-    prospectIntel: prospectIntelFrom(r.source_payload)
+    prospectIntel: prospectIntelFrom(r.source_payload),
+    narrativeLines
   };
 }
