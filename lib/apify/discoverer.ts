@@ -27,14 +27,71 @@ import { findExistingLead, normalizeDomain, mergeTargetBusiness } from '@/lib/le
 import { scrapeContactPage } from '@/lib/scraper/contact_page';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { enrichLeadFromSource } from '@/lib/enrichment/multi_source_enricher';
+import type { InstagramProfile as IgProfile } from '@/lib/apify/instagram';
 
 export type InstagramDiscoverOutcome =
   | 'inserted'
   | 'duplicate_existing'
   | 'duplicate_target_upgraded'
+  /** (#251 Inc 1b) Existing lead got fresh IG signal written onto its row +
+   *  source_payload (followers, bio, business category, external URL, etc.)
+   *  instead of those fields being discarded on the dedup match. */
+  | 'duplicate_enriched'
   | 'profile_not_found'
   | 'insufficient_contact'
   | 'insert_failed';
+
+/**
+ * (#251 Inc 1b) Build the multi-source enrichment patch shape from an
+ * Instagram profile. Mirrors buildPlacesPatch — fields the leads table has
+ * columns for go in `fields`, IG-specific signal that has no column goes in
+ * `sourceMetadata` so it lives on source_payload for later use (e.g. the
+ * lead detail page's "where this data came from" provenance hover).
+ */
+function buildInstagramPatch(
+  prof: IgProfile,
+  email: string | null,
+  phone: string | null,
+  website: string | null,
+  industry: string | null,
+  bioContact: { email: string | null; phone: string | null; bookingUrl: string | null }
+) {
+  return {
+    fields: {
+      phone: phone ?? undefined,
+      website: website ?? undefined,
+      industry: industry ?? undefined
+      // No email/contact_name — Hunter wins the email contest, and IG
+      // profiles don't reliably carry a real-person contact name.
+    },
+    sourceMetadata: {
+      ig_username: prof.username,
+      ig_profile_url: prof.profileUrl,
+      ig_full_name: prof.fullName,
+      ig_biography: prof.biography,
+      ig_external_url: prof.externalUrl,
+      ig_business_category: prof.businessCategoryName,
+      ig_followers: prof.followersCount,
+      ig_follows: prof.followsCount,
+      ig_posts: prof.postsCount,
+      ig_is_business: prof.isBusinessAccount,
+      ig_is_verified: prof.isVerified,
+      // Bio-parsed contact bits are preserved as the original would have on
+      // an insert — so anyone reading source_payload can audit what came
+      // from where, even when only metadata (not column fills) was merged.
+      parsed_from_bio: { email: bioContact.email, phone: bioContact.phone, url: bioContact.bookingUrl },
+      // The email/business email Apify directly returned (separate from bio
+      // parse). NOT written to leads.email by this path — captured as
+      // provenance only so future "find another POC" / outreach flows can
+      // read it without re-hitting Apify.
+      ig_business_email: prof.businessEmail ?? null,
+      ig_business_phone: prof.businessPhoneNumber ?? null,
+      ig_email_for_provenance: email ?? null
+    },
+    note: 'duplicate-hit enrichment (Instagram)'
+  };
+}
 
 export interface InstagramDiscoverResult {
   username: string;
@@ -57,6 +114,10 @@ export interface InstagramDiscoverBatchResult {
   resolvedCount: number;
   insertedCount: number;
   duplicateCount: number;
+  /** (#251 Inc 1b) Existing leads whose data this sweep filled with fresh
+   *  Instagram signal (phone/website/industry + followers/bio/category metadata).
+   *  Counted alongside insertedCount so the operator sees compounding intel. */
+  enrichedCount: number;
   results: InstagramDiscoverResult[];
 }
 
@@ -104,9 +165,18 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile, clientId: numb
     [dedupKey]
   );
   if (byHandle.length > 0) {
+    // (#251 Inc 1b) The IG handle already mapped to a lead. That doesn't
+    // mean the IG profile changed — but if it did (new bio, new follower
+    // count, new business category), we want to compound that onto the lead.
+    // blanks-only on columns; source_payload always gets the fresh metadata.
+    const enrichment = await enrichLeadFromSource({
+      leadId: byHandle[0].id,
+      source: 'instagram_apify',
+      patch: buildInstagramPatch(prof, email, phone, website, industry, bioContact)
+    });
     return {
       username: prof.username,
-      outcome: 'duplicate_existing',
+      outcome: enrichment.filled > 0 || enrichment.metadataMerged ? 'duplicate_enriched' : 'duplicate_existing',
       leadId: byHandle[0].id,
       details: { company, email, phone, website, industry, isBusinessAccount: prof.isBusinessAccount, followersCount: prof.followersCount }
     };
@@ -115,6 +185,15 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile, clientId: numb
   // Then by cross-source dedup (domain match against existing lead from Apollo/Places/etc.)
   const existing = await findExistingLead(db, { domain: website, phone, mode: 'loose' });
   if (existing) {
+    // (#251 Inc 1b) Same enrichment write as the IG-handle branch — fill any
+    // blanks on the existing cross-source lead from this IG profile, and
+    // always merge IG-specific signal (followers, bio, category, external
+    // URL, verification) onto source_payload. Compound across sources.
+    const enrichment = await enrichLeadFromSource({
+      leadId: existing.leadId,
+      source: 'instagram_apify',
+      patch: buildInstagramPatch(prof, email, phone, website, industry, bioContact)
+    });
     const merged = mergeTargetBusiness(existing.targetBusiness ?? 'av', targetBusiness);
     if (merged !== existing.targetBusiness) {
       await db.execute(`UPDATE leads SET target_business = ?, last_activity_at = NOW() WHERE id = ?`, [
@@ -130,7 +209,7 @@ async function insertOneProfile(db: Pool, prof: InstagramProfile, clientId: numb
     }
     return {
       username: prof.username,
-      outcome: 'duplicate_existing',
+      outcome: enrichment.filled > 0 || enrichment.metadataMerged ? 'duplicate_enriched' : 'duplicate_existing',
       leadId: existing.leadId,
       details: { company, email, phone, website, industry, isBusinessAccount: prof.isBusinessAccount, followersCount: prof.followersCount }
     };
@@ -244,12 +323,21 @@ export async function runInstagramDiscoveryBatch(usernames: string[], opts: { cl
     }
   }
   const insertedCount = results.filter((r) => r.outcome === 'inserted').length;
-  const duplicateCount = results.filter((r) => r.outcome === 'duplicate_existing' || r.outcome === 'duplicate_target_upgraded').length;
+  const enrichedCount = results.filter((r) => r.outcome === 'duplicate_enriched').length;
+  // (#251 Inc 1b) duplicateCount includes pure duplicates AND target_upgrades
+  // AND enriched duplicates — keeps the existing UI count stable. enrichedCount
+  // is broken out separately as the new "compounding intel" signal.
+  const duplicateCount = results.filter((r) =>
+    r.outcome === 'duplicate_existing' ||
+    r.outcome === 'duplicate_target_upgraded' ||
+    r.outcome === 'duplicate_enriched'
+  ).length;
   return {
     inputUsernames: usernames,
     resolvedCount: profiles.length,
     insertedCount,
     duplicateCount,
+    enrichedCount,
     results
   };
 }
