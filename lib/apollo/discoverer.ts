@@ -35,6 +35,8 @@ import {
 import { inferTargetBusiness } from '@/lib/leads/target_business';
 import { logEvent } from '@/lib/events/log';
 import { scoreAndAuditLeadBackground } from '@/lib/ai/score_and_audit';
+import { getClientIcp } from '@/lib/client/icp';
+import { buildTitlePrefs, filterAndRank, hasTitleFilters, type TitlePrefs } from '@/lib/leads/title_filter';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { randomUUID } from 'crypto';
 
@@ -385,10 +387,22 @@ async function insertApolloPersonAsLead(
  * people as named leads. If Apollo has no people on file for that org,
  * fall back to inserting a company shell.
  */
-async function discoverPeopleForOrg(org: ApolloOrganization, clientId: number | null): Promise<DiscoverResult[]> {
+async function discoverPeopleForOrg(
+  org: ApolloOrganization,
+  clientId: number | null,
+  titlePrefs: TitlePrefs
+): Promise<DiscoverResult[]> {
+  // (#252 Inc 2) When the client has title prefs we ask Apollo for a wider
+  // candidate pool so we don't filter 2 → 0. The filter drops excluded titles
+  // and ranks preferred first, then we slice back to TOP_PEOPLE_PER_ORG. A
+  // 5-candidate pool gives us enough headroom for "drop both HR people, keep
+  // the CEO + COO" while only spending one Apollo call.
+  const wantWiderPool = hasTitleFilters(titlePrefs);
+  const perPage = wantWiderPool ? Math.max(TOP_PEOPLE_PER_ORG, 5) : TOP_PEOPLE_PER_ORG;
+
   let topPeopleResult;
   try {
-    topPeopleResult = await apolloOrganizationTopPeople(org.id, { perPage: TOP_PEOPLE_PER_ORG });
+    topPeopleResult = await apolloOrganizationTopPeople(org.id, { perPage });
   } catch (err) {
     // top_people errored — fall back to company shell so the lead still lands.
     // Common reasons: rate limit, transient API issue, missing data for this org.
@@ -396,11 +410,39 @@ async function discoverPeopleForOrg(org: ApolloOrganization, clientId: number | 
     return [await insertApolloOrgAsLead(org, clientId)];
   }
 
-  const people = topPeopleResult.people.slice(0, TOP_PEOPLE_PER_ORG);
+  // (#252 Inc 2) Apply the client's title filter to whatever Apollo returned.
+  // The filter is a no-op when titlePrefs has no rules (typical operator runs).
+  const { kept, counts } = filterAndRank(
+    topPeopleResult.people,
+    (p) => p.title || p.headline || null,
+    titlePrefs
+  );
+
+  // Log the filter outcome ONCE per org when prefs were active so val can
+  // audit Skip's "no HR" rule actually firing. We log even when nothing was
+  // excluded (helps her debug "wait, was the filter even on?" cases).
+  if (wantWiderPool) {
+    await logEvent({
+      eventType: 'apollo.title_filter_applied',
+      source: 'discoverer',
+      status: 'success',
+      payload: {
+        apollo_org_id: org.id,
+        company: org.name,
+        client_id: clientId,
+        ...counts,
+        kept_after_filter: kept.length,
+        per_page_requested: perPage
+      }
+    }).catch(() => {}); // never block discovery on a log failure
+  }
+
+  const people = kept.slice(0, TOP_PEOPLE_PER_ORG);
 
   if (people.length === 0) {
-    // Apollo doesn't have anyone listed at this company — insert company shell;
-    // Hunter cron can still try the domain.
+    // Either Apollo had nobody, OR the filter dropped everyone (all of org's
+    // top people were HR/Recruiter for Skip-style ICPs). Fall back to company
+    // shell so the lead still lands and Hunter cron can try the domain.
     return [await insertApolloOrgAsLead(org, clientId)];
   }
 
@@ -437,6 +479,24 @@ export async function runDiscoveryBatch(opts: {
   const excludeTerms = (opts.excludeIndustries ?? [])
     .map((t) => (t || '').trim().toLowerCase())
     .filter((t) => t.length > 0);
+
+  // (#252 Inc 2) Load the client's title preferences ONCE per batch and pass
+  // them down to discoverPeopleForOrg. We hit client_icps a single time even
+  // though the batch may process dozens of orgs. Operator runs (clientId null)
+  // skip the load — they get the no-filter behavior.
+  let titlePrefs: TitlePrefs = buildTitlePrefs({});
+  if (clientId && clientId > 0) {
+    try {
+      const icp = await getClientIcp(clientId);
+      titlePrefs = buildTitlePrefs({
+        preferredContactTitles: icp.preferredContactTitles,
+        excludedContactTitles: icp.excludedContactTitles
+      });
+    } catch {
+      // Non-fatal: discovery continues with no title filter.
+      titlePrefs = buildTitlePrefs({});
+    }
+  }
 
   const usedThisMonth = await getMonthlySearchUsage();
   const remaining = Math.max(0, monthlyCeiling - usedThisMonth);
@@ -532,7 +592,7 @@ export async function runDiscoveryBatch(opts: {
       const hay = [org.name, org.industry, org.short_description].filter(Boolean).join(' ').toLowerCase();
       if (excludeTerms.some((t) => hay.includes(t))) continue;
     }
-    const orgResults = await discoverPeopleForOrg(org, clientId);
+    const orgResults = await discoverPeopleForOrg(org, clientId, titlePrefs);
     for (const r of orgResults) {
       results.push(r);
       if (r.outcome === 'inserted_person') insertedPeople++;
