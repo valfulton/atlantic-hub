@@ -125,6 +125,18 @@ export interface IntelInventory {
   hasAnyExtractedIntel: boolean;
   /** Object types that exist in the canonical registry but have NO row yet. */
   missingIntelTypes: string[];
+  /**
+   * (#182) Tenant-level intel the PR engine wrote (lead_id IS NULL,
+   * tenant_id = 'av', source = 'pr_discovery') filtered to industries
+   * relevant to THIS client. The PR engine's media_friendly_topics output
+   * lives here. Previously invisible on per-client surfaces because the
+   * inventory only queried tenant_id IN ('client:<id>') and guidance.ts
+   * deliberately skipped tenant-level intel to avoid leftover-test-artifact
+   * bleed. This surface restores observability without removing that guard.
+   */
+  prDiscoveryObjects: IntelligenceObjectRow[];
+  /** Industries this client claims — used to filter prDiscoveryObjects. */
+  clientIndustries: string[];
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -240,6 +252,18 @@ export async function loadIntelInventory(clientId: number): Promise<IntelInvento
       return a.key.localeCompare(b.key);
     });
 
+  // (#182) Pull tenant-level PR-discovery intel filtered to this client's
+  // industries. PR discovery writes media_friendly_topics with lead_id NULL +
+  // tenant 'av' + source 'pr_discovery'. The previous query above never saw
+  // those rows because it scopes to tenant_id IN ('client:<id>'). Surface
+  // them here so val can confirm the PR engine is actually producing intel
+  // relevant to each client — answers "is the PR engine doing anything?"
+  const clientIndustries = collectClientIndustries(brief, rawIntake);
+  const prDiscoveryObjects: IntelligenceObjectRow[] = await loadTenantPrDiscoveryForClient(
+    db,
+    clientIndustries
+  );
+
   return {
     clientId,
     intelligenceObjects,
@@ -248,6 +272,99 @@ export async function loadIntelInventory(clientId: number): Promise<IntelInvento
     intakeHas,
     briefHas,
     hasAnyExtractedIntel: intelligenceObjects.length > 0,
-    missingIntelTypes
+    missingIntelTypes,
+    prDiscoveryObjects,
+    clientIndustries
   };
+}
+
+/**
+ * (#182) Collect every plausible industry label this client claims.
+ *
+ * Sources, in order of trust:
+ *   1. brief.industry / brief.target_industries
+ *   2. rawIntake.industry / rawIntake.target_audience hints
+ *
+ * Lowercased + de-duplicated. Empty array when this client has no industry
+ * recorded — caller short-circuits the SQL when that happens.
+ */
+function collectClientIndustries(
+  brief: Record<string, unknown>,
+  rawIntake: Record<string, unknown>
+): string[] {
+  const candidates = new Set<string>();
+  const push = (v: unknown) => {
+    if (typeof v === 'string' && v.trim()) {
+      // Splitting on common list separators so multi-industry fields don't
+      // become one giant string that never matches.
+      for (const piece of v.split(/[,;|/]+/)) {
+        const t = piece.trim().toLowerCase();
+        if (t.length >= 3) candidates.add(t);
+      }
+    } else if (Array.isArray(v)) {
+      for (const x of v) push(x);
+    }
+  };
+  push(brief.industry);
+  push(brief.target_industries);
+  push(rawIntake.industry);
+  push(rawIntake.target_audience);
+  return [...candidates];
+}
+
+/**
+ * (#182) Tenant-level PR-discovery rows whose JSON 'industry' field overlaps
+ * any of the client's claimed industries. Capped + ordered by recency so the
+ * UI surface stays bounded.
+ *
+ * Source filter ('pr_discovery') AND lead_id IS NULL together exclude:
+ *   - lead-scoped client intel (already in `intelligenceObjects` above)
+ *   - leftover test artifacts under tenant 'av' (different source values)
+ * So this restores the PR signal without re-opening the bleed the guidance
+ * guard was protecting against.
+ */
+async function loadTenantPrDiscoveryForClient(
+  db: ReturnType<typeof getAvDb>,
+  clientIndustries: string[]
+): Promise<IntelligenceObjectRow[]> {
+  if (clientIndustries.length === 0) return [];
+  const [rows] = await db.execute<(IntelligenceObjectRow & RowDataPacket)[]>(
+    `SELECT id, object_type, object_json, source, confidence, updated_at
+       FROM intelligence_objects
+      WHERE tenant_id = 'av'
+        AND lead_id IS NULL
+        AND source = 'pr_discovery'
+      ORDER BY updated_at DESC
+      LIMIT 80`
+  );
+  // App-side industry filter: JSON_EXTRACT in WHERE is brittle on shared
+  // hosting + the row volume here is tiny (one row per industry×pain). Doing
+  // it in code keeps the query simple and the filter readable.
+  const matched: IntelligenceObjectRow[] = [];
+  for (const r of rows) {
+    const json = typeof r.object_json === 'string' ? safeJson(r.object_json) : (r.object_json as Record<string, unknown> | null);
+    const rowIndustry = typeof json?.industry === 'string' ? json.industry.trim().toLowerCase() : '';
+    if (!rowIndustry) continue;
+    const hit = clientIndustries.some((ci) => rowIndustry.includes(ci) || ci.includes(rowIndustry));
+    if (hit) {
+      matched.push({
+        id: r.id,
+        object_type: r.object_type,
+        object_json: json,
+        source: r.source ?? null,
+        confidence: r.confidence ?? null,
+        updated_at: typeof r.updated_at === 'string' ? r.updated_at : (r.updated_at as Date).toISOString()
+      });
+    }
+  }
+  return matched.slice(0, 20);
+}
+
+function safeJson(s: string): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(s);
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }

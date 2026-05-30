@@ -144,6 +144,68 @@ export default async function ClientIntelligencePage({ params }: { params: { cli
         )}
       </section>
 
+      {/* Section 1.5 — PR engine output for THIS client (#182).
+          Tenant-level intel (lead_id IS NULL, tenant 'av', source 'pr_discovery')
+          filtered to this client's industries. Previously invisible: the per-
+          client inventory only queried client-scoped tenants, and guidance.ts
+          deliberately excludes tenant-level intel to avoid leftover-test-artifact
+          bleed. This surface restores observability without removing that guard
+          and answers the question "is the PR engine actually producing intel
+          relevant to this client?" */}
+      <section className="mb-10">
+        <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="text-lg font-semibold text-ink">
+            1b. PR engine output for this industry{' '}
+            <span className="text-muted text-sm font-normal">(tenant-level, source=pr_discovery)</span>
+          </h2>
+          <span className="text-xs text-muted">
+            {inv.prDiscoveryObjects.length} matched · industries: {inv.clientIndustries.length > 0 ? inv.clientIndustries.join(', ') : 'none recorded'}
+          </span>
+        </div>
+
+        {inv.clientIndustries.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-5 text-sm text-muted">
+            No industry recorded for this client (intake or brief). The PR engine groups its industry-pain output by
+            industry — without one, we can&apos;t match its output to this client. Set <span className="text-ink">industry</span>{' '}
+            on the brief or intake to enable matching.
+          </div>
+        ) : inv.prDiscoveryObjects.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-5 text-sm text-muted">
+            <p>
+              The PR engine hasn&apos;t produced any <code className="text-ink">media_friendly_topics</code> intel matching{' '}
+              <span className="text-ink/85">{inv.clientIndustries.join(', ')}</span> yet.
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              The engine writes one row per industry-pain cluster when it sees ≥2 leads in the same industry share a
+              pain. If this client is the only lead in their industry, expect zero output until the pipeline grows.
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {inv.prDiscoveryObjects.map((o) => (
+              <li key={o.id} className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
+                <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-amber-300">{o.object_type}</div>
+                    <div className="text-[11px] text-muted mt-0.5">
+                      Source: <span className="text-ink/80">{o.source}</span>
+                      {o.confidence !== null && <> · Confidence: <span className="text-ink/80">{o.confidence}</span></>}
+                      {' '}· Updated: <span className="text-ink/80">{o.updated_at.slice(0, 16).replace('T', ' ')}</span>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-200 border border-amber-500/30 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]">
+                    PR engine
+                  </span>
+                </div>
+                <pre className="text-xs text-ink/90 whitespace-pre-wrap bg-black/25 rounded-md p-3 border border-border/50 max-h-60 overflow-auto">
+{truncate(valueToText(o.object_json), 1600)}
+                </pre>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* Section 2 — Canonical brief */}
       <section className="mb-10">
         <div className="flex items-baseline justify-between gap-3 mb-3">
