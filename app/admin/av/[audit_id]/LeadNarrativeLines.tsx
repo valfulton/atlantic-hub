@@ -16,6 +16,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LinkRole } from '@/lib/campaigns/line_links';
 
+interface LineOutcomes {
+  leadsLinked: number;
+  contacted: number;
+  qualified: number;
+  converted: number;
+  lost: number;
+}
+
 interface LineForLead {
   lineId: number;
   name: string;
@@ -24,6 +32,18 @@ interface LineForLead {
   audience: string | null;
   role: LinkRole | null;
   shared: string[];
+  outcomes: LineOutcomes;
+}
+
+/** Short outcomes strip — kept in client too so the panel doesn't need a
+ *  second round trip. Mirrors lib/campaigns/line_outcomes.ts:outcomesStrip. */
+function outcomesStrip(o: LineOutcomes): string {
+  if (o.leadsLinked === 0) return '';
+  const parts: string[] = [`${o.leadsLinked} lead${o.leadsLinked === 1 ? '' : 's'}`];
+  if (o.qualified > 0) parts.push(`${o.qualified} qualified`);
+  if (o.converted > 0) parts.push(`${o.converted} won`);
+  if (o.lost > 0 && o.converted === 0 && o.qualified === 0) parts.push(`${o.lost} lost`);
+  return parts.join(' · ');
 }
 
 const ROLES: LinkRole[] = ['advances', 'reinforces', 'tests'];
@@ -223,6 +243,26 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
                   {line.shared.length > 0 && (
                     <p className="text-[11px] text-muted mt-1">
                       matched on: <span className="text-ink/80">{line.shared.join(', ')}</span>
+                    </p>
+                  )}
+                  {/* (#46 Inc 3) Track record across ALL leads on this line —
+                      lets val judge a suggestion by whether the line is
+                      converting, not just by keyword overlap. Hidden when
+                      there's nothing to say yet. */}
+                  {outcomesStrip(line.outcomes) && (
+                    <p
+                      className="text-[10px] mt-1"
+                      style={{
+                        color:
+                          line.outcomes.converted > 0
+                            ? '#86efac'
+                            : line.outcomes.qualified > 0
+                              ? '#fde68a'
+                              : 'rgba(255,255,255,0.45)'
+                      }}
+                      title="Outcomes across all leads linked to this narrative line"
+                    >
+                      📈 {outcomesStrip(line.outcomes)}
                     </p>
                   )}
                 </div>

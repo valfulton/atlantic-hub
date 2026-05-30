@@ -17,6 +17,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { listActiveLines, type NarrativeLane } from '@/lib/campaigns/store';
 import { linkAssetToLine, type LinkRole } from '@/lib/campaigns/line_links';
+import { outcomesForLines, type LineOutcomes } from '@/lib/campaigns/line_outcomes';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket } from 'mysql2';
 
@@ -30,6 +31,10 @@ export interface LineForLead {
   role: LinkRole | null;
   /** Up-to-5 keywords the lead's intelligence shares with the line — the "why". */
   shared: string[];
+  /** (#46 Inc 3) Per-line outcome rollup across ALL leads linked to this line,
+   *  not just this one. Lets the panel say "this line has 2 qualified, 1 won"
+   *  so val can judge a suggestion by track record, not just keyword overlap. */
+  outcomes: LineOutcomes;
 }
 
 interface LeadRow extends RowDataPacket {
@@ -142,6 +147,11 @@ export async function linesForLead(leadId: number): Promise<LineForLead[]> {
   // Lead-side tokens come from company / industry / pain — same as line_fit.
   const leadTokens = tokenize(lead.company, lead.industry, painText(lead.pain_point_profile));
 
+  // (#46 Inc 3) Outcome rollup for ALL the lines we're about to surface, one
+  // query. Lets the panel show "8 leads · 2 qualified · 1 won" per line so
+  // val can rank a line by its track record, not just keyword overlap.
+  const outcomeMap = await outcomesForLines(lines.map((l) => l.id));
+
   return lines.map((line) => {
     const lineTokens = tokenize(
       line.name, line.thesis, line.audience, line.authorityAngle,
@@ -159,7 +169,8 @@ export async function linesForLead(leadId: number): Promise<LineForLead[]> {
       thesis: line.thesis,
       audience: line.audience,
       role: linkedRole.get(line.id) ?? null,
-      shared
+      shared,
+      outcomes: outcomeMap[line.id] ?? { leadsLinked: 0, contacted: 0, qualified: 0, converted: 0, lost: 0 }
     };
   });
 }
@@ -175,18 +186,27 @@ export async function linesForLead(leadId: number): Promise<LineForLead[]> {
  * suggest (no active lines, all linked, all overlap < floor).
  */
 const MIN_OVERLAP = 2;
+
+/** Score = keyword overlap + a small boost for proven lines. The boost is
+ *  small on purpose — we don't want a slightly-converting irrelevant line to
+ *  steal a well-matched fresh one. wins > 0 → +1.5, qualified > 0 → +0.5. */
+function fitScore(shared: number, o: { converted: number; qualified: number }): number {
+  return shared + (o.converted > 0 ? 1.5 : 0) + (o.qualified > 0 ? 0.5 : 0);
+}
+
 export async function bestLineForLead(leadId: number): Promise<{ lineId: number; shared: string[] } | null> {
   const lines = await linesForLead(leadId);
   if (lines.length === 0) return null;
-  let best: { lineId: number; shared: string[] } | null = null;
+  let best: { lineId: number; shared: string[]; score: number } | null = null;
   for (const line of lines) {
     if (line.role != null) continue; // already linked — leave it alone
     if (line.shared.length < MIN_OVERLAP) continue;
-    if (!best || line.shared.length > best.shared.length) {
-      best = { lineId: line.lineId, shared: line.shared };
+    const score = fitScore(line.shared.length, line.outcomes);
+    if (!best || score > best.score) {
+      best = { lineId: line.lineId, shared: line.shared, score };
     }
   }
-  return best;
+  return best ? { lineId: best.lineId, shared: best.shared } : null;
 }
 
 /**
