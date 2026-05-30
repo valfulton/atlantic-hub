@@ -180,11 +180,51 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
 
   const [genStatus, setGenStatus] = useState<Record<number, { loading: boolean; msg: string | null }>>({});
 
-  // (#61 Inc 1+2) Per-asset state for line-born commercial actions (brand /
-  // queue-to-social). Keyed by asset id so multiple commercials on the same
-  // line stay independent.
+  // (#61 Inc 1+2+4) Per-asset state for line-born commercial actions (brand /
+  // queue-to-social / attach-to-lead). Keyed by asset id so multiple
+  // commercials on the same line stay independent.
   const [brandingAsset, setBrandingAsset] = useState<Record<number, { loading: boolean; msg: string | null; ok?: boolean }>>({});
   const [queueingAsset, setQueueingAsset] = useState<Record<number, { loading: boolean; msg: string | null; ok?: boolean }>>({});
+
+  // (#61 Inc 4) Per-asset attach-to-lead state. attachableLeads is the picker
+  // source per line (loaded lazily when val opens the editor); attachState
+  // tracks loading/result per asset.
+  const [attachableLeads, setAttachableLeads] = useState<Record<number, Array<{ leadId: number; company: string; contactName: string | null; band: string | null }>>>({});
+  const [attachState, setAttachState] = useState<Record<number, { loading: boolean; msg: string | null; ok?: boolean; leadId?: number }>>({});
+  const loadAttachableLeads = useCallback(async (lineId: number, assetId: number) => {
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${lineId}/commercial/${assetId}/attach-lead`, { cache: 'no-store' });
+      const j = await res.json();
+      if (res.ok && Array.isArray(j.leads)) {
+        setAttachableLeads((m) => ({ ...m, [lineId]: j.leads }));
+      }
+    } catch { /* picker stays empty */ }
+  }, []);
+  const attachCommercialToLead = useCallback(async (lineId: number, assetId: number, leadId: number) => {
+    if (!leadId) return;
+    setAttachState((s) => ({ ...s, [assetId]: { loading: true, msg: null } }));
+    try {
+      const res = await fetch(`/api/admin/campaigns/lines/${lineId}/commercial/${assetId}/attach-lead`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j.ok === false) {
+        setAttachState((s) => ({ ...s, [assetId]: { loading: false, msg: j.reason ?? j.error ?? `HTTP ${res.status}`, ok: false } }));
+        return;
+      }
+      const propagated = typeof j.draftsPropagated === 'number' && j.draftsPropagated > 0
+        ? ` · ${j.draftsPropagated} draft${j.draftsPropagated === 1 ? '' : 's'} attached too`
+        : '';
+      setAttachState((s) => ({
+        ...s,
+        [assetId]: { loading: false, msg: `Attached to lead${propagated}`, ok: true, leadId: j.leadId }
+      }));
+    } catch (e) {
+      setAttachState((s) => ({ ...s, [assetId]: { loading: false, msg: (e as Error).message, ok: false } }));
+    }
+  }, []);
   const queueLineCommercial = useCallback(async (lineId: number, assetId: number) => {
     setQueueingAsset((s) => ({ ...s, [assetId]: { loading: true, msg: null } }));
     try {
@@ -530,7 +570,7 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
     return out;
   };
 
-  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes, promotable: new Set<number>(), brandingAsset, brandLineCommercial, queueingAsset, queueLineCommercial };
+  const editorProps = { openId, toggleLine, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, outcomes: initialOutcomes, promotable: new Set<number>(), brandingAsset, brandLineCommercial, queueingAsset, queueLineCommercial, attachableLeads, attachState, loadAttachableLeads, attachCommercialToLead };
 
   return (
     <div>
@@ -679,6 +719,13 @@ interface EditorProps {
    *  review" button on branded commercial cards. */
   queueingAsset: Record<number, { loading: boolean; msg: string | null; ok?: boolean }>;
   queueLineCommercial: (lineId: number, assetId: number) => void;
+  /** (#61 Inc 4) Lead-picker state for attach-to-lead. attachableLeads is
+   *  keyed by lineId (one fetch per line); attachState is keyed by assetId
+   *  so multiple commercials on the same line attach independently. */
+  attachableLeads: Record<number, Array<{ leadId: number; company: string; contactName: string | null; band: string | null }>>;
+  attachState: Record<number, { loading: boolean; msg: string | null; ok?: boolean; leadId?: number }>;
+  loadAttachableLeads: (lineId: number, assetId: number) => void;
+  attachCommercialToLead: (lineId: number, assetId: number, leadId: number) => void;
 }
 
 function StateGroup({ title, lines, ...props }: EditorProps & { title: string; lines: Line[] }) {
@@ -767,7 +814,7 @@ function Collapsible({ title, hint, defaultOpen = false, children }: { title: st
   );
 }
 
-function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, brandingAsset, brandLineCommercial, queueingAsset, queueLineCommercial }: EditorProps & { line: Line }) {
+function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty, changeState, eng, commercials, produced, fit, entry, setEntry, submitEngagement, pullSocials, pullMsg, promptDraft, draftCommercialPrompt, setPromptText, genStatus, generateCommercial, contentGen, generateContentFromLine, thesisIdeas, thesisPrompt, draftThesisPrompt, setThesisPromptText, generateThesisIdeas, parkedIdeas, parkThesisIdea, brandingAsset, brandLineCommercial, queueingAsset, queueLineCommercial, attachableLeads, attachState, loadAttachableLeads, attachCommercialToLead }: EditorProps & { line: Line }) {
   const d = draft[line.id] ?? line;
   const id = line.id;
   const summary = eng[id];
@@ -1196,6 +1243,12 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                 c.generationStatus === 'succeeded' &&
                 (c.assetType === 'image' || c.brandedStatus === 'ready');
               const queueing = queueingAsset[c.id];
+              // (#61 Inc 4) Attach-to-lead eligibility: same as queue (the
+              // asset must be ready/branded). The lead-picker dropdown loads
+              // lazily when the editor opens; empty picker -> honest message.
+              const canAttach = canQueue;
+              const attach = attachState[c.id];
+              const pickable = attachableLeads[line.id] ?? [];
               return (
                 <div key={c.id} style={{ border: '1px solid rgba(148,163,184,0.16)', borderRadius: 10, padding: 10, fontSize: 12, color: '#cbd5e1' }}>
                   <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{c.assetType}</div>
@@ -1273,6 +1326,45 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                   {queueing?.msg && (
                     <div style={{ marginTop: 4, fontSize: 11, color: queueing.ok ? '#6ee7b7' : '#fca5a5', lineHeight: 1.35 }}>
                       {queueing.msg}
+                    </div>
+                  )}
+                  {/* (#61 Inc 4) Attach to a lead — closes the spine loop. */}
+                  {canAttach && (
+                    <div style={{ marginTop: 6 }}>
+                      <select
+                        value={attach?.leadId ?? ''}
+                        disabled={attach?.loading}
+                        onFocus={() => { if (pickable.length === 0) loadAttachableLeads(line.id, c.id); }}
+                        onChange={(e) => {
+                          const id = Number.parseInt(e.target.value, 10);
+                          if (Number.isFinite(id) && id > 0) attachCommercialToLead(line.id, c.id, id);
+                        }}
+                        title="Attach this commercial to one of the line owner's leads — it'll show on that lead's media gallery and the lead will support this story."
+                        style={{
+                          width: '100%',
+                          fontSize: 11,
+                          padding: '4px 6px',
+                          borderRadius: 6,
+                          background: 'rgba(196,181,253,0.06)',
+                          border: '1px solid rgba(196,181,253,0.30)',
+                          color: '#c4b5fd',
+                          cursor: attach?.loading ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <option value="">
+                          {attach?.ok ? '✓ attached' : pickable.length === 0 ? '🔗 Attach to a lead…' : '🔗 Pick a lead…'}
+                        </option>
+                        {pickable.map((p) => (
+                          <option key={p.leadId} value={p.leadId}>
+                            {p.company}{p.contactName ? ` — ${p.contactName}` : ''}{p.band ? ` (${p.band})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {attach?.msg && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: attach.ok ? '#86efac' : '#fca5a5', lineHeight: 1.35 }}>
+                          {attach.msg}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
