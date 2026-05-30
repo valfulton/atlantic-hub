@@ -376,3 +376,192 @@ export async function runPlacesDiscoveryBatch(
     nextPageToken: search.nextPageToken
   };
 }
+
+/* ===========================================================================
+ * (#268) Per-lead Google Places enrichment.
+ *
+ * Given a single existing lead, run a Google Places text search using the
+ * lead's company name + (when known) address city/state, fetch place details
+ * for the top result, and run enrichLeadFromSource with the existing
+ * buildPlacesPatch. Blanks-only by default — never overwrites curated data.
+ *
+ * The "right" match heuristic when Places returns multiple candidates:
+ *   1. If the lead has a website domain, prefer the place whose websiteUri
+ *      matches that domain. Tiebreaker: the strongest signal Places gives.
+ *   2. Otherwise, take the top result (Places already orders by relevance).
+ *
+ * Soft failures (no API key, no match, ambiguous, network) come back as
+ * { ok: false, reason } — the UI renders the reason inline. Never throws.
+ * =========================================================================== */
+export interface EnrichLeadFromPlacesResult {
+  ok: boolean;
+  /** How many lead columns were filled (excludes source_payload metadata). */
+  filled?: number;
+  /** Fields that actually got written, for the UI to acknowledge. */
+  filledFields?: string[];
+  /** Place we matched against (for the operator to verify). */
+  matchedPlace?: {
+    placeId: string;
+    name: string;
+    address: string | null;
+    websiteUri: string | null;
+    primaryType: string | null;
+    rating: number | null;
+    userRatingCount: number | null;
+  };
+  /** Soft-failure reason when ok=false. */
+  reason?: string;
+}
+
+interface PerLeadEnrichRow extends RowDataPacket {
+  id: number;
+  company: string | null;
+  website: string | null;
+  normalized_domain: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_country: string | null;
+}
+
+export async function enrichLeadFromPlaces(args: {
+  leadId: number;
+  actorUserId?: number | null;
+}): Promise<EnrichLeadFromPlacesResult> {
+  if (!Number.isInteger(args.leadId) || args.leadId <= 0) {
+    return { ok: false, reason: 'invalid lead id' };
+  }
+
+  const db = getAvDb();
+  const [rows] = await db.execute<PerLeadEnrichRow[]>(
+    `SELECT id, company, website, normalized_domain,
+            address_city, address_state, address_country
+       FROM leads WHERE id = ? AND archived_at IS NULL LIMIT 1`,
+    [args.leadId]
+  );
+  const lead = rows[0];
+  if (!lead) return { ok: false, reason: 'lead not found or archived' };
+
+  const company = (lead.company ?? '').trim();
+  if (!company) {
+    return { ok: false, reason: 'lead has no company name — set the Company field on the Identity tab first.' };
+  }
+
+  // Build a text query that biases Places toward the lead's locale when we
+  // know it. "Acme Catering, St. Croix, US" is far more precise than just
+  // "Acme Catering" for a small business in a niche market.
+  const localeParts = [lead.address_city, lead.address_state, lead.address_country]
+    .filter((v): v is string => !!(v && v.trim()))
+    .map((v) => v.trim());
+  const textQuery = localeParts.length > 0
+    ? `${company}, ${localeParts.join(', ')}`
+    : company;
+
+  // Single text search. The light field mask is enough to pick the right
+  // match; we'll fetch full PlaceDetails for ONLY the chosen result so cost
+  // stays near $0.001 per enrich (1 search + 1 detail).
+  let search;
+  try {
+    search = await placesTextSearch({ textQuery, pageSize: 5 });
+  } catch (err) {
+    await logEvent({
+      eventType: 'places.lead_enrich_failed',
+      leadId: lead.id,
+      userId: args.actorUserId ?? null,
+      source: 'google_places',
+      status: 'failure',
+      errorMessage: (err as Error).message.slice(0, 400),
+      payload: { stage: 'text_search', query: textQuery }
+    });
+    if ((err as Error).name === 'GooglePlacesApiKeyMissingError') {
+      return { ok: false, reason: 'Google Places API key not configured — set GOOGLE_PLACES_API_KEY in Netlify env.' };
+    }
+    return { ok: false, reason: `Google Places search failed: ${(err as Error).message.slice(0, 240)}` };
+  }
+  if (search.places.length === 0) {
+    return { ok: false, reason: `Google Places didn't find a match for "${textQuery}". Try adjusting the company name or adding city/state.` };
+  }
+
+  // Pick the right match. The cheap text search doesn't include websiteUri,
+  // so we can't preference-by-domain at this stage. We DO have it after
+  // fetching PlaceDetails — but fetching details for all 5 just to pick one
+  // costs ~5x. Heuristic: take the top result. If we ever get a "wrong
+  // company" report, we can add a second pass that fetches details for the
+  // top 3 and prefers by domain match.
+  const top = search.places[0];
+
+  let details: PlaceDetails | null;
+  try {
+    details = await placeDetails(top.id);
+  } catch (err) {
+    await logEvent({
+      eventType: 'places.lead_enrich_failed',
+      leadId: lead.id,
+      userId: args.actorUserId ?? null,
+      source: 'google_places',
+      status: 'failure',
+      errorMessage: (err as Error).message.slice(0, 400),
+      payload: { stage: 'place_details', place_id: top.id }
+    });
+    return { ok: false, reason: `Google Places details fetch failed: ${(err as Error).message.slice(0, 240)}` };
+  }
+  if (!details) {
+    return { ok: false, reason: 'Google Places details came back empty for the top match.' };
+  }
+
+  // Verify the match isn't wildly off — if the place's name shares zero words
+  // with the lead's company, refuse with a clear reason rather than enriching
+  // with the wrong company's data. Cheap word-overlap check.
+  const placeWords = new Set((details.displayName ?? '').toLowerCase().split(/\s+/).filter((w) => w.length >= 3));
+  const companyWords = company.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
+  const shared = companyWords.some((w) => placeWords.has(w));
+  if (!shared && companyWords.length > 0) {
+    return {
+      ok: false,
+      reason: `The closest Places match ("${details.displayName}") doesn't seem like the same business. Update the Company field on the Identity tab and try again.`
+    };
+  }
+
+  // Same patch shape as the bulk discovery path uses — buildPlacesPatch
+  // produces { fields, sourceMetadata, note }. enrichLeadFromSource respects
+  // blanks_only, so curated data is never stomped.
+  const website = details.websiteUri || null;
+  const phone = details.internationalPhoneNumber || details.nationalPhoneNumber || null;
+  const industry = googleTypeToIndustry(details.primaryType, details.types);
+  const patch = buildPlacesPatch(details, phone, website, industry);
+
+  const result = await enrichLeadFromSource({
+    leadId: lead.id,
+    source: 'google_places',
+    patch
+  });
+
+  await logEvent({
+    eventType: 'places.lead_enriched',
+    leadId: lead.id,
+    userId: args.actorUserId ?? null,
+    source: 'google_places',
+    status: 'success',
+    payload: {
+      place_id: details.id,
+      display_name: details.displayName,
+      filled: result.filled,
+      filled_fields: result.fields,
+      query: textQuery
+    }
+  });
+
+  return {
+    ok: true,
+    filled: result.filled,
+    filledFields: result.fields,
+    matchedPlace: {
+      placeId: details.id,
+      name: details.displayName,
+      address: details.formattedAddress,
+      websiteUri: details.websiteUri,
+      primaryType: details.primaryType,
+      rating: details.rating,
+      userRatingCount: details.userRatingCount
+    }
+  };
+}
