@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
-import { linesForLead } from '@/lib/campaigns/lines_for_lead';
+import { linesForLead, bestLineForLead } from '@/lib/campaigns/lines_for_lead';
 import { linkAssetToLine, unlinkAssetFromLine, LINK_ROLES, type LinkRole } from '@/lib/campaigns/line_links';
 import { getLane } from '@/lib/campaigns/store';
 import type { RowDataPacket } from 'mysql2';
@@ -72,6 +72,37 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
   let body: Record<string, unknown>;
   try { body = (await req.json()) as Record<string, unknown>; }
   catch { return NextResponse.json({ error: 'invalid JSON' }, { status: 400 }); }
+
+  // (#46 Inc 2) "✨ Suggest best" path — caller asks us to PICK the line by
+  // keyword fit instead of naming one. Same write underneath; the picker
+  // returns null + a soft message when nothing clears the overlap floor.
+  if (body.suggest === true) {
+    const best = await bestLineForLead(g.leadId);
+    if (!best) {
+      return NextResponse.json({
+        ok: false,
+        reason: 'No clear fit — the active lines don\'t share enough with this lead to suggest one confidently.',
+        lines: await linesForLead(g.leadId)
+      });
+    }
+    const line = await getLane(best.lineId);
+    if (!line) return NextResponse.json({ error: 'line not found' }, { status: 404 });
+    const ok = await linkAssetToLine({
+      tenantId: line.tenantId,
+      narrativeLineId: best.lineId,
+      assetType: 'lead',
+      assetId: g.leadId,
+      role: 'advances',
+      note: `suggested by fit (matched on: ${best.shared.join(', ')})`
+    });
+    if (!ok) return NextResponse.json({ error: 'could not link' }, { status: 500 });
+    return NextResponse.json({
+      ok: true,
+      suggestedLineId: best.lineId,
+      shared: best.shared,
+      lines: await linesForLead(g.leadId)
+    });
+  }
 
   const lineId = Number.parseInt(String(body.lineId ?? ''), 10);
   if (!Number.isFinite(lineId) || lineId <= 0) {

@@ -40,6 +40,8 @@ function roleColor(role: LinkRole): { bg: string; border: string; text: string }
 export function LeadNarrativeLines({ auditId }: { auditId: string }) {
   const [lines, setLines] = useState<LineForLead[] | null>(null);
   const [busyLineId, setBusyLineId] = useState<number | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestMsg, setSuggestMsg] = useState<{ kind: 'ok' | 'soft'; text: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -83,6 +85,41 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
     }
   }, [auditId]);
 
+  const suggest = useCallback(async () => {
+    setSuggesting(true);
+    setSuggestMsg(null);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/admin/av/leads/${auditId}/narrative-lines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggest: true })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setErr(j.error ?? `HTTP ${r.status}`);
+        return;
+      }
+      setLines(j.lines ?? []);
+      if (j.ok) {
+        const picked = (j.lines ?? []).find((l: LineForLead) => l.lineId === j.suggestedLineId);
+        const shared = Array.isArray(j.shared) ? j.shared.join(', ') : '';
+        setSuggestMsg({
+          kind: 'ok',
+          text: picked
+            ? `Linked to “${picked.name}” as advances${shared ? ` · matched on: ${shared}` : ''}`
+            : 'Best-fit line linked.'
+        });
+      } else {
+        setSuggestMsg({ kind: 'soft', text: j.reason ?? 'No clear fit.' });
+      }
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSuggesting(false);
+    }
+  }, [auditId]);
+
   const unlink = useCallback(async (lineId: number) => {
     setBusyLineId(lineId);
     try {
@@ -120,8 +157,35 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
             Link the lead to a story so every asset for it advances the same thesis.
           </p>
         </div>
-        {err && <span className="text-[11px]" style={{ color: '#fca5a5' }}>{err}</span>}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* (#46 Inc 2) One-click "pick the best line for me." Greys out when
+              everything's already linked or no line clears the overlap floor;
+              the soft reason renders below the header. */}
+          <button
+            type="button"
+            onClick={suggest}
+            disabled={suggesting || lines.every((l) => l.role != null)}
+            title="Pick the best-fit line by shared keywords and link this lead as advances."
+            className={
+              'text-[11px] px-2.5 py-1 rounded-md border transition ' +
+              (suggesting || lines.every((l) => l.role != null)
+                ? 'border-white/10 text-white/30 cursor-not-allowed'
+                : 'border-amber-400/30 text-amber-200 hover:border-amber-400/60 bg-amber-400/5')
+            }
+          >
+            {suggesting ? '✨ thinking…' : '✨ Suggest best'}
+          </button>
+          {err && <span className="text-[11px]" style={{ color: '#fca5a5' }}>{err}</span>}
+        </div>
       </div>
+      {suggestMsg && (
+        <div
+          className="text-[11px] mb-2 leading-snug"
+          style={{ color: suggestMsg.kind === 'ok' ? '#86efac' : '#fde68a' }}
+        >
+          {suggestMsg.text}
+        </div>
+      )}
 
       <ul className="flex flex-col gap-2">
         {lines.map((line) => {

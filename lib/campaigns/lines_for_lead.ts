@@ -16,7 +16,8 @@
  */
 import { getAvDb } from '@/lib/db/av';
 import { listActiveLines, type NarrativeLane } from '@/lib/campaigns/store';
-import type { LinkRole } from '@/lib/campaigns/line_links';
+import { linkAssetToLine, type LinkRole } from '@/lib/campaigns/line_links';
+import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket } from 'mysql2';
 
 export interface LineForLead {
@@ -160,5 +161,78 @@ export async function linesForLead(leadId: number): Promise<LineForLead[]> {
       role: linkedRole.get(line.id) ?? null,
       shared
     };
+  });
+}
+
+/**
+ * Pick the best-fit UNLINKED line for a lead, or null when nothing's a
+ * defensible match. "Best-fit" = the line with the most shared keywords;
+ * the floor (>= MIN_OVERLAP) prevents low-confidence threads from polluting
+ * the spine ("Forsythe got linked to Founder Story because of one stopword").
+ *
+ * Used by both the operator's "✨ Suggest best" button and the auto-thread
+ * on discovery insert. Never throws — returns null when there's nothing to
+ * suggest (no active lines, all linked, all overlap < floor).
+ */
+const MIN_OVERLAP = 2;
+export async function bestLineForLead(leadId: number): Promise<{ lineId: number; shared: string[] } | null> {
+  const lines = await linesForLead(leadId);
+  if (lines.length === 0) return null;
+  let best: { lineId: number; shared: string[] } | null = null;
+  for (const line of lines) {
+    if (line.role != null) continue; // already linked — leave it alone
+    if (line.shared.length < MIN_OVERLAP) continue;
+    if (!best || line.shared.length > best.shared.length) {
+      best = { lineId: line.lineId, shared: line.shared };
+    }
+  }
+  return best;
+}
+
+/**
+ * Fire-and-forget auto-thread of a freshly-inserted lead to its best-fit
+ * line. Drop next to scoreAndAuditLeadBackground() in any insert path so
+ * every new lead lands ALREADY attached to a story (when there's a clear
+ * fit). No-op when there are no active lines for the owner, or when no
+ * line clears the overlap floor — the LeadNarrativeLines panel still lets
+ * val link manually in that case.
+ *
+ * Never throws. Logs a content.line_auto_threaded event on success so the
+ * activity widget can show "this lead joined the Founder Story line" with
+ * the reason ("matched on: founder, retreat, exec").
+ */
+export function autoThreadLeadByFitBackground(leadId: number): void {
+  setImmediate(async () => {
+    try {
+      const best = await bestLineForLead(leadId);
+      if (!best) return;
+      const db = getAvDb();
+      // Need the tenant for the link row; lines are scoped per (tenant, client).
+      // narrative_lanes lives in shhdbite_AV; tenant is on the row.
+      const [rows] = await db.execute<(RowDataPacket & { tenant_id: string })[]>(
+        `SELECT tenant_id FROM narrative_lanes WHERE id = ? LIMIT 1`,
+        [best.lineId]
+      );
+      const tenantId = rows[0]?.tenant_id ?? 'av';
+      const ok = await linkAssetToLine({
+        tenantId,
+        narrativeLineId: best.lineId,
+        assetType: 'lead',
+        assetId: leadId,
+        role: 'advances',
+        note: `auto-threaded on insert (matched on: ${best.shared.join(', ')})`
+      });
+      if (ok) {
+        await logEvent({
+          eventType: 'content.line_auto_threaded',
+          source: 'narrative_spine',
+          leadId,
+          status: 'success',
+          payload: { narrative_line_id: best.lineId, shared: best.shared }
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[lines_for_lead:auto-thread]', (err as Error).message);
+    }
   });
 }
