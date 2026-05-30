@@ -18,6 +18,10 @@ interface IcpValue {
   geographies: string[];
   excludeGeographies: string[];
   excludedIndustries: string[];
+  /** (#252) Per-client preferred / excluded contact titles. Inc 1 persists;
+   *  Inc 2 will apply the filter at "pick top person" discovery steps. */
+  preferredContactTitles: string[];
+  excludedContactTitles: string[];
   companySizeMin: number | null;
   companySizeMax: number | null;
   description: string;
@@ -95,12 +99,18 @@ export default function IcpEditor({
     geographies: {},
     excludeGeographies: {},
     excludedIndustries: {},
+    preferredContactTitles: {},
+    excludedContactTitles: {},
     description: null
   };
   const [industries, setIndustries] = useState(toLine(initial.industries));
   const [excludedIndustries, setExcludedIndustries] = useState(toLine(initial.excludedIndustries));
   const [geographies, setGeographies] = useState(toLine(initial.geographies));
   const [excludeGeographies, setExcludeGeographies] = useState(toLine(initial.excludeGeographies));
+  // (#252 Inc 1) Operator preferences for the "pick top person" steps in
+  // discovery. Skip's "no HR people" rule is exactly excludedContactTitles.
+  const [preferredContactTitles, setPreferredContactTitles] = useState(toLine(initial.preferredContactTitles ?? []));
+  const [excludedContactTitles, setExcludedContactTitles] = useState(toLine(initial.excludedContactTitles ?? []));
   const [sizeMin, setSizeMin] = useState(initial.companySizeMin != null ? String(initial.companySizeMin) : '');
   const [sizeMax, setSizeMax] = useState(initial.companySizeMax != null ? String(initial.companySizeMax) : '');
   const [description, setDescription] = useState(initial.description || '');
@@ -119,6 +129,8 @@ export default function IcpEditor({
           excludedIndustries: toList(excludedIndustries),
           geographies: toList(geographies),
           excludeGeographies: toList(excludeGeographies),
+          preferredContactTitles: toList(preferredContactTitles),
+          excludedContactTitles: toList(excludedContactTitles),
           companySizeMin: toNum(sizeMin),
           companySizeMax: toNum(sizeMax),
           description
@@ -183,6 +195,34 @@ export default function IcpEditor({
           <span className={hint}>Optional</span>
           <input className={input} value={excludeGeographies} onChange={(e) => setExcludeGeographies(e.target.value)} />
           <ProvenanceChips value={excludeGeographies} sources={prov.excludeGeographies} />
+        </label>
+        {/* (#252 Inc 1) Contact-title preferences. Inc 2 applies them at
+            "pick top person" discovery steps; Inc 1 only persists. */}
+        <label className="block sm:col-span-2">
+          <span className={label}>Preferred contact titles</span>
+          <span className={hint}>
+            Titles to rank FIRST when picking the top person at a matched company — e.g. CEO, Founder, Owner, COO
+          </span>
+          <input
+            className={input}
+            value={preferredContactTitles}
+            onChange={(e) => setPreferredContactTitles(e.target.value)}
+            placeholder="CEO, Founder, Owner, COO, President"
+          />
+          <ProvenanceChips value={preferredContactTitles} sources={prov.preferredContactTitles} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className={label}>Excluded contact titles</span>
+          <span className={hint}>
+            Drop these from results — e.g. HR, Recruiter (gate-keepers). Skip&apos;s rule.
+          </span>
+          <input
+            className={input}
+            value={excludedContactTitles}
+            onChange={(e) => setExcludedContactTitles(e.target.value)}
+            placeholder="HR, Recruiter, Talent Acquisition"
+          />
+          <ProvenanceChips value={excludedContactTitles} sources={prov.excludedContactTitles} />
         </label>
         <label className="block">
           <span className={label}>Company size — min employees</span>

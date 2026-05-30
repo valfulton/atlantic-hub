@@ -28,6 +28,12 @@ export interface ClientIcp {
   /** Industries / company-type keywords to EXCLUDE from results (post-filter:
    *  Apollo has no negative-keyword filter, so we drop matches after fetch). */
   excludedIndustries: string[];
+  /** (#252) Contact-title preferences for "pick top person" steps in discovery.
+   *  preferredContactTitles: titles to rank FIRST (e.g. CEO, Founder, Owner, COO).
+   *  excludedContactTitles:  titles to drop entirely (e.g. HR, Recruiter — Skip's
+   *  gate-keeper aversion rule). Inc 1 persists; Inc 2 applies the filter. */
+  preferredContactTitles: string[];
+  excludedContactTitles: string[];
   /** Company size band (employees). */
   companySizeMin: number | null;
   companySizeMax: number | null;
@@ -40,6 +46,8 @@ export const EMPTY_ICP: ClientIcp = {
   geographies: [],
   excludeGeographies: [],
   excludedIndustries: [],
+  preferredContactTitles: [],
+  excludedContactTitles: [],
   companySizeMin: null,
   companySizeMax: null,
   description: ''
@@ -54,6 +62,9 @@ export interface IcpProvenance {
   geographies: Record<string, IcpItemSource>;
   excludeGeographies: Record<string, IcpItemSource>;
   excludedIndustries: Record<string, IcpItemSource>;
+  /** (#252) Same per-item provenance shape for the new title lists. */
+  preferredContactTitles: Record<string, IcpItemSource>;
+  excludedContactTitles: Record<string, IcpItemSource>;
   description: IcpItemSource | null;
 }
 
@@ -63,6 +74,8 @@ export function emptyProvenance(): IcpProvenance {
     geographies: {},
     excludeGeographies: {},
     excludedIndustries: {},
+    preferredContactTitles: {},
+    excludedContactTitles: {},
     description: null
   };
 }
@@ -72,6 +85,9 @@ interface IcpRow extends RowDataPacket {
   target_geographies: unknown;
   excluded_topics: unknown;
   excluded_industries: unknown;
+  /** (#252) New columns from schema/064. */
+  preferred_contact_titles: unknown;
+  excluded_contact_titles: unknown;
   target_company_size_min: number | null;
   target_company_size_max: number | null;
   description: string | null;
@@ -101,6 +117,8 @@ function parseProvenance(v: unknown): IcpProvenance {
     geographies: asSourceMap(o.geographies),
     excludeGeographies: asSourceMap(o.excludeGeographies),
     excludedIndustries: asSourceMap(o.excludedIndustries),
+    preferredContactTitles: asSourceMap(o.preferredContactTitles),
+    excludedContactTitles: asSourceMap(o.excludedContactTitles),
     description: desc === 'operator' || desc === 'client' ? desc : null
   };
 }
@@ -164,6 +182,7 @@ export async function getClientIcp(clientId: number): Promise<ClientIcp> {
   const db = getAvDb();
   const [rows] = await db.execute<IcpRow[]>(
     `SELECT target_industries, target_geographies, excluded_topics, excluded_industries,
+            preferred_contact_titles, excluded_contact_titles,
             target_company_size_min, target_company_size_max, description
        FROM client_icps WHERE client_id = ? LIMIT 1`,
     [clientId]
@@ -175,6 +194,8 @@ export async function getClientIcp(clientId: number): Promise<ClientIcp> {
     geographies: asStringArray(r.target_geographies),
     excludeGeographies: asStringArray(r.excluded_topics),
     excludedIndustries: asStringArray(r.excluded_industries),
+    preferredContactTitles: asStringArray(r.preferred_contact_titles),
+    excludedContactTitles: asStringArray(r.excluded_contact_titles),
     companySizeMin: clampSize(r.target_company_size_min),
     companySizeMax: clampSize(r.target_company_size_max),
     description: typeof r.description === 'string' ? r.description : ''
@@ -189,6 +210,7 @@ export async function getClientIcpWithProvenance(
   const db = getAvDb();
   const [rows] = await db.execute<IcpRow[]>(
     `SELECT target_industries, target_geographies, excluded_topics, excluded_industries,
+            preferred_contact_titles, excluded_contact_titles,
             target_company_size_min, target_company_size_max, description, provenance
        FROM client_icps WHERE client_id = ? LIMIT 1`,
     [clientId]
@@ -201,6 +223,8 @@ export async function getClientIcpWithProvenance(
       geographies: asStringArray(r.target_geographies),
       excludeGeographies: asStringArray(r.excluded_topics),
       excludedIndustries: asStringArray(r.excluded_industries),
+      preferredContactTitles: asStringArray(r.preferred_contact_titles),
+      excludedContactTitles: asStringArray(r.excluded_contact_titles),
       companySizeMin: clampSize(r.target_company_size_min),
       companySizeMax: clampSize(r.target_company_size_max),
       description: typeof r.description === 'string' ? r.description : ''
@@ -217,6 +241,8 @@ export function normalizeIcp(raw: Record<string, unknown> | null | undefined): C
     geographies: asStringArray(r.geographies),
     excludeGeographies: asStringArray(r.excludeGeographies),
     excludedIndustries: asStringArray(r.excludedIndustries),
+    preferredContactTitles: asStringArray(r.preferredContactTitles),
+    excludedContactTitles: asStringArray(r.excludedContactTitles),
     companySizeMin: clampSize(r.companySizeMin),
     companySizeMax: clampSize(r.companySizeMax),
     description: typeof r.description === 'string' ? r.description.slice(0, 2000) : ''
@@ -237,13 +263,16 @@ export async function saveClientIcp(
   await db.execute<ResultSetHeader>(
     `INSERT INTO client_icps
        (client_id, target_industries, target_geographies, excluded_topics, excluded_industries,
+        preferred_contact_titles, excluded_contact_titles,
         target_company_size_min, target_company_size_max, description, provenance, updated_by_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        target_industries = VALUES(target_industries),
        target_geographies = VALUES(target_geographies),
        excluded_topics = VALUES(excluded_topics),
        excluded_industries = VALUES(excluded_industries),
+       preferred_contact_titles = VALUES(preferred_contact_titles),
+       excluded_contact_titles = VALUES(excluded_contact_titles),
        target_company_size_min = VALUES(target_company_size_min),
        target_company_size_max = VALUES(target_company_size_max),
        description = VALUES(description),
@@ -255,6 +284,8 @@ export async function saveClientIcp(
       JSON.stringify(icp.geographies),
       JSON.stringify(icp.excludeGeographies),
       JSON.stringify(icp.excludedIndustries),
+      JSON.stringify(icp.preferredContactTitles),
+      JSON.stringify(icp.excludedContactTitles),
       icp.companySizeMin,
       icp.companySizeMax,
       icp.description || null,
@@ -372,6 +403,11 @@ export function mergeIntakeIcp(
       ? existing.excludeGeographies
       : suggested.excludeGeographies,
     excludedIndustries: existing.excludedIndustries, // operator-curated: never auto-overwrite
+    // (#252) Contact-title preferences are operator-curated only. The intake
+    // sharpener doesn't infer them — they reflect a sales judgment ("don't
+    // talk to HR") val sets explicitly, so we always preserve existing values.
+    preferredContactTitles: existing.preferredContactTitles,
+    excludedContactTitles: existing.excludedContactTitles,
     companySizeMin: suggested.companySizeMin ?? existing.companySizeMin,
     companySizeMax: suggested.companySizeMax ?? existing.companySizeMax,
     description: suggested.description ? suggested.description : existing.description
@@ -388,6 +424,10 @@ export function mergeIntakeIcp(
     excludeGeographies: provMapFor(icp.excludeGeographies, sExGeo, priorProv.excludeGeographies),
     // Excludes come only from the operator (intake has no exclude field).
     excludedIndustries: provMapFor(icp.excludedIndustries, new Set(), priorProv.excludedIndustries),
+    // (#252) Contact titles preserved from prior provenance — sharpener never
+    // sets them (intake doesn't infer titles; they're sales judgment calls).
+    preferredContactTitles: provMapFor(icp.preferredContactTitles, new Set(), priorProv.preferredContactTitles),
+    excludedContactTitles: provMapFor(icp.excludedContactTitles, new Set(), priorProv.excludedContactTitles),
     description: suggested.description ? 'client' : priorProv.description ?? (icp.description ? 'operator' : null)
   };
 
@@ -426,6 +466,9 @@ export function operatorSaveProvenance(icp: ClientIcp, priorProv: IcpProvenance)
     geographies: provMapFor(icp.geographies, none, priorProv.geographies),
     excludeGeographies: provMapFor(icp.excludeGeographies, none, priorProv.excludeGeographies),
     excludedIndustries: provMapFor(icp.excludedIndustries, none, priorProv.excludedIndustries),
+    // (#252) Contact titles tracked with same provenance pattern.
+    preferredContactTitles: provMapFor(icp.preferredContactTitles, none, priorProv.preferredContactTitles ?? {}),
+    excludedContactTitles: provMapFor(icp.excludedContactTitles, none, priorProv.excludedContactTitles ?? {}),
     description: priorProv.description ?? (icp.description ? 'operator' : null)
   };
 }

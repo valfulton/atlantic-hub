@@ -91,6 +91,9 @@ export async function maybeSharpenIcpAfterBriefSave(args: {
       geographies: suggestion.geographies,
       excludeGeographies: [],
       excludedIndustries: suggestion.excludedIndustries,
+      // (#252) Title preferences are operator-curated, never sharpener-inferred.
+      preferredContactTitles: existing.preferredContactTitles,
+      excludedContactTitles: existing.excludedContactTitles,
       description: existing.description,
       companySizeMin: suggestion.companySizeMin,
       companySizeMax: suggestion.companySizeMax
@@ -104,6 +107,9 @@ export async function maybeSharpenIcpAfterBriefSave(args: {
       geographies:       mapAll(suggestion.geographies,       'ai_intake'),
       excludeGeographies: {},
       excludedIndustries: mapAll(suggestion.excludedIndustries, 'ai_intake'),
+      // (#252) Preserve existing title provenance (autopilot doesn't change titles).
+      preferredContactTitles: {},
+      excludedContactTitles: {},
       description: null
     };
 

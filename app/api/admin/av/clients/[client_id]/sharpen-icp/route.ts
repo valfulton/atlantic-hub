@@ -133,6 +133,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         geographies: nextGeographies,
         excludeGeographies: [], // sharpener doesn't suggest these
         excludedIndustries: nextExcluded,
+        // (#252) Sharpener never touches operator-curated title preferences.
+        preferredContactTitles: current.preferredContactTitles,
+        excludedContactTitles: current.excludedContactTitles,
         description: current.description,
         companySizeMin: nextMin,
         companySizeMax: nextMax
@@ -155,6 +158,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         geographies:       tagSource(nextGeographies, new Set(writtenGeographies), provExisting.geographies),
         excludeGeographies: provExisting.excludeGeographies, // untouched
         excludedIndustries: tagSource(nextExcluded,   new Set(writtenExcluded),    provExisting.excludedIndustries),
+        // (#252) Title preferences untouched by sharpener.
+        preferredContactTitles: provExisting.preferredContactTitles,
+        excludedContactTitles: provExisting.excludedContactTitles,
         description: provExisting.description
       };
 
@@ -203,6 +209,8 @@ async function loadIcpProvenance(clientId: number): Promise<IcpProvenance> {
     geographies: {},
     excludeGeographies: {},
     excludedIndustries: {},
+    preferredContactTitles: {},
+    excludedContactTitles: {},
     description: null
   };
   try {
@@ -219,6 +227,8 @@ async function loadIcpProvenance(clientId: number): Promise<IcpProvenance> {
       geographies: parsed.geographies || {},
       excludeGeographies: parsed.excludeGeographies || {},
       excludedIndustries: parsed.excludedIndustries || {},
+      preferredContactTitles: parsed.preferredContactTitles || {},
+      excludedContactTitles: parsed.excludedContactTitles || {},
       description: parsed.description ?? null
     };
   } catch {
