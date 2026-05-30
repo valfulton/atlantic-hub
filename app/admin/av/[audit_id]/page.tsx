@@ -9,6 +9,7 @@ import { SocialContentButton } from './SocialContentButton';
 import { SmartEnrichButton } from './SmartEnrichButton';
 import { RescoreButton } from './RescoreButton';
 import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
+import { IntakeDraftEditor } from './IntakeDraftEditor';
 import { AssignmentControl } from './AssignmentControl';
 import { MakeClientButton } from './MakeClientButton';
 import { AssignToClientControl } from './AssignToClientControl';
@@ -114,6 +115,16 @@ export default async function AvLeadDetailPage({
           <ProspectIntelPanel intel={lead.prospectIntel} />
         </div>
       )}
+
+      {/* (#253 step 5) Operator-only editor for the lead's intake draft. Sits
+          BELOW the read-only ProspectIntelPanel so val sees the rendered
+          version first, then can click "Edit" to refine. Survives across
+          re-runs of Smart enrich (the smart scraper writes blanks-only so it
+          won't clobber val's edits). The full draft carries forward to the
+          new client's intake when she clicks Make Client. */}
+      <div className="mb-4">
+        <IntakeDraftEditor auditId={lead.auditId} />
+      </div>
 
       <div className="bg-surface border border-border rounded-xl p-6">
         <LeadDetailTabs lead={lead} />
