@@ -53,10 +53,18 @@ export default async function AvLeadDetailPage({
         <span className="text-ink">{lead.company}</span>
       </div>
 
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold">{lead.company}</h1>
-          <p className="text-sm text-muted mt-1">
+      {/* (#273) Stacked header. The previous layout put the title on the left
+          and ~10 action buttons on the right of the SAME flex row, with
+          `shrink-0 flex-wrap` on the button block. With this many buttons that
+          forced the row wider than the body below it, so at val's zoom the
+          header sprawled past the readable area while the tab body looked
+          narrow. Stacking — title on its own row, full-width wrapping action
+          row below — lets the buttons wrap cleanly into the container width
+          and aligns the page edge-to-edge with the body underneath. */}
+      <div className="mb-6">
+        <div className="mb-4 min-w-0">
+          <h1 className="text-2xl font-semibold break-words">{lead.company}</h1>
+          <p className="text-sm text-muted mt-1 break-words">
             {lead.email}
             {lead.industry ? ` · ${lead.industry}` : ''}
             {' · Submitted '}
@@ -67,7 +75,7 @@ export default async function AvLeadDetailPage({
             })}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap">
           <AssignmentControl
             auditId={lead.auditId}
             currentAssignedTo={lead.assignedToUserId ?? null}

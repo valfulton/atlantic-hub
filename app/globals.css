@@ -223,3 +223,30 @@ body {
     transition: none !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PAGE-WIDTH CONTAINMENT (#273) — global, applies to every page in the app
+   ─────────────────────────────────────────────────────────────────────────
+   Disease this cures: a long flex row of buttons inside a page header
+   (e.g. lead detail with 10+ action buttons + score chips) was forcing the
+   header wider than the body underneath.
+
+   IMPORTANT: an earlier version of this rule used `overflow-x: hidden` on
+   `html, body`. That made any too-wide content silently INVISIBLE past the
+   right edge — worse than the original problem. Removed. The rules below
+   are safe: they let flex children shrink and respect their container, but
+   they DO NOT clip anything. If a row is still too wide, it will overflow
+   visibly (so val can see it and tell us to restructure that page's
+   header) instead of vanishing. */
+
+/* Every <main> respects its parent and never exceeds it. Direct children
+   of <main> get min-width: 0 so flex/grid kids can shrink instead of
+   forcing the parent wider. */
+main {
+  min-width: 0;
+  max-width: 100%;
+}
+main > * {
+  min-width: 0;
+  max-width: 100%;
+}

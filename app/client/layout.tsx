@@ -35,7 +35,13 @@ export default async function ClientLayout({ children }: { children: React.React
     <div data-tenant="av" className="min-h-screen">
       <BrandSwitcher brands={brands} activeClientId={activeClientId} />
       <ClientIntelTicker />
-      {children}
+      {/* (#273) Wrap children in <main> so the global page-width containment
+          rules in globals.css apply here too. Previously client pages had no
+          <main> wrapper, so wide rows could push the page past the viewport
+          and force horizontal scroll on phones / zoomed-in vision. */}
+      <main className="min-w-0" style={{ maxWidth: '100%' }}>
+        {children}
+      </main>
     </div>
   );
 }
