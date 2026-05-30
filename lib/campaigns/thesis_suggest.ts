@@ -13,7 +13,7 @@
  *
  * Returns [] on any failure so the UI degrades gracefully.
  */
-import { getLane } from '@/lib/campaigns/store';
+import { getLane, listLanes, type NarrativeLane } from '@/lib/campaigns/store';
 import { getLineLeadFit, type LineFit } from '@/lib/campaigns/line_fit';
 import { getBriefForPrompt } from '@/lib/client/brief_store';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
@@ -42,29 +42,96 @@ export async function buildThesisSuggestPrompt(
   // "Atlantic & Vine" label — so EBW / HH / each client account speak as themselves.
   const brief = await getBriefForPrompt({ tenantId: line.tenantId, clientId: line.clientId });
 
+  // (#76) Pull the OTHER narrative lines for this same owner so we can tell the
+  // suggester "make this line DIFFERENT from those". Without this, two lines
+  // for the same owner that both lack a thesis get identical prompts and the
+  // LLM returns identical suggestions for each — the bug val caught. Include
+  // archived/inactive too so newly-spawned lines don't accidentally collide
+  // with retired ones that are still living in the operator's head.
+  const siblings = (
+    await listLanes(line.tenantId, { includeInactive: true, clientId: line.clientId ?? null })
+  ).filter((sib) => sib.id !== line.id);
+
   const painThemes = fit.needs.painThemes.map((p) => `${p.label} (${p.count})`).join(', ') || 'none recorded';
   const industries = fit.needs.industries.map((p) => p.label).join(', ') || 'mixed';
   const keywords = fit.needs.keywords.map((k) => k.label).join(', ') || 'none recorded';
+
+  // (#76) The line's full per-line identity — every field that distinguishes
+  // THIS line from a sibling. The previous prompt only included thesis +
+  // audience + authority_angle, dropping ~8 fields the operator can curate
+  // (name, description, emotional driver, seasonality, conversion signal,
+  // proof points, channels, do_say, dont_say). When all three of the
+  // previously-included fields were empty (the common case at suggestion
+  // time), prompts collapsed to identical strings across sibling lines.
+  const thisLineBlock = buildLineFingerprint(line);
+  const siblingBlock = buildSiblingContrastBlock(siblings);
 
   const user = [
     brief.block,
     ``,
     `Tenant: "${line.tenantId}". This is ${line.clientId ? 'a client account' : "one of the firm's own house brands"}.`,
-    line.thesis ? `Current working thesis (improve on it or offer alternatives): ${line.thesis}` : `No thesis yet.`,
-    line.audience ? `Stated audience: ${line.audience}` : '',
-    line.authorityAngle ? `Authority angle: ${line.authorityAngle}` : '',
     ``,
+    `THIS NARRATIVE LINE (the one you are proposing theses FOR):`,
+    thisLineBlock,
+    ``,
+    siblingBlock,
     `What this customer's ${fit.totalLeads} leads actually need (from their pipeline):`,
     `- Pain themes: ${painThemes}`,
     `- Industries: ${industries}`,
     `- Recurring words they use: ${keywords}`,
     ``,
-    `Propose ${HOW_MANY} distinct narrative-line theses that speak AS ${brief.brandName}, would genuinely serve these leads' needs, and give this brand a defensible position. For each, add a one-line "why" naming the lead need it answers.`,
+    `Propose ${HOW_MANY} distinct narrative-line theses that speak AS ${brief.brandName}, would genuinely serve these leads' needs, and give this brand a defensible position WITHIN THIS LINE'S identity (the line's name + emotional driver + channels + do_say/dont_say above are anchors — your theses should sound like that line, not a generic version of the brand). Where sibling lines exist above, your theses must occupy DIFFERENT territory from them — no overlap with sibling theses. For each, add a one-line "why" naming the lead need it answers AND how it differs from the siblings.`,
     `Return ONLY JSON: {"theses":[{"thesis":"...","why":"..."}]}`
   ].filter(Boolean).join('\n');
 
   const system = await getSystemPrompt('thesis_suggester');
   return { system, user, needTerms: needTermsFromFit(fit), totalLeads: fit.totalLeads };
+}
+
+/**
+ * (#76) The fingerprint of THIS line — every field that's been curated so far.
+ * Skips empty fields so a freshly-spawned line doesn't show a wall of "(empty)"
+ * placeholders, while still differing from a sibling that has different fields.
+ */
+function buildLineFingerprint(line: NarrativeLane): string {
+  const parts: string[] = [];
+  parts.push(`- name: "${line.name}"`);
+  if (line.description) parts.push(`- description: ${line.description}`);
+  if (line.state) parts.push(`- state: ${line.state}`);
+  if (line.cadenceHint) parts.push(`- cadence: ${line.cadenceHint}`);
+  if (line.thesis) parts.push(`- current working thesis (improve on it or offer alternatives): ${line.thesis}`);
+  else parts.push(`- current thesis: (none yet — propose fresh)`);
+  if (line.audience) parts.push(`- audience: ${line.audience}`);
+  if (line.emotionalDriver) parts.push(`- emotional driver: ${line.emotionalDriver}`);
+  if (line.authorityAngle) parts.push(`- authority angle: ${line.authorityAngle}`);
+  if (line.seasonality) parts.push(`- seasonality / timing: ${line.seasonality}`);
+  if (line.conversionSignal) parts.push(`- conversion signal: ${line.conversionSignal}`);
+  if (line.proofPoints.length > 0) parts.push(`- proof points: ${line.proofPoints.join(' | ')}`);
+  if (line.bestChannels.length > 0) parts.push(`- best channels: ${line.bestChannels.join(', ')}`);
+  if (line.doSay.length > 0) parts.push(`- DO say: ${line.doSay.join(' | ')}`);
+  if (line.dontSay.length > 0) parts.push(`- DO NOT say: ${line.dontSay.join(' | ')}`);
+  return parts.join('\n');
+}
+
+/**
+ * (#76) The "make-it-different" guard — list of sibling lines' theses so the
+ * LLM can avoid duplicating territory. Returns '' when this is the only line
+ * for the owner, so single-line briefs don't carry dead text.
+ */
+function buildSiblingContrastBlock(siblings: NarrativeLane[]): string {
+  if (siblings.length === 0) return '';
+  const lines: string[] = ['OTHER NARRATIVE LINES this owner ALREADY runs (your proposals must NOT overlap with these — claim different territory):'];
+  for (const sib of siblings) {
+    const bits: string[] = [`"${sib.name}"`];
+    if (sib.state) bits.push(`[${sib.state}]`);
+    if (sib.thesis) bits.push(`— thesis: ${sib.thesis}`);
+    else bits.push(`— no thesis set yet`);
+    if (sib.audience) bits.push(`— audience: ${sib.audience}`);
+    if (sib.authorityAngle) bits.push(`— authority: ${sib.authorityAngle}`);
+    lines.push(`- ${bits.join(' ')}`);
+  }
+  lines.push('');
+  return lines.join('\n');
 }
 
 export async function suggestThesesForLine(

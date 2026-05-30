@@ -559,7 +559,7 @@ export const PROMPT_DEFS: PromptDef[] = [
       'Proposes new narrative-line theses for a brand or client, grounded in what their leads need. Used by the "suggest thesis" step on the Narrative Lines page.',
     defaultSystem: THESIS_SUGGESTER_DEFAULT,
     userPromptNote:
-      'At call time the system appends the brand identity (from its brief), the line\'s current fields, and what the leads need. You edit the strategist instructions above.'
+      'At call time the system appends: (1) the brand identity from its brief; (2) THE FULL FINGERPRINT of THIS line — name, description, state, cadence, thesis, audience, emotional driver, authority angle, seasonality, conversion signal, proof points, channels, do_say, dont_say; (3) THE SIBLING LINES for the same owner so proposals don\'t overlap with territory another line already claims (the #76 fix — previously two lines without a thesis got identical prompts and identical suggestions); and (4) what THIS line\'s leads need (pain themes, industries, recurring keywords). You edit the strategist instructions above.'
   },
   {
     key: 'pr_pitch_advisory',
