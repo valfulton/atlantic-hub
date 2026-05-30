@@ -14,6 +14,9 @@ import { useRouter } from 'next/navigation';
 type Tier = 'audit_only' | 'sprint' | 'momentum' | 'scale';
 
 export function MakeClientButton(props: {
+  /** (#253) The lead's audit_id — when present, the create route will look up
+   *  source_payload.lead_intake_draft and pre-fill the new client's intake. */
+  auditId?: string;
   email: string | null;
   company: string | null;
   contactName: string | null;
@@ -24,7 +27,13 @@ export function MakeClientButton(props: {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<{ clientId: number | null; magicLink: string; emailSent: boolean } | null>(null);
+  const [done, setDone] = useState<{
+    clientId: number | null;
+    magicLink: string;
+    emailSent: boolean;
+    /** (#253) How many intake fields the smart-scrape draft contributed. */
+    draftFieldsMerged?: number;
+  } | null>(null);
   const [tier, setTier] = useState<Tier>('scale');
   const [trialDays, setTrialDays] = useState('30');
 
@@ -48,6 +57,10 @@ export function MakeClientButton(props: {
           name: props.contactName || null,
           company: props.company || null,
           industry: props.industry || null,
+          // (#253) Sending auditId triggers the lead_intake_draft carryover
+          // on the server — the new client lands with a populated intake the
+          // moment they exist.
+          auditId: props.auditId ?? null,
           tier,
           trialDays: Number(trialDays) || null,
           sendInvite: send
@@ -55,7 +68,12 @@ export function MakeClientButton(props: {
       });
       const j = await res.json();
       if (res.ok && j.ok) {
-        setDone({ clientId: j.clientId ?? null, magicLink: j.magicLink, emailSent: j.emailSent });
+        setDone({
+          clientId: j.clientId ?? null,
+          magicLink: j.magicLink,
+          emailSent: j.emailSent,
+          draftFieldsMerged: typeof j.draftFieldsMerged === 'number' ? j.draftFieldsMerged : 0
+        });
         router.refresh();
       } else {
         setErr(j.error || 'Could not create the client.');
@@ -90,6 +108,32 @@ export function MakeClientButton(props: {
                   Client created.{' '}
                   {done.emailSent ? 'Magic-link invite emailed.' : 'No email sent — copy the link to send when ready.'}
                 </p>
+                {/* (#253) Show the carryover so val sees the auto-fill actually
+                    happened. The lead's smart-scrape draft contributed N intake
+                    fields — the new client's brief is already partly populated.
+                    When the draft contributes zero, we stay silent (no point
+                    nagging val with "0 fields carried over"). */}
+                {done.draftFieldsMerged && done.draftFieldsMerged > 0 ? (
+                  <div
+                    className="rounded-md border px-3 py-2 text-xs leading-relaxed"
+                    style={{
+                      borderColor: 'rgba(110,231,183,0.35)',
+                      background: 'rgba(110,231,183,0.08)',
+                      color: '#86efac'
+                    }}
+                  >
+                    ✨ <span className="font-medium">{done.draftFieldsMerged}</span>{' '}
+                    intake field{done.draftFieldsMerged === 1 ? '' : 's'} carried over from this
+                    lead&apos;s smart-scrape draft. Their brief is already partly populated — open
+                    the client page to review.
+                  </div>
+                ) : props.auditId ? (
+                  <div className="text-[11px] text-muted">
+                    Tip: run <span className="text-ink">✨ Smart enrich from website</span> on a
+                    lead before converting and the new client&apos;s intake will pre-fill from the
+                    page.
+                  </div>
+                ) : null}
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.1em] text-muted mb-1">Magic link (valid 24h)</div>
                   <div className="flex gap-2">
