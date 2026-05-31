@@ -65,7 +65,7 @@ export function CoachCallsButton({ defaultLimit = 25 }: { defaultLimit?: number 
         onClick={runCoach}
         disabled={running}
         data-loading={running ? 'true' : 'false'}
-        className="ah-action-sparkle text-sm px-3 py-1.5 bg-brand text-white rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="ah-action-sparkle text-sm px-3 py-1.5 bg-brand text-black rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         title={`Read your top ${defaultLimit} leads and write a 'what to say on the call' cheat sheet for each. AI does it in under a minute. Reps get instant call coaching.`}
         aria-label={`Coach next ${defaultLimit} calls -- AI builds call cheat sheets for your top leads`}
       >

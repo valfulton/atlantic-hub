@@ -130,7 +130,7 @@ export function InstagramDiscoverForm({
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 rounded-md bg-brand text-black font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Scraping IG profiles…' : `Scrape ${parsed.length || 0} profile${parsed.length === 1 ? '' : 's'}`}
         </button>

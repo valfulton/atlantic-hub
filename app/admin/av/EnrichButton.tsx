@@ -134,7 +134,7 @@ export function EnrichButton({
       <button
         onClick={runEnrichment}
         disabled={running || outOfCredits}
-        className="text-sm px-3 py-1.5 bg-brand text-white rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
+        className="text-sm px-3 py-1.5 bg-brand text-black rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
         title={
           outOfCredits
             ? 'Monthly Hunter credits exhausted — top up your Hunter plan or wait for next month’s reset.'
@@ -143,7 +143,7 @@ export function EnrichButton({
       >
         {running ? (
           <>
-            <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span className="inline-block w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
             Enriching…
           </>
         ) : (
@@ -153,7 +153,10 @@ export function EnrichButton({
               <span
                 className="text-[10px] font-medium"
                 style={{
-                  color: outOfCredits ? '#fecaca' : lowCredits ? '#fde68a' : 'rgba(255,255,255,0.85)'
+                  // (#293) Button is now amber/text-black per the white-on-yellow
+                  // accessibility rule, so the badge needs dark variants too —
+                  // pale red / pale yellow were illegible on amber.
+                  color: outOfCredits ? '#7f1d1d' : lowCredits ? '#78350f' : 'rgba(0,0,0,0.65)'
                 }}
               >
                 {badge}

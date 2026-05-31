@@ -419,7 +419,7 @@ export function DiscoverForm({
                   className={[
                     'text-xs px-3 py-1.5 border rounded-md',
                     selectedRanges.includes(r.value)
-                      ? 'bg-brand text-white border-brand'
+                      ? 'bg-brand text-black border-brand'
                       : 'bg-bg border-border text-ink hover:border-brand'
                   ].join(' ')}
                 >
@@ -446,11 +446,11 @@ export function DiscoverForm({
           <button
             type="submit"
             disabled={running}
-            className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
+            className="px-4 py-2 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1.5"
           >
             {running ? (
               <>
-                <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="inline-block w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
                 Searching Apollo…
               </>
             ) : (

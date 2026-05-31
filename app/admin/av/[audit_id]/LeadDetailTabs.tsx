@@ -460,7 +460,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
             <button
               onClick={saveIdentity}
               disabled={savingIdent}
-              className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
             >
               {savingIdent ? 'Saving…' : 'Save changes'}
             </button>
@@ -706,7 +706,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               <button
                 onClick={saveNote}
                 disabled={savingNote || !noteBody.trim()}
-                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
+                className="px-4 py-2 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
               >
                 {savingNote ? 'Saving…' : 'Save note'}
               </button>
@@ -965,7 +965,7 @@ function DealValueEditor({ lead }: { lead: Lead }) {
         <button
           onClick={save}
           disabled={busy}
-          className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
+          className="px-4 py-2 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
         >
           {busy ? 'Saving…' : 'Save value'}
         </button>

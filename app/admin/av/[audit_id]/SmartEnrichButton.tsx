@@ -91,12 +91,12 @@ export function SmartEnrichButton({
           'text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 transition ' +
           (running || !hasWebsite
             ? 'bg-white/10 text-white/40 cursor-not-allowed'
-            : 'bg-brand text-white hover:opacity-90')
+            : 'bg-brand text-black hover:opacity-90')
         }
       >
         {running ? (
           <>
-            <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span className="inline-block w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
             Reading website…
           </>
         ) : (

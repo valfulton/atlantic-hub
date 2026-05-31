@@ -47,7 +47,7 @@ export function AddActivityForm() {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90">
+      <button onClick={() => setOpen(true)} className="px-4 py-2 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90">
         + Log a call / email / meeting
       </button>
     );
@@ -82,7 +82,7 @@ export function AddActivityForm() {
         <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full border border-border rounded-md px-3 py-2 text-sm bg-white" />
       </div>
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={busy} className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50">
+        <button type="submit" disabled={busy} className="px-4 py-2 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50">
           {busy ? 'Saving…' : 'Save'}
         </button>
         <button type="button" onClick={() => setOpen(false)} className="px-3 py-2 text-sm text-muted hover:text-ink">Cancel</button>

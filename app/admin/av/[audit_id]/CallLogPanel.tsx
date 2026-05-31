@@ -162,7 +162,7 @@ export function CallLogPanel({ auditId, onCallLogged }: Props) {
             type="button"
             onClick={logCall}
             disabled={busy}
-            className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
+            className="px-4 py-2 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
           >
             {busy ? 'Logging...' : 'Log call'}
           </button>

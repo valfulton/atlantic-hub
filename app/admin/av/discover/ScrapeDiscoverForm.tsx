@@ -213,7 +213,7 @@ export function ScrapeDiscoverForm({
             type="button"
             onClick={() => handleBulkFill(false)}
             disabled={bulkLoading}
-            className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="px-4 py-2 rounded-md bg-brand text-black font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {bulkLoading ? 'Scraping…' : `Scrape next ${bulkLimit} & fill`}
           </button>
@@ -330,7 +330,7 @@ export function ScrapeDiscoverForm({
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 rounded-md bg-brand text-black font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Scraping…' : 'Scrape & insert'}
         </button>

@@ -42,7 +42,7 @@ export default function CreativeBrief({
           <div className="text-xs uppercase tracking-wide text-muted mb-2">The story we&apos;re telling</div>
           {activeLines.length === 0 ? (
             <p className="text-sm text-muted">
-              Your narrative line is being shaped — the single story that will run through your social, blog, and commercials. It&apos;ll appear here once it&apos;s set.
+              Your campaign is being shaped — the single story that will run through your social, blog, and commercials. It&apos;ll appear here once it&apos;s set.
             </p>
           ) : (
             <ul className="space-y-3">

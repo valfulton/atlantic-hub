@@ -288,7 +288,7 @@ export function EventsTable({ initialEvents, initialFilters }: Props) {
           type="button"
           onClick={applyFilters}
           disabled={loading}
-          className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          className="px-4 py-2 rounded-md bg-brand text-black font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-sm"
         >
           {loading ? 'Loading...' : 'Apply'}
         </button>

@@ -190,7 +190,7 @@ export function LifecycleControls({
             type="button"
             onClick={confirm}
             disabled={busy}
-            className="px-3 py-1.5 bg-brand text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
+            className="px-3 py-1.5 bg-brand text-black text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50"
           >
             {busy ? 'Saving...' : `Confirm "${STAGE_OPTIONS.find((o) => o.value === pending)?.label}"`}
           </button>

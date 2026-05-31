@@ -196,7 +196,7 @@ export function CsvImportForm() {
         <button
           type="submit"
           disabled={loading || !csvText.trim()}
-          className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 rounded-md bg-brand text-black font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Importing…' : 'Import CSV'}
         </button>
@@ -313,7 +313,7 @@ function SingleLeadForm() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <button type="submit" disabled={busy} className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-md bg-brand text-black font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
               {busy ? 'Adding…' : 'Add lead'}
             </button>
             <span className="text-[11px] text-muted">Enter at least a company, email, or website.</span>
@@ -445,7 +445,7 @@ function AddContactForm() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button type="submit" disabled={busy} className="px-4 py-2 rounded-md bg-brand text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-md bg-brand text-black font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
               {busy ? 'Saving…' : 'Save contact'}
             </button>
             <span className="text-[11px] text-muted">A person can be attached to several companies — check all that apply.</span>
