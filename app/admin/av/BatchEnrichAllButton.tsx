@@ -49,6 +49,11 @@ interface PerLeadOutcome {
 interface BatchSummary {
   ok: true;
   leadsProcessed: number;
+  leadsRequested: number;
+  /** (#280) Non-null when the function bailed early to avoid the Netlify
+   *  60s timeout. Tells val to click again to continue with the rest. */
+  stoppedEarlyReason: string | null;
+  elapsedMs: number;
   sourcesRun: SourceKey[];
   perSource: Record<SourceKey, { attempted: number; filled: number; errored: number }>;
   perLead: PerLeadOutcome[];
@@ -167,9 +172,15 @@ function ResultPanel({ summary, onClose }: { summary: BatchSummary; onClose: () 
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-ink mb-1">Batch enrichment done</h2>
-        <p className="text-sm text-muted mb-5">
-          {summary.leadsProcessed} {summary.leadsProcessed === 1 ? 'lead' : 'leads'} processed across {summary.sourcesRun.length} sources.
+        <p className="text-sm text-muted mb-2">
+          {summary.leadsProcessed} of {summary.leadsRequested} {summary.leadsRequested === 1 ? 'lead' : 'leads'} processed across {summary.sourcesRun.length} sources in {Math.round(summary.elapsedMs / 100) / 10}s.
         </p>
+        {summary.stoppedEarlyReason && (
+          <p className="text-sm mb-5 px-3 py-2 rounded-md border border-amber-400/40 bg-amber-400/10 text-amber-100">
+            {summary.stoppedEarlyReason}
+          </p>
+        )}
+        {!summary.stoppedEarlyReason && <div className="mb-5" />}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {SOURCE_META.map((s) => {

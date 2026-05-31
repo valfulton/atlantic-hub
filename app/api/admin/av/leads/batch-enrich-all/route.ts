@@ -148,92 +148,111 @@ export async function POST(req: NextRequest) {
   };
   const perLead: PerLeadOutcome[] = [];
 
-  // Sequential per lead, sequential per source — keeps DB writes ordered and
-  // avoids hammering the external APIs in parallel. 25 leads x 4 sources =
-  // up to 100 calls; the longest source (smart enrich) is ~3-5s, others are
-  // 0.5-2s, so worst case the batch lands well inside maxDuration=60s for
-  // limit=5. Larger limits may hit the timeout — that's why limit is capped
-  // at 25 above.
+  // (#280) Sequential per lead, but PARALLEL per source for that lead.
+  // Earlier version ran every source sequentially → for 5 leads × 4 sources
+  // (~16s/lead) the function blew past Netlify's 60s timeout (HTTP 504).
+  // Running the 4 sources in parallel per lead caps each lead at the
+  // longest source (~5-10s instead of summing to ~16s).
+  //
+  // Plus a global 50s deadline (10s headroom under maxDuration=60s) — if
+  // the next lead would push us past 50s of wall-clock work we stop and
+  // return what completed instead of letting the function time out and
+  // losing the partial-result body. Anything not processed is noted in
+  // the response so val can re-run on what's left.
+  const BATCH_DEADLINE_MS = 50_000;
+  const startTime = Date.now();
+  const elapsed = () => Date.now() - startTime;
+  let stoppedEarlyReason: string | null = null;
+
+  // Tiny race-against-a-timer helper so a single hung Apify/RDAP call
+  // can't drag the whole batch over the deadline.
+  function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+    return Promise.race([
+      p,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`${label}: timed out after ${ms}ms`)), ms)
+      )
+    ]);
+  }
+  const PER_SOURCE_MS = 14_000; // hard ceiling per source per lead
+
   for (const lead of rows) {
+    if (elapsed() > BATCH_DEADLINE_MS) {
+      stoppedEarlyReason = `Stopped at ${perLead.length}/${rows.length} leads to stay under the function timeout. Click again to continue with the rest.`;
+      break;
+    }
+
     const outcome: PerLeadOutcome = {
       leadId: lead.id,
       auditId: lead.audit_id,
       company: lead.company
     };
 
-    for (const src of sources) {
+    // Build one async task per requested source for THIS lead. Each task
+    // returns a `{src, filled, reason}` triple — never throws (wrapped in
+    // try/catch) so Promise.all doesn't short-circuit on a single bad
+    // source. We then fold each result into perSource + outcome.
+    type SourceResult = { src: SourceKey; filled: number; reason: string | null; errored: boolean; attempted: boolean };
+    const tasks: Promise<SourceResult>[] = sources.map(async (src): Promise<SourceResult> => {
       try {
         if (src === 'smart') {
           if (!lead.website || !lead.website.trim()) {
-            outcome.smart = { filled: 0, reason: 'no website on file' };
-            perSource.smart.errored += 1;
-            continue;
+            return { src, filled: 0, reason: 'no website on file', errored: true, attempted: false };
           }
-          perSource.smart.attempted += 1;
-          const r = await enrichLeadFromSmartScrape({
-            leadId: lead.id,
-            websiteUrl: lead.website,
-            brandHint: lead.company
-          });
+          const r = await withTimeout(
+            enrichLeadFromSmartScrape({ leadId: lead.id, websiteUrl: lead.website, brandHint: lead.company }),
+            PER_SOURCE_MS,
+            'smart'
+          );
           const filled = r.enrichment?.filled ?? 0;
-          perSource.smart.filled += filled;
-          if (!r.fetched && filled === 0) perSource.smart.errored += 1;
-          outcome.smart = { filled, reason: r.reason };
-        } else if (src === 'places') {
-          if (!lead.company || !lead.company.trim()) {
-            outcome.places = { filled: 0, reason: 'no company name on file' };
-            perSource.places.errored += 1;
-            continue;
-          }
-          perSource.places.attempted += 1;
-          const r = await enrichLeadFromPlaces({ leadId: lead.id, actorUserId: guard.actor.userId });
-          if (r.ok) {
-            const filled = r.filled ?? 0;
-            perSource.places.filled += filled;
-            outcome.places = { filled, reason: null };
-          } else {
-            outcome.places = { filled: 0, reason: r.reason ?? 'no match' };
-            perSource.places.errored += 1;
-          }
-        } else if (src === 'instagram') {
-          if ((!lead.company || !lead.company.trim()) && (!lead.website || !lead.website.trim())) {
-            outcome.instagram = { filled: 0, reason: 'no company or website on file' };
-            perSource.instagram.errored += 1;
-            continue;
-          }
-          perSource.instagram.attempted += 1;
-          const r = await enrichLeadFromInstagram({ leadId: lead.id, actorUserId: guard.actor.userId });
-          if (r.ok) {
-            const filled = r.filled ?? 0;
-            perSource.instagram.filled += filled;
-            outcome.instagram = { filled, reason: null };
-          } else {
-            outcome.instagram = { filled: 0, reason: r.reason ?? 'no profile' };
-            perSource.instagram.errored += 1;
-          }
-        } else if (src === 'whois') {
-          if (!lead.website || !lead.website.trim()) {
-            outcome.whois = { filled: 0, reason: 'no website on file' };
-            perSource.whois.errored += 1;
-            continue;
-          }
-          perSource.whois.attempted += 1;
-          const r = await enrichLeadFromWhois({ leadId: lead.id, actorUserId: guard.actor.userId });
-          if (r.ok) {
-            const filled = r.filled ?? 0;
-            perSource.whois.filled += filled;
-            outcome.whois = { filled, reason: null };
-          } else {
-            outcome.whois = { filled: 0, reason: r.reason ?? 'WHOIS unavailable' };
-            perSource.whois.errored += 1;
-          }
+          return { src, filled, reason: r.reason, errored: !r.fetched && filled === 0, attempted: true };
         }
+        if (src === 'places') {
+          if (!lead.company || !lead.company.trim()) {
+            return { src, filled: 0, reason: 'no company name on file', errored: true, attempted: false };
+          }
+          const r = await withTimeout(
+            enrichLeadFromPlaces({ leadId: lead.id, actorUserId: guard.actor.userId }),
+            PER_SOURCE_MS,
+            'places'
+          );
+          if (r.ok) return { src, filled: r.filled ?? 0, reason: null, errored: false, attempted: true };
+          return { src, filled: 0, reason: r.reason ?? 'no match', errored: true, attempted: true };
+        }
+        if (src === 'instagram') {
+          if ((!lead.company || !lead.company.trim()) && (!lead.website || !lead.website.trim())) {
+            return { src, filled: 0, reason: 'no company or website on file', errored: true, attempted: false };
+          }
+          const r = await withTimeout(
+            enrichLeadFromInstagram({ leadId: lead.id, actorUserId: guard.actor.userId }),
+            PER_SOURCE_MS,
+            'instagram'
+          );
+          if (r.ok) return { src, filled: r.filled ?? 0, reason: null, errored: false, attempted: true };
+          return { src, filled: 0, reason: r.reason ?? 'no profile', errored: true, attempted: true };
+        }
+        // whois
+        if (!lead.website || !lead.website.trim()) {
+          return { src, filled: 0, reason: 'no website on file', errored: true, attempted: false };
+        }
+        const r = await withTimeout(
+          enrichLeadFromWhois({ leadId: lead.id, actorUserId: guard.actor.userId }),
+          PER_SOURCE_MS,
+          'whois'
+        );
+        if (r.ok) return { src, filled: r.filled ?? 0, reason: null, errored: false, attempted: true };
+        return { src, filled: 0, reason: r.reason ?? 'WHOIS unavailable', errored: true, attempted: true };
       } catch (err) {
-        // Soft fail this one source on this one lead; keep the batch going.
-        const reason = (err as Error).message || 'unexpected error';
-        outcome[src] = { filled: 0, reason };
-        perSource[src].errored += 1;
+        return { src, filled: 0, reason: (err as Error).message || 'unexpected error', errored: true, attempted: true };
       }
+    });
+
+    const results = await Promise.all(tasks);
+    for (const r of results) {
+      if (r.attempted) perSource[r.src].attempted += 1;
+      perSource[r.src].filled += r.filled;
+      if (r.errored) perSource[r.src].errored += 1;
+      outcome[r.src] = { filled: r.filled, reason: r.reason };
     }
 
     perLead.push(outcome);
@@ -241,7 +260,10 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    leadsProcessed: rows.length,
+    leadsProcessed: perLead.length,
+    leadsRequested: rows.length,
+    stoppedEarlyReason,
+    elapsedMs: elapsed(),
     sourcesRun: sources,
     perSource,
     perLead
