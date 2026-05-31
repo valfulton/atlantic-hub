@@ -55,7 +55,28 @@ interface PerLeadOutcome {
   whois?: { filled: number; reason: string | null };
 }
 
+// (#280 polish) Outer try/catch wrapper so that an unexpected throw (a typo
+// in one of the source libs, an env-var-missing crash on cold start, etc.)
+// returns JSON with the actual error message to the browser instead of a
+// bare HTTP 500 with no body. The previous version left val staring at a
+// 500 with no way to tell what broke.
 export async function POST(req: NextRequest) {
+  try {
+    return await runBatch(req);
+  } catch (err) {
+    console.error('[batch-enrich-all:fatal]', (err as Error).message, (err as Error).stack);
+    return NextResponse.json(
+      {
+        error: 'batch_enrich_fatal',
+        message: (err as Error).message || 'unknown error',
+        errorClass: (err as Error).name || 'Error'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+async function runBatch(req: NextRequest): Promise<NextResponse> {
   if (!(await isFlagEnabled('tab_av_enabled'))) {
     return NextResponse.json({ error: 'av tab disabled' }, { status: 403 });
   }

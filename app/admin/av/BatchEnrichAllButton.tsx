@@ -97,8 +97,12 @@ export function BatchEnrichAllButton({
         })
       });
       if (!res.ok) {
+        // (#280 polish) Server now returns { error, message, errorClass }
+        // for unexpected throws. Show val the actual server-side message
+        // instead of bare HTTP 500 so she can tell us what failed.
         const j = await res.json().catch(() => ({}));
-        const raw = (j as { error?: string }).error || `HTTP ${res.status}`;
+        const errBody = j as { error?: string; message?: string };
+        const raw = errBody.message || errBody.error || `HTTP ${res.status}`;
         throw new Error(raw);
       }
       const data = (await res.json()) as BatchSummary;
