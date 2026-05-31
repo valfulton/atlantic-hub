@@ -12,6 +12,7 @@ import { LeadOfTheDay } from '@/components/LeadOfTheDay';
 import { HotLeadConfetti } from '@/components/HotLeadConfetti';
 import { PipelineValueCard } from '@/components/PipelineValueCard';
 import { QuickScrapeWidget } from './QuickScrapeWidget';
+import { InvestorsMenu } from './InvestorsMenu';
 import { listClientAccounts } from '@/lib/av/clients_overview';
 import { getHunterCreditStatus } from '@/lib/enrichment/enricher';
 
@@ -200,12 +201,19 @@ export default async function AvPage({
     <div>
       <div className="flex items-baseline justify-between gap-4 mb-1">
         <h1 className="text-2xl font-semibold">Atlantic &amp; Vine</h1>
-        <Link
-          href="/admin/av/intel-freshness"
-          className="text-[12px] text-white/50 hover:text-amber-300 transition shrink-0"
-        >
-          Intel freshness →
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          {/* (#294) Curated investor tour — one-click access to the
+              demo-worthy surfaces. Sits in the top-right next to
+              Intel freshness so it's always one click away during a
+              live walkthrough. */}
+          <InvestorsMenu />
+          <Link
+            href="/admin/av/intel-freshness"
+            className="text-[12px] text-white/50 hover:text-amber-300 transition"
+          >
+            Intel freshness →
+          </Link>
+        </div>
       </div>
       <p className="text-sm text-muted mb-6">Lead pipeline · read-only in v1</p>
 
