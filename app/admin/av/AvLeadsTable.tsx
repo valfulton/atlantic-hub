@@ -1,8 +1,18 @@
 'use client';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { DataTable, Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/StatusBadge';
+
+/**
+ * (#284) Custom-event name used to ship the current row selection from
+ * AvLeadsTable up to the BatchEnrichAllButton in the page header. Both
+ * components are client components but they live in different subtrees, so
+ * a window-level event is the cleanest way to share without restructuring
+ * the whole page into one client tree. Detail shape: { auditIds: string[] }.
+ */
+export const AV_LEAD_SELECTION_EVENT = 'av-leads-selection-change';
 
 export interface AvLead {
   id: number;
@@ -236,7 +246,69 @@ export function AvLeadsTable({
   sortKey?: string;
   sortDirection?: 'asc' | 'desc';
 }) {
+  // (#284) Row selection — lets val pick specific leads to bulk-enrich. The
+  // BatchEnrichAllButton in the page header listens for AV_LEAD_SELECTION_EVENT
+  // and uses the selected audit_ids over its default "first N visible" pick.
+  // Nothing else in the row reacts to the checkbox; pure selection state.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Re-emit when leads list shape changes (filter / sort change) so the header
+  // checkbox + button label stay in sync with what's actually on screen.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(AV_LEAD_SELECTION_EVENT, { detail: { auditIds: Array.from(selected) } })
+    );
+  }, [selected]);
+
+  const visibleIds = leads.map((l) => l.auditId);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selected.has(id));
+
+  function toggleAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+  function toggleOne(auditId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(auditId)) next.delete(auditId);
+      else next.add(auditId);
+      return next;
+    });
+  }
+
   const COLUMNS: Column<AvLead>[] = [
+    {
+      key: '__select',
+      header: (
+        <input
+          type="checkbox"
+          checked={allVisibleSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+          }}
+          onChange={toggleAllVisible}
+          className="cursor-pointer w-4 h-4 accent-amber-400"
+          title={allVisibleSelected ? 'Unselect all visible' : 'Select all visible'}
+          aria-label="Select all visible leads"
+        />
+      ),
+      render: (r) => (
+        <input
+          type="checkbox"
+          checked={selected.has(r.auditId)}
+          onChange={() => toggleOne(r.auditId)}
+          className="cursor-pointer w-4 h-4 accent-amber-400"
+          aria-label={`Select ${r.company}`}
+        />
+      )
+    },
     {
       key: 'company',
       header: <SortableHeader label="Company" sortKey="company" currentSort={sortKey} currentDirection={sortDirection} />,

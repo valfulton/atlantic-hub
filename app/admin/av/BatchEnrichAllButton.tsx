@@ -19,8 +19,9 @@
  * button avoids it entirely. Smart enrich is the LLM scraper (cheap-ish,
  * reads website), Places is Google Maps, IG is Apify, WHOIS is RDAP.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { AV_LEAD_SELECTION_EVENT } from './AvLeadsTable';
 
 type SourceKey = 'smart' | 'places' | 'instagram' | 'whois';
 
@@ -83,10 +84,31 @@ export function BatchEnrichAllButton({
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [showResult, setShowResult] = useState(false);
 
-  // Slice to the first `limit` audit_ids — the leads the operator sees
-  // at the top of her filtered table. Empty array signals "use auto-pick."
-  const targetAuditIds = visibleLeadAuditIds.slice(0, limit);
-  const usingVisible = targetAuditIds.length > 0;
+  // (#284) Listen for selection changes from AvLeadsTable. When val checks
+  // rows in the table, those audit_ids come over as a CustomEvent and we
+  // store them locally. Selected IDs take priority over "first N visible"
+  // — so she can pick exactly which leads to enrich and stop hitting the
+  // same top 3 every click.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  useEffect(() => {
+    function onSelection(e: Event) {
+      const detail = (e as CustomEvent<{ auditIds?: string[] }>).detail;
+      setSelectedIds(Array.isArray(detail?.auditIds) ? detail.auditIds : []);
+    }
+    window.addEventListener('av-leads-selection-change', onSelection);
+    return () => window.removeEventListener('av-leads-selection-change', onSelection);
+  }, []);
+
+  // Three priority levels for which leads to enrich:
+  //   1. selectedIds (val explicitly checked boxes) — highest, full set
+  //   2. visibleLeadAuditIds sliced to limit (the top-N she's looking at)
+  //   3. empty → server falls back to "stalest N" auto-pick
+  const targetAuditIds: string[] =
+    selectedIds.length > 0
+      ? selectedIds.slice(0, limit)
+      : visibleLeadAuditIds.slice(0, limit);
+  const usingSelection = selectedIds.length > 0;
+  const usingVisible = !usingSelection && targetAuditIds.length > 0;
 
   async function run() {
     setRunning(true);
@@ -100,7 +122,7 @@ export function BatchEnrichAllButton({
           limit,
           // Only send auditIds when we actually have some; the server treats
           // an empty/missing array as "use the stalest-N auto-pick path."
-          ...(usingVisible ? { auditIds: targetAuditIds } : {})
+          ...((usingSelection || usingVisible) ? { auditIds: targetAuditIds } : {})
         })
       });
       if (!res.ok) {
@@ -131,20 +153,22 @@ export function BatchEnrichAllButton({
           disabled={running}
           className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border bg-amber-400/10 text-amber-100 border-amber-400/40 hover:border-amber-400/70 disabled:opacity-50 transition"
           title={
-            usingVisible
-              ? `Run Smart enrich + Places + Instagram + WHOIS on the FIRST ${limit} leads currently visible in your filtered table. Hunter is NOT included — use the Hunter button separately.`
-              : 'Run Smart enrich + Places + Instagram + WHOIS on the next N stalest active leads. Hunter is NOT included — use the Hunter button separately.'
+            usingSelection
+              ? `Run Smart enrich + Places + Instagram + WHOIS on the ${Math.min(selectedIds.length, limit)} lead${Math.min(selectedIds.length, limit) === 1 ? '' : 's'} you checked. Hunter is NOT included — use the Hunter button separately.`
+              : usingVisible
+                ? `Run Smart enrich + Places + Instagram + WHOIS on the FIRST ${limit} leads currently visible in your filtered table. Check rows below to pick specific leads instead. Hunter is NOT included.`
+                : 'Run Smart enrich + Places + Instagram + WHOIS on the next N stalest active leads. Check rows below to pick specific ones.'
           }
         >
           {running ? (
             <>
               <span className="inline-block w-3 h-3 border-2 border-amber-200 border-t-transparent rounded-full animate-spin" />
-              Enriching {limit}…
+              Enriching {usingSelection ? Math.min(selectedIds.length, limit) : limit}…
             </>
+          ) : usingSelection ? (
+            <>✨ Enrich selected {Math.min(selectedIds.length, limit)} (all sources)</>
           ) : (
-            <>
-              ✨ Enrich {usingVisible ? 'these' : 'next'} {limit} (all sources)
-            </>
+            <>✨ Enrich {usingVisible ? 'these' : 'next'} {limit} (all sources)</>
           )}
         </button>
         {!running && (
