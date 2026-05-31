@@ -200,6 +200,20 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <Link href={`/admin/av/clients/${clientId}/timeline`} className="text-brand hover:underline">Activity timeline →</Link>
       </div>
 
+      {/* (#297) Quick guide above the two link mechanisms — they are NOT
+          interchangeable and the page used to ship both with no signposting.
+          Prefilled link = anonymous form fill (30-day, shareable, no session).
+          Magic link = real portal login (24h, single-use, gates to intake).
+          For "send me a new login" → magic link is always the right answer. */}
+      <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.04] px-4 py-3 mb-3">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-brand mb-1">Two ways to share</div>
+        <p className="text-[12.5px] text-ink/90 leading-relaxed">
+          <span className="text-ink font-medium">Magic link</span> (lower box) logs them in for 24h and lands them on their intake until it&apos;s complete — use this when they ask for a new login.
+          {' '}
+          <span className="text-ink font-medium">Prefilled intake link</span> (next box) is anonymous form-fill — no login, 30-day shareable URL. Use this for &ldquo;just review and submit this form&rdquo; without giving portal access.
+        </p>
+      </div>
+
       {/* No-login prefilled intake link — the "just send it" link. */}
       <PrefilledIntakeLink url={intakeShareUrl} />
 
