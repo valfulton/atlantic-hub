@@ -13,6 +13,8 @@ import { HotLeadConfetti } from '@/components/HotLeadConfetti';
 import { PipelineValueCard } from '@/components/PipelineValueCard';
 import { QuickScrapeWidget } from './QuickScrapeWidget';
 import { InvestorsMenu } from './InvestorsMenu';
+import { OpportunityFlagsMenu } from './OpportunityFlagsMenu';
+import { listOpportunityFlags } from '@/lib/av/opportunity_flags';
 import { listClientAccounts } from '@/lib/av/clients_overview';
 import { getHunterCreditStatus } from '@/lib/enrichment/enricher';
 
@@ -182,6 +184,11 @@ export default async function AvPage({
   // Client list for the "by client" filter dropdown.
   const clientAccounts = await listClientAccounts().catch(() => []);
 
+  // (#296) Opportunity flags — leads that heated up in the last 24h. Read-only
+  // single-query feed, never throws (returns [] on any DB issue). Feeds the
+  // Hot inbox dropdown in the header.
+  const opportunityFlags = await listOpportunityFlags().catch(() => []);
+
   const activeInPipeline = stats.byStage.contacted + stats.byStage.qualified;
 
   // Pick today's hot-lead candidates for the once-per-day celebration.
@@ -202,6 +209,10 @@ export default async function AvPage({
       <div className="flex items-baseline justify-between gap-4 mb-1">
         <h1 className="text-2xl font-semibold">Atlantic &amp; Vine</h1>
         <div className="flex items-center gap-3 shrink-0">
+          {/* (#296) Hot inbox — leads that heated up in the last 24h.
+              Quietly neutral when empty; flips to bg-brand text-black
+              with a count badge when there's something worth glancing at. */}
+          <OpportunityFlagsMenu flags={opportunityFlags} />
           {/* (#294) Curated investor tour — one-click access to the
               demo-worthy surfaces. Sits in the top-right next to
               Intel freshness so it's always one click away during a
