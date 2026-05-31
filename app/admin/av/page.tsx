@@ -207,6 +207,16 @@ export default async function AvPage({
               Intel freshness so it's always one click away during a
               live walkthrough. */}
           <InvestorsMenu />
+          {/* (#295) Conductor — val's command bar for shaping how a
+              Claude chat behaves before she writes the first ask.
+              Modes copy directive prompts to clipboard. */}
+          <Link
+            href="/admin/av/conductor"
+            className="text-[12px] text-white/50 hover:text-amber-300 transition"
+            title="Mode buttons: ship-only, design-first, parallel-agents, campaign-bundle, memory-pack"
+          >
+            🎼 Conductor →
+          </Link>
           <Link
             href="/admin/av/intel-freshness"
             className="text-[12px] text-white/50 hover:text-amber-300 transition"
