@@ -250,3 +250,23 @@ main > * {
   min-width: 0;
   max-width: 100%;
 }
+
+/* ─── LEGIBILITY FLOOR (#276) ─────────────────────────────────────────────
+   val has vision issues + the dark theme is hard to read. Existing pages
+   are riddled with text-[9.5px], text-[10px], text-[11px], text-[12px]
+   and Tailwind's text-xs (12px) labels. Those are unreadable for her.
+
+   This rule sets the floor at 14px for any small-text class across the
+   entire hub — no per-page edits required. text-sm (14px), text-base
+   (16px), and larger classes are untouched.
+
+   Tradeoff: a few layouts that were tuned around 10-12px labels may now
+   wrap or feel chunkier. Wrapping is fine; illegible is not. */
+[class*="text-[9"],
+[class*="text-[10"],
+[class*="text-[11"],
+[class*="text-[12"],
+.text-xs {
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
