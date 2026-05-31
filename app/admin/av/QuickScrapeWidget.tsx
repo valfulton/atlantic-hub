@@ -175,7 +175,7 @@ export function QuickScrapeWidget() {
             <>
               {' · '}
               <Link
-                href={`/admin/av/lead/${result.auditId}`}
+                href={`/admin/av/${result.auditId}`}
                 className="underline-offset-2 hover:underline font-medium"
               >
                 Open lead detail
@@ -191,7 +191,7 @@ export function QuickScrapeWidget() {
             <>
               {' · '}
               <Link
-                href={`/admin/av/lead/${result.auditId}`}
+                href={`/admin/av/${result.auditId}`}
                 className="underline-offset-2 hover:underline font-medium"
               >
                 Open existing lead

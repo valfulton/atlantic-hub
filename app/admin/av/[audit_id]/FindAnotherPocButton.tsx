@@ -101,7 +101,7 @@ export function FindAnotherPocButton({
         <div className="text-[11px] leading-snug" style={{ color: '#86efac' }}>
           Added{' '}
           <a
-            href={`/admin/av/lead/${result.newAuditId}`}
+            href={`/admin/av/${result.newAuditId}`}
             className="underline-offset-2 hover:underline font-medium"
             style={{ color: '#86efac' }}
           >

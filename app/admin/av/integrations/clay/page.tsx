@@ -256,7 +256,7 @@ export default async function ClayIntegrationStatusPage() {
                     <td className="px-3 py-2 text-xs">
                       {r.lead_id !== null ? (
                         <a
-                          href={`/admin/av/lead/${r.lead_id}`}
+                          href={`/admin/av/${r.lead_id}`}
                           className="text-amber-300 hover:underline focus-visible:outline-2 focus-visible:outline-amber-400"
                         >
                           #{r.lead_id}

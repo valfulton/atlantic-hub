@@ -491,7 +491,7 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
                     <input type="checkbox" checked={checked} onChange={() => toggleOne(l.auditId)} />
                   </td>
                   <td className="px-2 py-2 text-white/90">
-                    <Link className="hover:text-amber-300 transition" href={`/admin/av/lead/${l.auditId}`}>{l.company}</Link>
+                    <Link className="hover:text-amber-300 transition" href={`/admin/av/${l.auditId}`}>{l.company}</Link>
                     {l.contactName && <div className="text-[10.5px] text-white/40">{l.contactName}</div>}
                   </td>
                   <td className="px-2 py-2 text-white/70">
@@ -518,7 +518,7 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
                     >
                       {busy ? '…' : 'refresh'}
                     </button>
-                    <Link href={`/admin/av/lead/${l.auditId}`} className="ml-2 text-[10.5px] text-white/40 hover:text-white/70 transition">
+                    <Link href={`/admin/av/${l.auditId}`} className="ml-2 text-[10.5px] text-white/40 hover:text-white/70 transition">
                       open →
                     </Link>
                   </td>

@@ -56,7 +56,7 @@ export default function ClientPipelineList({ clientId, leads }: { clientId: numb
         <li key={l.id} className="py-2 flex items-center justify-between gap-3">
           <div className="min-w-0">
             {l.auditId ? (
-              <Link href={`/admin/av/lead/${l.auditId}`} className="text-sm text-ink truncate hover:text-brand hover:underline">
+              <Link href={`/admin/av/${l.auditId}`} className="text-sm text-ink truncate hover:text-brand hover:underline">
                 {l.company}
               </Link>
             ) : (

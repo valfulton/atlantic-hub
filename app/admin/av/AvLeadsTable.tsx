@@ -241,7 +241,7 @@ export function AvLeadsTable({
       key: 'company',
       header: <SortableHeader label="Company" sortKey="company" currentSort={sortKey} currentDirection={sortDirection} />,
       render: (r) => (
-        <Link href={`/admin/av/lead/${r.auditId}`} className="text-brand hover:underline font-medium">
+        <Link href={`/admin/av/${r.auditId}`} className="text-brand hover:underline font-medium">
           {r.company}
         </Link>
       )
