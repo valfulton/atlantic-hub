@@ -17,6 +17,11 @@ const HH_NAV = [
 
 const AV_NAV = [
   { href: '/admin/av', label: 'Atlantic & Vine', section: 'tenant' as const },
+  // (#275) Side-by-side preview of the new readable lead view. The label
+  // is val's own naming — she asked for the entry from the start. The
+  // existing /admin/av cockpit stays unchanged; this entry lands on a
+  // small index that lets her open any lead in the new view.
+  { href: '/admin/av/lead', label: 'Leads (new view)', section: 'sub' as const },
   { href: '/admin/av/clients', label: 'Clients', section: 'sub' as const },
   { href: '/admin/av/employees', label: 'Employees', section: 'sub' as const },
   { href: '/admin/av/discover', label: 'Find new leads', section: 'sub' as const },
