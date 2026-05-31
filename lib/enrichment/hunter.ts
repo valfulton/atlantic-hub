@@ -81,42 +81,34 @@ export async function getHunterAccountStatus(): Promise<HunterAccountStatus | nu
 
     // Hunter's /account response has shifted over the years — try several
     // shapes in order. Log which shape matched so future drift is debuggable.
-    // (#288) val reported the displayed numbers (220/75) don't match her
-    // hunter.io dashboard (22/50). Suspecting we're reading the WRONG field
-    // — Hunter has separate counters: data.calls (some aggregate),
-    // data.requests.searches (domain searches), .verifications,
-    // .email_finder, .email_count, etc. Each could report a different scope
-    // (cumulative vs monthly, team vs user). Dump the whole response so we
-    // can see which field matches her real usage and key off the right one.
-    console.log('[hunter:account] FULL response data:', JSON.stringify(data, null, 2));
-    // Try several known shapes in priority order. After seeing the dump
-    // we'll know which one to keep.
-    const calls = (data as { calls?: { used?: number; available?: number } }).calls;
+    // (#288) Hunter's response confirmed via diagnostic dump:
+    //   data.calls: { _deprecation_notice: "Sums searches+verifications,
+    //                 giving an unprecise look..." }  ← do NOT use
+    //   data.requests.credits: { used: 22, available: 50 }  ← THIS matches
+    //                          hunter.io dashboard
+    //   data.requests.searches: same
+    //   data.requests.verifications: { used: 44, available: 100 }
+    //
+    // We use data.requests.credits as the canonical "monthly credits left"
+    // counter because Hunter itself marks .calls as deprecated. Fall back
+    // to .searches then .calls only if .credits is missing (older API).
     const requests = (data as { requests?: Record<string, { used?: number; available?: number }> }).requests;
-    type Shape = { used: number; available: number; label: string };
-    const candidates: Shape[] = [];
-    if (typeof calls?.used === 'number' && typeof calls?.available === 'number') {
-      candidates.push({ used: calls.used, available: calls.available, label: 'calls' });
+    const calls = (data as { calls?: { used?: number; available?: number } }).calls;
+    let used: number | undefined;
+    let available: number | undefined;
+    let shape: string | null = null;
+    if (typeof requests?.credits?.used === 'number' && typeof requests?.credits?.available === 'number') {
+      used = requests.credits.used; available = requests.credits.available; shape = 'requests.credits';
+    } else if (typeof requests?.searches?.used === 'number' && typeof requests?.searches?.available === 'number') {
+      used = requests.searches.used; available = requests.searches.available; shape = 'requests.searches';
+    } else if (typeof calls?.used === 'number' && typeof calls?.available === 'number') {
+      used = calls.used; available = calls.available; shape = 'calls (deprecated fallback)';
     }
-    if (requests) {
-      for (const [key, ctr] of Object.entries(requests)) {
-        if (typeof ctr?.used === 'number' && typeof ctr?.available === 'number') {
-          candidates.push({ used: ctr.used, available: ctr.available, label: `requests.${key}` });
-        }
-      }
-    }
-    if (candidates.length === 0) {
+    if (typeof used !== 'number' || typeof available !== 'number') {
       console.error('[hunter:account] no recognized counter — data keys:', Object.keys(data as object).join(','));
       return null;
     }
-    console.log('[hunter:account] candidate counters:', candidates.map((c) => `${c.label}=${c.used}/${c.available}`).join(' · '));
-    // Pick the one whose `available` matches her plan most plausibly. For
-    // now keep using the first one found, but the dump above lets us pick
-    // a better default once we see what matches her dashboard.
-    const chosen = candidates[0];
-    console.log(`[hunter:account] live read OK via shape="${chosen.label}" used=${chosen.used} available=${chosen.available}`);
-    const used = chosen.used;
-    const available = chosen.available;
+    console.log(`[hunter:account] live read OK via shape="${shape}" used=${used} available=${available}`);
     return {
       used,
       available,
