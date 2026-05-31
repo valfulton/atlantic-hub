@@ -63,7 +63,7 @@ export default async function AvPage({
   // its inline badge, gate the owner-only "raise ceiling" override, and skip
   // the run when credits are exhausted (no point hitting the API to learn it).
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
-  const hunter = await getHunterCreditStatus().catch(() => ({ used: 0, ceiling: 0, remaining: 0 }));
+  const hunter = await getHunterCreditStatus().catch(() => ({ used: 0, ceiling: 0, remaining: 0, source: 'estimate' as const }));
 
   const stageParam = STAGES.includes(searchParams?.stage as (typeof STAGES)[number])
     ? (searchParams!.stage as string)
