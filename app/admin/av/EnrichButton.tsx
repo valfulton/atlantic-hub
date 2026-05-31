@@ -103,8 +103,18 @@ export function EnrichButton({
       const data: EnrichmentBatchSummary = await res.json();
       setSummary(data);
       setShowResult(true);
-      // Refresh the page to pick up newly enriched leads (the server component
-      // re-renders with fresh data from the DB)
+      // (#291) Mirror the all-sources batch pattern — tell AvLeadsTable
+      // which audit_ids were just processed so it auto-deselects them and
+      // marks the rows with ✨. We send the leadId-derived audit_ids when
+      // available, else fall back to dispatching nothing. The current Hunter
+      // result shape uses numeric leadId not audit_id, so we send what we
+      // have via a parallel event the table also listens for.
+      const justRanLeadIds = data.results.map((r) => r.leadId).filter((n): n is number => typeof n === 'number');
+      if (justRanLeadIds.length > 0) {
+        window.dispatchEvent(
+          new CustomEvent('av-leads-just-enriched-by-id', { detail: { leadIds: justRanLeadIds } })
+        );
+      }
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -213,6 +223,19 @@ function ResultModal({
   onClose: () => void;
 }) {
   const enrichedRows = summary.results.filter((r) => r.outcome === 'enriched');
+  // (#291) Per-lead failure rows so val can see WHY a lead came back empty
+  // (e.g. "invalid_domain", "rate_limited", "no contacts found"). Hidden
+  // when there are no failures.
+  const failureRows = summary.results.filter(
+    (r) => r.outcome === 'no_results' || r.outcome === 'no_domain' || r.outcome === 'api_error'
+  );
+  const labelForOutcome = (o: EnrichmentResult['outcome']): string => {
+    if (o === 'no_domain') return 'no domain on file';
+    if (o === 'no_results') return 'no Hunter contacts found';
+    if (o === 'api_error') return 'Hunter API error';
+    if (o === 'skipped_credit_cap') return 'skipped — credit cap';
+    return o;
+  };
 
   return (
     <div
@@ -249,6 +272,28 @@ function ResultModal({
                     {r.details?.newName && <span>{r.details.newName}</span>}
                     {r.details?.newTitle && <span> · {r.details.newTitle}</span>}
                     {r.details?.newEmail && <span> · {r.details.newEmail}</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {failureRows.length > 0 && (
+          <div className="mb-4">
+            <div className="text-xs uppercase tracking-wider text-muted mb-2">
+              Not enriched ({failureRows.length})
+            </div>
+            <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+              {failureRows.map((r) => (
+                <li key={r.leadId} className="text-xs bg-bg border border-border rounded-md px-3 py-2">
+                  <div className="font-medium text-ink">{r.company}</div>
+                  <div className="text-muted">
+                    <span style={{ color: '#FFB89A' }}>{labelForOutcome(r.outcome)}</span>
+                    {r.details?.domain && <span> · {r.details.domain}</span>}
+                    {r.details?.error && (
+                      <span> · <span className="text-ink/70">{r.details.error}</span></span>
+                    )}
                   </div>
                 </li>
               ))}

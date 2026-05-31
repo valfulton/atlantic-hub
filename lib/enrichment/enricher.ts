@@ -316,7 +316,25 @@ async function enrichOne(
     };
   }
 
-  const best = pickBestContact(domainResult.emails);
+  // (#291) Apply per-client ICP title preferences (preferred/excluded) when
+  // the lead has a client_id. Hunter often returns 5-10 contacts at a domain;
+  // without this we'd happily pick HR or a generic recruiter even though val
+  // has flagged "no gate-keepers" in the ICP. Best-effort only — if the ICP
+  // load fails for any reason we still fall back to the built-in scoring.
+  let titlePrefs: { preferredContactTitles: string[]; excludedContactTitles: string[] } | undefined;
+  if (lead.client_id) {
+    try {
+      const { getClientIcp } = await import('@/lib/client/icp');
+      const icp = await getClientIcp(lead.client_id);
+      titlePrefs = {
+        preferredContactTitles: icp.preferredContactTitles || [],
+        excludedContactTitles: icp.excludedContactTitles || []
+      };
+    } catch {
+      // ignore — pickBestContact will fall back to the built-in priority
+    }
+  }
+  const best = pickBestContact(domainResult.emails, titlePrefs);
 
   if (!best) {
     await logCreditUsage({

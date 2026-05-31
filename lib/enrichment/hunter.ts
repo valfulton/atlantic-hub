@@ -184,11 +184,28 @@ export async function hunterDomainSearch(domain: string): Promise<HunterDomainRe
  * Returns the best single contact, or null if the list is empty.
  *
  * Priority:
- *   1. Title keywords (owner, founder, CEO, GM, director, manager...)
- *   2. Hunter confidence score (0-100)
- *   3. Penalize generic mailboxes (info@, sales@, etc.)
+ *   1. ICP preferredContactTitles (per-client overrides) — HUGE boost
+ *   2. ICP excludedContactTitles — hard skip
+ *   3. Built-in title keywords (owner, founder, CEO, GM, director, manager...)
+ *   4. Hunter confidence score (0-100)
+ *   5. Penalize generic mailboxes (info@, sales@, etc.)
+ *
+ * (#291) ICPPreferences allow each client to bias the picker toward roles
+ * that matter for their pitch — e.g. EBW wants "Events Manager" / "Catering
+ * Manager"; AV wants "Owner" / "Marketing Director". When omitted, falls
+ * back to the built-in priority list (backward compatible).
  */
-export function pickBestContact(emails: HunterContact[]): HunterContact | null {
+export interface ICPTitlePreferences {
+  /** Titles to PREFER. Case-insensitive substring match. Top match wins big. */
+  preferredContactTitles?: string[] | null;
+  /** Titles to SKIP entirely. Case-insensitive substring match. Hard exclude. */
+  excludedContactTitles?: string[] | null;
+}
+
+export function pickBestContact(
+  emails: HunterContact[],
+  preferences?: ICPTitlePreferences
+): HunterContact | null {
   if (!emails || emails.length === 0) return null;
 
   const TITLE_PRIORITY: RegExp[] = [
@@ -214,8 +231,36 @@ export function pickBestContact(emails: HunterContact[]): HunterContact | null {
 
   const GENERIC_LOCAL_PART = /^(info|hello|contact|support|sales|admin|office|team|reception|help)@/i;
 
-  const scored = emails.map((c) => {
+  const preferred = (preferences?.preferredContactTitles || [])
+    .map((s) => (s || '').trim().toLowerCase())
+    .filter(Boolean);
+  const excluded = (preferences?.excludedContactTitles || [])
+    .map((s) => (s || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  // Hard-exclude first. If everything got excluded, fall back to scoring
+  // the original list — better a junky contact than nothing at all when
+  // the operator's exclude list happens to nuke every hit.
+  const eligible = excluded.length
+    ? emails.filter((c) => {
+        const pos = (c.position || '').toLowerCase();
+        return !excluded.some((ex) => pos.includes(ex));
+      })
+    : emails;
+  const pool = eligible.length > 0 ? eligible : emails;
+
+  const scored = pool.map((c) => {
     const pos = c.position || '';
+    const posLower = pos.toLowerCase();
+    // Preferred-title bonus (additive, dwarfs the built-in priority).
+    // Earlier match in the list = higher bonus.
+    let preferredBonus = 0;
+    for (let i = 0; i < preferred.length; i++) {
+      if (posLower.includes(preferred[i])) {
+        preferredBonus = 10_000 - i * 100; // first preferred wins biggest
+        break;
+      }
+    }
     let titleScore = 0;
     for (let i = 0; i < TITLE_PRIORITY.length; i++) {
       if (TITLE_PRIORITY[i].test(pos)) {
@@ -225,7 +270,7 @@ export function pickBestContact(emails: HunterContact[]): HunterContact | null {
     }
     const confidence = c.confidence ?? 0;
     const genericPenalty = GENERIC_LOCAL_PART.test(c.value || '') ? -50 : 0;
-    return { contact: c, score: titleScore * 100 + confidence + genericPenalty };
+    return { contact: c, score: preferredBonus + titleScore * 100 + confidence + genericPenalty };
   });
 
   scored.sort((a, b) => b.score - a.score);

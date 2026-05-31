@@ -23,6 +23,7 @@
  * already authenticated as a client_user.
  */
 import { getAvDb } from '@/lib/db/av';
+import { addressFromSourcePayload } from '@/lib/client/lead_detail';
 import type { RowDataPacket } from 'mysql2';
 
 export type LeadBand = 'hot' | 'warm' | 'cool' | null;
@@ -102,6 +103,9 @@ interface LeadRow extends RowDataPacket {
   audit_generated: string | Date | null;
   pain_point_profile: string | object | null;
   submission_date: string | Date | null;
+  // (#291) Fallback source for address when the dedicated columns are NULL
+  // (legacy leads imported before #224 backfill landed). Read-only.
+  source_payload: string | object | null;
 }
 
 /**
@@ -203,7 +207,7 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
             lead_status, ai_score, ai_combined_score, ai_score_band,
             client_icp_fit_score, client_icp_fit_reasoning,
             audit_generated,
-            pain_point_profile, submission_date
+            pain_point_profile, submission_date, source_payload
        FROM leads
       WHERE archived_at IS NULL
         AND client_id = ?
@@ -217,7 +221,18 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
     [clientId]
   );
 
-  return rows.map((r) => ({
+  return rows.map((r) => {
+    // (#291) Address fallback — see addressFromSourcePayload notes in
+    // lead_detail.ts. Columns first; legacy leads fall back to source_payload
+    // so the cards stop hiding the address line on every old import.
+    const colStreet = r.address_street && r.address_street.trim() ? r.address_street : null;
+    const colCity = r.address_city && r.address_city.trim() ? r.address_city : null;
+    const colState = r.address_state && r.address_state.trim() ? r.address_state : null;
+    const colPostal = r.address_postal && r.address_postal.trim() ? r.address_postal : null;
+    const colCountry = r.address_country && r.address_country.trim() ? r.address_country : null;
+    const haveAnyCol = !!(colStreet || colCity || colState || colPostal || colCountry);
+    const fb = haveAnyCol ? null : addressFromSourcePayload(r.source_payload);
+    return ({
     id: r.id,
     auditId: r.audit_id,
     company: r.company || 'Untitled lead',
@@ -227,11 +242,11 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
     phone: r.phone && r.phone.trim() ? r.phone : null,
     website: r.website && r.website.trim() ? r.website : null,
     websiteStatus: (r.website_status ?? 'unknown') as WebsiteStatus,
-    addressStreet: r.address_street && r.address_street.trim() ? r.address_street : null,
-    addressCity: r.address_city && r.address_city.trim() ? r.address_city : null,
-    addressState: r.address_state && r.address_state.trim() ? r.address_state : null,
-    addressPostal: r.address_postal && r.address_postal.trim() ? r.address_postal : null,
-    addressCountry: r.address_country && r.address_country.trim() ? r.address_country : null,
+    addressStreet: colStreet ?? fb?.street ?? null,
+    addressCity: colCity ?? fb?.city ?? null,
+    addressState: colState ?? fb?.state ?? null,
+    addressPostal: colPostal ?? fb?.postal ?? null,
+    addressCountry: colCountry ?? fb?.country ?? null,
     leadStatus: r.lead_status || 'new',
     score:
       r.ai_combined_score !== null
@@ -255,5 +270,6 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
     painSummary: painSummaryOf(r.pain_point_profile),
     callScript: callScriptOf(r.pain_point_profile),
     submittedAt: toIso(r.submission_date)
-  }));
+  });
+  });
 }

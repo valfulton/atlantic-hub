@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DataTable, Column } from '@/components/DataTable';
 import { StatusBadge } from '@/components/StatusBadge';
 
@@ -332,6 +332,38 @@ export function AvLeadsTable({
     window.addEventListener('av-leads-just-enriched', onJustEnriched);
     return () => window.removeEventListener('av-leads-just-enriched', onJustEnriched);
   }, []);
+
+  // (#291) Mirror handler for the Hunter EnrichButton, which only knows numeric
+  // leadIds (the legacy single-source enrich endpoint returns leadId, not
+  // audit_id). Map leadId → auditId here using the current leads prop so the
+  // same auto-deselect + ✨ behavior works when val uses the Hunter button.
+  const leadIdToAuditId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const l of leads) m.set(l.id, l.auditId);
+    return m;
+  }, [leads]);
+  useEffect(() => {
+    function onJustEnrichedById(e: Event) {
+      const detail = (e as CustomEvent<{ leadIds?: number[] }>).detail;
+      const ids = Array.isArray(detail?.leadIds) ? detail.leadIds : [];
+      const auditIds = ids
+        .map((n) => leadIdToAuditId.get(n))
+        .filter((s): s is string => typeof s === 'string');
+      if (auditIds.length === 0) return;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        auditIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      setJustEnriched((prev) => {
+        const next = new Set(prev);
+        auditIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+    window.addEventListener('av-leads-just-enriched-by-id', onJustEnrichedById);
+    return () => window.removeEventListener('av-leads-just-enriched-by-id', onJustEnrichedById);
+  }, [leadIdToAuditId]);
 
   const visibleIds = leads.map((l) => l.auditId);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));

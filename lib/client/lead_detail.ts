@@ -282,6 +282,78 @@ export function prospectIntelFrom(raw: string | object | null): ProspectIntel | 
   return intel;
 }
 
+/**
+ * (#291) Fallback address extractor for leads whose dedicated address_* columns
+ * are still empty. The columns get populated by #224 (Apollo backfill) and the
+ * Google Places enricher, but a lot of older leads were imported before that
+ * landed and still have all their location info living inside source_payload.
+ *
+ * Sources we know about (priority order):
+ *   1. source_payload.google_places.formatted_address (most precise — Places
+ *      returns "123 Main St, Newport Beach, CA 92660, USA")
+ *   2. source_payload.apollo_location ("Newport Beach, California, US")
+ *   3. source_payload.lead_intake_draft.location / .city / .state
+ *
+ * Returns a shape that matches the column-extracted version so callers can
+ * fall back transparently. Returns nulls when nothing is found — never throws.
+ */
+export interface FallbackAddress {
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  postal: string | null;
+  country: string | null;
+}
+function pickStr(o: Record<string, unknown>, k: string): string | null {
+  const v = o[k];
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+export function addressFromSourcePayload(raw: string | object | null): FallbackAddress {
+  const empty: FallbackAddress = { street: null, city: null, state: null, postal: null, country: null };
+  const sp = asObj(raw);
+  if (!sp) return empty;
+
+  // 1. Google Places — most precise.
+  const gp = sp['google_places'];
+  if (gp && typeof gp === 'object' && !Array.isArray(gp)) {
+    const fa = (gp as Record<string, unknown>)['formatted_address'];
+    if (typeof fa === 'string' && fa.trim()) {
+      // We don't try to split — the formatted_address is human-readable on
+      // its own. Cram it into `street` so the existing UI renders it as the
+      // first line. If a more structured split is needed later we can parse
+      // the address_components array Google returns alongside.
+      return { ...empty, street: fa.trim() };
+    }
+  }
+
+  // 2. Apollo location ("City, State, Country" comma-separated).
+  const apolloLoc = sp['apollo_location'];
+  if (typeof apolloLoc === 'string' && apolloLoc.trim()) {
+    const parts = apolloLoc.split(',').map((s) => s.trim()).filter(Boolean);
+    return {
+      street: null,
+      city: parts[0] || null,
+      state: parts[1] || null,
+      postal: null,
+      country: parts[2] || null
+    };
+  }
+
+  // 3. Smart-scrape intake draft — has a free-text `location` field
+  //    (and sometimes `headquarters` / `city` / `state`).
+  const draftBlob = sp['lead_intake_draft'];
+  if (draftBlob && typeof draftBlob === 'object' && !Array.isArray(draftBlob)) {
+    const d = draftBlob as Record<string, unknown>;
+    const loc = pickStr(d, 'location') || pickStr(d, 'headquarters') || pickStr(d, 'address');
+    if (loc) return { ...empty, street: loc };
+    const city = pickStr(d, 'city');
+    const state = pickStr(d, 'state');
+    if (city || state) return { ...empty, city, state };
+  }
+
+  return empty;
+}
+
 function toIso(v: string | Date | null): string | null {
   if (!v) return null;
   if (v instanceof Date) return v.toISOString();
@@ -359,11 +431,32 @@ export async function getClientLeadDetail(
     phone: r.phone && r.phone.trim() ? r.phone : null,
     website: r.website && r.website.trim() ? r.website : null,
     websiteStatus: r.website_status ?? 'unknown',
-    addressStreet: r.address_street && r.address_street.trim() ? r.address_street : null,
-    addressCity: r.address_city && r.address_city.trim() ? r.address_city : null,
-    addressState: r.address_state && r.address_state.trim() ? r.address_state : null,
-    addressPostal: r.address_postal && r.address_postal.trim() ? r.address_postal : null,
-    addressCountry: r.address_country && r.address_country.trim() ? r.address_country : null,
+    // (#291) Columns first; fall back to source_payload for legacy leads
+    // whose Google Places / Apollo / smart-scrape data never got backfilled
+    // into the dedicated columns. Address was rendering as a hidden Field
+    // because all five columns came back NULL on older client leads.
+    ...((): {
+      addressStreet: string | null; addressCity: string | null;
+      addressState: string | null; addressPostal: string | null;
+      addressCountry: string | null;
+    } => {
+      const street = r.address_street && r.address_street.trim() ? r.address_street : null;
+      const city = r.address_city && r.address_city.trim() ? r.address_city : null;
+      const state = r.address_state && r.address_state.trim() ? r.address_state : null;
+      const postal = r.address_postal && r.address_postal.trim() ? r.address_postal : null;
+      const country = r.address_country && r.address_country.trim() ? r.address_country : null;
+      if (street || city || state || postal || country) {
+        return { addressStreet: street, addressCity: city, addressState: state, addressPostal: postal, addressCountry: country };
+      }
+      const fb = addressFromSourcePayload(r.source_payload);
+      return {
+        addressStreet: fb.street,
+        addressCity: fb.city,
+        addressState: fb.state,
+        addressPostal: fb.postal,
+        addressCountry: fb.country
+      };
+    })(),
     leadStatus: r.lead_status || 'new',
     score:
       r.ai_combined_score !== null
