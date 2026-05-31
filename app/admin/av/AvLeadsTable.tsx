@@ -250,12 +250,58 @@ export function AvLeadsTable({
   // BatchEnrichAllButton in the page header listens for AV_LEAD_SELECTION_EVENT
   // and uses the selected audit_ids over its default "first N visible" pick.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  // (#285) "Just enriched this session" tracker. When the batch button fires
+  // (#285) "Just enriched" tracker. When the batch button fires
   // 'av-leads-just-enriched', we (a) drop those IDs from selection so val
   // can't accidentally re-pick them and (b) keep them in justEnriched so the
   // row renders a ✨ marker — answers her "i can't tell which ones i ran"
-  // problem without needing a DB schema change. Resets on full page reload.
+  // problem without a DB schema change.
+  //
+  // (#286) Persisted to localStorage so the ✨ survives page reloads and
+  // navigating away to a lead detail + back. Without persistence the marker
+  // disappeared the moment the React tree unmounted, which is exactly what
+  // val hit. Entries auto-expire after 7 days so the table doesn't carry a
+  // permanent badge for ancient runs.
+  const STORAGE_KEY = 'av-just-enriched-v1';
+  const TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const [justEnriched, setJustEnriched] = useState<Set<string>>(new Set());
+  // Load persisted set on mount, dropping expired entries.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      const now = Date.now();
+      const fresh = new Set<string>();
+      for (const [auditId, stampedAt] of Object.entries(parsed)) {
+        if (typeof stampedAt === 'number' && now - stampedAt < TTL_MS) {
+          fresh.add(auditId);
+        }
+      }
+      if (fresh.size > 0) setJustEnriched(fresh);
+    } catch {
+      /* corrupt storage — start fresh */
+    }
+  }, []);
+  // Persist whenever the set changes.
+  useEffect(() => {
+    try {
+      const now = Date.now();
+      const map: Record<string, number> = {};
+      // Merge: preserve prior timestamps where they exist; stamp now() for new ones.
+      const prev = (() => {
+        try {
+          const raw = window.localStorage.getItem(STORAGE_KEY);
+          return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+        } catch { return {}; }
+      })();
+      justEnriched.forEach((id) => {
+        map[id] = typeof prev[id] === 'number' ? prev[id] : now;
+      });
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    } catch {
+      /* storage quota / disabled — non-fatal */
+    }
+  }, [justEnriched]);
 
   // Re-emit when leads list shape changes (filter / sort change) so the header
   // checkbox + button label stay in sync with what's actually on screen.
