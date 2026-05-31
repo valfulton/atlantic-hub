@@ -19,9 +19,11 @@ import { getAvDb } from '@/lib/db/av';
 import {
   extractDomain,
   hunterDomainSearch,
+  hunterEmailFinder,
   pickBestContact,
   HunterApiKeyMissingError,
-  HunterApiError
+  HunterApiError,
+  type HunterContact
 } from '@/lib/enrichment/hunter';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -280,40 +282,104 @@ async function enrichOne(
     return { leadId: lead.id, company: lead.company, outcome: 'no_domain' };
   }
 
-  await lockLead(lead.id);
-
-  let domainResult;
-  try {
-    domainResult = await hunterDomainSearch(domain);
-  } catch (err) {
-    const isApiKey = err instanceof HunterApiKeyMissingError;
-    const isApi = err instanceof HunterApiError;
-    const msg = isApiKey ? 'HUNTER_API_KEY missing' : isApi ? err.details : (err as Error).message;
-    await logCreditUsage({
-      endpoint: 'domain-search',
-      leadId: lead.id,
-      domain,
-      outcome: 'error',
-      triggerSource,
-      notes: msg
-    });
-    // Unset the in_progress lock — try again later
-    await markLeadStatus(lead.id, lead.enrichment_status ?? '');
-    await logEvent({
-      eventType: 'lead.enrichment_failed',
-      leadId: lead.id,
-      source: 'hunter',
-      status: 'failure',
-      payload: { company: lead.company, domain, reason: 'api_error', trigger_source: triggerSource },
-      errorMessage: msg.slice(0, 500),
-      executionTimeMs: Date.now() - startMs
-    });
+  // (#292) Don't burn a Hunter credit on a lead that's already fully enriched
+  // (real email + real name + title all present). Same-domain bulk runs were
+  // re-billing in cases where the lead had been hand-enriched outside Hunter.
+  // Return outcome='no_results' (with a clarifying error) instead of inventing
+  // a new outcome string — keeps the UI tallies stable and the per-lead error
+  // panel now explains exactly why nothing happened.
+  const haveRealEmail = !!(lead.email && lead.email.trim() && !/^(prospect|apollo|noemail)\+/i.test(lead.email));
+  const haveRealName = !!(lead.contact_name && lead.contact_name.trim() && !lead.contact_name.trim().startsWith('(') && /\s/.test(lead.contact_name.trim()));
+  const haveTitle = !!(lead.contact_title && lead.contact_title.trim());
+  if (haveRealEmail && haveRealName && haveTitle) {
     return {
       leadId: lead.id,
       company: lead.company,
-      outcome: 'api_error',
-      details: { domain, error: msg }
+      outcome: 'no_results',
+      details: { domain, error: 'already enriched — skipped to save a credit' }
     };
+  }
+
+  await lockLead(lead.id);
+
+  // (#292) Email Finder fast-path — when we already have a real two-word name
+  // we ask Hunter for THAT person's email directly instead of pulling the
+  // whole domain roster. Same credit cost; targeted answer. If Email Finder
+  // returns null OR throws a per-call error (NOT api-key/network), we fall
+  // through to the Domain Search path below.
+  let efContact: HunterContact | null = null;
+  let efAttempted = false;
+  if (haveRealName) {
+    const nameParts = (lead.contact_name as string).trim().split(/\s+/).filter(Boolean);
+    if (nameParts.length >= 2) {
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(-1)[0];
+      efAttempted = true;
+      try {
+        efContact = await hunterEmailFinder(domain, firstName, lastName);
+      } catch (err) {
+        // Email-finder per-call errors (404, invalid_email, etc.) fall through
+        // to Domain Search. API-key + network errors are still surfaced from
+        // the Domain Search catch block below.
+        if (err instanceof HunterApiKeyMissingError) {
+          await logCreditUsage({
+            endpoint: 'email-finder', leadId: lead.id, domain, outcome: 'error',
+            triggerSource, notes: 'HUNTER_API_KEY missing'
+          });
+          await markLeadStatus(lead.id, lead.enrichment_status ?? '');
+          return {
+            leadId: lead.id, company: lead.company, outcome: 'api_error',
+            details: { domain, error: 'HUNTER_API_KEY missing' }
+          };
+        }
+        // soft-fail → fall through to Domain Search
+      }
+    }
+  }
+
+  // If Email Finder gave us a real contact, skip the Domain Search call entirely
+  // (saves a credit) and synthesize a one-entry domainResult so the existing
+  // downstream code paths just work.
+  let domainResult: { domain: string; organization: string | null; emails: HunterContact[]; pattern: string | null };
+  if (efContact) {
+    await logCreditUsage({
+      endpoint: 'email-finder', leadId: lead.id, domain, outcome: 'success', triggerSource
+    });
+    domainResult = { domain, organization: null, emails: [efContact], pattern: null };
+  } else {
+    void efAttempted; // suppress unused-var warning; the flag is for future telemetry
+    try {
+      domainResult = await hunterDomainSearch(domain);
+    } catch (err) {
+      const isApiKey = err instanceof HunterApiKeyMissingError;
+      const isApi = err instanceof HunterApiError;
+      const msg = isApiKey ? 'HUNTER_API_KEY missing' : isApi ? err.details : (err as Error).message;
+      await logCreditUsage({
+        endpoint: 'domain-search',
+        leadId: lead.id,
+        domain,
+        outcome: 'error',
+        triggerSource,
+        notes: msg
+      });
+      // Unset the in_progress lock — try again later
+      await markLeadStatus(lead.id, lead.enrichment_status ?? '');
+      await logEvent({
+        eventType: 'lead.enrichment_failed',
+        leadId: lead.id,
+        source: 'hunter',
+        status: 'failure',
+        payload: { company: lead.company, domain, reason: 'api_error', trigger_source: triggerSource },
+        errorMessage: msg.slice(0, 500),
+        executionTimeMs: Date.now() - startMs
+      });
+      return {
+        leadId: lead.id,
+        company: lead.company,
+        outcome: 'api_error',
+        details: { domain, error: msg }
+      };
+    }
   }
 
   // (#291) Apply per-client ICP title preferences (preferred/excluded) when

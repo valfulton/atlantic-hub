@@ -138,7 +138,7 @@ export function EnrichButton({
         title={
           outOfCredits
             ? 'Monthly Hunter credits exhausted — top up your Hunter plan or wait for next month’s reset.'
-            : 'Find real names + emails for placeholder prospects'
+            : 'Find real names + emails for placeholder prospects. Picks follow each client’s Preferred / Excluded Contact Titles (set on the client’s ICP).'
         }
       >
         {running ? (
@@ -301,7 +301,7 @@ function ResultModal({
           </div>
         )}
 
-        <div className="bg-bg border border-border rounded-md px-3 py-2 mb-4 text-xs">
+        <div className="bg-bg border border-border rounded-md px-3 py-2 mb-3 text-xs">
           <div className="text-muted">
             Enrichment credits this month:{' '}
             <span className="text-ink font-medium">
@@ -309,6 +309,19 @@ function ResultModal({
             </span>{' '}
             ({summary.creditsRemainingThisMonth} remaining)
           </div>
+        </div>
+
+        {/* (#292) Discoverability: tell val WHY these specific contacts were
+            picked + where to change the lever. Without this she'd have no idea
+            the ICP titles drive the contact picker. */}
+        <div className="rounded-md border border-amber-400/25 bg-amber-400/5 px-3 py-2 mb-4 text-[11px] text-amber-200/90 leading-relaxed">
+          <span className="font-medium text-amber-200">How these were picked:</span>{' '}
+          Hunter follows each client&apos;s <span className="text-amber-100">Preferred</span> and{' '}
+          <span className="text-amber-100">Excluded Contact Titles</span> (from their ICP). When a
+          lead already has a name on file, we use Hunter&apos;s Email Finder to target THAT person
+          directly instead of pulling the whole domain roster. To change the titles, open the
+          client&apos;s page and edit the ICP — leads with no client attached fall back to
+          Owner / Founder / CEO priority.
         </div>
 
         {summary.suggestedNextAction === 'send_outreach_email_series' && enrichedRows.length > 0 && (

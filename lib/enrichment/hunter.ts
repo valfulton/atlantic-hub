@@ -180,6 +180,58 @@ export async function hunterDomainSearch(domain: string): Promise<HunterDomainRe
 }
 
 /**
+ * (#292) Hunter's Email Finder endpoint — when we already know the person's
+ * first + last name, ask Hunter directly instead of pulling the entire domain
+ * roster. Same credit cost as Domain Search but the answer is targeted at the
+ * named person (Hunter combines the domain pattern + name to find/verify the
+ * specific address), so it sidesteps the "Hunter handed us info@ again"
+ * problem entirely when we already have a real contact name on file.
+ *
+ * Returns a HunterContact (single, not a list) or null when Hunter can't find
+ * the address. Throws on API failure same as hunterDomainSearch.
+ */
+export async function hunterEmailFinder(
+  domain: string,
+  firstName: string,
+  lastName: string
+): Promise<HunterContact | null> {
+  const apiKey = process.env.HUNTER_API_KEY;
+  if (!apiKey) throw new HunterApiKeyMissingError();
+
+  const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase().trim();
+  if (!cleanDomain) throw new HunterApiError(400, 'empty domain after cleaning');
+  const fn = (firstName || '').trim();
+  const ln = (lastName || '').trim();
+  if (!fn || !ln) throw new HunterApiError(400, 'email-finder needs both first_name and last_name');
+
+  const url = `${HUNTER_BASE}/email-finder?domain=${encodeURIComponent(cleanDomain)}&first_name=${encodeURIComponent(fn)}&last_name=${encodeURIComponent(ln)}&api_key=${apiKey}`;
+  const res = await fetch(url);
+  const json = (await res.json()) as {
+    data?: {
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      score: number | null;       // 0-100 confidence
+      position: string | null;
+      phone_number: string | null;
+    };
+    errors?: { id?: string; code?: number; details: string }[];
+  };
+  if (json.errors && json.errors.length > 0) {
+    throw new HunterApiError(res.status, json.errors.map((e) => e.details).join('; '));
+  }
+  if (!json.data || !json.data.email) return null; // Hunter knows the domain but couldn't find this person
+  return {
+    value: json.data.email,
+    first_name: json.data.first_name,
+    last_name: json.data.last_name,
+    position: json.data.position,
+    phone_number: json.data.phone_number,
+    confidence: json.data.score
+  };
+}
+
+/**
  * Rank Hunter's contact list by likelihood of being a decision-maker.
  * Returns the best single contact, or null if the list is empty.
  *
