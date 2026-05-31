@@ -5,6 +5,7 @@ import { serverFetch } from '@/lib/server-fetch';
 import { AvLeadsTable } from './AvLeadsTable';
 import type { AvLead } from './AvLeadsTable';
 import { EnrichButton } from './EnrichButton';
+import { BatchEnrichAllButton } from './BatchEnrichAllButton';
 import { VendorStatus } from './VendorStatus';
 import { CoachCallsButton } from './CoachCallsButton';
 import { LeadOfTheDay } from '@/components/LeadOfTheDay';
@@ -406,6 +407,12 @@ export default async function AvPage({
               monthlyCeiling={hunter.ceiling}
               isOwner={role === 'owner'}
             />
+            {/* (#278) Bulk version of the per-lead Enrich-from-sources menu.
+                Runs Smart enrich + Places + IG + WHOIS on N leads at once,
+                with per-source + per-lead result chips so val sees exactly
+                what each lead got. Hunter is NOT included here — uses the
+                button to the left for that (credits cost money). */}
+            <BatchEnrichAllButton />
           </div>
         </div>
         <VendorStatus />
