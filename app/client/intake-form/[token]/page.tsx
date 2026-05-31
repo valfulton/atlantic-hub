@@ -35,15 +35,41 @@ export default async function PublicIntakeFormPage({ params }: { params: { token
     initial = {};
   }
 
-  let brandName = 'your business';
-  try {
-    const db = getAvDb();
-    const [rows] = await db.execute<(RowDataPacket & { client_name: string | null })[]>(
-      `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
-      [clientId]
-    );
-    if (rows[0]?.client_name) brandName = rows[0].client_name;
-  } catch { /* keep default */ }
+  // (#299) Resolve the brand name with a smarter fallback chain. The original
+  // SELECT client_name read the operator-entered display label, which is often
+  // a person's name (e.g. 'Timothy Helfrey') rather than the brand (e.g.
+  // 'OPHORA Water Technologies') — so the form opened with "Let's make Timothy
+  // Helfrey shine" when it should have said "Let's make OPHORA Water shine."
+  //
+  // Priority:
+  //   1. brief_payload.companyName / company_name / business_name (intake-canonical)
+  //   2. brief_payload.brandName / brand_name (intake-canonical, alt key)
+  //   3. clients.client_name (operator label — last resort; may be a person)
+  //   4. 'your business' (fallback)
+  //
+  // Multi-brand accounts (Adriana = CBB + CLDA under one login) keep working
+  // because each brand has its own client_id row and own brief_payload, so
+  // the chain resolves to the active brand correctly.
+  function pickFromInitial(...keys: string[]): string | null {
+    for (const k of keys) {
+      const v = (initial as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return null;
+  }
+  let brandName =
+    pickFromInitial('companyName', 'company_name', 'business_name', 'brandName', 'brand_name')
+    || 'your business';
+  if (brandName === 'your business') {
+    try {
+      const db = getAvDb();
+      const [rows] = await db.execute<(RowDataPacket & { client_name: string | null })[]>(
+        `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
+        [clientId]
+      );
+      if (rows[0]?.client_name) brandName = rows[0].client_name;
+    } catch { /* keep default */ }
+  }
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8 sm:py-10" data-tenant="av">
