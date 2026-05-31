@@ -183,7 +183,18 @@ async function findCandidates(limit: number, clientId?: number | null): Promise<
       WHERE archived_at IS NULL
         ${scoped ? 'AND client_id = ?' : ''}
         AND (enrichment_status IS NULL
-             OR enrichment_status NOT IN ('enriched','failed_permanent','in_progress'))
+             OR enrichment_status NOT IN (
+               'enriched',
+               'failed_permanent',
+               'in_progress',
+               -- (#282) Skip leads Hunter already said 'no results' for.
+               -- Previously they got re-attempted on every batch, burning
+               -- another credit each time for the same dead domain. val
+               -- can still manually retry a single lead from its detail
+               -- page if she wants to re-check after a long gap.
+               'failed_no_results',
+               'failed_no_domain'
+             ))
         AND website IS NOT NULL AND website != ''
       ORDER BY ai_score DESC, id ASC
       LIMIT 500`,
