@@ -35,6 +35,62 @@ export class HunterApiKeyMissingError extends Error {
   }
 }
 
+/**
+ * (#287) Real-time Hunter account info. Source of truth for "credits used /
+ * remaining" — replaces our local hunter_credit_log counting which was
+ * over-counting (we logged credits_charged=1 on every call regardless of
+ * whether Hunter actually billed it). Now the cockpit reads what Hunter
+ * actually charged.
+ *
+ * Returns null on any failure (no API key, network error, parse error,
+ * unexpected response shape). Callers should fall back to a safe display
+ * ('—' or local estimate) when null. Never throws.
+ */
+export interface HunterAccountStatus {
+  used: number;
+  available: number;
+  remaining: number;
+  planName: string | null;
+  resetDate: string | null;
+}
+export async function getHunterAccountStatus(): Promise<HunterAccountStatus | null> {
+  const apiKey = process.env.HUNTER_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(`${HUNTER_BASE}/account?api_key=${encodeURIComponent(apiKey)}`, {
+      // Don't let Next.js cache this — credits change between calls.
+      cache: 'no-store'
+    });
+    if (!res.ok) return null;
+    const j = await res.json().catch(() => null);
+    const data = (j as { data?: Record<string, unknown> })?.data;
+    if (!data || typeof data !== 'object') return null;
+
+    // Hunter's /account response has shifted over the years — try a few
+    // shapes in order. Most common today: data.calls.{used,available}.
+    // Older / per-endpoint: data.requests.searches.{used,available}.
+    const calls = (data as { calls?: { used?: number; available?: number } }).calls;
+    const requests = (data as { requests?: { searches?: { used?: number; available?: number } } }).requests;
+    const used =
+      (typeof calls?.used === 'number' ? calls.used : undefined) ??
+      (typeof requests?.searches?.used === 'number' ? requests.searches.used : undefined);
+    const available =
+      (typeof calls?.available === 'number' ? calls.available : undefined) ??
+      (typeof requests?.searches?.available === 'number' ? requests.searches.available : undefined);
+
+    if (typeof used !== 'number' || typeof available !== 'number') return null;
+    return {
+      used,
+      available,
+      remaining: Math.max(0, available - used),
+      planName: typeof data.plan_name === 'string' ? data.plan_name : null,
+      resetDate: typeof data.reset_date === 'string' ? data.reset_date : null
+    };
+  } catch {
+    return null;
+  }
+}
+
 export class HunterApiError extends Error {
   details: string;
   status: number;

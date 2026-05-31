@@ -110,10 +110,28 @@ async function getMonthlyCreditUsage(): Promise<number> {
 }
 
 /**
- * Hunter credit status for the current month — for the operator dashboard's
- * vendor strip (so val can see enrichment headroom without running a batch).
+ * Hunter credit status for the cockpit's vendor strip.
+ *
+ * (#287) Source of truth = Hunter's own /account API. Our local
+ * hunter_credit_log was over-counting (every call logged credits_charged=1
+ * regardless of whether Hunter actually billed — Hunter only bills when an
+ * email is found, not on no-results / errors). val's hub was showing
+ * "100/100 credits, none left, top up Hunter" while Hunter.io itself showed
+ * 22 used of 50, 28 remaining — a meaningless display that was actively
+ * blocking enrichment runs.
+ *
+ * Falls back to the local count + env-var ceiling only if Hunter is
+ * unreachable, so the cockpit still has something to show on outages.
  */
 export async function getHunterCreditStatus(): Promise<{ used: number; ceiling: number; remaining: number }> {
+  // Late-bind the import to keep this file from depending on Hunter at
+  // module load (some tests import enricher.ts without HUNTER_API_KEY set).
+  const { getHunterAccountStatus } = await import('@/lib/enrichment/hunter');
+  const live = await getHunterAccountStatus().catch(() => null);
+  if (live) {
+    return { used: live.used, ceiling: live.available, remaining: live.remaining };
+  }
+  // Fallback: local log (probably overcounts) + env-var ceiling.
   const used = await getMonthlyCreditUsage().catch(() => 0);
   const ceiling = DEFAULT_MONTHLY_CREDIT_CEILING;
   return { used, ceiling, remaining: Math.max(0, ceiling - used) };
