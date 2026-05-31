@@ -70,7 +70,11 @@ export function BatchEnrichAllButton({
   visibleLeadAuditIds?: string[];
 }) {
   const router = useRouter();
-  const [limit, setLimit] = useState<5 | 10 | 25>(5);
+  // (#280 v2) Default 3 not 5 — Netlify's function timeout on val's plan
+  // is tighter than the 60s I'd requested via maxDuration, so 5-lead batches
+  // were 504'ing. 3 leads × 7s per source parallel = ~21s, fits any plan.
+  // She can still bump to 5/10/25 via the dropdown when she wants to push.
+  const [limit, setLimit] = useState<3 | 5 | 10 | 25>(3);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<BatchSummary | null>(null);
@@ -143,10 +147,12 @@ export function BatchEnrichAllButton({
         {!running && (
           <select
             value={limit}
-            onChange={(e) => setLimit(Number(e.target.value) as 5 | 10 | 25)}
+            onChange={(e) => setLimit(Number(e.target.value) as 3 | 5 | 10 | 25)}
             className="text-sm bg-black/30 border border-white/15 text-ink rounded-md px-2 py-1.5 outline-none"
             aria-label="Batch size"
+            title="Default 3 — fits Netlify's function timeout reliably. 5/10/25 may stop early under timeout and need a follow-up click."
           >
+            <option value={3}>3</option>
             <option value={5}>5</option>
             <option value={10}>10</option>
             <option value={25}>25</option>

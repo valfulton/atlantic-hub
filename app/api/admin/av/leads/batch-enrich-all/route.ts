@@ -180,13 +180,16 @@ async function runBatch(req: NextRequest): Promise<NextResponse> {
   // return what completed instead of letting the function time out and
   // losing the partial-result body. Anything not processed is noted in
   // the response so val can re-run on what's left.
-  const BATCH_DEADLINE_MS = 50_000;
+  // (#280 v2) Netlify killed the function before my 50s deadline could fire
+  // — the actual platform timeout on val's plan is well below the 60s
+  // maxDuration I requested. Shrinking to 25s total / 7s per source so we
+  // fit regardless of plan tier. Trade-off: smaller default batch (3
+  // instead of 5), but actually returns a result instead of HTTP 504.
+  const BATCH_DEADLINE_MS = 25_000;
   const startTime = Date.now();
   const elapsed = () => Date.now() - startTime;
   let stoppedEarlyReason: string | null = null;
 
-  // Tiny race-against-a-timer helper so a single hung Apify/RDAP call
-  // can't drag the whole batch over the deadline.
   function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
     return Promise.race([
       p,
@@ -195,7 +198,7 @@ async function runBatch(req: NextRequest): Promise<NextResponse> {
       )
     ]);
   }
-  const PER_SOURCE_MS = 14_000; // hard ceiling per source per lead
+  const PER_SOURCE_MS = 7_000; // hard ceiling per source per lead
 
   for (const lead of rows) {
     if (elapsed() > BATCH_DEADLINE_MS) {
