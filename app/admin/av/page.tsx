@@ -23,7 +23,20 @@ interface Stats {
 
 const STAGES = ['new', 'contacted', 'qualified', 'converted', 'lost'] as const;
 const SOURCES = ['audit_form', 'csv', 'scrape', 'manual', 'api'] as const;
-const ENRICHMENT_FILTERS = ['enriched', 'failed_no_domain', 'failed_no_results', 'failed_permanent', 'pending'] as const;
+// (#290) Filter values include star-enrich (Smart/Places/IG/WHOIS) awareness
+// alongside the original Hunter-status values. Star-* options key off
+// source_payload.enriched_from_* markers; see /api/admin/av/leads/route.ts.
+const ENRICHMENT_FILTERS = [
+  'enriched',
+  'failed_no_domain',
+  'failed_no_results',
+  'failed_permanent',
+  'pending',
+  'star_tried',
+  'star_untried',
+  'neither',
+  'both'
+] as const;
 const SORT_KEYS = ['company', 'contact', 'email', 'industry', 'status', 'score', 'band', 'submitted', 'enriched'] as const;
 
 const DATA_FILTERS = ['has_real_email', 'has_phone', 'has_website', 'has_contact_name'] as const;
@@ -250,11 +263,21 @@ export default async function AvPage({
           className="text-sm bg-surface border border-border rounded-md px-3 py-1.5 text-ink"
         >
           <option value="">All enrichment states</option>
-          <option value="enriched">✨ Enriched</option>
-          <option value="pending">Pending (never tried)</option>
-          <option value="failed_no_domain">No website on file</option>
-          <option value="failed_no_results">Found nothing</option>
-          <option value="failed_permanent">Stopped (manual)</option>
+          <optgroup label="Combined">
+            <option value="neither">⚪️ Neither tried (true cold)</option>
+            <option value="both">✨ Both Hunter + star ran</option>
+          </optgroup>
+          <optgroup label="Star enrich (Smart/Places/IG/WHOIS)">
+            <option value="star_tried">⭐ Star tried (any source)</option>
+            <option value="star_untried">⭐ Star NOT tried yet</option>
+          </optgroup>
+          <optgroup label="Hunter enrichment">
+            <option value="enriched">✨ Hunter enriched</option>
+            <option value="pending">Hunter never tried</option>
+            <option value="failed_no_domain">Hunter: no website on file</option>
+            <option value="failed_no_results">Hunter: found nothing</option>
+            <option value="failed_permanent">Hunter: stopped (manual)</option>
+          </optgroup>
         </select>
         <select
           name="client"

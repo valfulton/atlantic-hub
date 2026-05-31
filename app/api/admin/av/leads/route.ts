@@ -50,7 +50,31 @@ const VALID_STAGES = new Set([
   'case_study'
 ]);
 const VALID_SOURCES = new Set(['audit_form', 'csv', 'scrape', 'manual', 'api']);
-const VALID_ENRICHMENT = new Set(['enriched', 'failed_no_domain', 'failed_no_results', 'failed_permanent', 'pending']);
+// (#290) Filter values now include star-enrich awareness. Star enrich
+// (Smart / Places / IG / WHOIS) writes markers into source_payload like
+// `enriched_from_website_scrape`, `enriched_from_google_places`, etc.
+// The new values let val target leads by what HASN'T been tried yet:
+//   star_tried   → any star source has run on the lead
+//   star_untried → no star source has run
+//   neither      → no Hunter status AND no star markers (true cold leads)
+//   both         → Hunter run AND star run
+const VALID_ENRICHMENT = new Set([
+  'enriched',
+  'failed_no_domain',
+  'failed_no_results',
+  'failed_permanent',
+  'pending',
+  'star_tried',
+  'star_untried',
+  'neither',
+  'both'
+]);
+// SQL fragment matching ANY star source marker in source_payload.
+const STAR_PATH_FRAGMENT = `JSON_CONTAINS_PATH(source_payload, 'one',
+  '$.enriched_from_website_scrape',
+  '$.enriched_from_google_places',
+  '$.enriched_from_instagram_apify',
+  '$.enriched_from_whois_rdap')`;
 const VALID_TARGETS = new Set(['av', 'ebw', 'both']);
 
 // Data-completeness filters — combine with AND. Each pushes a SQL condition.
@@ -143,6 +167,14 @@ export async function GET(req: NextRequest) {
     if (enrichmentFilter) {
       if (enrichmentFilter === 'pending') {
         conditions.push('enrichment_status IS NULL');
+      } else if (enrichmentFilter === 'star_tried') {
+        conditions.push(STAR_PATH_FRAGMENT);
+      } else if (enrichmentFilter === 'star_untried') {
+        conditions.push(`(source_payload IS NULL OR NOT ${STAR_PATH_FRAGMENT})`);
+      } else if (enrichmentFilter === 'neither') {
+        conditions.push(`enrichment_status IS NULL AND (source_payload IS NULL OR NOT ${STAR_PATH_FRAGMENT})`);
+      } else if (enrichmentFilter === 'both') {
+        conditions.push(`enrichment_status = 'enriched' AND ${STAR_PATH_FRAGMENT}`);
       } else {
         conditions.push('enrichment_status = ?');
         params.push(enrichmentFilter);
