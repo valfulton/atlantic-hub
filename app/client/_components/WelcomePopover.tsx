@@ -66,13 +66,16 @@ export default function WelcomePopover({
   const slides: Slide[] = [
     {
       eyebrow: 'Welcome',
-      title: `Hi ${firstName}.`,
+      // (#298) Defend against blank firstName so we never render "Hi ." on
+      // an edge-case client whose display_name didn't resolve. Fall back to
+      // the brand name, then a generic warm greeting.
+      title: firstName && firstName.trim() ? `Hi ${firstName.trim()}.` : (brandName ? `Hello, ${brandName}.` : 'Welcome aboard.'),
       body: `This is ${brandName}'s home at Atlantic & Vine. Everything we move for you — leads, audits, press, content — lives here.`
     },
     {
       eyebrow: 'Your pipeline',
       title: 'Prospects, scored for fit.',
-      body: 'We find businesses that match your ICP, score each one against your brief, and rank them so the most promising are at the top of your list.',
+      body: 'We find businesses that match your ideal customer profile, score each one against your brief, and rank them so the most promising are at the top of your list.',
       hrefLabel: 'See your leads →',
       href: '/client/leads'
     },

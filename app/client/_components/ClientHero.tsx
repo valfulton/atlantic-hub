@@ -53,8 +53,10 @@ export default function ClientHero({
           )}
 
           {monthlyPipelineCents != null && monthlyPipelineCents > 0 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Potential pipeline</div>
+            <div title="Forecast based on your deal model and the leads currently in your pipeline — not booked revenue.">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted mb-1">
+                Potential pipeline <span className="text-muted/70 normal-case tracking-normal">(forecast)</span>
+              </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-2xl sm:text-3xl font-semibold leading-none" style={{ color: '#FFC73D' }}>
                   {formatUsd(monthlyPipelineCents)}

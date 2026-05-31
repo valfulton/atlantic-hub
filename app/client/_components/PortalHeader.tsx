@@ -132,7 +132,9 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
           </a>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* (#298) Desktop: full name + tier pill. Mobile: tier-only chip so
+              the client still sees their plan context on a phone. */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-surface text-xs text-ink">
             <span className="text-muted truncate max-w-[160px]" title={email}>
               {displayName || email}
@@ -141,6 +143,12 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
               {TIER_LABEL[tier]}
             </span>
           </div>
+          <span
+            className="md:hidden text-[10px] uppercase tracking-[0.14em] text-muted px-2 py-1 rounded-full border border-border bg-surface"
+            title={`${displayName || email} · ${TIER_LABEL[tier]} plan`}
+          >
+            {TIER_LABEL[tier]}
+          </span>
           <button
             type="button"
             onClick={signOut}

@@ -103,11 +103,12 @@ export default function CreativeBrief({
         )}
       </div>
 
-      {/* Quick links — leads live; calendar + sales team are coming, shown so the hub feels whole */}
+      {/* (#298) Was: 'Your leads · Calendar · soon · Sales team · soon'.
+          The two soon-pills made the section look unfinished cold — pulled
+          out for the candy-shell pass. They'll come back when those surfaces
+          actually ship to this client tier. */}
       <div className="mt-4 flex flex-wrap gap-2">
         <Link href={leadsHref} className="text-sm rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-ink hover:bg-white/[0.08]">Your leads</Link>
-        <span className="text-sm rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-muted/70 cursor-default" title="Coming soon">Calendar · soon</span>
-        <span className="text-sm rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-muted/70 cursor-default" title="Coming soon">Sales team · soon</span>
       </div>
     </section>
   );
