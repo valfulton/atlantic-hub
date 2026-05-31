@@ -55,30 +55,50 @@ export interface HunterAccountStatus {
 }
 export async function getHunterAccountStatus(): Promise<HunterAccountStatus | null> {
   const apiKey = process.env.HUNTER_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.error('[hunter:account] HUNTER_API_KEY env var is not set on Netlify');
+    return null;
+  }
   try {
     const res = await fetch(`${HUNTER_BASE}/account?api_key=${encodeURIComponent(apiKey)}`, {
-      // Don't let Next.js cache this — credits change between calls.
       cache: 'no-store'
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => '');
+      console.error('[hunter:account] non-OK response', res.status, bodyText.slice(0, 300));
+      return null;
+    }
     const j = await res.json().catch(() => null);
+    if (!j) {
+      console.error('[hunter:account] response was not valid JSON');
+      return null;
+    }
     const data = (j as { data?: Record<string, unknown> })?.data;
-    if (!data || typeof data !== 'object') return null;
+    if (!data || typeof data !== 'object') {
+      console.error('[hunter:account] response had no .data field; got keys:', Object.keys(j as object).join(','));
+      return null;
+    }
 
-    // Hunter's /account response has shifted over the years — try a few
-    // shapes in order. Most common today: data.calls.{used,available}.
-    // Older / per-endpoint: data.requests.searches.{used,available}.
+    // Hunter's /account response has shifted over the years — try several
+    // shapes in order. Log which shape matched so future drift is debuggable.
     const calls = (data as { calls?: { used?: number; available?: number } }).calls;
     const requests = (data as { requests?: { searches?: { used?: number; available?: number } } }).requests;
-    const used =
-      (typeof calls?.used === 'number' ? calls.used : undefined) ??
-      (typeof requests?.searches?.used === 'number' ? requests.searches.used : undefined);
-    const available =
-      (typeof calls?.available === 'number' ? calls.available : undefined) ??
-      (typeof requests?.searches?.available === 'number' ? requests.searches.available : undefined);
-
-    if (typeof used !== 'number' || typeof available !== 'number') return null;
+    let used: number | undefined;
+    let available: number | undefined;
+    let shape: string | null = null;
+    if (typeof calls?.used === 'number' && typeof calls?.available === 'number') {
+      used = calls.used; available = calls.available; shape = 'calls';
+    } else if (typeof requests?.searches?.used === 'number' && typeof requests?.searches?.available === 'number') {
+      used = requests.searches.used; available = requests.searches.available; shape = 'requests.searches';
+    }
+    if (typeof used !== 'number' || typeof available !== 'number') {
+      console.error(
+        '[hunter:account] unrecognized response shape — top-level data keys:',
+        Object.keys(data as object).join(',')
+      );
+      return null;
+    }
+    console.log(`[hunter:account] live read OK via shape="${shape}" used=${used} available=${available}`);
     return {
       used,
       available,
@@ -86,7 +106,8 @@ export async function getHunterAccountStatus(): Promise<HunterAccountStatus | nu
       planName: typeof data.plan_name === 'string' ? data.plan_name : null,
       resetDate: typeof data.reset_date === 'string' ? data.reset_date : null
     };
-  } catch {
+  } catch (err) {
+    console.error('[hunter:account] network/parse error:', (err as Error).message);
     return null;
   }
 }
