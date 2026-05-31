@@ -441,12 +441,39 @@ export async function runEnrichmentBatch(opts: {
   clientId?: number | null;
 } = { triggerSource: 'manual' }): Promise<EnrichmentBatchSummary> {
   const limit = Math.max(1, Math.min(50, opts.limit ?? 5));
-  const monthlyCeiling = opts.monthlyCeiling ?? DEFAULT_MONTHLY_CREDIT_CEILING;
   const triggerSource = opts.triggerSource;
   const clientId = opts.clientId ?? null;
 
-  const usedThisMonth = await getMonthlyCreditUsage();
-  const remaining = Math.max(0, monthlyCeiling - usedThisMonth);
+  // (#289) Credit gate now reads Hunter's LIVE /account API as source of
+  // truth instead of our local hunter_credit_log + env-var ceiling. The
+  // local count over-counts (logs 1 per call regardless of whether Hunter
+  // billed) and the env ceiling drifts from the real plan — together they
+  // blocked enrichment with bogus '100/100 reached' messages while val
+  // actually had 28 credits left on hunter.io.
+  //
+  // The runtime override (opts.monthlyCeiling) is still honored so a one-off
+  // batch can push past the live ceiling if val explicitly chooses (e.g.,
+  // for a paid-tier session where she knows she's good).
+  const { getHunterAccountStatus } = await import('@/lib/enrichment/hunter');
+  const live = await getHunterAccountStatus().catch(() => null);
+
+  let usedThisMonth: number;
+  let monthlyCeiling: number;
+  let remaining: number;
+  let ceilingSource: 'live' | 'local';
+  if (live) {
+    usedThisMonth = live.used;
+    monthlyCeiling = opts.monthlyCeiling ?? live.available;
+    remaining = Math.max(0, monthlyCeiling - usedThisMonth);
+    ceilingSource = 'live';
+  } else {
+    // Hunter unreachable — DON'T block on the broken local count. Trust
+    // the run; Hunter itself will reject individual calls if actually out.
+    usedThisMonth = await getMonthlyCreditUsage().catch(() => 0);
+    monthlyCeiling = opts.monthlyCeiling ?? DEFAULT_MONTHLY_CREDIT_CEILING;
+    remaining = Math.max(1, monthlyCeiling - usedThisMonth); // floor at 1 so we always at least try
+    ceilingSource = 'local';
+  }
 
   if (remaining <= 0) {
     return {
@@ -461,7 +488,7 @@ export async function runEnrichmentBatch(opts: {
       creditsRemainingThisMonth: 0,
       monthlyCeiling,
       results: [],
-      stoppedEarlyReason: `Monthly credit ceiling reached (${usedThisMonth}/${monthlyCeiling}). Skipping run.`
+      stoppedEarlyReason: `Hunter credit ceiling reached (${usedThisMonth}/${monthlyCeiling}, source=${ceilingSource}). Top up Hunter or wait for monthly reset.`
     };
   }
 
