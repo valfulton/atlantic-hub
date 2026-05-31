@@ -40,10 +40,13 @@ interface PerLeadOutcome {
   leadId: number;
   auditId: string;
   company: string | null;
-  smart?: { filled: number; reason: string | null };
-  places?: { filled: number; reason: string | null };
-  instagram?: { filled: number; reason: string | null };
-  whois?: { filled: number; reason: string | null };
+  // (#281) Each source slot also reports `fields` — the lead columns that
+  // got written this run, so the chip below can say
+  // "Smart enrich: +1 (company)" instead of just "Smart enrich: +1".
+  smart?: { filled: number; fields: string[]; reason: string | null };
+  places?: { filled: number; fields: string[]; reason: string | null };
+  instagram?: { filled: number; fields: string[]; reason: string | null };
+  whois?: { filled: number; fields: string[]; reason: string | null };
 }
 
 interface BatchSummary {
@@ -238,6 +241,13 @@ function ResultPanel({ summary, onClose }: { summary: BatchSummary; onClose: () 
                     const r = l[s.key];
                     if (!r) return null;
                     const filled = r.filled;
+                    // (#281) When filled > 0, show the field names so val
+                    // can see WHAT changed at a glance. e.g.
+                    // "Smart enrich: +2 (company, contact_name)".
+                    const fieldsLabel =
+                      filled > 0 && r.fields && r.fields.length > 0
+                        ? ` (${r.fields.join(', ')})`
+                        : '';
                     return (
                       <span
                         key={s.key}
@@ -249,7 +259,7 @@ function ResultPanel({ summary, onClose }: { summary: BatchSummary; onClose: () 
                         }}
                         title={r.reason ?? `${s.label} filled ${filled} field${filled === 1 ? '' : 's'}`}
                       >
-                        {s.label}: {filled > 0 ? `+${filled}` : (r.reason ? r.reason.slice(0, 32) : '0')}
+                        {s.label}: {filled > 0 ? `+${filled}${fieldsLabel}` : (r.reason ? r.reason.slice(0, 32) : '0')}
                       </span>
                     );
                   })}

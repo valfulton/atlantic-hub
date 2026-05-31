@@ -49,10 +49,14 @@ interface PerLeadOutcome {
   leadId: number;
   auditId: string;
   company: string | null;
-  smart?: { filled: number; reason: string | null };
-  places?: { filled: number; reason: string | null };
-  instagram?: { filled: number; reason: string | null };
-  whois?: { filled: number; reason: string | null };
+  // (#281) Each source slot now also reports `fields` — the actual lead
+  // columns that got written this run. Lets the result panel show
+  // "Smart enrich: +1 (company)" instead of just "Smart enrich: +1" so
+  // val doesn't have to click into each lead to see WHAT changed.
+  smart?: { filled: number; fields: string[]; reason: string | null };
+  places?: { filled: number; fields: string[]; reason: string | null };
+  instagram?: { filled: number; fields: string[]; reason: string | null };
+  whois?: { filled: number; fields: string[]; reason: string | null };
 }
 
 // (#280 polish) Outer try/catch wrapper so that an unexpected throw (a typo
@@ -216,12 +220,12 @@ async function runBatch(req: NextRequest): Promise<NextResponse> {
     // returns a `{src, filled, reason}` triple — never throws (wrapped in
     // try/catch) so Promise.all doesn't short-circuit on a single bad
     // source. We then fold each result into perSource + outcome.
-    type SourceResult = { src: SourceKey; filled: number; reason: string | null; errored: boolean; attempted: boolean };
+    type SourceResult = { src: SourceKey; filled: number; fields: string[]; reason: string | null; errored: boolean; attempted: boolean };
     const tasks: Promise<SourceResult>[] = sources.map(async (src): Promise<SourceResult> => {
       try {
         if (src === 'smart') {
           if (!lead.website || !lead.website.trim()) {
-            return { src, filled: 0, reason: 'no website on file', errored: true, attempted: false };
+            return { src, filled: 0, fields: [], reason: 'no website on file', errored: true, attempted: false };
           }
           const r = await withTimeout(
             enrichLeadFromSmartScrape({ leadId: lead.id, websiteUrl: lead.website, brandHint: lead.company }),
@@ -229,45 +233,47 @@ async function runBatch(req: NextRequest): Promise<NextResponse> {
             'smart'
           );
           const filled = r.enrichment?.filled ?? 0;
-          return { src, filled, reason: r.reason, errored: !r.fetched && filled === 0, attempted: true };
+          const fields = r.enrichment?.fields ?? [];
+          return { src, filled, fields, reason: r.reason, errored: !r.fetched && filled === 0, attempted: true };
         }
         if (src === 'places') {
           if (!lead.company || !lead.company.trim()) {
-            return { src, filled: 0, reason: 'no company name on file', errored: true, attempted: false };
+            return { src, filled: 0, fields: [], reason: 'no company name on file', errored: true, attempted: false };
           }
           const r = await withTimeout(
             enrichLeadFromPlaces({ leadId: lead.id, actorUserId: guard.actor.userId }),
             PER_SOURCE_MS,
             'places'
           );
-          if (r.ok) return { src, filled: r.filled ?? 0, reason: null, errored: false, attempted: true };
-          return { src, filled: 0, reason: r.reason ?? 'no match', errored: true, attempted: true };
+          // Places uses `filledFields`, not `fields` (mixed naming across libs).
+          if (r.ok) return { src, filled: r.filled ?? 0, fields: r.filledFields ?? [], reason: null, errored: false, attempted: true };
+          return { src, filled: 0, fields: [], reason: r.reason ?? 'no match', errored: true, attempted: true };
         }
         if (src === 'instagram') {
           if ((!lead.company || !lead.company.trim()) && (!lead.website || !lead.website.trim())) {
-            return { src, filled: 0, reason: 'no company or website on file', errored: true, attempted: false };
+            return { src, filled: 0, fields: [], reason: 'no company or website on file', errored: true, attempted: false };
           }
           const r = await withTimeout(
             enrichLeadFromInstagram({ leadId: lead.id, actorUserId: guard.actor.userId }),
             PER_SOURCE_MS,
             'instagram'
           );
-          if (r.ok) return { src, filled: r.filled ?? 0, reason: null, errored: false, attempted: true };
-          return { src, filled: 0, reason: r.reason ?? 'no profile', errored: true, attempted: true };
+          if (r.ok) return { src, filled: r.filled ?? 0, fields: r.fields ?? [], reason: null, errored: false, attempted: true };
+          return { src, filled: 0, fields: [], reason: r.reason ?? 'no profile', errored: true, attempted: true };
         }
         // whois
         if (!lead.website || !lead.website.trim()) {
-          return { src, filled: 0, reason: 'no website on file', errored: true, attempted: false };
+          return { src, filled: 0, fields: [], reason: 'no website on file', errored: true, attempted: false };
         }
         const r = await withTimeout(
           enrichLeadFromWhois({ leadId: lead.id, actorUserId: guard.actor.userId }),
           PER_SOURCE_MS,
           'whois'
         );
-        if (r.ok) return { src, filled: r.filled ?? 0, reason: null, errored: false, attempted: true };
-        return { src, filled: 0, reason: r.reason ?? 'WHOIS unavailable', errored: true, attempted: true };
+        if (r.ok) return { src, filled: r.filled ?? 0, fields: r.fields ?? [], reason: null, errored: false, attempted: true };
+        return { src, filled: 0, fields: [], reason: r.reason ?? 'WHOIS unavailable', errored: true, attempted: true };
       } catch (err) {
-        return { src, filled: 0, reason: (err as Error).message || 'unexpected error', errored: true, attempted: true };
+        return { src, filled: 0, fields: [], reason: (err as Error).message || 'unexpected error', errored: true, attempted: true };
       }
     });
 
@@ -276,7 +282,7 @@ async function runBatch(req: NextRequest): Promise<NextResponse> {
       if (r.attempted) perSource[r.src].attempted += 1;
       perSource[r.src].filled += r.filled;
       if (r.errored) perSource[r.src].errored += 1;
-      outcome[r.src] = { filled: r.filled, reason: r.reason };
+      outcome[r.src] = { filled: r.filled, fields: r.fields, reason: r.reason };
     }
 
     perLead.push(outcome);
