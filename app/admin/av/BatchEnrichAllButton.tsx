@@ -54,13 +54,27 @@ interface BatchSummary {
   perLead: PerLeadOutcome[];
 }
 
-export function BatchEnrichAllButton() {
+export function BatchEnrichAllButton({
+  visibleLeadAuditIds = []
+}: {
+  /** (#279) audit_ids of the leads currently shown by the cockpit table.
+   *  When non-empty, the batch enriches the FIRST `limit` of these — so
+   *  val gets exactly the leads she's looking at, respecting her filter.
+   *  When empty (or undefined), the server falls back to "stalest N"
+   *  auto-pick across the whole pipeline. */
+  visibleLeadAuditIds?: string[];
+}) {
   const router = useRouter();
   const [limit, setLimit] = useState<5 | 10 | 25>(5);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [showResult, setShowResult] = useState(false);
+
+  // Slice to the first `limit` audit_ids — the leads the operator sees
+  // at the top of her filtered table. Empty array signals "use auto-pick."
+  const targetAuditIds = visibleLeadAuditIds.slice(0, limit);
+  const usingVisible = targetAuditIds.length > 0;
 
   async function run() {
     setRunning(true);
@@ -70,7 +84,12 @@ export function BatchEnrichAllButton() {
       const res = await fetch('/api/admin/av/leads/batch-enrich-all', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ limit })
+        body: JSON.stringify({
+          limit,
+          // Only send auditIds when we actually have some; the server treats
+          // an empty/missing array as "use the stalest-N auto-pick path."
+          ...(usingVisible ? { auditIds: targetAuditIds } : {})
+        })
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -95,7 +114,11 @@ export function BatchEnrichAllButton() {
           onClick={run}
           disabled={running}
           className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border bg-amber-400/10 text-amber-100 border-amber-400/40 hover:border-amber-400/70 disabled:opacity-50 transition"
-          title="Run Smart enrich + Places + Instagram + WHOIS on the next N stalest active leads. Hunter is NOT included — use the Hunter button separately."
+          title={
+            usingVisible
+              ? `Run Smart enrich + Places + Instagram + WHOIS on the FIRST ${limit} leads currently visible in your filtered table. Hunter is NOT included — use the Hunter button separately.`
+              : 'Run Smart enrich + Places + Instagram + WHOIS on the next N stalest active leads. Hunter is NOT included — use the Hunter button separately.'
+          }
         >
           {running ? (
             <>
@@ -103,7 +126,9 @@ export function BatchEnrichAllButton() {
               Enriching {limit}…
             </>
           ) : (
-            <>✨ Enrich next {limit} (all sources)</>
+            <>
+              ✨ Enrich {usingVisible ? 'these' : 'next'} {limit} (all sources)
+            </>
           )}
         </button>
         {!running && (

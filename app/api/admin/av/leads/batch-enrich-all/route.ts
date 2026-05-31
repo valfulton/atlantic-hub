@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Parse body
-  let body: { limit?: unknown; sources?: unknown } = {};
+  let body: { limit?: unknown; sources?: unknown; auditIds?: unknown } = {};
   try {
     body = await req.json();
   } catch {
@@ -84,24 +84,51 @@ export async function POST(req: NextRequest) {
       ? (body.sources.filter((s): s is SourceKey => ALL_SOURCES.includes(s as SourceKey)) as SourceKey[])
       : ALL_SOURCES;
 
-  // Pick the next N leads. Prefer the ones that need it most — no contact
-  // name yet, oldest activity first. Active only. NOTE: LIMIT is inlined
-  // (not parameterized) because mysql2 prepared statements reject ? in
-  // LIMIT on some Node mysql2 setups (it was returning HTTP 500 here).
-  // `limit` is already validated + clamped 1..25 above, so safe to inline.
+  // (#279) When the client passes explicit auditIds (the cockpit sends the
+  // first N visible row IDs from its current filter), the batch enriches
+  // EXACTLY those leads — so val gets what she's looking at, not some
+  // arbitrary "stalest" auto-pick. Empty / missing falls back to the
+  // ORDER BY ... LIMIT path below.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const auditIds: string[] = Array.isArray(body.auditIds)
+    ? body.auditIds.filter((v): v is string => typeof v === 'string' && UUID_RE.test(v)).slice(0, limit)
+    : [];
+  const useExplicitIds = auditIds.length > 0;
+
+  // Pick the N leads to enrich. Two modes:
+  //   useExplicitIds → fetch the rows for the audit_ids val sent, preserving
+  //     her order. This is the "enrich the leads I'm looking at" mode.
+  //   otherwise     → pick the N stalest active leads (legacy fallback).
+  // LIMIT is inlined (not parameterized) because mysql2 prepared statements
+  // reject ? in LIMIT on our setup. `limit` is validated 1..25 above.
   const db = getAvDb();
   let rows: LeadRow[] = [];
   try {
-    const [r] = await db.execute<LeadRow[]>(
-      `SELECT id, audit_id, company, website
-         FROM leads
-        WHERE archived_at IS NULL
-          AND lead_status NOT IN ('converted', 'lost')
-        ORDER BY (contact_name IS NULL OR contact_name = '') DESC,
-                 COALESCE(last_activity_at, submission_date) ASC
-        LIMIT ${limit}`
-    );
-    rows = r;
+    if (useExplicitIds) {
+      // Build a placeholder list for IN (?, ?, ?) and preserve val's order
+      // using FIELD(audit_id, ...) so the result panel matches her table.
+      const placeholders = auditIds.map(() => '?').join(', ');
+      const [r] = await db.execute<LeadRow[]>(
+        `SELECT id, audit_id, company, website
+           FROM leads
+          WHERE audit_id IN (${placeholders})
+            AND archived_at IS NULL
+          ORDER BY FIELD(audit_id, ${placeholders})`,
+        [...auditIds, ...auditIds]
+      );
+      rows = r;
+    } else {
+      const [r] = await db.execute<LeadRow[]>(
+        `SELECT id, audit_id, company, website
+           FROM leads
+          WHERE archived_at IS NULL
+            AND lead_status NOT IN ('converted', 'lost')
+          ORDER BY (contact_name IS NULL OR contact_name = '') DESC,
+                   COALESCE(last_activity_at, submission_date) ASC
+          LIMIT ${limit}`
+      );
+      rows = r;
+    }
   } catch (err) {
     console.error('[batch-enrich-all:select]', (err as Error).message);
     return NextResponse.json(

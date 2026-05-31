@@ -411,8 +411,13 @@ export default async function AvPage({
                 Runs Smart enrich + Places + IG + WHOIS on N leads at once,
                 with per-source + per-lead result chips so val sees exactly
                 what each lead got. Hunter is NOT included here — uses the
-                button to the left for that (credits cost money). */}
-            <BatchEnrichAllButton />
+                button to the left for that (credits cost money).
+
+                (#279) Now scoped to the leads VISIBLE in the current filter.
+                The cockpit already fetched `leads` for the table; we just
+                pass their audit_ids so the batch enriches exactly what val
+                is staring at, not some arbitrary "stalest" auto-pick. */}
+            <BatchEnrichAllButton visibleLeadAuditIds={leads.map((l) => l.auditId)} />
           </div>
         </div>
         <VendorStatus />
