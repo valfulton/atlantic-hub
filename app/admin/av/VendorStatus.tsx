@@ -18,9 +18,15 @@ export async function VendorStatus() {
   const used = hunter?.used ?? 0;
   const ceiling = hunter?.ceiling ?? 0;
   const remaining = hunter?.remaining ?? 0;
-  const low = ceiling > 0 && remaining <= Math.max(5, Math.round(ceiling * 0.15));
-  const out = ceiling > 0 && remaining <= 0;
-
+  const source = hunter?.source ?? 'estimate';
+  // (#287) Only treat 'out of credits' / 'running low' as the truth when the
+  // numbers came from Hunter's live API. When source='estimate' it's our
+  // local log, which over-counts (every call logged as 1 credit even when
+  // Hunter didn't bill). val saw "220/75 — top up" while Hunter itself said
+  // 22 used of 50 — exactly the over-count problem. Don't lie when unsure.
+  const isLive = source === 'live';
+  const low = isLive && ceiling > 0 && remaining <= Math.max(5, Math.round(ceiling * 0.15));
+  const out = isLive && ceiling > 0 && remaining <= 0;
   const creditColor = out ? '#FF9AA8' : low ? '#fcd34d' : 'var(--muted)';
 
   return (
@@ -30,13 +36,23 @@ export async function VendorStatus() {
         <div className="flex items-center gap-2">
           <span className="text-muted">Enrichment</span>
           <span className="text-ink font-medium">Hunter.io</span>
-          {ceiling > 0 ? (
+          {isLive ? (
             <span style={{ color: creditColor }}>
               {used}/{ceiling} credits this month{' '}
               {out ? '(none left — top up Hunter)' : low ? `(${remaining} left — running low)` : `(${remaining} left)`}
             </span>
           ) : (
-            <span className="text-muted">credit status unavailable</span>
+            <span className="text-muted">
+              live credit status unavailable —{' '}
+              <a
+                href="https://hunter.io/api_keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand hover:underline"
+              >
+                check hunter.io
+              </a>
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2">

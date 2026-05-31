@@ -403,8 +403,12 @@ export default async function AvPage({
                 into honest copy instead of the previous raw 'unauthorized'. */}
             <EnrichButton
               defaultLimit={5}
-              creditsRemaining={hunter.remaining}
-              monthlyCeiling={hunter.ceiling}
+              // (#287) Only pass credit numbers when they came from Hunter
+              // live. The local estimate over-counts so we'd grey out the
+              // button based on a lie. When unknown, let Hunter itself
+              // reject the request if actually out.
+              creditsRemaining={hunter.source === 'live' ? hunter.remaining : undefined}
+              monthlyCeiling={hunter.source === 'live' ? hunter.ceiling : undefined}
               isOwner={role === 'owner'}
             />
             {/* (#278) Bulk version of the per-lead Enrich-from-sources menu.

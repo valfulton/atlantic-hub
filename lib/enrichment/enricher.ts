@@ -123,18 +123,26 @@ async function getMonthlyCreditUsage(): Promise<number> {
  * Falls back to the local count + env-var ceiling only if Hunter is
  * unreachable, so the cockpit still has something to show on outages.
  */
-export async function getHunterCreditStatus(): Promise<{ used: number; ceiling: number; remaining: number }> {
+export async function getHunterCreditStatus(): Promise<{
+  used: number;
+  ceiling: number;
+  remaining: number;
+  /** 'live' = real numbers from Hunter's /account API.
+   *  'estimate' = local hunter_credit_log count (overcounts — credits_charged
+   *               is 1 on every call, but Hunter only bills on email-found).
+   *               Treat as a hint, NOT a hard cap.  */
+  source: 'live' | 'estimate';
+}> {
   // Late-bind the import to keep this file from depending on Hunter at
   // module load (some tests import enricher.ts without HUNTER_API_KEY set).
   const { getHunterAccountStatus } = await import('@/lib/enrichment/hunter');
   const live = await getHunterAccountStatus().catch(() => null);
   if (live) {
-    return { used: live.used, ceiling: live.available, remaining: live.remaining };
+    return { used: live.used, ceiling: live.available, remaining: live.remaining, source: 'live' };
   }
-  // Fallback: local log (probably overcounts) + env-var ceiling.
   const used = await getMonthlyCreditUsage().catch(() => 0);
   const ceiling = DEFAULT_MONTHLY_CREDIT_CEILING;
-  return { used, ceiling, remaining: Math.max(0, ceiling - used) };
+  return { used, ceiling, remaining: Math.max(0, ceiling - used), source: 'estimate' };
 }
 
 /**
