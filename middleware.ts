@@ -47,6 +47,11 @@ const CLIENT_SESSION_COOKIE = 'ah_client_session';
  * handler via a shared-secret header, so they must skip the admin session
  * wall here. Add future inbound webhooks to this set.
  */
+/**
+ * PURE webhook paths — called ONLY by external systems with their own
+ * shared-secret header. No UI button ever calls these. Middleware skips
+ * auth unconditionally; the route validates the secret itself.
+ */
 const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   '/api/admin/av/integrations/clay-webhook',
   // PR inbox inbound-parse webhook (PR@api.atlanticandvine.com). Authenticates
@@ -63,23 +68,37 @@ const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   // (ENRICHMENT_CRON_SECRET) inside the handler. See
   // app/api/admin/pr/discover-sweep/route.ts.
   '/api/admin/pr/discover-sweep',
-  // Pain-extraction sweep: cron target + manual backfill trigger. Dual-mode auth
-  // (X-Cron-Secret = ENRICHMENT_CRON_SECRET, or admin session) lives in the handler.
-  // WITHOUT this exemption middleware 401s the cron before the secret check runs --
-  // which is why pain_point_profile was never getting populated. See
-  // app/api/admin/av/pain-sweep/route.ts. (score-sweep has the same latent gap.)
-  '/api/admin/av/pain-sweep',
-  // Cron-secret sweep targets (dual-mode auth in each handler). These were the
-  // "latent gap" — not exempted, so middleware 401'd the cron before the secret
-  // check, meaning they never ran via cron. Now exempted (each validates
-  // x-cron-secret == ENRICHMENT_CRON_SECRET internally).
-  '/api/admin/av/score-sweep',
-  '/api/admin/av/enrich',
-  '/api/admin/av/nurture-wake',
-  '/api/admin/av/outreach/replies/poll',
   // Cron dispatcher (#73): one HostGator cron pings this; it fans out to the
-  // sweep endpoints above. Validates x-cron-secret internally.
-  '/api/admin/cron/run',
+  // sweep endpoints below. Validates x-cron-secret internally.
+  '/api/admin/cron/run'
+]);
+
+/**
+ * DUAL-MODE paths — accept EITHER a cron secret header (cron path) OR an
+ * admin session cookie (UI path). Middleware MUST run the admin auth flow
+ * for the cookie case so the route can identify the operator.
+ *
+ * Previously these were lumped into PUBLIC_WEBHOOK_PATHS and middleware
+ * skipped them unconditionally, which broke every UI button that called
+ * one of these endpoints — the route ran but `readActorFromHeaders`
+ * returned null because middleware never set the actor headers, so the
+ * cookie path always 401'd with "Session expired."
+ *
+ * Fix: skip middleware ONLY when X-Cron-Secret header is present. With
+ * the header → cron path (route validates secret value). Without it →
+ * normal admin cookie auth runs, route reads actor headers, success.
+ */
+const DUAL_AUTH_PATHS = new Set<string>([
+  // Pain-extraction sweep: cron target + manual backfill trigger.
+  '/api/admin/av/pain-sweep',
+  // Hunter enrichment batch: cron target + Enrich-now button.
+  '/api/admin/av/enrich',
+  // AI scoring sweep: cron target + manual re-score button.
+  '/api/admin/av/score-sweep',
+  // Nurture wake sweep: cron target only today, dual-mode for future UI.
+  '/api/admin/av/nurture-wake',
+  // Outreach reply poller: cron target.
+  '/api/admin/av/outreach/replies/poll',
   // (#216 v2) Weekly digest sweep — called by the dispatcher with the
   // ENRICHMENT_CRON_SECRET. Iterates active clients and sends each digest.
   '/api/admin/av/digest-sweep',
@@ -176,6 +195,13 @@ export async function middleware(req: NextRequest) {
   // the route handler. They have no operator session, so let them through the
   // middleware untouched. The route still rejects anything without the secret.
   if (PUBLIC_WEBHOOK_PATHS.has(pathname)) {
+    return NextResponse.next();
+  }
+
+  // Dual-mode paths: cron path skips middleware only if the cron-secret
+  // header is actually present. Without the header, fall through to normal
+  // admin cookie auth so the UI button can identify the operator.
+  if (DUAL_AUTH_PATHS.has(pathname) && req.headers.get('x-cron-secret')) {
     return NextResponse.next();
   }
 
