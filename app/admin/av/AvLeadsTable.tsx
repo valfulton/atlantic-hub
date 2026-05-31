@@ -249,8 +249,14 @@ export function AvLeadsTable({
   // (#284) Row selection — lets val pick specific leads to bulk-enrich. The
   // BatchEnrichAllButton in the page header listens for AV_LEAD_SELECTION_EVENT
   // and uses the selected audit_ids over its default "first N visible" pick.
-  // Nothing else in the row reacts to the checkbox; pure selection state.
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // (#285) "Just enriched this session" tracker. When the batch button fires
+  // 'av-leads-just-enriched', we (a) drop those IDs from selection so val
+  // can't accidentally re-pick them and (b) keep them in justEnriched so the
+  // row renders a ✨ marker — answers her "i can't tell which ones i ran"
+  // problem without needing a DB schema change. Resets on full page reload.
+  const [justEnriched, setJustEnriched] = useState<Set<string>>(new Set());
+
   // Re-emit when leads list shape changes (filter / sort change) so the header
   // checkbox + button label stay in sync with what's actually on screen.
   useEffect(() => {
@@ -258,6 +264,28 @@ export function AvLeadsTable({
       new CustomEvent(AV_LEAD_SELECTION_EVENT, { detail: { auditIds: Array.from(selected) } })
     );
   }, [selected]);
+
+  // Listen for batch-finished events from BatchEnrichAllButton. Auto-deselect
+  // + mark visually.
+  useEffect(() => {
+    function onJustEnriched(e: Event) {
+      const detail = (e as CustomEvent<{ auditIds?: string[] }>).detail;
+      const ids = Array.isArray(detail?.auditIds) ? detail.auditIds : [];
+      if (ids.length === 0) return;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+      setJustEnriched((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+    window.addEventListener('av-leads-just-enriched', onJustEnriched);
+    return () => window.removeEventListener('av-leads-just-enriched', onJustEnriched);
+  }, []);
 
   const visibleIds = leads.map((l) => l.auditId);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
@@ -300,13 +328,24 @@ export function AvLeadsTable({
         />
       ),
       render: (r) => (
-        <input
-          type="checkbox"
-          checked={selected.has(r.auditId)}
-          onChange={() => toggleOne(r.auditId)}
-          className="cursor-pointer w-4 h-4 accent-amber-400"
-          aria-label={`Select ${r.company}`}
-        />
+        <div className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={selected.has(r.auditId)}
+            onChange={() => toggleOne(r.auditId)}
+            className="cursor-pointer w-4 h-4 accent-amber-400"
+            aria-label={`Select ${r.company}`}
+          />
+          {justEnriched.has(r.auditId) && (
+            <span
+              className="text-amber-400 text-sm"
+              title="Enriched in this session (Smart + Places + IG + WHOIS)"
+              aria-label="just enriched"
+            >
+              ✨
+            </span>
+          )}
+        </div>
       )
     },
     {
@@ -426,6 +465,9 @@ export function AvLeadsTable({
       columns={COLUMNS}
       rows={leads}
       emptyMessage="No leads match the current filter. Leads arrive via the atlanticandvine.com audit form."
+      // (#285) Tint rows that were enriched in this browser session so val
+      // can scan the table and instantly see which leads she's already hit.
+      rowClassName={(row) => (justEnriched.has(row.auditId) ? 'bg-amber-400/[0.04]' : '')}
     />
   );
 }

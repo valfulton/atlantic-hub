@@ -137,6 +137,14 @@ export function BatchEnrichAllButton({
       const data = (await res.json()) as BatchSummary;
       setSummary(data);
       setShowResult(true);
+      // (#285) Tell the leads table which audit_ids were just processed so it
+      // can (a) drop them from the selection state and (b) flag the rows
+      // visibly so val can see at a glance which leads got hit by THIS
+      // batch — solves the "I can't tell which ones I ran" problem.
+      const justRanIds = data.perLead.map((l) => l.auditId);
+      window.dispatchEvent(
+        new CustomEvent('av-leads-just-enriched', { detail: { auditIds: justRanIds } })
+      );
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
