@@ -84,19 +84,31 @@ export async function POST(req: NextRequest) {
       ? (body.sources.filter((s): s is SourceKey => ALL_SOURCES.includes(s as SourceKey)) as SourceKey[])
       : ALL_SOURCES;
 
-  // Pick the next N leads. Prefer the ones that need it most — no website
-  // OR no contact name yet, oldest activity first. Active only.
+  // Pick the next N leads. Prefer the ones that need it most — no contact
+  // name yet, oldest activity first. Active only. NOTE: LIMIT is inlined
+  // (not parameterized) because mysql2 prepared statements reject ? in
+  // LIMIT on some Node mysql2 setups (it was returning HTTP 500 here).
+  // `limit` is already validated + clamped 1..25 above, so safe to inline.
   const db = getAvDb();
-  const [rows] = await db.execute<LeadRow[]>(
-    `SELECT id, audit_id, company, website
-       FROM leads
-      WHERE archived_at IS NULL
-        AND lead_status NOT IN ('converted', 'lost')
-      ORDER BY (contact_name IS NULL OR contact_name = '') DESC,
-               COALESCE(last_activity_at, submission_date) ASC
-      LIMIT ?`,
-    [limit]
-  );
+  let rows: LeadRow[] = [];
+  try {
+    const [r] = await db.execute<LeadRow[]>(
+      `SELECT id, audit_id, company, website
+         FROM leads
+        WHERE archived_at IS NULL
+          AND lead_status NOT IN ('converted', 'lost')
+        ORDER BY (contact_name IS NULL OR contact_name = '') DESC,
+                 COALESCE(last_activity_at, submission_date) ASC
+        LIMIT ${limit}`
+    );
+    rows = r;
+  } catch (err) {
+    console.error('[batch-enrich-all:select]', (err as Error).message);
+    return NextResponse.json(
+      { error: 'lead_select_failed', message: (err as Error).message },
+      { status: 500 }
+    );
+  }
 
   // Per-source aggregate counters. `attempted` = times we even called the
   // source for some lead; `filled` = total fields written across the batch;
