@@ -88,11 +88,15 @@ export interface EnrichmentBatchSummary {
 
 interface LeadRow extends RowDataPacket {
   id: number;
+  // (#310) audit_id surfaced so the operator-selection path can preserve order.
+  audit_id?: string | null;
   company: string;
   contact_name: string | null;
+  contact_title?: string | null;
   email: string;
   website: string | null;
   enrichment_status: string | null;
+  client_id?: number | null;
 }
 
 /**
@@ -236,6 +240,53 @@ async function findCandidates(limit: number, clientId?: number | null): Promise<
   });
 
   return filtered.slice(0, limit);
+}
+
+/**
+ * (#310) Fetch the operator-selected leads by audit_id, preserving their
+ * order. Same eligibility rules as findCandidates (not archived; not already
+ * fully enriched / permanently failed / no-results / no-domain / in-progress;
+ * has a website). Silently drops ineligible audit_ids so a stale checkbox
+ * selection doesn't fail the whole batch.
+ *
+ * Used when the operator picks specific leads via the cockpit checkboxes —
+ * her selection is the source of truth, not the stalest-by-AI-score auto-pick.
+ */
+async function findLeadsByAuditIds(
+  auditIds: string[],
+  limit: number,
+  clientId?: number | null
+): Promise<LeadRow[]> {
+  if (auditIds.length === 0) return [];
+  const db = getAvDb();
+  const scoped = clientId != null && clientId > 0;
+  const placeholders = auditIds.map(() => '?').join(',');
+  const [rows] = await db.execute<LeadRow[]>(
+    `SELECT id, audit_id, company, contact_name, email, website, enrichment_status, client_id
+       FROM leads
+      WHERE archived_at IS NULL
+        ${scoped ? 'AND client_id = ?' : ''}
+        AND audit_id IN (${placeholders})
+        AND (enrichment_status IS NULL
+             OR enrichment_status NOT IN (
+               'enriched', 'failed_permanent', 'in_progress',
+               'failed_no_results', 'failed_no_domain'
+             ))
+        AND website IS NOT NULL AND website != ''`,
+    scoped ? [clientId, ...auditIds] : auditIds
+  );
+  // Preserve the order the operator gave us — SQL IN(...) doesn't.
+  const byAuditId = new Map<string, LeadRow>();
+  for (const r of rows) {
+    if (typeof r.audit_id === 'string') byAuditId.set(r.audit_id, r);
+  }
+  const ordered: LeadRow[] = [];
+  for (const aid of auditIds) {
+    const r = byAuditId.get(aid);
+    if (r) ordered.push(r);
+    if (ordered.length >= limit) break;
+  }
+  return ordered;
 }
 
 /**
@@ -580,10 +631,20 @@ export async function runEnrichmentBatch(opts: {
   monthlyCeiling?: number;
   /** When set, only enrich leads belonging to this client's hub. */
   clientId?: number | null;
+  /** (#310) When provided, enrich THESE specific leads (in this order) instead
+   *  of auto-picking via findCandidates. Used when the operator has explicitly
+   *  selected leads via checkbox on the cockpit. Still subject to the credit
+   *  ceiling — capped at `limit` if longer. Leads not eligible for enrichment
+   *  (already enriched, archived, etc.) are silently dropped, same rules as
+   *  findCandidates. */
+  auditIds?: string[];
 } = { triggerSource: 'manual' }): Promise<EnrichmentBatchSummary> {
   const limit = Math.max(1, Math.min(50, opts.limit ?? 5));
   const triggerSource = opts.triggerSource;
   const clientId = opts.clientId ?? null;
+  const explicitAuditIds = Array.isArray(opts.auditIds)
+    ? opts.auditIds.filter((s): s is string => typeof s === 'string' && s.length > 0).slice(0, 50)
+    : [];
 
   // (#289) Credit gate now reads Hunter's LIVE /account API as source of
   // truth instead of our local hunter_credit_log + env-var ceiling. The
@@ -634,7 +695,17 @@ export async function runEnrichmentBatch(opts: {
   }
 
   const effectiveLimit = Math.min(limit, remaining);
-  const candidates = await findCandidates(effectiveLimit, clientId);
+  // (#310) When the operator passed explicit auditIds (checkbox selection),
+  // fetch those leads in the same order — instead of auto-picking via
+  // findCandidates. Same eligibility rules apply: archived rows + already-
+  // enriched + permanently-failed leads are silently dropped so a stale
+  // selection still does the sane thing.
+  let candidates;
+  if (explicitAuditIds.length > 0) {
+    candidates = await findLeadsByAuditIds(explicitAuditIds, effectiveLimit, clientId);
+  } else {
+    candidates = await findCandidates(effectiveLimit, clientId);
+  }
 
   if (candidates.length === 0) {
     return {

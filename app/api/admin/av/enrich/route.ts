@@ -6,7 +6,9 @@
  * function (netlify/functions/enrich-cron.ts) — both call into
  * lib/enrichment/enricher.ts.
  *
- * Body: { limit?: number }  (default 5, max 50)
+ * Body: { limit?: number, auditIds?: string[] }  (default 5, max 50)
+ *   - When auditIds is provided, those specific leads are enriched in order
+ *     instead of auto-picking by AI score. limit still caps the batch.
  *
  * Returns: EnrichmentBatchSummary (see lib/enrichment/enricher.ts) with an
  * additional `suggestedNextAction` field hinting whether the operator
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   const triggerSource: EnrichmentTriggerSource = cronAuthorized ? 'cron' : 'manual';
 
-  let payload: { limit?: unknown; monthlyCeilingOverride?: unknown } = {};
+  let payload: { limit?: unknown; monthlyCeilingOverride?: unknown; auditIds?: unknown } = {};
   try {
     payload = await req.json();
   } catch {
@@ -71,6 +73,18 @@ export async function POST(req: NextRequest) {
     typeof payload.limit === 'number' && Number.isFinite(payload.limit)
       ? Math.max(1, Math.min(50, Math.floor(payload.limit)))
       : 5;
+
+  // (#310) Operator checkbox selection — when present, enrich THESE specific
+  // leads (capped at limit) instead of letting findCandidates auto-pick by
+  // ai_score. Silently dropped on cron triggers — auto-pick still governs the
+  // unattended path.
+  let auditIds: string[] | undefined;
+  if (triggerSource === 'manual' && Array.isArray(payload.auditIds)) {
+    const cleaned = payload.auditIds
+      .filter((s): s is string => typeof s === 'string' && s.length > 0 && s.length <= 64)
+      .slice(0, 50);
+    if (cleaned.length > 0) auditIds = cleaned;
+  }
 
   // (#250) Owner-only ceiling override. Only honored when the actor role is
   // 'owner' — staff sends are silently ignored. Bounded 1..1000 to prevent a
@@ -90,7 +104,8 @@ export async function POST(req: NextRequest) {
     const summary = await runEnrichmentBatch({
       limit,
       triggerSource,
-      ...(monthlyCeilingOverride !== undefined ? { monthlyCeiling: monthlyCeilingOverride } : {})
+      ...(monthlyCeilingOverride !== undefined ? { monthlyCeiling: monthlyCeilingOverride } : {}),
+      ...(auditIds ? { auditIds } : {})
     });
 
     // After a successful enrichment batch, suggest the next operator action.

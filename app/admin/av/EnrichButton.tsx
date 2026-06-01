@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface EnrichmentResult {
@@ -70,6 +70,20 @@ export function EnrichButton({
   const [showRaise, setShowRaise] = useState(false);
   const [raiseTo, setRaiseTo] = useState<string>('');
 
+  // (#310) Mirror BatchEnrichAllButton's selection wiring. When val checks
+  // rows in AvLeadsTable, those audit_ids come over as a CustomEvent — we
+  // send THEM to /enrich instead of letting the server auto-pick by AI score
+  // and land on Coca-Cola / Rheem again. Empty selection = legacy behavior.
+  const [selectedAuditIds, setSelectedAuditIds] = useState<string[]>([]);
+  useEffect(() => {
+    function onSelection(e: Event) {
+      const detail = (e as CustomEvent<{ auditIds?: string[] }>).detail;
+      setSelectedAuditIds(Array.isArray(detail?.auditIds) ? detail.auditIds : []);
+    }
+    window.addEventListener('av-leads-selection-change', onSelection);
+    return () => window.removeEventListener('av-leads-selection-change', onSelection);
+  }, []);
+
   const lowCredits =
     typeof creditsRemaining === 'number' && typeof monthlyCeiling === 'number' &&
     monthlyCeiling > 0 && creditsRemaining <= Math.max(5, Math.round(monthlyCeiling * 0.15));
@@ -81,7 +95,15 @@ export function EnrichButton({
     setError(null);
     setSummary(null);
     try {
-      const body: Record<string, unknown> = { limit: defaultLimit };
+      // (#310) If val has rows checked, send THOSE audit_ids and use the
+      // selection size as the cap (so "Enrich 3 selected" doesn't silently
+      // pull 5). Otherwise legacy: server picks stalest defaultLimit.
+      const usingSelection = selectedAuditIds.length > 0;
+      const effectiveLimit = usingSelection
+        ? Math.min(selectedAuditIds.length, 50)
+        : defaultLimit;
+      const body: Record<string, unknown> = { limit: effectiveLimit };
+      if (usingSelection) body.auditIds = selectedAuditIds.slice(0, 50);
       // (#250) Owner-only override — only honored server-side when the actor
       // role is 'owner'. Sending it as non-owner is a no-op.
       if (isOwner && showRaise) {
@@ -138,7 +160,9 @@ export function EnrichButton({
         title={
           outOfCredits
             ? 'Monthly Hunter credits exhausted — top up your Hunter plan or wait for next month’s reset.'
-            : 'Find real names + emails for placeholder prospects. Picks follow each client’s Preferred / Excluded Contact Titles (set on the client’s ICP).'
+            : selectedAuditIds.length > 0
+            ? `Enrich the ${selectedAuditIds.length} lead${selectedAuditIds.length === 1 ? '' : 's'} you've checked. Uncheck all to fall back to "next ${defaultLimit} stalest."`
+            : 'Find real names + emails for placeholder prospects. Picks follow each client’s Preferred / Excluded Contact Titles (set on the client’s ICP). Check rows in the table below to enrich those specific leads.'
         }
       >
         {running ? (
@@ -148,7 +172,9 @@ export function EnrichButton({
           </>
         ) : (
           <>
-            ✨ Enrich next {defaultLimit}
+            {selectedAuditIds.length > 0
+              ? `✨ Enrich ${selectedAuditIds.length} selected`
+              : `✨ Enrich next ${defaultLimit}`}
             {badge && (
               <span
                 className="text-[10px] font-medium"
