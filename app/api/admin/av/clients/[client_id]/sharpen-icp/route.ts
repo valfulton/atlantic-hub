@@ -20,6 +20,7 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { getClientIcp, saveClientIcp, type IcpItemSource, type IcpProvenance, type ClientIcp } from '@/lib/client/icp';
 import { sharpenIcpFromBrief } from '@/lib/client/icp_sharpener';
+import { maybeRescoreAfterIcpChange } from '@/lib/client/autopilot';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket } from 'mysql2';
 
@@ -165,6 +166,23 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       };
 
       await saveClientIcp(clientId, nextIcp, guard.actor.userId, provenance);
+
+      // (#314) Stale-reason fix: any fit scores already on this client's leads
+      // were computed against the pre-sharpener ICP and are now stale (this
+      // is exactly what burned Tim's gym leads — sharpener added gyms to ICP,
+      // existing leads kept their old "industry not in target" reasoning).
+      // Fire-and-forget invalidate + bulk rescore (limit 60 / 45s deadline).
+      // Only fired when something was actually written — fill_blanks no-ops
+      // get no rescore so we don't burn LLM credits for nothing.
+      const anythingWritten =
+        writtenIndustries.length > 0 ||
+        writtenGeographies.length > 0 ||
+        writtenExcluded.length > 0 ||
+        nextMin !== current.companySizeMin ||
+        nextMax !== current.companySizeMax;
+      if (anythingWritten) {
+        void maybeRescoreAfterIcpChange({ clientId });
+      }
 
       await logEvent({
         eventType: 'icp.sharpen.applied',

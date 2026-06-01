@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { normalizeIcp, saveClientIcp, getClientIcpWithProvenance, operatorSaveProvenance } from '@/lib/client/icp';
+import { maybeRescoreAfterIcpChange } from '@/lib/client/autopilot';
 
 export const runtime = 'nodejs';
 
@@ -40,6 +41,13 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     const { provenance: priorProv } = await getClientIcpWithProvenance(clientId);
     const provenance = operatorSaveProvenance(icp, priorProv);
     await saveClientIcp(clientId, icp, guard.actor.userId ?? null, provenance);
+
+    // (#314) Stale-reason fix: existing fit scores on this client's leads were
+    // computed against the PREVIOUS ICP snapshot. Invalidate + bulk rescore
+    // in fire-and-forget so val never sees "industry not in target industries"
+    // for an industry she just added to the ICP.
+    void maybeRescoreAfterIcpChange({ clientId });
+
     return NextResponse.json({ ok: true, icp });
   } catch (err) {
     return NextResponse.json({ error: 'save failed', errorClass: (err as Error).name }, { status: 500 });

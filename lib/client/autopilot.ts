@@ -201,6 +201,91 @@ export async function maybeScoreDiscoveryBatch(args: {
 }
 
 /**
+ * (#314) After the client's ICP (or sharpener apply) is saved, every existing
+ * lead's `client_icp_fit_score` + `client_icp_fit_reasoning` is now STALE —
+ * it was computed against a snapshot of the ICP at the time of discovery and
+ * never refreshed. This caused val's "88 HOT / 40 WEAK FIT, industry not in
+ * target industries" paradox on Tim's gym leads after she added gyms to his
+ * ICP via the sharpener: old reasoning frozen in place.
+ *
+ * What this does:
+ *   1. NULL out client_icp_fit_score/reasoning/at on every active lead for
+ *      this client. Instant, no LLM cost. The lead-card UI should treat NULL
+ *      as "no fit score yet" (not the misleading old text).
+ *   2. Fire-and-forget a fresh bulk rescore (mode='all' so we don't skip
+ *      rows we just nulled). Bounded to 60 leads + 45s deadline so it never
+ *      blows the Netlify function budget. Whatever doesn't get rescored in
+ *      this single fire stays NULL until val clicks "Rescore all" on the
+ *      IcpFitScorePanel — same UX as the existing top-up button.
+ *
+ * Fire-and-forget — never throws. Call from icp/route.ts (operator manual
+ * ICP edit) and sharpen-icp/route.ts (apply path). Skip on every other path
+ * (don't fire when the brief is saved — the sharpener hook handles that
+ * cascade and would otherwise duplicate work).
+ */
+export async function maybeRescoreAfterIcpChange(args: {
+  clientId: number;
+}): Promise<void> {
+  try {
+    const { clientId } = args;
+    if (!clientId) return;
+
+    const db = getAvDb();
+    // Invalidate first so the UI immediately stops showing stale reasoning.
+    // The next page render will see NULL and can render "Score pending."
+    const [invResult] = await db.execute<ResultSetHeader>(
+      `UPDATE leads
+          SET client_icp_fit_score = NULL,
+              client_icp_fit_reasoning = NULL,
+              client_icp_fit_at = NULL
+        WHERE client_id = ? AND archived_at IS NULL`,
+      [clientId]
+    );
+
+    await logEvent({
+      eventType: 'autopilot.icp_fit_invalidated',
+      source: 'autopilot',
+      payload: {
+        client_id: clientId,
+        rows_invalidated: invResult.affectedRows
+      }
+    });
+
+    // Skip the bulk rescore if there was nothing to invalidate — the client
+    // has no leads yet, so this would be a no-op anyway.
+    if (invResult.affectedRows === 0) return;
+
+    // Bounded fire-and-forget rescore. 60 leads / 45s — bigger pipelines need
+    // a "Rescore all" follow-up click; the panel already exists.
+    const softDeadline = Date.now() + 45_000;
+    const result = await scoreClientLeadsBulk({
+      clientId,
+      mode: 'all',
+      limit: 60,
+      softDeadline
+    });
+
+    await logEvent({
+      eventType: 'autopilot.icp_fit_rescored',
+      source: 'autopilot',
+      payload: {
+        client_id: clientId,
+        attempted: result.attempted,
+        scored: result.scored,
+        skipped: result.skipped
+      }
+    });
+  } catch (err) {
+    await logEvent({
+      eventType: 'autopilot.icp_fit_rescore_failed',
+      source: 'autopilot',
+      status: 'failure',
+      errorMessage: (err as Error).message
+    });
+  }
+}
+
+/**
  * (#193) Audit + extract call script for the TOP-N highest-fit leads on a
  * client that don't yet have an audit. Closes the "no call script for 24h"
  * gap between discovery and the daily score-sweep / pain-sweep crons.
