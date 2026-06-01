@@ -116,6 +116,9 @@ export async function GET(req: NextRequest, { params }: { params: { client_id: s
       industries,
       geographies,
       excludedIndustries: icp.excludedIndustries,
+      // (#307) Surface excludeGeographies too. The form was silently dropping
+      // both excludes — val saved 8 fields and only 3 showed up.
+      excludeGeographies: icp.excludeGeographies,
       employeeRanges,
       source,
       hint:

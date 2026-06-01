@@ -122,6 +122,10 @@ export function DiscoverForm({
   const [organizationNotLocations, setOrganizationNotLocations] = useState('');
   const [qOrganizationDomainsList, setQOrganizationDomainsList] = useState('');
   const [qOrganizationKeywordTags, setQOrganizationKeywordTags] = useState('');
+  // (#307) Exclude industries — was silently dropped from the ICP auto-fill.
+  // Loaded from the client's stored excludedIndustries, editable per-run, and
+  // passed back to discover so the post-filter respects this run's edits.
+  const [qOrganizationNotKeywordTags, setQOrganizationNotKeywordTags] = useState('');
   const [selectedRanges, setSelectedRanges] = useState<string[]>([]);
   const [perPage, setPerPage] = useState(25);
   const [dest, setDest] = useState('');
@@ -160,6 +164,8 @@ export function DiscoverForm({
           industries?: string[];
           geographies?: string[];
           excludedIndustries?: string[];
+          // (#307) Now also returned by the endpoint.
+          excludeGeographies?: string[];
           employeeRanges?: string[];
           source?: 'icp' | 'brief_fallback' | 'mixed' | 'none';
           hint?: string | null;
@@ -180,6 +186,15 @@ export function DiscoverForm({
         }
         if (Array.isArray(data.employeeRanges) && data.employeeRanges.length > 0) {
           setSelectedRanges(data.employeeRanges);
+          applied += 1;
+        }
+        // (#307) Was silently dropped before — now visible + editable.
+        if (Array.isArray(data.excludedIndustries) && data.excludedIndustries.length > 0) {
+          setQOrganizationNotKeywordTags(data.excludedIndustries.join(', '));
+          applied += 1;
+        }
+        if (Array.isArray(data.excludeGeographies) && data.excludeGeographies.length > 0) {
+          setOrganizationNotLocations(data.excludeGeographies.join(', '));
           applied += 1;
         }
         setAutoFilledFromClient({
@@ -207,6 +222,9 @@ export function DiscoverForm({
     setOrganizationNotLocations((preset.filters.organizationNotLocations || []).join(', '));
     setQOrganizationDomainsList((preset.filters.qOrganizationDomainsList || []).join(', '));
     setQOrganizationKeywordTags((preset.filters.qOrganizationKeywordTags || []).join(', '));
+    // (#307) Reset exclude-industries when a preset is applied — presets don't
+    // carry their own excludes today, so clear whatever was auto-loaded.
+    setQOrganizationNotKeywordTags('');
     setSelectedRanges(preset.filters.organizationNumEmployeesRanges || []);
   }
 
@@ -230,6 +248,10 @@ export function DiscoverForm({
         organizationNotLocations: csvToArray(organizationNotLocations),
         qOrganizationDomainsList: csvToArray(qOrganizationDomainsList),
         qOrganizationKeywordTags: csvToArray(qOrganizationKeywordTags),
+        // (#307) Pass excluded-industries through so the server-side
+        // post-filter uses THIS run's edits (operator override) instead of
+        // only the saved ICP. Empty array = same as before.
+        qOrganizationNotKeywordTags: csvToArray(qOrganizationNotKeywordTags),
         organizationNumEmployeesRanges: selectedRanges,
         page: 1,
         perPage,
@@ -395,6 +417,22 @@ export function DiscoverForm({
               placeholder="(optional) e.g. United Kingdom"
               className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
               style={inputStyle}
+            />
+          </div>
+          {/* (#307) Exclude industries — was loaded silently from the client's
+              ICP but never visible to val. Now an editable field that pre-fills
+              from saved ICP and gets passed back so server-side post-filter
+              respects per-run edits. */}
+          <div className="md:col-span-2">
+            <div className="text-xs uppercase tracking-wider text-muted mb-1">Exclude industries</div>
+            <input
+              type="text"
+              value={qOrganizationNotKeywordTags}
+              onChange={(e) => setQOrganizationNotKeywordTags(e.target.value)}
+              placeholder="(optional) e.g. hospitality media, hospitality recruiting, education / institutes"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm placeholder:text-slate-500"
+              style={inputStyle}
+              title="Industries / keywords to drop from results. Pre-filled from this client's ICP exclude list when one is set; you can edit for THIS run without changing the saved ICP."
             />
           </div>
           <div className="md:col-span-2">
