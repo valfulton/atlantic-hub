@@ -20,8 +20,10 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { OpportunityFlag, FlagSignal } from '@/lib/av/opportunity_flags';
-import { SIGNAL_COPY } from '@/lib/av/opportunity_flags';
+// (#305) Import from the meta sidecar — NOT from opportunity_flags.ts —
+// so this client bundle doesn't try to drag mysql2 + Node net/tls into
+// the browser via the DB-call transitive imports.
+import { SIGNAL_COPY, type OpportunityFlag, type FlagSignal } from '@/lib/av/opportunity_flags_meta';
 
 const STORAGE_KEY = 'av-flags-dismissed-v1';
 const DISMISS_TTL_MS = 14 * 24 * 60 * 60 * 1000;

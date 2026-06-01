@@ -20,28 +20,12 @@
  */
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
-
-export type FlagSignal = 'newly_hot' | 'just_enriched_warm' | 'icp_fit_jump';
-
-export interface OpportunityFlag {
-  /** Stable lead id — also the dismiss key on the client side. */
-  leadId: number;
-  /** UUID for routing to the lead-detail page. May be null on legacy leads. */
-  auditId: string | null;
-  company: string;
-  clientId: number | null;
-  /** Display name of the owning client (for client-scoped leads). */
-  clientName: string | null;
-  /** Which signal fired. If multiple fired, the highest-priority one wins
-   *  per the order in SIGNAL_PRIORITY below. */
-  signal: FlagSignal;
-  /** Visible score for the signal (ai_score for newly_hot, fit_score for
-   *  icp_fit_jump, ai_score for just_enriched_warm). */
-  score: number;
-  /** When the signal fired (ISO string). Used to sort newest-first and
-   *  to show "X minutes ago" inline. */
-  firedAt: string;
-}
+// (#305) Types + the SIGNAL_COPY meta map live in the sidecar so client
+// components can import them without dragging mysql2 into the browser
+// bundle. Server code re-imports both from here so call sites don't change.
+import { SIGNAL_COPY, type FlagSignal, type OpportunityFlag } from './opportunity_flags_meta';
+export { SIGNAL_COPY };
+export type { FlagSignal, OpportunityFlag };
 
 // Highest-priority first. When the same lead matches several signals,
 // the first one in this list wins for the badge/label.
@@ -156,8 +140,4 @@ export async function listOpportunityFlags(): Promise<OpportunityFlag[]> {
   }
 }
 
-export const SIGNAL_COPY: Record<FlagSignal, { label: string; emoji: string; fg: string }> = {
-  newly_hot: { label: 'newly hot', emoji: '🔥', fg: '#FF9AA8' },
-  icp_fit_jump: { label: 'ICP fit', emoji: '🎯', fg: '#fcd34d' },
-  just_enriched_warm: { label: 'just enriched', emoji: '✨', fg: '#a8cbff' }
-};
+// (#305) SIGNAL_COPY moved to ./opportunity_flags_meta.ts (re-exported above).
