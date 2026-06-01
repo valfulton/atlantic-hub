@@ -232,7 +232,15 @@ function ResultModal({
   const failureRows = summary.results.filter(
     (r) => r.outcome === 'no_results' || r.outcome === 'no_domain' || r.outcome === 'api_error'
   );
-  const labelForOutcome = (o: EnrichmentResult['outcome']): string => {
+  const labelForOutcome = (r: EnrichmentResult): string => {
+    const o = r.outcome;
+    // (#308) When the enricher returns a no_results with a duplicate-email
+    // explanation, surface the more specific "already in your pipeline" label
+    // so it reads honestly. Hunter DID find the contact — we just couldn't
+    // save it because dedup caught it.
+    if (o === 'no_results' && r.details?.error && r.details.error.includes("already in your pipeline")) {
+      return 'already in your pipeline';
+    }
     if (o === 'no_domain') return 'no domain on file';
     if (o === 'no_results') return 'no Hunter contacts found';
     if (o === 'api_error') return 'Hunter API error';
@@ -292,7 +300,7 @@ function ResultModal({
                 <li key={r.leadId} className="text-xs bg-bg border border-border rounded-md px-3 py-2">
                   <div className="font-medium text-ink">{r.company}</div>
                   <div className="text-muted">
-                    <span style={{ color: '#FFB89A' }}>{labelForOutcome(r.outcome)}</span>
+                    <span style={{ color: '#FFB89A' }}>{labelForOutcome(r)}</span>
                     {r.details?.domain && <span> · {r.details.domain}</span>}
                     {r.details?.error && (
                       <span> · <span className="text-ink/70">{r.details.error}</span></span>

@@ -37,12 +37,29 @@ export interface SharpenedIcp {
   industries: string[];
   geographies: string[];
   excludedIndustries: string[];
+  // (#308) Also extract geo excludes (model is now told to propose them when
+  // the intake names a tight city/region) + contact-title preferences.
+  excludeGeographies: string[];
+  preferredContactTitles: string[];
+  excludedContactTitles: string[];
   companySizeMin: number | null;
   companySizeMax: number | null;
   reasoning: string;
   tokensUsed: number;
   model: string;
 }
+
+// (#308) Universal defaults — every B2B client benefits from these the moment
+// they're created, before any LLM call runs. Used as a backstop merged into
+// the sharpener output so even an empty-brief client starts with sensible
+// gate-keeper exclusions and decision-maker preferences. The sharpener can
+// ADD to these per industry; we never let it shrink them below this floor.
+export const DEFAULT_PREFERRED_CONTACT_TITLES = [
+  'Owner', 'Founder', 'CEO', 'President', 'Managing Director', 'Director', 'COO', 'VP', 'GM'
+];
+export const DEFAULT_EXCLUDED_CONTACT_TITLES = [
+  'HR', 'Recruiter', 'Recruiting', 'Assistant', 'Intern', 'Receptionist', 'Coordinator', 'Administrative'
+];
 
 export class IcpSharpenerError extends Error {
   constructor(public statusCode: number, message: string) {
@@ -152,6 +169,10 @@ export async function sharpenIcpFromBrief(args: {
     industries?: string[];
     geographies?: string[];
     excluded_industries?: string[];
+    // (#308) New fields the upgraded prompt produces.
+    excluded_geographies?: string[];
+    preferred_contact_titles?: string[];
+    excluded_contact_titles?: string[];
     company_size_min?: number | null;
     company_size_max?: number | null;
     reasoning?: string;
@@ -184,10 +205,26 @@ export async function sharpenIcpFromBrief(args: {
     return r;
   };
 
+  // (#308) Title-list merge: union LLM-proposed titles with the universal
+  // defaults so we always have a floor — but never duplicate-add and prefer
+  // the model's casing when it overlaps.
+  const mergeTitles = (modelArr: unknown, defaults: string[]): string[] => {
+    const modelList = sanitizeStringArray(modelArr);
+    const seenLower = new Set(modelList.map((s) => s.toLowerCase()));
+    const merged = [...modelList];
+    for (const d of defaults) {
+      if (!seenLower.has(d.toLowerCase())) { merged.push(d); seenLower.add(d.toLowerCase()); }
+    }
+    return merged.slice(0, 20);
+  };
+
   const result: SharpenedIcp = {
     industries: sanitizeStringArray(parsed.industries),
     geographies: sanitizeStringArray(parsed.geographies),
     excludedIndustries: sanitizeStringArray(parsed.excluded_industries),
+    excludeGeographies: sanitizeStringArray(parsed.excluded_geographies),
+    preferredContactTitles: mergeTitles(parsed.preferred_contact_titles, DEFAULT_PREFERRED_CONTACT_TITLES),
+    excludedContactTitles: mergeTitles(parsed.excluded_contact_titles, DEFAULT_EXCLUDED_CONTACT_TITLES),
     companySizeMin: clampSize(parsed.company_size_min),
     companySizeMax: clampSize(parsed.company_size_max),
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning.slice(0, 1000) : '',

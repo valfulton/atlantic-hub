@@ -454,10 +454,49 @@ async function enrichOne(
 
   const db = getAvDb();
   params.push(lead.id);
-  await db.execute<ResultSetHeader>(
-    `UPDATE leads SET ${updates.join(', ')} WHERE id = ?`,
-    params
-  );
+  try {
+    await db.execute<ResultSetHeader>(
+      `UPDATE leads SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+  } catch (dbErr) {
+    // (#308) Hunter handed us a real email but another lead row already owns
+    // that exact address (UNIQUE constraint on leads.email). Was being
+    // reported as "Hunter API error: Duplicate entry..." — that misattributes
+    // the failure to Hunter when it's actually our dedup constraint doing its
+    // job. Surface it as the honest reason so val doesn't lose a Hunter credit
+    // in the mental model.
+    const code = (dbErr as { code?: string }).code;
+    if (code === 'ER_DUP_ENTRY') {
+      const dupEmail = newEmail || '(unknown email)';
+      await markLeadStatus(lead.id, 'failed_no_results');
+      await logEvent({
+        eventType: 'lead.enrichment_failed',
+        leadId: lead.id,
+        source: 'hunter',
+        status: 'partial',
+        payload: {
+          company: lead.company,
+          domain,
+          reason: 'duplicate_email_in_pipeline',
+          dup_email: dupEmail,
+          trigger_source: triggerSource
+        },
+        executionTimeMs: Date.now() - startMs
+      });
+      return {
+        leadId: lead.id,
+        company: lead.company,
+        outcome: 'no_results',
+        details: {
+          domain,
+          error: `Hunter found ${dupEmail} but it's already in your pipeline on another lead — dedup blocked the save. Open the other row instead.`
+        }
+      };
+    }
+    // Anything else: re-throw so the outer error path catches it.
+    throw dbErr;
+  }
 
   await logCreditUsage({
     endpoint: 'domain-search',
