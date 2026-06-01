@@ -42,18 +42,30 @@ export default async function EmployeesPage() {
         {employees.length === 0 ? (
           <p className="text-sm text-muted">No employees yet. Add one above. (If you just deployed, run migration 052 first.)</p>
         ) : (
+          {/* (#302) Whole-row link so val doesn't have to find the underlined
+              name. Includes a visible → arrow on hover so it reads as "click
+              to open." val hit this on Rebecca: the row looked like a static
+              info card, the resend button lives on the detail page. */}
           <ul className="divide-y divide-border">
             {employees.map((e) => (
-              <li key={e.user_id} className="py-2 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <Link href={`/admin/av/employees/${e.user_id}`} className="text-sm text-ink hover:text-brand hover:underline">
-                    {e.display_name || e.email}
-                  </Link>
-                  <div className="text-[11px] text-muted">
-                    {e.email}{e.title ? ` · ${e.title}` : ''}
+              <li key={e.user_id}>
+                <Link
+                  href={`/admin/av/employees/${e.user_id}`}
+                  className="group py-2.5 px-2 -mx-2 rounded-lg flex items-center justify-between gap-3 hover:bg-amber-400/[0.05] transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-ink group-hover:text-amber-200 transition-colors flex items-center gap-1.5">
+                      {e.display_name || e.email}
+                      <span aria-hidden="true" className="text-muted/60 group-hover:text-amber-300 transition-colors">
+                        →
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted">
+                      {e.email}{e.title ? ` · ${e.title}` : ''}
+                    </div>
                   </div>
-                </div>
-                <span className="text-[11px] text-muted shrink-0">{STATUS_LABEL[e.status ?? 'invited'] ?? e.status}</span>
+                  <span className="text-[11px] text-muted shrink-0">{STATUS_LABEL[e.status ?? 'invited'] ?? e.status}</span>
+                </Link>
               </li>
             ))}
           </ul>
