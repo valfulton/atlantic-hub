@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getClientAccountDetail } from '@/lib/av/clients_overview';
+import { getClientAccountDetail, listClientAccounts } from '@/lib/av/clients_overview';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
@@ -66,6 +66,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
   const d = await getClientAccountDetail(clientId);
   if (!d) notFound();
+  // (#306) Other-clients list for the bulk-move-to destination picker.
+  // Excludes the current client in the JSX. Best-effort: empty list is fine.
+  const clientAccounts = await listClientAccounts().catch(() => []);
 
   const access = await getClientAccessState(clientId);
   const { icp, provenance: icpProvenance } = await getClientIcpWithProvenance(clientId);
@@ -468,11 +471,13 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           phpMyAdmin SQL pattern). Audits + call scripts + outreach drafts. */}
       <RefreshIntelPanel clientId={clientId} clientName={d.name} />
 
-      {/* Their pipeline — with per-row Delete to clear strays. */}
+      {/* (#306) Their pipeline — with bulk-select + bulk-delete + bulk-move-
+          to-another-client. Address inline so val can triage by geography. */}
       <div className="rounded-2xl border border-border bg-surface p-4">
         <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-3">Their pipeline</div>
         <ClientPipelineList
           clientId={clientId}
+          clientName={d.name}
           leads={d.leads.slice(0, 30).map((l) => ({
             id: l.id,
             auditId: l.auditId,
@@ -480,8 +485,13 @@ export default async function ClientDetailPage({ params }: { params: { client_id
             industry: l.industry,
             contactName: l.contactName,
             score: l.score,
-            band: l.band
+            band: l.band,
+            addressCity: l.addressCity,
+            addressState: l.addressState
           }))}
+          otherClients={clientAccounts
+            .filter((c) => c.clientId !== clientId)
+            .map((c) => ({ clientId: c.clientId, name: c.name }))}
         />
       </div>
     </div>
