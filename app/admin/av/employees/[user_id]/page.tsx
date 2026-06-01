@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { getEmployee, getEmployeeApplication, listEmployeeDocuments } from '@/lib/employees/store';
 import EmployeeApplicationForm from '../EmployeeApplicationForm';
 import EmployeeDocsPanel from '../EmployeeDocsPanel';
+import ResendInviteButton from './ResendInviteButton';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -58,12 +59,19 @@ export default async function EmployeeDetailPage({ params }: { params: { user_id
         ))}
       </div>
 
-      {emp.status === 'invited' && (
+      {/* (#301) Onboarding card — shown for any pre-active state so val can
+          resend the invite if Rebecca / Koby / etc never received the original
+          link, or if the 14-day token expired. The card stays visible until
+          the employee has set their password (status flips to 'active'). */}
+      {emp.status !== 'active' && (
         <div className="rounded-2xl border border-border bg-surface p-4 mt-5">
           <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-2">Onboarding</div>
-          <p className="text-sm text-muted leading-relaxed">
-            Invited but hasn’t set their password yet. You can still fill their application below; contract signing + document uploads attach next.
+          <p className="text-sm text-muted leading-relaxed mb-3">
+            {emp.status === 'invited'
+              ? 'Invited but hasn’t set their password yet. If they never received the original link or it’s expired, resend below.'
+              : `Status: ${emp.status ?? 'unknown'}. They still need to set a password before they can log in. Resend the invite link below.`}
           </p>
+          <ResendInviteButton userId={emp.user_id} />
         </div>
       )}
 
