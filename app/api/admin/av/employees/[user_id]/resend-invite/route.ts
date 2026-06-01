@@ -16,7 +16,7 @@
  * admin_users so the operator never re-types them.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { guardAdminRequest } from '@/lib/auth/guard';
+import { guardAdminRequest } from '@/lib/api-guard';
 import { getPlatformDb } from '@/lib/db/platform';
 import { createEmployee, getEmployee } from '@/lib/employees/store';
 import type { RowDataPacket } from 'mysql2';

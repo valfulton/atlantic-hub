@@ -39,13 +39,13 @@ export default async function EmployeesPage() {
 
       <div className="rounded-2xl border border-border bg-surface p-4">
         <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-3">Team</div>
+        {/* (#302) Whole-row link so val doesn't have to find the underlined
+            name. Includes a visible → arrow on hover so it reads as "click
+            to open." val hit this on Rebecca: the row looked like a static
+            info card, the resend button lives on the detail page. */}
         {employees.length === 0 ? (
           <p className="text-sm text-muted">No employees yet. Add one above. (If you just deployed, run migration 052 first.)</p>
         ) : (
-          {/* (#302) Whole-row link so val doesn't have to find the underlined
-              name. Includes a visible → arrow on hover so it reads as "click
-              to open." val hit this on Rebecca: the row looked like a static
-              info card, the resend button lives on the detail page. */}
           <ul className="divide-y divide-border">
             {employees.map((e) => (
               <li key={e.user_id}>
