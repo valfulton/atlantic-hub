@@ -45,6 +45,12 @@ const SECTIONS: InvestorSection[] = [
     title: 'The platform',
     items: [
       {
+        href: '/admin/av/intelligence?presentation=1',
+        label: 'The intelligence chain',
+        hint: 'Intelligence created → activated → revenue influenced. The 60-second story.',
+        icon: '🔗'
+      },
+      {
         href: '/admin/av/clients',
         label: 'Live client roster',
         hint: 'Every active brand, tier, and pipeline pulse — one screen.',

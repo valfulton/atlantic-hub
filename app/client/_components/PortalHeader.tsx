@@ -6,7 +6,7 @@ interface PortalHeaderProps {
   displayName: string | null;
   email: string;
   tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
-  active: 'dashboard' | 'audit' | 'leads' | 'details' | 'pr' | 'review';
+  active: 'dashboard' | 'audit' | 'leads' | 'details' | 'pr' | 'review' | 'intelligence';
 }
 
 const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
@@ -117,6 +117,21 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
               }`}
             >
               To Review
+            </a>
+          )}
+          {/* (#321) Impact — the live Created → Activated → Revenue view.
+              Sprint+ only (audit_only hubs don't produce activity yet). */}
+          {tier !== 'audit_only' && (
+            <a
+              href="/client/intelligence"
+              aria-current={active === 'intelligence' ? 'page' : undefined}
+              className={`px-3 py-1.5 rounded-md text-sm ${
+                active === 'intelligence'
+                  ? 'bg-surface-2 text-ink'
+                  : 'text-muted hover:text-ink hover:bg-surface-2'
+              }`}
+            >
+              Your Impact
             </a>
           )}
           <a

@@ -236,6 +236,14 @@ export default async function AvPage({
           >
             Intel freshness →
           </Link>
+          {/* (#321) The Created → Activated → Revenue chain — the business
+              intelligence layer + investor pitch artifact. */}
+          <Link
+            href="/admin/av/intelligence"
+            className="text-[12px] text-white/50 hover:text-amber-300 transition"
+          >
+            Intelligence chain →
+          </Link>
         </div>
       </div>
       <p className="text-sm text-muted mb-6">Lead pipeline · read-only in v1</p>
