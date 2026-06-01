@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getPublishedArticle } from '@/lib/newsroom/published';
+import NewsroomProvenanceFooter from './NewsroomProvenanceFooter';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -185,6 +186,15 @@ export default async function NewsroomArticlePage({ params }: { params: { slug: 
             ))}
           </div>
         )}
+
+        {/* (#331) Editorial provenance colophon — placed inside the article so
+            screen readers + crawlers attribute it to the piece. Stub hash today;
+            #329 swaps in the signed C2PA manifest hash. */}
+        <NewsroomProvenanceFooter
+          articleId={article.id}
+          bodyText={article.bodyText}
+          publishedAt={article.publishedAt}
+        />
       </article>
 
       <div className="mt-12 rounded-2xl border border-border bg-surface p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
