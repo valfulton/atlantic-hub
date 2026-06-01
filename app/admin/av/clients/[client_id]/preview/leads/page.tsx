@@ -232,7 +232,13 @@ export default async function ClientLeadsPreview({ params }: { params: { client_
 
                 <div className="mt-3 pt-3 border-t border-border text-xs text-muted flex flex-wrap gap-x-4 gap-y-1">
                   {l.contactName && (
-                    <span><span className="text-muted/70">Contact:</span> <span className="text-ink">{l.contactName}</span></span>
+                    <span>
+                      <span className="text-muted/70">Contact:</span>{' '}
+                      <span className="text-ink">{l.contactName}</span>
+                      {l.contactTitle && (
+                        <span className="text-muted"> · {l.contactTitle}</span>
+                      )}
+                    </span>
                   )}
                   {l.email && (
                     <span><span className="text-muted/70">Email:</span> <span className="text-ink">{l.email}</span></span>

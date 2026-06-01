@@ -484,6 +484,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
             company: l.company,
             industry: l.industry,
             contactName: l.contactName,
+            contactTitle: l.contactTitle,
             score: l.score,
             band: l.band,
             addressCity: l.addressCity,

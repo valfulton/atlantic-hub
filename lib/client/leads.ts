@@ -37,6 +37,10 @@ export interface ClientLead {
   company: string;
   industry: string | null;
   contactName: string | null;
+  /** (#315) Title of the POC if Hunter / Apollo returned one. Renders next to
+   *  the name on cards so val/Tim can see "Sales Director" vs "Founder" at a
+   *  glance without opening the lead. */
+  contactTitle: string | null;
   email: string | null;
   phone: string | null;
   website: string | null;
@@ -82,6 +86,7 @@ interface LeadRow extends RowDataPacket {
   company: string | null;
   industry: string | null;
   contact_name: string | null;
+  contact_title: string | null;
   email: string | null;
   phone: string | null;
   website: string | null;
@@ -201,7 +206,7 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
   } catch { /* non-fatal: staleness silently false everywhere */ }
 
   const [rows] = await db.execute<LeadRow[]>(
-    `SELECT id, audit_id, company, industry, contact_name, email, phone, website,
+    `SELECT id, audit_id, company, industry, contact_name, contact_title, email, phone, website,
             website_status,
             address_street, address_city, address_state, address_postal, address_country,
             lead_status, ai_score, ai_combined_score, ai_score_band,
@@ -238,6 +243,7 @@ export async function listClientLeads(user: { client_id: number | null }): Promi
     company: r.company || 'Untitled lead',
     industry: r.industry,
     contactName: r.contact_name && !r.contact_name.trim().startsWith('(') ? r.contact_name : null,
+    contactTitle: r.contact_title && r.contact_title.trim() ? r.contact_title.trim() : null,
     email: realEmail(r.email),
     phone: r.phone && r.phone.trim() ? r.phone : null,
     website: r.website && r.website.trim() ? r.website : null,

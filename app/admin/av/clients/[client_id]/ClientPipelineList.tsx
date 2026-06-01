@@ -20,6 +20,9 @@ export interface PipelineLead {
   company: string;
   industry: string | null;
   contactName: string | null;
+  // (#315) POC title (e.g. "Sales Director", "Founder") rendered next to the
+  // name so val can see WHO Hunter / Apollo landed on without opening the lead.
+  contactTitle: string | null;
   score: number | null;
   band: string | null;
   // (#306) Address — pushed through from getClientAccountDetail.
@@ -302,7 +305,9 @@ export default function ClientPipelineList({
                   <div className="text-sm text-ink truncate">{l.company}</div>
                 )}
                 <div className="text-[11px] text-muted truncate">
-                  {l.industry || '—'}{l.contactName ? ` · ${l.contactName}` : ''}
+                  {l.industry || '—'}
+                  {l.contactName ? ` · ${l.contactName}` : ''}
+                  {l.contactTitle ? ` · ${l.contactTitle}` : ''}
                 </div>
                 {addr && (
                   <div className="text-[11px] text-muted/80 truncate" title={`Address: ${addr}`}>
