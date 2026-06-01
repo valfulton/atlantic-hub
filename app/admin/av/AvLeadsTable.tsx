@@ -53,6 +53,9 @@ export interface AvLead {
   clientId: number | null;
   enrichmentStatus: string | null;
   enrichedAt: string | null;
+  // (#300) Address columns for the new Geography sortable column.
+  addressCity?: string | null;
+  addressState?: string | null;
   hasRealEmail: boolean;
   hasPhone: boolean;
   hasWebsite: boolean;
@@ -520,6 +523,24 @@ export function AvLeadsTable({
         </span>
       ),
       render: (r) => <CompletenessBadge lead={r} />
+    },
+    {
+      // (#300) Geography column — state-first label so val can scan timezones
+      // at a glance. Click the header to sort by state then city. NULLs sort
+      // last in either direction.
+      key: 'geo',
+      header: <SortableHeader label="Geo" sortKey="geography" currentSort={sortKey} currentDirection={sortDirection} />,
+      render: (r) => {
+        const state = r.addressState && r.addressState.trim() ? r.addressState.trim() : null;
+        const city = r.addressCity && r.addressCity.trim() ? r.addressCity.trim() : null;
+        if (!state && !city) return <span className="text-muted text-xs">—</span>;
+        return (
+          <div className="text-xs leading-tight">
+            <div className="text-ink">{state ?? city}</div>
+            {state && city && <div className="text-muted/80">{city}</div>}
+          </div>
+        );
+      }
     },
     {
       key: 'date',

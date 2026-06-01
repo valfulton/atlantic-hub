@@ -13,6 +13,9 @@ import { useState, useEffect, useCallback } from 'react';
 import type { ClientLeadDetail } from '@/lib/client/lead_detail';
 import { ProspectIntelPanel } from '@/app/_components/ProspectIntelPanel';
 import { ClientLeadNarrativeLinesPanel } from '@/app/_components/ClientLeadNarrativeLinesPanel';
+// (#300) Reject control on the detail page — was list-only before. Tim asked
+// for it after walking the detail tab.
+import ClientLeadReject from '@/app/client/_components/ClientLeadReject';
 
 const TABS = ['Audit', 'Calls', 'Notes', 'AI Scoring', 'Outreach', 'Identity', 'Commercials'] as const;
 type Tab = (typeof TABS)[number];
@@ -49,10 +52,12 @@ function outcomeLabel(v: string): string {
   return CALL_OUTCOMES.find((o) => o.value === v)?.label ?? v;
 }
 
-const BAND_TONE: Record<'hot' | 'warm' | 'cool', { bg: string; fg: string; label: string }> = {
+// (#300) Same Mixed-signal demotion as the list view — see /client/leads/page.tsx.
+const BAND_TONE: Record<'hot' | 'warm' | 'cool' | 'mixed', { bg: string; fg: string; label: string }> = {
   hot: { bg: 'rgba(255,90,110,0.16)', fg: '#FF9AA8', label: 'Hot' },
   warm: { bg: 'rgba(245,158,11,0.16)', fg: '#fcd34d', label: 'Warm' },
-  cool: { bg: 'rgba(91,168,255,0.16)', fg: '#a8cbff', label: 'Cool' }
+  cool: { bg: 'rgba(91,168,255,0.16)', fg: '#a8cbff', label: 'Cool' },
+  mixed: { bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1', label: 'Mixed signal' }
 };
 
 function fmtDate(iso: string | null): string | null {
@@ -102,7 +107,16 @@ function Bar({ label, value }: { label: string; value: number | null }) {
 
 export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail }) {
   const [active, setActive] = useState<Tab>('Audit');
-  const tone = lead.band ? BAND_TONE[lead.band] : null;
+  // (#300) Mixed-signal reconciliation — when AV signal high but ICP fit poor,
+  // demote the band display so the pill doesn't lie. Identical logic + threshold
+  // to the list view so both surfaces tell the same story.
+  const displayBand: 'hot' | 'warm' | 'cool' | 'mixed' | null = (() => {
+    if (!lead.band) return null;
+    const icp = lead.icpFitScore ?? null;
+    if ((lead.band === 'hot' || lead.band === 'warm') && icp != null && icp < 40) return 'mixed';
+    return lead.band;
+  })();
+  const tone = displayBand ? BAND_TONE[displayBand] : null;
 
   // Call logging
   const [calls, setCalls] = useState<CallEntry[]>([]);
@@ -228,8 +242,9 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
         </div>
       </div>
 
-      {/* Front-and-center: log a call without hunting for it */}
-      <div className="mt-4">
+      {/* Front-and-center: log a call without hunting for it. Reject sits
+          beside it so a "this isn't a fit" call doesn't require backing out. */}
+      <div className="mt-4 flex items-center gap-3 flex-wrap">
         <button
           onClick={() => setActive('Calls')}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
@@ -237,6 +252,10 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
         >
           &#x1F4DE; Log a call
         </button>
+        {/* (#300) Reject control on detail page (was list-only). Lifted styling
+            from ClientLeadReject's chip variant so it sits visually next to
+            "Log a call" as an equal-weight action without competing for focus. */}
+        <ClientLeadReject leadId={lead.id} />
       </div>
 
       {/* (#46 Inc 5) Read-only mirror of the operator's narrative-lines

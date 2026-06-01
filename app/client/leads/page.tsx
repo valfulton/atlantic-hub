@@ -32,14 +32,35 @@ import AuditStalePill from '@/app/_components/AuditStalePill';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const BAND_TONE: Record<'hot' | 'warm' | 'cool', { bg: string; fg: string; label: string }> = {
+// (#300) Added 'mixed' tone for the HOT-but-POOR-FIT case. When the platform
+// AV signal says hot but the client's ICP fit is poor, neither label alone
+// tells the truth — 'HOT' next to 'POOR FIT' read as contradictory in val's
+// walkthrough of Tim's view. 'Mixed signal' grey-blue defuses the visual
+// conflict without hiding the underlying data (both still render).
+const BAND_TONE: Record<'hot' | 'warm' | 'cool' | 'mixed', { bg: string; fg: string; label: string }> = {
   hot: { bg: 'rgba(255,90,110,0.16)', fg: '#FF9AA8', label: 'Hot' },
   warm: { bg: 'rgba(245,158,11,0.16)', fg: '#fcd34d', label: 'Warm' },
-  cool: { bg: 'rgba(91,168,255,0.16)', fg: '#a8cbff', label: 'Cool' }
+  cool: { bg: 'rgba(91,168,255,0.16)', fg: '#a8cbff', label: 'Cool' },
+  mixed: { bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1', label: 'Mixed signal' }
 };
 
+// When AV says hot/warm but the client's ICP fit is poor (<40), the visible
+// band lies. Demote it to 'mixed' so the operator/client sees a neutral
+// signal that prompts them to read the ICP-fit pill underneath.
+function effectiveBand(
+  band: 'hot' | 'warm' | 'cool' | null,
+  icpFitScore: number | null
+): 'hot' | 'warm' | 'cool' | 'mixed' | null {
+  if (!band) return null;
+  if ((band === 'hot' || band === 'warm') && icpFitScore != null && icpFitScore < 40) {
+    return 'mixed';
+  }
+  return band;
+}
+
 function ScorePill({ lead }: { lead: ClientLead }) {
-  const tone = lead.band ? BAND_TONE[lead.band] : null;
+  const displayBand = effectiveBand(lead.band, lead.icpFitScore);
+  const tone = displayBand ? BAND_TONE[displayBand] : null;
   return (
     <div className="flex items-center gap-2 shrink-0">
       {lead.score !== null && (
@@ -49,6 +70,11 @@ function ScorePill({ lead }: { lead: ClientLead }) {
         <span
           className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.14em] font-medium"
           style={{ background: tone.bg, color: tone.fg }}
+          title={
+            displayBand === 'mixed'
+              ? 'AV signal is high but the lead doesn\'t match your ICP. See the fit reasoning below.'
+              : undefined
+          }
         >
           {tone.label}
         </span>

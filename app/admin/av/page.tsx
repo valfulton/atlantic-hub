@@ -40,7 +40,9 @@ const ENRICHMENT_FILTERS = [
   'neither',
   'both'
 ] as const;
-const SORT_KEYS = ['company', 'contact', 'email', 'industry', 'status', 'score', 'band', 'submitted', 'enriched'] as const;
+// (#300) Added 'geography' so val can batch leads by state/city — useful for
+// timezone-aware outreach + spotting ICP-geo mismatches at a glance.
+const SORT_KEYS = ['company', 'contact', 'email', 'industry', 'status', 'score', 'band', 'submitted', 'enriched', 'geography'] as const;
 
 const DATA_FILTERS = ['has_real_email', 'has_phone', 'has_website', 'has_contact_name'] as const;
 type DataFilter = (typeof DATA_FILTERS)[number];

@@ -120,6 +120,10 @@ export interface ClientLeadDetail {
   /** Visible Living Score: combined when present, else fit-only. */
   score: number | null;
   band: LeadBand;
+  /** (#300) Per-client ICP-fit score — same field the list view uses for the
+   *  IcpFitPill. Added on the detail type so the band-pill can demote to
+   *  'Mixed signal' when AV signal high but ICP fit poor. NULL if not scored. */
+  icpFitScore: number | null;
   /** The engagement half of the Living Score (how the lead is warming). */
   engagementScore: number | null;
   /** Sub-scores for the breakdown chart. No model/version is ever included. */
@@ -167,6 +171,8 @@ interface DetailRow extends RowDataPacket {
   ai_score_band: LeadBand;
   ai_score_reason: string | null;
   ai_score_breakdown: string | object | null;
+  // (#300) For the band-pill demotion logic in ClientLeadDetailTabs.
+  client_icp_fit_score: number | null;
   audit_content: string | null;
   audit_generated: string | Date | null;
   pain_point_profile: string | object | null;
@@ -380,6 +386,7 @@ export async function getClientLeadDetail(
             address_street, address_city, address_state, address_postal, address_country,
             lead_status, ai_score, ai_combined_score, ai_engagement_score, ai_score_band,
             ai_score_reason, ai_score_breakdown, audit_content, audit_generated,
+            client_icp_fit_score,
             pain_point_profile, submission_date, source_payload
        FROM leads
       WHERE archived_at IS NULL
@@ -465,6 +472,7 @@ export async function getClientLeadDetail(
           ? Number(r.ai_score)
           : null,
     band: r.ai_score_band,
+    icpFitScore: r.client_icp_fit_score == null ? null : Number(r.client_icp_fit_score),
     engagementScore: r.ai_engagement_score == null ? null : Number(r.ai_engagement_score),
     breakdown: breakdownOf(r.ai_score_breakdown),
     scoreReason: r.ai_score_reason && r.ai_score_reason.trim() ? r.ai_score_reason.trim() : null,

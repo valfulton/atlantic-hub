@@ -105,7 +105,12 @@ const SORT_COLUMN: Record<string, string> = {
   engagement: 'ai_engagement_score',
   band: 'ai_score_band',
   submitted: 'submission_date',
-  enriched: 'enriched_at'
+  enriched: 'enriched_at',
+  // (#300) Special-case in the ORDER BY builder below — sorts by state then
+  // city. State-first groups all California leads together, then sorts by city
+  // within state. Useful for timezone-batched outreach + spotting ICP-geo
+  // mismatches when a client has a tight geo focus (Tim's OPHORA = LA only).
+  geography: 'address_state'
 };
 
 export async function GET(req: NextRequest) {
@@ -225,7 +230,11 @@ export async function GET(req: NextRequest) {
 
     // NULLs sort last in either direction (handle gracefully for ai_score etc.)
     const nullsHandling = direction === 'ASC' ? 'IS NULL ASC' : 'IS NULL ASC';
-    const orderBy = `${sortColumn} ${nullsHandling}, ${sortColumn} ${direction}, id DESC`;
+    // (#300) Geography is a multi-column sort (state, then city); special-case
+    // the ORDER BY so both columns get the same direction + NULLs-last treatment.
+    const orderBy = sortRaw === 'geography'
+      ? `address_state IS NULL ASC, address_state ${direction}, address_city ${direction}, company ASC, id DESC`
+      : `${sortColumn} ${nullsHandling}, ${sortColumn} ${direction}, id DESC`;
 
     const [rows] = await db.execute<LeadRow[]>(
       `SELECT id, audit_id, company, contact_name, contact_title, email, phone, website, industry,
@@ -234,7 +243,8 @@ export async function GET(req: NextRequest) {
               pain_point_profile, pain_extracted_at,
               assigned_to_user_id, handed_to_owner_at, wake_at_date, parked_reason,
               submission_date, source_type, target_business,
-              client_id, enrichment_status, enriched_at
+              client_id, enrichment_status, enriched_at,
+              address_city, address_state
        FROM leads
        WHERE ${conditions.join(' AND ')}
        ORDER BY ${orderBy}
@@ -300,6 +310,9 @@ export async function GET(req: NextRequest) {
         clientId: r.client_id,
         enrichmentStatus: r.enrichment_status,
         enrichedAt: r.enriched_at,
+        // (#300) Address for the new Geography column. Null-safe.
+        addressCity: r.address_city,
+        addressState: r.address_state,
         hasRealEmail,
         hasPhone,
         hasWebsite,
