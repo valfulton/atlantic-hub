@@ -382,22 +382,40 @@ async function enrichOne(
     }
   }
 
-  // (#291) Apply per-client ICP title preferences (preferred/excluded) when
-  // the lead has a client_id. Hunter often returns 5-10 contacts at a domain;
-  // without this we'd happily pick HR or a generic recruiter even though val
-  // has flagged "no gate-keepers" in the ICP. Best-effort only — if the ICP
-  // load fails for any reason we still fall back to the built-in scoring.
-  let titlePrefs: { preferredContactTitles: string[]; excludedContactTitles: string[] } | undefined;
+  // (#291) Apply per-client ICP title preferences when the lead has a
+  // client_id. Hunter often returns 5-10 contacts at a domain; without this
+  // we'd happily pick HR or a generic recruiter even though val has flagged
+  // "no gate-keepers" in the ICP. Best-effort only — if the ICP load fails
+  // for any reason we still fall back to the built-in scoring.
+  //
+  // (#309) For OPERATOR-OWNED leads (client_id IS NULL) we used to fall back
+  // to ONLY the built-in TITLE_PRIORITY array, which catches "director" as a
+  // valid decision-maker. That's how Hunter "picked" a Senior Director of
+  // Franchise Relations over a Founder/CEO on val's own AV pipeline leads.
+  // The fix: when there's no client, apply the universal DEFAULT title
+  // preferences (Owner/Founder/CEO preferred, HR/Recruiter/Assistant
+  // excluded) so val's executive-first preference holds across her own
+  // pipeline too.
+  const { DEFAULT_PREFERRED_CONTACT_TITLES, DEFAULT_EXCLUDED_CONTACT_TITLES } = await import('@/lib/client/icp_sharpener');
+  let titlePrefs: { preferredContactTitles: string[]; excludedContactTitles: string[] } | undefined = {
+    preferredContactTitles: DEFAULT_PREFERRED_CONTACT_TITLES,
+    excludedContactTitles: DEFAULT_EXCLUDED_CONTACT_TITLES
+  };
   if (lead.client_id) {
     try {
       const { getClientIcp } = await import('@/lib/client/icp');
       const icp = await getClientIcp(lead.client_id);
+      // Client ICP wins over universal defaults — operator already curated
+      // titles per client. But if client ICP titles are EMPTY, keep the
+      // universal floor so we still avoid HR / Recruiter on day-one clients.
+      const clientPreferred = icp.preferredContactTitles || [];
+      const clientExcluded = icp.excludedContactTitles || [];
       titlePrefs = {
-        preferredContactTitles: icp.preferredContactTitles || [],
-        excludedContactTitles: icp.excludedContactTitles || []
+        preferredContactTitles: clientPreferred.length > 0 ? clientPreferred : DEFAULT_PREFERRED_CONTACT_TITLES,
+        excludedContactTitles: clientExcluded.length > 0 ? clientExcluded : DEFAULT_EXCLUDED_CONTACT_TITLES
       };
     } catch {
-      // ignore — pickBestContact will fall back to the built-in priority
+      // ignore — universal defaults stay in place
     }
   }
   const best = pickBestContact(domainResult.emails, titlePrefs);
