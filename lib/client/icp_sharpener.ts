@@ -58,7 +58,16 @@ export const DEFAULT_PREFERRED_CONTACT_TITLES = [
   'Owner', 'Founder', 'CEO', 'President', 'Managing Director', 'Director', 'COO', 'VP', 'GM'
 ];
 export const DEFAULT_EXCLUDED_CONTACT_TITLES = [
-  'HR', 'Recruiter', 'Recruiting', 'Assistant', 'Intern', 'Receptionist', 'Coordinator', 'Administrative'
+  'HR', 'Recruiter', 'Recruiting', 'Recruitment Coordinator',
+  'Assistant', 'Intern', 'Receptionist', 'Coordinator', 'Administrative',
+  // (#313) Added 2026-06-01 after Hunter kept burning credits on non-buyers.
+  // 'Sales' is intentionally broad — val's ICP is owner/founder/CEO, not the
+  // sales org. If a future client genuinely wants Sales-org POCs, override
+  // by editing that client's ICP directly. Customer Experience / Service /
+  // Success surfaced as the Cal-a-Vie burn — "Director of Customer
+  // Experience" matched the preferred 'Director' with nothing to counter-flag.
+  'Sales',
+  'Customer Experience', 'Customer Service', 'Customer Success'
 ];
 
 export class IcpSharpenerError extends Error {
