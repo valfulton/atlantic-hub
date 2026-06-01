@@ -200,7 +200,7 @@ export default async function ClientLeadsPreview({ params }: { params: { client_
                     {l.icpFitScore != null && (
                       <IcpFitPill score={l.icpFitScore} reasoning={l.icpFitReasoning} />
                     )}
-                    <AuditStalePill stale={l.auditStale} actionable />
+                    <AuditStalePill stale={l.auditStale} actionable auditId={l.auditId} />
                     {l.icpFitReasoning && (
                       <span className="text-[11px] text-muted/85 italic">{l.icpFitReasoning}</span>
                     )}
