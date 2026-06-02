@@ -163,16 +163,21 @@ function LoginForm() {
         <footer className="ig-foot">© Atlantic &amp; Vine · By appointment</footer>
 
         <style jsx>{`
+          /* (#341) Local var aliases map to BRAND_TOKENS so this page flips
+             palette automatically when the parent /client/layout.tsx applies
+             data-skin="royale". On Velvet Royale: cream→obsidian, charcoal→
+             paper-text, emerald→Aurum gold. On a future cream variant:
+             swap data-skin off, BRAND_TOKENS reverts, this file unchanged. */
           .ig-page {
-            --emerald-deep: #0A4D3C;
-            --emerald: #1A6B52;
-            --black: #0A0A0A;
-            --charcoal: #1A1A1A;
-            --gray-warm: #4A4A4A;
-            --gray-soft: #8A8A8A;
-            --cream: #FAF8F4;
-            --paper: #FFFFFF;
-            --gold-accent: #C9A961;
+            --emerald-deep: var(--brand);
+            --emerald: var(--brand-hover);
+            --black: var(--ink);
+            --charcoal: var(--ink);
+            --gray-warm: var(--muted);
+            --gray-soft: var(--muted);
+            --cream: var(--bg);
+            --paper: var(--surface);
+            --gold-accent: var(--brand);
 
             min-height: 100vh;
             display: grid;

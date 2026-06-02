@@ -32,13 +32,16 @@ async function loadSwitcher(): Promise<{ brands: { clientId: number; clientName:
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const { brands, activeClientId } = await loadSwitcher();
   return (
-    <div data-tenant="av" className="min-h-screen">
+    /* (#341, val 2026-06-02) data-skin="royale" applies the Velvet Royale
+       palette (obsidian + Aurum gold + platinum + ice-cyan live, per
+       app/_styles/brand-tokens.css) to every page under /client/*. Reverses
+       the earlier "Royale never on client" rule. One attribute = every
+       client page picks up the register. To swap palettes site-wide,
+       change this attribute OR edit the [data-skin="royale"] block in
+       brand-tokens.css. */
+    <div data-tenant="av" data-skin="royale" className="min-h-screen">
       <BrandSwitcher brands={brands} activeClientId={activeClientId} />
       <ClientIntelTicker />
-      {/* (#273) Wrap children in <main> so the global page-width containment
-          rules in globals.css apply here too. Previously client pages had no
-          <main> wrapper, so wide rows could push the page past the viewport
-          and force horizontal scroll on phones / zoomed-in vision. */}
       <main className="min-w-0" style={{ maxWidth: '100%' }}>
         {children}
       </main>
