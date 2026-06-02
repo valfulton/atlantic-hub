@@ -1,3 +1,7 @@
+// CRON-ONLY — invoked by Netlify/worker schedule (some also via a manual "run now" button).
+// Zero/limited in-app fetch call sites is BY DESIGN. Do NOT delete in a dead-code sweep.
+// See Atlantic_Hub_Playbook/Hidden_Pages_Audit.md (PR A).
+
 /**
  * POST /api/admin/av/enrich
  *

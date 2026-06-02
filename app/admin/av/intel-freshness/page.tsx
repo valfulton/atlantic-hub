@@ -1,3 +1,7 @@
+// OPERATOR-ONLY — reachable only via operator/investor surfaces, never public/client nav (by design).
+// Absence from nav is intentional, not abandonment. Do NOT delete in a dead-code sweep.
+// See Atlantic_Hub_Playbook/Hidden_Pages_Audit.md (PR A).
+
 /**
  * /admin/av/intel-freshness  (#204)
  *
