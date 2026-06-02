@@ -219,10 +219,24 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
   const briefCounts = countFilledBriefFields(briefPayload);
 
   // ----- Brand kit: check brand_colors in brief -----
-  const brandColors = briefPayload?.brandColors ?? briefPayload?.brand_colors;
-  const brandColorCount = Array.isArray(brandColors) ? brandColors.length : 0;
+  // The apply endpoint (app/api/admin/av/clients/[id]/extract-brand-kit/route.ts)
+  // stores colors as a COMMA-SEPARATED HEX STRING ("#ff0000,#00ff00,..."), NOT an
+  // array. So we accept both shapes here. Logo or aesthetic also count as
+  // "kit done" so a brand with a logo but no extracted palette still lights up.
+  const brandColorsRaw = briefPayload?.brandColors ?? briefPayload?.brand_colors;
+  let brandColorCount = 0;
+  if (Array.isArray(brandColorsRaw)) {
+    brandColorCount = brandColorsRaw.length;
+  } else if (typeof brandColorsRaw === 'string' && brandColorsRaw.trim()) {
+    brandColorCount = brandColorsRaw.split(/[,\s]+/).filter((s) => s.trim().length > 0).length;
+  }
   const brandTypo = briefPayload?.brandTypography ?? briefPayload?.brand_typography;
-  const brandHasKit = brandColorCount > 0;
+  const hasLogo = Boolean(
+    briefPayload?.logo_url || briefPayload?.logoUrl ||
+    briefPayload?.has_logo === 'yes' || briefPayload?.hasLogo === 'yes' ||
+    briefPayload?.brand_aesthetic || briefPayload?.brandAesthetic
+  );
+  const brandHasKit = brandColorCount > 0 || hasLogo;
 
   // ----- ICP -----
   let icpIndustryCount = 0;
@@ -356,7 +370,11 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       ? {
           hasRun: true,
           lastAt: briefRow?.updated_at ?? null,
-          detail: `${brandColorCount} color${brandColorCount === 1 ? '' : 's'}${brandTypo ? ' · typography saved' : ''}`
+          detail: [
+            brandColorCount > 0 ? `${brandColorCount} color${brandColorCount === 1 ? '' : 's'}` : null,
+            hasLogo ? 'logo' : null,
+            brandTypo ? 'type' : null
+          ].filter(Boolean).join(' · ') || 'kit saved'
         }
       : NOT_STARTED,
     intelligence: intelCountRow > 0
