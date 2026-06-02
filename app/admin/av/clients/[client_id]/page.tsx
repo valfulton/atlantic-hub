@@ -21,6 +21,8 @@ import PrVoicePicker from './PrVoicePicker';
 import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
 import BrandKitPanel from './BrandKitPanel';
 import SocialChannelsPanel from './SocialChannelsPanel';
+import OwnerIntakeLink from './OwnerIntakeLink';
+import SendPasswordButton from './SendPasswordButton';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import WeeklyDigestPanel from './WeeklyDigestPanel';
@@ -31,7 +33,8 @@ import PrSourcesPanel from './PrSourcesPanel';
 import { listSourcesForClient } from '@/lib/pr/client_sources';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import { getClientIcpWithProvenance } from '@/lib/client/icp';
-import { signIntakeShareToken } from '@/lib/auth/intake-share';
+import { signIntakeShareToken, signOwnerIntakeShareToken } from '@/lib/auth/intake-share';
+import { listBrandsForUser } from '@/lib/client/membership';
 import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import ReleaseLeadsPanel from './ReleaseLeadsPanel';
@@ -95,6 +98,30 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // already received one -- this only changes what NEW shares point to.
   const _hubBase = process.env.URL || 'https://atlantic-hub.netlify.app';
   const intakeShareUrl = `${_hubBase}/client/intake-form/${await signIntakeShareToken(clientId)}`;
+
+  // (#45 Phase B) If the primary client_user attached to this brand also owns
+  // OTHER brands, surface the all-brands intake link so val can send ONE URL
+  // covering CBB + CLDA (or however many). When the owner has only this one
+  // brand, we don't render the all-brands link (would be redundant).
+  let ownerIntakeShareUrl: string | null = null;
+  let ownerBrandCount = 0;
+  const ownerIntakeName: string = d.members[0]?.displayName || d.name;
+  try {
+    const _db = getAvDb();
+    const [_rows] = await _db.execute<(RowDataPacket & { client_user_id: number })[]>(
+      `SELECT client_user_id FROM client_users
+        WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
+      [clientId]
+    );
+    const _ownerUserId = _rows[0]?.client_user_id;
+    if (_ownerUserId) {
+      const _memberships = await listBrandsForUser(_ownerUserId);
+      if (_memberships.length >= 2) {
+        ownerBrandCount = _memberships.length;
+        ownerIntakeShareUrl = `${_hubBase}/client/intake-form/${await signOwnerIntakeShareToken(_ownerUserId)}`;
+      }
+    }
+  } catch { /* non-fatal — single-brand link is still available */ }
 
   // (#88) Per-client PR drafter voice + posture, read from the brief payload.
   // Both null when val hasn't picked any yet.
@@ -220,6 +247,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* No-login prefilled intake link — the "just send it" link. */}
       <PrefilledIntakeLink url={intakeShareUrl} />
+      {/* (#45 Phase B) Owner-scoped all-brands link — only when this user owns >1 brand. */}
+      {ownerIntakeShareUrl && ownerBrandCount >= 2 && (
+        <OwnerIntakeLink url={ownerIntakeShareUrl} ownerName={ownerIntakeName} brandCount={ownerBrandCount} />
+      )}
 
       {/* (#235) Fill intake from public web — paste their site, get suggested
           intake fields drafted from the page. Eliminates the SQL-paste
@@ -247,6 +278,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       <div className="mb-5">
         <MagicLinkButton clientId={clientId} />
       </div>
+
+      {/* (#45 Phase B) Email + password alternative to magic links. */}
+      <SendPasswordButton clientId={clientId} />
 
       {/* Intake -> canonical intelligence (one visible-prompt pass). */}
       <div className="mb-5">
