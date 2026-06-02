@@ -3,11 +3,11 @@
  *
  * The Atlantic & Vine brand mark mounted on a refined red field.
  *
- * Rules (per val, 2026-05-28):
+ * Rules (per val, 2026-05-28; logo asset updated 2026-06-01):
  *   - DO NOT modify the logo artwork. It mounts unmodified.
- *   - DO NOT mount on a dark background — the logo has black in it and will
- *     dissolve into navy/black/charcoal. This component owns its own
- *     light-by-design red panel; place it on any surface.
+ *   - Logo source = `/brand/av_logo_white1152.png` (canonical AV logo,
+ *     gold-on-transparent — designed for light grounds; the red field below
+ *     IS the light ground from the logo's perspective).
  *   - Motion is reserved for a future pass (#186 phase 2). Today it sits.
  *   - One CSS slot system: pass a `size` prop, mount anywhere.
  *
@@ -44,12 +44,12 @@ export default function BrandSeal({
   title = 'Atlantic & Vine'
 }: BrandSealProps) {
   const px = SIZE_PX[size];
-  // The logo PNG has a wide black backdrop around the gold artwork, so a
-  // contain-fit makes the visible gold look small. We scale the image to ~1.7x
-  // the seal box (the gold art fills the seal) and use `mix-blend-mode: screen`
-  // so the PNG's black backdrop dissolves into transparency against the red
-  // field — only the gold artwork reads. Red square stays the same size.
-  const logoPx = Math.round(px * 2.4);
+  // The new canonical logo (av_logo_white1152.png) is gold-on-transparent —
+  // no black backdrop to dissolve. So we drop the `mix-blend-mode: screen`
+  // hack the old asset needed, and a contain-fit at near 1:1 reads cleanly
+  // on the burgundy field. Slight overscan (1.1x) so the gold artwork
+  // breathes to the edge of the seal without being clipped.
+  const logoPx = Math.round(px * 1.1);
   const radius = Math.round(px * 0.18); // soft rounded square, not a circle
 
   return (
@@ -67,14 +67,13 @@ export default function BrandSeal({
       }}
     >
       <img
-        src="/brand/av-logo.png"
+        src="/brand/av_logo_white1152.png"
         alt=""
         width={logoPx}
         height={logoPx}
         style={{
           display: 'block',
-          objectFit: 'contain',
-          mixBlendMode: 'screen'
+          objectFit: 'contain'
         }}
         draggable={false}
       />
