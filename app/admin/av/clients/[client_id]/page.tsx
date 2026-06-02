@@ -20,6 +20,7 @@ import PrInboxPanel from './PrInboxPanel';
 import PrVoicePicker from './PrVoicePicker';
 import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
 import BrandKitPanel from './BrandKitPanel';
+import SocialChannelsPanel from './SocialChannelsPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import WeeklyDigestPanel from './WeeklyDigestPanel';
@@ -251,6 +252,12 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       <div className="mb-5">
         <ExtractIntelButton clientId={clientId} />
       </div>
+
+      {/* (#45) Social channels — paste profile URLs val has on file; client
+          confirms in their intake. Drives the per-brand post-target rails.
+          defaultWebsiteUrl seeds the "Pull from their website" scrape so val
+          doesn't have to retype it. */}
+      <SocialChannelsPanel clientId={clientId} defaultWebsiteUrl={defaultIntakeUrl} />
 
       {/* Multi-brand (#101): give this same login another brand (e.g. Adriana's CBB + CLDA). */}
       <AddBrandPanel clientId={clientId} ownerName={d.members[0]?.displayName || d.name} />
