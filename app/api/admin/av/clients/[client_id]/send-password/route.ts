@@ -1,16 +1,23 @@
 /**
- * POST /api/admin/av/clients/[client_id]/send-password   { regenerate?: boolean }
+ * POST /api/admin/av/clients/[client_id]/send-password
  *
- * Operator-side: generate a fresh temp password for this client's primary login,
- * hash + store on client_users.password_hash, and email the plaintext to the
- * client. The plaintext is shown ONCE in the response so val can copy it for
- * a phone call too -- nothing is logged.
+ * Body: { password?: string, send?: boolean }
+ *   - password: omit -> auto-generate. Pass a string -> use exactly that
+ *               (val's "ultimate control" override).
+ *   - send: default true. Pass false to save the password hash without
+ *           emailing -- val shares it manually (call, text, whatever).
+ *
+ * Operator-side: set this client's primary login password (random or manual),
+ * hash + store on client_users.password_hash, optionally email plaintext.
+ * The plaintext is ALWAYS returned in the response (once) so val can copy
+ * it. Nothing is logged.
  *
  * (#45 Phase B) Adds an alternative auth path next to magic links: some clients
  * prefer email + password, some mail clients break magic-link URLs. Lands them
  * at the same destination as magic-link sign-in (/client portal).
  *
- * Owner + staff only.
+ * Owner + staff only. 404 returns the body {error: 'no_user', reason: '...'}
+ * so the client can render a friendly message instead of HTTP status only.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
@@ -52,6 +59,23 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     return NextResponse.json({ error: 'invalid client id' }, { status: 400 });
   }
 
+  let body: { password?: unknown; send?: unknown } = {};
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    // empty body is fine -- defaults apply
+  }
+
+  // Manual password override: val types her own; otherwise auto-generate.
+  // Min 6 chars (clients have to type it in; below 6 is hostile UX).
+  const manual = typeof body.password === 'string' ? body.password.trim() : '';
+  const useManual = manual.length > 0;
+  if (useManual && manual.length < 6) {
+    return NextResponse.json({ error: 'password too short', minLength: 6 }, { status: 400 });
+  }
+  // Default to sending; set false if val wants to share the password herself.
+  const shouldSend = body.send !== false;
+
   try {
     const db = getAvDb();
     const [rows] = await db.execute<
@@ -65,9 +89,17 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       [clientId]
     );
     const user = rows[0];
-    if (!user) return NextResponse.json({ error: 'no user on this account' }, { status: 404 });
+    if (!user) {
+      return NextResponse.json(
+        {
+          error: 'no_user',
+          reason: 'This account has no login attached yet. Add a brand member (Add Brand panel) or wait for them to submit the intake — it auto-creates the login.'
+        },
+        { status: 404 }
+      );
+    }
 
-    const plaintext = generateTempPassword();
+    const plaintext = useManual ? manual : generateTempPassword();
     const passwordHash = await hashPassword(plaintext);
     await setClientUserPasswordHash(user.client_user_id, passwordHash);
 
@@ -93,22 +125,25 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
     let emailSent = false;
     let emailError: string | null = null;
-    try {
-      const res = await sendEmail({ to: user.email, subject, text, html });
-      emailSent = res.sent;
-      if (!res.sent) emailError = (res as { reason?: string }).reason || 'unknown';
-    } catch (e) {
-      emailError = (e as Error).message.slice(0, 200);
+    if (shouldSend) {
+      try {
+        const res = await sendEmail({ to: user.email, subject, text, html });
+        emailSent = res.sent;
+        if (!res.sent) emailError = (res as { reason?: string }).reason || 'unknown';
+      } catch (e) {
+        emailError = (e as Error).message.slice(0, 200);
+      }
     }
 
-    // plaintext returned ONCE for val to copy if she also wants to share it
-    // verbally -- never logged anywhere.
+    // plaintext returned ONCE for val to copy. Never logged anywhere.
     return NextResponse.json({
       ok: true,
       email: user.email,
       password: plaintext,
       emailSent,
-      emailError
+      emailError,
+      sentSkipped: !shouldSend,
+      manual: useManual
     });
   } catch (err) {
     return NextResponse.json(
