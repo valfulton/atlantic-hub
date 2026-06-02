@@ -1,0 +1,412 @@
+/**
+ * lib/av/onboarding_status.ts  (#347 + #355, val 2026-06-02)
+ *
+ * Computes the 13-stage onboarding state + per-action status for a client.
+ * Two consumers:
+ *   - StageStrip (top of /admin/av/clients/[id]) — bird's eye, all 13 chips.
+ *   - Action panels (BrandKit, FillIntake, FindLeads, etc.) — each card's
+ *     "last run · what it produced" badge.
+ *
+ * Tolerant of missing tables / missing columns: queries are individually
+ * try/catch'd so a partially-deployed schema doesn't blank the whole strip.
+ * Every check falls back to "notStarted" on error.
+ *
+ * One pass per page render. Calls run in parallel via Promise.all where possible.
+ */
+import { getAvDb } from '@/lib/db/av';
+import type { RowDataPacket } from 'mysql2';
+
+export type StageStatus = 'done' | 'inProgress' | 'notStarted';
+
+export interface StageState {
+  id: number;
+  key: string;
+  label: string;
+  status: StageStatus;
+  /** Short label rendered under the title (e.g. "32 / 51", "4 colors", "12 leads"). */
+  detail?: string;
+  /** When set, chip clicks scroll to this DOM id on the page. */
+  anchor?: string;
+}
+
+export interface ActionStatus {
+  hasRun: boolean;
+  lastAt: Date | null;
+  detail: string | null;
+}
+
+export interface OnboardingStatus {
+  stages: StageState[];
+  doneCount: number;
+  totalCount: number;
+  demoReady: boolean;
+  actions: {
+    brandKit: ActionStatus;
+    intelligence: ActionStatus;
+    intakeWebFill: ActionStatus;
+    leads: ActionStatus;
+    icp: ActionStatus;
+    socials: ActionStatus;
+    password: ActionStatus;
+    magicLink: ActionStatus;
+  };
+}
+
+const NOT_STARTED: ActionStatus = { hasRun: false, lastAt: null, detail: null };
+
+/** Count rows for a query; returns 0 on any error. */
+async function safeCount(sql: string, params: unknown[] = []): Promise<number> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { n: number })[]>(sql, params);
+    return Number(rows[0]?.n ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function safeOne<T extends RowDataPacket>(sql: string, params: unknown[] = []): Promise<T | null> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<T[]>(sql, params);
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Count "substantively populated" fields in the brief payload.
+ * A field counts if it's a non-empty string, a non-zero number, or a non-empty array.
+ * Same logic the intake form's "X of 51 answered" indicator uses; mirrored here so
+ * the strip and the form agree.
+ */
+function countFilledBriefFields(payload: Record<string, unknown> | null): { filled: number; total: number } {
+  // The canonical brief has ~51 keys today; we count generously so the chip
+  // moves green at "mostly done" rather than 100% complete.
+  const CANONICAL_KEYS = [
+    'companyName', 'companyDescription', 'website', 'industry', 'companySize',
+    'oneLiner', 'tagline', 'hasLogo', 'logoChangeNotes', 'traditionalOrModern',
+    'friendlyOrCorporate', 'highEndOrCost', 'brandColors', 'brandVoice', 'brandAesthetic',
+    'brandTypography', 'logoUrl', 'whoIsCustomer', 'idealCustomerNotes', 'whyAdvertise',
+    'whatAccomplish', 'singleMessage', 'supportingProof', 'customerInsights',
+    'currentChallenges', 'currentMarketing', 'whatsWorking', 'whatsNot', 'budgetMonthly',
+    'services', 'pricing', 'caseStudies', 'testimonials', 'pressMentions',
+    'competitors', 'differentiators', 'objections', 'guarantees',
+    'targetIndustries', 'targetTitles', 'targetGeographies', 'excludedIndustries',
+    'audiencePsychographics', 'audienceJobs', 'audiencePains',
+    'preferredChannels', 'callToAction', 'leadDestination',
+    'salesCycle', 'dealSize', 'currentRevenue'
+  ];
+  let filled = 0;
+  if (payload) {
+    for (const k of CANONICAL_KEYS) {
+      const v = (payload as Record<string, unknown>)[k];
+      if (v == null) continue;
+      if (typeof v === 'string' && v.trim().length > 0) filled += 1;
+      else if (typeof v === 'number' && v !== 0) filled += 1;
+      else if (Array.isArray(v) && v.length > 0) filled += 1;
+      else if (typeof v === 'object' && v && Object.keys(v as object).length > 0) filled += 1;
+    }
+  }
+  return { filled, total: CANONICAL_KEYS.length };
+}
+
+export async function loadOnboardingStatus(clientId: number): Promise<OnboardingStatus> {
+  const tenantClient = `client:${clientId}`;
+
+  // Run independent queries in parallel.
+  const [
+    userRow,
+    briefRow,
+    intelCountRow,
+    intelLastRow,
+    icpRow,
+    socialsCount,
+    campaignsCount,
+    leadsCount,
+    leadsLast,
+    auditCount,
+    contentCount,
+    contentLast,
+    outreachCount,
+    callConnectedCount
+  ] = await Promise.all([
+    safeOne<RowDataPacket & {
+      client_user_id: number;
+      password_hash: string | null;
+      magic_token: string | null;
+      magic_token_expires_at: Date | null;
+      created_at: Date | null;
+      updated_at: Date | null;
+    }>(
+      `SELECT client_user_id, password_hash, magic_token, magic_token_expires_at, created_at, updated_at
+         FROM client_users WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
+      [clientId]
+    ),
+    safeOne<RowDataPacket & { brief_payload: unknown; updated_at: Date | null }>(
+      `SELECT brief_payload, updated_at FROM creative_briefs
+         WHERE tenant_id='av' AND client_id = ? ORDER BY updated_at DESC LIMIT 1`,
+      [clientId]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM intelligence_objects WHERE tenant_id = ?`,
+      [tenantClient]
+    ),
+    safeOne<RowDataPacket & { last_at: Date | null }>(
+      `SELECT MAX(updated_at) AS last_at FROM intelligence_objects WHERE tenant_id = ?`,
+      [tenantClient]
+    ),
+    safeOne<RowDataPacket & { target_industries: unknown; updated_at: Date | null }>(
+      `SELECT target_industries, updated_at FROM client_icps WHERE client_id = ? ORDER BY updated_at DESC LIMIT 1`,
+      [clientId]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM social_targets WHERE client_id = ?`,
+      [clientId]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM narrative_lanes WHERE client_id = ?`,
+      [clientId]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM leads WHERE client_id = ?`,
+      [clientId]
+    ),
+    safeOne<RowDataPacket & { last_at: Date | null }>(
+      `SELECT MAX(last_activity_at) AS last_at FROM leads WHERE client_id = ?`,
+      [clientId]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM lead_audits la
+         JOIN leads l ON l.id = la.lead_id
+        WHERE l.client_id = ?`,
+      [clientId]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM content_artifacts WHERE tenant_id = ?`,
+      [tenantClient]
+    ),
+    safeOne<RowDataPacket & { last_at: Date | null }>(
+      `SELECT MAX(updated_at) AS last_at FROM content_artifacts WHERE tenant_id = ?`,
+      [tenantClient]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM outreach_messages om
+         JOIN leads l ON l.id = om.lead_id
+        WHERE l.client_id = ?`,
+      [clientId]
+    ),
+    safeCount(
+      `SELECT COUNT(*) AS n FROM call_log cl
+         JOIN leads l ON l.id = cl.lead_id
+        WHERE l.client_id = ? AND cl.call_outcome IN ('connected','follow_up','meeting_booked','converted')`,
+      [clientId]
+    )
+  ]);
+
+  // ----- Brief field counting (for stage 3 detail) -----
+  let briefPayload: Record<string, unknown> | null = null;
+  if (briefRow?.brief_payload) {
+    try {
+      briefPayload = typeof briefRow.brief_payload === 'string'
+        ? (JSON.parse(briefRow.brief_payload) as Record<string, unknown>)
+        : (briefRow.brief_payload as Record<string, unknown>);
+    } catch {
+      briefPayload = null;
+    }
+  }
+  const briefCounts = countFilledBriefFields(briefPayload);
+
+  // ----- Brand kit: check brand_colors in brief -----
+  const brandColors = briefPayload?.brandColors ?? briefPayload?.brand_colors;
+  const brandColorCount = Array.isArray(brandColors) ? brandColors.length : 0;
+  const brandTypo = briefPayload?.brandTypography ?? briefPayload?.brand_typography;
+  const brandHasKit = brandColorCount > 0;
+
+  // ----- ICP -----
+  let icpIndustryCount = 0;
+  if (icpRow?.target_industries) {
+    try {
+      const t = typeof icpRow.target_industries === 'string'
+        ? JSON.parse(icpRow.target_industries)
+        : icpRow.target_industries;
+      icpIndustryCount = Array.isArray(t) ? t.length : 0;
+    } catch {
+      icpIndustryCount = 0;
+    }
+  }
+  const icpDone = icpIndustryCount > 0;
+
+  // ----- Stages -----
+  const stages: StageState[] = [
+    {
+      id: 1,
+      key: 'account',
+      label: 'Account',
+      status: 'done',
+      anchor: 'access-group'
+    },
+    {
+      id: 2,
+      key: 'intake_sent',
+      label: 'Intake sent',
+      status: userRow ? 'done' : 'notStarted',
+      detail: userRow?.magic_token ? 'magic link live' : (userRow ? 'login ready' : undefined),
+      anchor: 'access-group'
+    },
+    {
+      id: 3,
+      key: 'intake_filled',
+      label: 'Intake',
+      status: briefCounts.filled === 0 ? 'notStarted' : (briefCounts.filled >= 25 ? 'done' : 'inProgress'),
+      detail: `${briefCounts.filled} / ${briefCounts.total}`,
+      anchor: 'fill-intake'
+    },
+    {
+      id: 4,
+      key: 'intelligence',
+      label: 'Intelligence',
+      status: intelCountRow > 0 ? 'done' : 'notStarted',
+      detail: intelCountRow > 0 ? `${intelCountRow} objects` : undefined,
+      anchor: 'extract-intel'
+    },
+    {
+      id: 5,
+      key: 'icp',
+      label: 'ICP',
+      status: icpDone ? 'done' : 'notStarted',
+      detail: icpDone ? `${icpIndustryCount} industries` : undefined,
+      anchor: 'icp'
+    },
+    {
+      id: 6,
+      key: 'brand_kit',
+      label: 'Brand kit',
+      status: brandHasKit ? 'done' : 'notStarted',
+      detail: brandHasKit
+        ? `${brandColorCount} color${brandColorCount === 1 ? '' : 's'}${brandTypo ? ' · type' : ''}`
+        : undefined,
+      anchor: 'brand-kit'
+    },
+    {
+      id: 7,
+      key: 'socials',
+      label: 'Socials',
+      status: socialsCount > 0 ? 'done' : 'notStarted',
+      detail: socialsCount > 0 ? `${socialsCount} on file` : undefined,
+      anchor: 'social-channels'
+    },
+    {
+      id: 8,
+      key: 'campaigns',
+      label: 'Campaigns',
+      status: campaignsCount > 0 ? 'done' : 'notStarted',
+      detail: campaignsCount > 0 ? `${campaignsCount} active` : undefined
+    },
+    {
+      id: 9,
+      key: 'leads',
+      label: 'Leads',
+      status: leadsCount > 0 ? 'done' : 'notStarted',
+      detail: leadsCount > 0 ? `${leadsCount} found` : undefined,
+      anchor: 'find-leads'
+    },
+    {
+      id: 10,
+      key: 'first_audit',
+      label: 'First audit',
+      status: auditCount > 0 ? 'done' : 'notStarted',
+      detail: auditCount > 0 ? `${auditCount} audited` : undefined
+    },
+    {
+      id: 11,
+      key: 'first_content',
+      label: 'Content',
+      status: contentCount > 0 ? 'done' : 'notStarted',
+      detail: contentCount > 0 ? `${contentCount} drafted` : undefined
+    },
+    {
+      id: 12,
+      key: 'first_outreach',
+      label: 'Outreach',
+      status: (outreachCount + callConnectedCount) > 0 ? 'done' : 'notStarted',
+      detail: (outreachCount + callConnectedCount) > 0
+        ? `${outreachCount + callConnectedCount} touches`
+        : undefined
+    }
+  ];
+
+  const doneOfFirst12 = stages.filter((s) => s.status === 'done').length;
+  // "Demo ready" auto-flips green when at least 9 of the prior 12 stages are done
+  // AND brand kit + at least one content artifact exist (the two "looks complete"
+  // signals val flagged as most important for not embarrassing herself on calls).
+  const demoReady = doneOfFirst12 >= 9 && brandHasKit && contentCount > 0;
+  stages.push({
+    id: 13,
+    key: 'demo_ready',
+    label: 'Demo ready',
+    status: demoReady ? 'done' : 'notStarted',
+    detail: demoReady ? 'ship it' : `${doneOfFirst12} / 12 lit`
+  });
+
+  // ----- Action statuses (used by panel headers) -----
+  const actions: OnboardingStatus['actions'] = {
+    brandKit: brandHasKit
+      ? {
+          hasRun: true,
+          lastAt: briefRow?.updated_at ?? null,
+          detail: `${brandColorCount} color${brandColorCount === 1 ? '' : 's'}${brandTypo ? ' · typography saved' : ''}`
+        }
+      : NOT_STARTED,
+    intelligence: intelCountRow > 0
+      ? {
+          hasRun: true,
+          lastAt: intelLastRow?.last_at ?? null,
+          detail: `${intelCountRow} object${intelCountRow === 1 ? '' : 's'}`
+        }
+      : NOT_STARTED,
+    intakeWebFill: briefCounts.filled > 0
+      ? {
+          hasRun: true,
+          lastAt: briefRow?.updated_at ?? null,
+          detail: `${briefCounts.filled} / ${briefCounts.total} fields`
+        }
+      : NOT_STARTED,
+    leads: leadsCount > 0
+      ? {
+          hasRun: true,
+          lastAt: leadsLast?.last_at ?? null,
+          detail: `${leadsCount} on this account`
+        }
+      : NOT_STARTED,
+    icp: icpDone
+      ? {
+          hasRun: true,
+          lastAt: icpRow?.updated_at ?? null,
+          detail: `${icpIndustryCount} industries`
+        }
+      : NOT_STARTED,
+    socials: socialsCount > 0
+      ? {
+          hasRun: true,
+          lastAt: null,
+          detail: `${socialsCount} on file`
+        }
+      : NOT_STARTED,
+    password: userRow?.password_hash
+      ? { hasRun: true, lastAt: userRow.updated_at ?? null, detail: 'password set' }
+      : NOT_STARTED,
+    magicLink: userRow?.magic_token
+      ? { hasRun: true, lastAt: userRow.updated_at ?? null, detail: 'token live' }
+      : NOT_STARTED
+  };
+
+  return {
+    stages,
+    doneCount: stages.filter((s) => s.status === 'done').length,
+    totalCount: stages.length,
+    demoReady,
+    actions
+  };
+}

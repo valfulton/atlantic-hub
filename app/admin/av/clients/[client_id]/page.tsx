@@ -40,6 +40,9 @@ import ClientPipelineList from './ClientPipelineList';
 import AssignLeadsPanel from './AssignLeadsPanel';
 import ReleaseLeadsPanel from './ReleaseLeadsPanel';
 import AddBrandPanel from './AddBrandPanel';
+import StageStrip from './StageStrip';
+import ActionStatusChip from './ActionStatusChip';
+import { loadOnboardingStatus } from '@/lib/av/onboarding_status';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
 
@@ -99,6 +102,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // already received one -- this only changes what NEW shares point to.
   const _hubBase = process.env.URL || 'https://atlantic-hub.netlify.app';
   const intakeShareUrl = `${_hubBase}/client/intake-form/${await signIntakeShareToken(clientId)}`;
+
+  // (#347 + #355) Stage strip + per-action statuses — "lights turning on" view.
+  // Single batched read; tolerant of missing tables (returns notStarted).
+  const onboarding = await loadOnboardingStatus(clientId);
 
   // (#45 Phase B) If the primary client_user attached to this brand also owns
   // OTHER brands, surface the all-brands intake link so val can send ONE URL
@@ -232,11 +239,18 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <Link href={`/admin/av/clients/${clientId}/timeline`} className="text-brand hover:underline">Activity timeline →</Link>
       </div>
 
+      {/* (#347) "Lights turning on" — 13-stage onboarding strip. Computed
+          server-side from real data: brief fields, intelligence_objects, ICP,
+          brand kit, socials, leads, audits, content, outreach. Chips link to
+          panel anchors below so val can jump to whatever's still dim. */}
+      <StageStrip status={onboarding} />
+
       {/* (val 2026-06-02) All four access surfaces now live in ONE collapsible
           group with portal-vs-form sub-sections so val can see at a glance
           what each link does. Replaces the earlier #297 amber explainer card
           which sat above two scattered controls; that copy is now the group's
           sub-section headers. */}
+      <div id="access-group">
       <ClientAccessGroup
         portal={
           <>
@@ -253,11 +267,15 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           </>
         }
       />
+      </div>
 
       {/* (#235) Fill intake from public web — paste their site, get suggested
           intake fields drafted from the page. Eliminates the SQL-paste
           onboarding path. Preview-first; reversible via brief versions. */}
-      <div className="mb-5">
+      <div id="fill-intake" className="mb-5">
+        <div className="flex justify-end mb-1.5 -mr-1">
+          <ActionStatusChip status={onboarding.actions.intakeWebFill} notRunLabel="Not filled" />
+        </div>
         <FillIntakeFromWebPanel
           clientId={clientId}
           clientName={d.name}
@@ -268,7 +286,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       {/* (#208) Brand-kit extractor — same URL, pulls VISUAL kit (colors /
           logo / aesthetic / typography). Pair with FillIntake for a full
           onboard from one paste. Powers branded commercials + social cards. */}
-      <div className="mb-5">
+      <div id="brand-kit" className="mb-5">
+        <div className="flex justify-end mb-1.5 -mr-1">
+          <ActionStatusChip status={onboarding.actions.brandKit} notRunLabel="Not extracted" />
+        </div>
         <BrandKitPanel
           clientId={clientId}
           clientName={d.name}
@@ -280,7 +301,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           near the top of the page. Removed here to avoid double-render. */}
 
       {/* Intake -> canonical intelligence (one visible-prompt pass). */}
-      <div className="mb-5">
+      <div id="extract-intel" className="mb-5">
+        <div className="flex justify-end mb-1.5 -mr-1">
+          <ActionStatusChip status={onboarding.actions.intelligence} notRunLabel="Not extracted" />
+        </div>
         <ExtractIntelButton clientId={clientId} />
       </div>
 
@@ -288,7 +312,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           confirms in their intake. Drives the per-brand post-target rails.
           defaultWebsiteUrl seeds the "Pull from their website" scrape so val
           doesn't have to retype it. */}
-      <SocialChannelsPanel clientId={clientId} defaultWebsiteUrl={defaultIntakeUrl} />
+      <div id="social-channels">
+        <SocialChannelsPanel clientId={clientId} defaultWebsiteUrl={defaultIntakeUrl} />
+      </div>
 
       {/* Multi-brand (#101): give this same login another brand (e.g. Adriana's CBB + CLDA). */}
       <AddBrandPanel clientId={clientId} ownerName={d.members[0]?.displayName || d.name} />
@@ -402,10 +428,20 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       />
 
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
-      <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />
+      <div id="icp">
+        <div className="flex justify-end mb-1.5 -mr-1">
+          <ActionStatusChip status={onboarding.actions.icp} notRunLabel="Not set" />
+        </div>
+        <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />
+      </div>
 
       {/* Find leads scoped to THIS client (their hub only — never the AV pipeline). */}
-      <FindLeadsForClient clientId={clientId} clientName={d.name} />
+      <div id="find-leads">
+        <div className="flex justify-end mb-1.5 -mr-1">
+          <ActionStatusChip status={onboarding.actions.leads} notRunLabel="No leads yet" />
+        </div>
+        <FindLeadsForClient clientId={clientId} clientName={d.name} />
+      </div>
 
       {/* (#98) What this client cares about — at-a-glance snapshot of their
           key message / voice / authority topics / dream outlets pulled from
