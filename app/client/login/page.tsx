@@ -11,6 +11,23 @@ const ERROR_MESSAGES: Record<string, string> = {
   something_went_wrong: 'Something went wrong on our end. Please try again in a moment.'
 };
 
+/**
+ * /client/login  (#337 v2)
+ *
+ * Visually mirrors AV_livewebsite/inquire_obsidian.html — the gate val
+ * approved. Cream + emerald + Fraunces serif + 4px emerald accent bar on a
+ * white card. Same CSS variables as the marketing site so the two surfaces
+ * read as one continuous brand.
+ *
+ * Anti-pattern that got fixed: previous version mistook "obsidian" for "dark
+ * navy" and built a dark gold-on-black gate. The actual gate is bright cream
+ * with emerald accents. Mirror-matching now.
+ *
+ * Self-contained styling (styled-jsx) so this page doesn't inherit the
+ * operator-hub's dark surface + amber tokens. Don't add Tailwind utility
+ * classes from the hub's global token set — they would re-introduce the
+ * orange we just took out.
+ */
 function LoginForm() {
   const params = useSearchParams();
   const initialError = params.get('error');
@@ -23,7 +40,6 @@ function LoginForm() {
   );
   const [submitting, setSubmitting] = useState(false);
 
-  // Clear the URL error param once we have it in state, so a refresh doesn't repeat it.
   useEffect(() => {
     if (initialError && typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -57,87 +73,86 @@ function LoginForm() {
 
   return (
     <>
-      {/*
-        (#337) Restyled to the obsidian-inquire register — Cormorant headline,
-        editorial spacing, gold CTA (gold inherits from #336's --brand swap to
-        champagne). Stays gated by the existing /api/client/login endpoint; no
-        behavior change, just the polish val asked for.
-      */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link
-        rel="preconnect"
-        href="https://fonts.googleapis.com"
-      />
-      <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap"
         rel="stylesheet"
       />
-      <div className="cl-page">
-        <header className="cl-topbar">
-          <span className="cl-wordmark">Atlantic &amp; Vine</span>
-          <a
-            href="https://atlanticandvine.netlify.app"
-            target="_blank"
-            rel="noopener"
-            className="cl-link"
-          >
-            atlanticandvine.com
-          </a>
-        </header>
 
-        <main className="cl-main">
+      <div className="ig-page">
+        <nav className="ig-nav">
+          <div className="ig-nav-inner">
+            <a href="https://atlanticandvine.netlify.app" className="ig-brand">
+              <img
+                src="https://atlanticandvine.netlify.app/av-logo.png"
+                alt="Atlantic & Vine"
+                className="ig-logo"
+              />
+              <span className="ig-brand-text">Atlantic &amp; Vine</span>
+            </a>
+            <a href="https://atlanticandvine.netlify.app" className="ig-nav-back">
+              ← Back to site
+            </a>
+          </div>
+        </nav>
+
+        <main className="ig-stage">
           <form
             onSubmit={handleSubmit}
-            className="cl-card"
+            className="ig-card"
             aria-labelledby="login-heading"
           >
-            <p className="cl-eyebrow">By invitation</p>
-            <h1 id="login-heading" className="cl-headline">
-              Welcome <em>back</em>.
+            <p className="ig-eyebrow">Client Portal</p>
+            <h1 id="login-heading" className="ig-headline">
+              Welcome back.
             </h1>
-            <p className="cl-sub">Sign in to your client portal.</p>
+            <p className="ig-lede">
+              Sign in with the email and password tied to your account.
+            </p>
 
-            <label htmlFor="email" className="cl-label">Email</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="username"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="cl-input"
-            />
+            <div className="ig-field">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                name="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
 
-            <label htmlFor="password" className="cl-label">Password</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="cl-input"
-            />
+            <div className="ig-field">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
 
             {error && (
-              <div role="alert" className="cl-error">
+              <div role="alert" className="ig-error">
                 {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="cl-cta"
-            >
+            <button className="ig-cta" type="submit" disabled={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
             </button>
 
-            <p className="cl-footnote">
-              First time here? Submit the intake form on{' '}
-              <a
-                href="https://atlanticandvine.netlify.app/#client-intake"
-                className="cl-footnote-link"
-              >
+            <p className="ig-fallback">
+              First time here? Submit the intake form at{' '}
+              <a href="https://atlanticandvine.netlify.app/#client-intake">
                 atlanticandvine.com
               </a>{' '}
               and we&apos;ll send you a secure link.
@@ -145,147 +160,235 @@ function LoginForm() {
           </form>
         </main>
 
-        <style jsx>{`
-          .cl-page {
-            min-height: 100vh;
-            background:
-              radial-gradient(ellipse at 50% -10%, rgba(201, 152, 88, 0.06), transparent 55%),
-              #0A0E18;
-            color: #D9DFEA;
-            font-family: 'Inter', system-ui, sans-serif;
-          }
-          .cl-topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 22px 32px;
-            border-bottom: 1px solid rgba(201, 152, 88, 0.18);
-          }
-          .cl-wordmark {
-            font-family: 'Cormorant Garamond', Georgia, serif;
-            font-size: 18px;
-            font-weight: 500;
-            letter-spacing: 0.04em;
-            color: #F5EFE3;
-          }
-          .cl-link {
-            font-size: 11px;
-            letter-spacing: 0.22em;
-            text-transform: uppercase;
-            color: #C99858;
-            text-decoration: none;
-            border-bottom: 1px solid rgba(201, 152, 88, 0.4);
-            padding-bottom: 2px;
-          }
-          .cl-link:hover { color: #E5B879; }
+        <footer className="ig-foot">© Atlantic &amp; Vine · By appointment</footer>
 
-          .cl-main {
+        <style jsx>{`
+          .ig-page {
+            --emerald-deep: #0A4D3C;
+            --emerald: #1A6B52;
+            --black: #0A0A0A;
+            --charcoal: #1A1A1A;
+            --gray-warm: #4A4A4A;
+            --gray-soft: #8A8A8A;
+            --cream: #FAF8F4;
+            --paper: #FFFFFF;
+            --gold-accent: #C9A961;
+
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            background: var(--cream);
+            color: var(--charcoal);
+            font-family: 'Inter', system-ui, sans-serif;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+          }
+          .ig-nav {
+            padding: 1.5rem 3rem;
+            background: rgba(250, 248, 244, 0.85);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(10, 77, 60, 0.08);
+          }
+          .ig-nav-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .ig-brand {
             display: flex;
             align-items: center;
-            justify-content: center;
-            padding: 64px 24px 96px;
+            gap: 0.75rem;
+            text-decoration: none;
           }
-          .cl-card {
+          .ig-logo { height: 64px; width: auto; }
+          .ig-brand-text {
+            font-family: 'Fraunces', serif;
+            font-weight: 600;
+            font-size: 1.25rem;
+            color: var(--black);
+            letter-spacing: -0.02em;
+          }
+          .ig-nav-back {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--gray-warm);
+            text-decoration: none;
+            transition: color 0.2s ease;
+          }
+          .ig-nav-back:hover { color: var(--emerald-deep); }
+
+          .ig-stage {
+            display: grid;
+            place-items: center;
+            padding: 3rem 1.5rem;
+          }
+          .ig-card {
+            background: var(--paper);
             width: 100%;
-            max-width: 460px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(201, 152, 88, 0.22);
+            max-width: 520px;
             border-radius: 6px;
-            padding: 48px 44px 36px;
-            box-shadow:
-              0 30px 80px -30px rgba(0, 0, 0, 0.6),
-              inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(10, 77, 60, 0.1);
+            box-shadow: 0 18px 48px rgba(10, 77, 60, 0.10);
+            position: relative;
+            overflow: hidden;
+            padding: 2.75rem 2.5rem 2.25rem;
           }
-          .cl-eyebrow {
-            font-size: 10px;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: #B89366;
-            margin: 0 0 14px;
+          .ig-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--emerald-deep);
           }
-          .cl-headline {
-            font-family: 'Cormorant Garamond', Georgia, serif;
-            font-weight: 400;
-            font-size: 38px;
-            line-height: 1.1;
-            color: #F5EFE3;
-            margin: 0 0 8px;
-          }
-          .cl-headline em {
-            font-style: italic;
-            color: #E5B879;
-          }
-          .cl-sub {
-            font-size: 13px;
-            color: #8B96A4;
-            margin: 0 0 28px;
-          }
-          .cl-label {
-            display: block;
-            font-size: 11px;
+
+          .ig-eyebrow {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 600;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: #B89366;
-            margin: 0 0 6px;
+            color: var(--gray-soft);
+            margin: 0 0 0.85rem;
           }
-          .cl-input {
-            width: 100%;
-            padding: 11px 14px;
-            margin-bottom: 18px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(201, 152, 88, 0.18);
-            border-radius: 4px;
-            color: #F5EFE3;
-            font-size: 14px;
-            font-family: inherit;
-            transition: border-color 0.18s ease;
+          .ig-headline {
+            font-family: 'Fraunces', serif;
+            font-size: 1.9rem;
+            font-weight: 500;
+            line-height: 1.2;
+            letter-spacing: -0.01em;
+            color: var(--black);
+            margin: 0 0 0.6rem;
           }
-          .cl-input:focus {
-            outline: none;
-            border-color: #C99858;
+          .ig-lede {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.98rem;
+            color: var(--gray-warm);
+            line-height: 1.6;
+            margin: 0 0 1.8rem;
           }
-          .cl-error {
-            margin: 6px 0 14px;
-            padding: 10px 12px;
-            border-radius: 4px;
-            background: rgba(248, 113, 113, 0.08);
-            border: 1px solid rgba(248, 113, 113, 0.35);
-            color: #FCA5A5;
-            font-size: 12.5px;
-          }
-          .cl-cta {
-            width: 100%;
-            padding: 13px 16px;
-            margin-top: 6px;
-            background: #C99858;
-            color: #0A0E18;
-            border: none;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 13px;
+
+          .ig-field { margin-bottom: 1.1rem; }
+          .ig-field label {
+            display: block;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.72rem;
             font-weight: 600;
-            letter-spacing: 0.06em;
-            cursor: pointer;
-            transition: background 0.18s ease, opacity 0.18s ease;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--emerald-deep);
+            margin-bottom: 0.4rem;
           }
-          .cl-cta:hover { background: #E5B879; }
-          .cl-cta:disabled {
+          .ig-field input {
+            width: 100%;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            padding: 0.85rem 1rem;
+            background: var(--cream);
+            border: 1px solid rgba(10, 77, 60, 0.15);
+            border-radius: 4px;
+            color: var(--charcoal);
+            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+            outline: none;
+            box-sizing: border-box;
+          }
+          .ig-field input:focus {
+            border-color: var(--emerald-deep);
+            background: var(--paper);
+            box-shadow: 0 0 0 3px rgba(10, 77, 60, 0.08);
+          }
+
+          .ig-error {
+            margin: 0.2rem 0 1.1rem;
+            padding: 0.7rem 0.85rem;
+            border-radius: 4px;
+            background: rgba(220, 53, 53, 0.06);
+            border: 1px solid rgba(220, 53, 53, 0.25);
+            color: #B43A3A;
+            font-size: 0.85rem;
+            line-height: 1.5;
+          }
+
+          .ig-cta {
+            width: 100%;
+            background: var(--emerald-deep);
+            color: var(--cream);
+            padding: 1rem 1.5rem;
+            border: 1px solid var(--emerald-deep);
+            border-radius: 4px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            margin-top: 0.3rem;
+          }
+          .ig-cta:hover:not(:disabled) {
+            background: var(--black);
+            border-color: var(--black);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(10, 77, 60, 0.3);
+          }
+          .ig-cta:hover svg { transform: translateX(4px); }
+          .ig-cta svg { transition: transform 0.3s ease; }
+          .ig-cta:disabled {
             opacity: 0.6;
             cursor: wait;
           }
-          .cl-footnote {
-            margin: 26px 0 0;
-            text-align: center;
-            font-size: 11.5px;
-            color: #8B96A4;
-            line-height: 1.6;
+
+          .ig-fallback {
+            margin: 1.5rem 0 0;
+            padding-top: 1.25rem;
+            border-top: 1px solid rgba(10, 77, 60, 0.1);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            color: var(--gray-warm);
+            line-height: 1.55;
           }
-          .cl-footnote-link {
-            color: #C99858;
+          .ig-fallback a {
+            color: var(--emerald-deep);
             text-decoration: none;
-            border-bottom: 1px dotted rgba(201, 152, 88, 0.4);
+            font-weight: 600;
+            border-bottom: 1px solid var(--emerald-deep);
+            padding-bottom: 1px;
+            transition: color 0.2s ease;
           }
-          .cl-footnote-link:hover { color: #E5B879; }
+          .ig-fallback a:hover { color: var(--black); }
+
+          .ig-foot {
+            padding: 1.5rem 3rem;
+            text-align: center;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: var(--gray-soft);
+            border-top: 1px solid rgba(10, 77, 60, 0.06);
+          }
+
+          @media (max-width: 640px) {
+            .ig-nav { padding: 1.1rem 1.25rem; }
+            .ig-logo { height: 48px; }
+            .ig-brand-text { font-size: 1.05rem; }
+            .ig-stage { padding: 2rem 1rem; }
+            .ig-card { padding: 2rem 1.75rem; }
+            .ig-headline { font-size: 1.55rem; }
+            .ig-foot { padding: 1.25rem; }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .ig-page *, .ig-page *::before, .ig-page *::after {
+              animation: none !important;
+              transition: none !important;
+            }
+          }
         `}</style>
       </div>
     </>

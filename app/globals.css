@@ -24,16 +24,15 @@
 
 :root {
   /* ──── Brand ────
-     (#336, 2026-06-02) Migrated from Tailwind amber-500 (#f59e0b — read as
-     industrial-orange) to the candy-shell champagne family (#C99858) — the
-     canonical AV palette per BRAND_TOKENS_reconciliation.md + memory
-     `feedback_av_palette_overhaul`. This single change flips every
-     `bg-brand` / `text-brand` button across the hub from orange to gold.
-     Hover stays warmer; glow tuned to the new RGB. */
-  --brand: #C99858;
+     (#336 reverted 2026-06-02) Reverted to Tailwind amber-500. The
+     champagne (#C99858) read as brown-orange to val just as much as
+     amber-500 did — the real fix is per-surface, not a global swap.
+     Operator side keeps amber; client-facing surfaces self-style
+     against the inquire-gate emerald+cream aesthetic. */
+  --brand: #f59e0b;
   --brand-fg: #0a0f1a;
-  --brand-hover: #E5B879;
-  --brand-glow: rgba(201, 152, 88, 0.28);
+  --brand-hover: #fbbf24;
+  --brand-glow: rgba(245, 158, 11, 0.25);
 
   /* ──── Surfaces (dark, glassy) ──── */
   --surface: rgba(255, 255, 255, 0.04);
