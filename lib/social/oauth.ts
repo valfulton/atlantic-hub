@@ -63,7 +63,12 @@ export const PROVIDER_CONFIG: Record<SocialProvider, ProviderConfig> = {
     authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
     profileUrl: 'https://api.linkedin.com/v2/userinfo',
-    scopes: ['openid', 'profile', 'w_member_social'],
+    // (#45 Phase C) `w_organization_social` lets the user post as company
+    // pages they administer. Tokens issued BEFORE this change lack the scope
+    // -- those accounts must RECONNECT at /admin/social (or via the intake
+    // connect popup) before their org targets can post. Same warning pattern
+    // as the X media.write note below.
+    scopes: ['openid', 'profile', 'w_member_social', 'w_organization_social'],
     usesPkce: false
   },
   x: {
@@ -103,8 +108,23 @@ export interface StateBag {
   provider: SocialProvider;
   tenant: string;
   verifier?: string; // PKCE code_verifier (X only)
-  uid: number; // acting owner/staff userId from the guard
+  /** Acting owner/staff userId from the admin guard. 0 when kind='intake'. */
+  uid: number;
   ts: number; // issued-at epoch seconds
+  /**
+   * (#45 Phase C) Flow kind.
+   *   - 'admin'  : default; started from /admin/social by an authenticated operator.
+   *   - 'intake' : started from inside the client intake-form popup. uid is 0 because
+   *                no admin session exists; trust comes from the verified intake
+   *                share token that was resolved at start-time. clientId + targetId
+   *                tell the callback which target to attach the new connection to and
+   *                which brand to discover LinkedIn orgs for.
+   */
+  kind?: 'admin' | 'intake';
+  /** When kind='intake': the brand the target belongs to. */
+  clientId?: number;
+  /** When kind='intake': the social_targets row to attach the OAuth connection to. */
+  targetId?: number;
 }
 
 export function randomToken(bytes = 32): string {

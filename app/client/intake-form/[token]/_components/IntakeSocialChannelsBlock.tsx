@@ -120,15 +120,63 @@ export default function IntakeSocialChannelsBlock({
     }
   }
 
-  function openConnect(targetId: number) {
-    // Phase C wires this up. For now, alert so we don't leave a dead button.
-    // (Keeping the button visible signals to the client "you'll be able to
-    // connect from here" without us pretending it works today.)
-    setFeedback({
-      kind: 'ok',
-      text: 'Posting access connect is coming soon — confirm now and val will reach out to finish the LinkedIn link.'
-    });
-    void targetId;
+  async function openConnect(targetId: number) {
+    setFeedback(null);
+    // Center the popup over the parent window.
+    const w = 600;
+    const h = 720;
+    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+
+    // POST first to (a) verify auth via header, (b) set the state cookie,
+    // (c) get the LinkedIn authorize URL. We then open the popup directly to
+    // that URL so the share token never appears in any URL or browser history.
+    let authorizeUrl: string;
+    try {
+      const data = await apiCall<{ ok: boolean; authorizeUrl: string }>(
+        `/api/client/intake/social/connect-start`,
+        { targetId },
+        { headers: headers(token) }
+      );
+      authorizeUrl = data.authorizeUrl;
+    } catch (e) {
+      const msg = e instanceof ApiError ? `Couldn't start (HTTP ${e.status})` : 'Could not start LinkedIn connect.';
+      setFeedback({ kind: 'err', text: msg });
+      return;
+    }
+
+    const popup = window.open(authorizeUrl, 'av_oauth', `width=${w},height=${h},left=${left},top=${top}`);
+    if (!popup) {
+      setFeedback({
+        kind: 'err',
+        text: 'Popup blocked. Allow popups for this site, or use the operator dashboard to connect.'
+      });
+      return;
+    }
+
+    function onMessage(e: MessageEvent) {
+      if (e.origin !== window.location.origin) return;
+      const d = e.data as { kind?: string; targetId?: number; connected?: boolean; reason?: string } | null;
+      if (!d || d.kind !== 'av:oauth:done' || d.targetId !== targetId) return;
+      window.removeEventListener('message', onMessage);
+      if (d.connected) {
+        setFeedback({ kind: 'ok', text: 'Connected. Your company pages were added too if you admin any.' });
+        void refresh();
+      } else {
+        setFeedback({ kind: 'err', text: `Could not connect: ${d.reason ?? 'unknown'}` });
+      }
+    }
+    window.addEventListener('message', onMessage);
+
+    // Safety: poll for popup close in case the user just closes it without
+    // completing OAuth -- clear the listener so we don't leak it.
+    const closedCheck = window.setInterval(() => {
+      if (popup.closed) {
+        window.clearInterval(closedCheck);
+        // Give postMessage one tick to land first, then clean up.
+        window.setTimeout(() => window.removeEventListener('message', onMessage), 500);
+      }
+    }, 500);
   }
 
   if (targets === null) {
@@ -140,7 +188,7 @@ export default function IntakeSocialChannelsBlock({
     );
   }
 
-  const allowOAuth = false; // Phase C feature flag
+  const allowOAuth = true; // Phase C is live
 
   return (
     <section className="mt-10 rounded-2xl border border-border bg-surface p-5">
@@ -233,7 +281,7 @@ export default function IntakeSocialChannelsBlock({
                     onClick={() => openConnect(t.id)}
                     disabled={!allowOAuth}
                     className="text-[11px] rounded border border-border bg-black/30 hover:bg-white/5 px-3 py-1.5 text-ink disabled:opacity-50"
-                    title={allowOAuth ? 'Open LinkedIn in a popup to authorize posting' : 'Coming soon'}
+                    title="Open LinkedIn in a popup to authorize posting"
                   >
                     Connect to post
                   </button>

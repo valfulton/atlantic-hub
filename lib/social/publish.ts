@@ -51,6 +51,11 @@ interface OutboxJoinRow extends RowDataPacket {
   display_name: string | null;
   access_token_enc: string;
   conn_status: string;
+  /** (#45 Phase C) target_id + the URN to post AS when it's set. NULL means
+   *  legacy connection-based posting (author = urn:li:person:<account_id>). */
+  target_id: number | null;
+  target_type: 'personal' | 'organization' | 'page' | null;
+  target_account_urn: string | null;
 }
 
 export class OutboxRowNotFoundError extends Error {
@@ -83,9 +88,12 @@ export async function publishOutboxRow(outboxId: number): Promise<PublishResult>
     `SELECT o.id, o.tenant_id, o.connection_id, o.asset_id, o.body_text, o.media_url, o.media_type,
             o.status AS outbox_status,
             c.provider, c.provider_account_id, c.display_name, c.access_token_enc,
-            c.status AS conn_status
+            c.status AS conn_status,
+            o.target_id,
+            t.target_type, t.target_account_urn
        FROM social_outbox o
        JOIN social_connections c ON c.id = o.connection_id
+       LEFT JOIN social_targets t ON t.id = o.target_id
       WHERE o.id = ? LIMIT 1`,
     [outboxId]
   );
@@ -127,9 +135,16 @@ export async function publishOutboxRow(outboxId: number): Promise<PublishResult>
 
   const started = Date.now();
   const wantsMedia = !!row.media_url && (row.media_type === 'image' || row.media_type === 'video');
+  // (#45 Phase C) When the outbox row carries a target_id with an org URN,
+  // post AS the organization. The personal-URN registerUpload path can't own
+  // org assets, so org posts skip native media and go text+link (the link is
+  // already appended to `text` by buildPostText). A future increment will add
+  // org-owned registerUpload so company-page posts can carry native media.
+  const isOrgPost = row.target_id != null && row.target_type === 'organization' && !!row.target_account_urn;
+  const authorOverride = isOrgPost ? row.target_account_urn! : undefined;
   let post: ProviderPostResult;
   try {
-    if (row.provider === 'linkedin' && wantsMedia) {
+    if (row.provider === 'linkedin' && wantsMedia && !isOrgPost) {
       // Try native upload (video/image plays in-feed). On ANY media failure,
       // fall back to a text+link post so publishing never fully fails.
       try {
@@ -154,7 +169,7 @@ export async function publishOutboxRow(outboxId: number): Promise<PublishResult>
         post = await postLinkedIn(token, row.provider_account_id, text);
       }
     } else if (row.provider === 'linkedin') {
-      post = await postLinkedIn(token, row.provider_account_id, text);
+      post = await postLinkedIn(token, row.provider_account_id, text, undefined, authorOverride);
     } else if (row.provider === 'x' && wantsMedia && row.media_type === 'image') {
       // X native IMAGE upload (needs media.write on the token). On ANY media
       // failure -- including a token issued before the scope was added -- fall
@@ -263,9 +278,18 @@ async function postLinkedIn(
   token: string,
   personId: string,
   text: string,
-  media?: { assetUrn: string; category: 'IMAGE' | 'VIDEO' }
+  media?: { assetUrn: string; category: 'IMAGE' | 'VIDEO' },
+  /** (#45 Phase C) Override the post author. When set, this is the URN used as
+   *  the share owner instead of the default urn:li:person:<personId>. Used to
+   *  post AS a company page (urn:li:organization:<orgId>) the user administers. */
+  authorOverride?: string
 ): Promise<ProviderPostResult> {
-  const author = `urn:li:person:${personId}`;
+  const author = authorOverride && /^urn:li:(person|organization):/.test(authorOverride)
+    ? authorOverride
+    : `urn:li:person:${personId}`;
+  // Org posts use MemberNetworkVisibility too -- LinkedIn accepts the same
+  // payload; the share owner is what determines whether it lands on the org's
+  // page or the member's feed.
   const shareContent: Record<string, unknown> = {
     shareCommentary: { text },
     shareMediaCategory: media ? media.category : 'NONE'
