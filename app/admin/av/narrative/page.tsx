@@ -56,7 +56,7 @@ export default async function NarrativePage() {
         </span>
       </h1>
       <p className="text-sm text-muted mb-3 max-w-2xl">
-        Every campaign is a believable <em>market thesis</em> (a &ldquo;narrative line&rdquo;) that
+        Every campaign is a believable <em>market thesis</em> that
         steers a customer&apos;s PR, social, blog, and commercials. Grouped by customer — your brands
         and each client. Keep <strong>{MAX_ACTIVE_LINES} active at most per customer</strong>; park
         the rest as candidates.

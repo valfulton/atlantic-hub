@@ -582,7 +582,7 @@ export function NarrativeCockpit({ customers, initialLines, initialOutcomes, max
       <style>{`@keyframes avSpark { 0%,100% { box-shadow: 0 0 0 0 rgba(110,231,183,0); } 50% { box-shadow: 0 0 16px 1px rgba(110,231,183,0.35); } }`}</style>
       {/* new line */}
       <div style={card}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 8 }}>New narrative line</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 8 }}>New campaign</div>
         <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 8 }}>
           <div>
             <label style={labelStyle}>Customer</label>
@@ -761,7 +761,7 @@ function StateGroup({ title, lines, ...props }: EditorProps & { title: string; l
               <span style={{ fontSize: 14, fontWeight: 600, color: '#f1f5f9' }}>{l.name}</span>
               {strip && (
                 <span
-                  title="Outcomes across leads linked to this narrative line"
+                  title="Outcomes across leads linked to this campaign"
                   style={{ fontSize: 11, color: stripColor, padding: '1px 8px', borderRadius: 999, background: 'rgba(2,6,23,0.5)', border: '1px solid rgba(148,163,184,0.18)' }}
                 >
                   📈 {strip}

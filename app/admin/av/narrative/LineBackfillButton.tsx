@@ -56,7 +56,7 @@ export function LineBackfillButton() {
         type="button"
         onClick={run}
         disabled={running}
-        title="Walk un-threaded leads, link each to the best-fit narrative line (capped batch). Skips low-confidence fits."
+        title="Walk un-threaded leads, link each to the best-fit campaign (capped batch). Skips low-confidence fits."
         className={
           'text-[11px] px-2.5 py-1 rounded-md border transition ' +
           (running
