@@ -20,6 +20,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { listEmployees } from '@/lib/employees/store';
 import type { RowDataPacket } from 'mysql2';
+import { realEmail } from '@/lib/leads/normalize';
 
 const SPRINT_MONTHLY_USD = 1995;
 /** Soft weekly call target for the activity ring. Tune freely — display-only. */
@@ -119,14 +120,6 @@ function brandOf(raw: string | null): TargetBrand {
   const v = (raw || '').toLowerCase();
   if (v === 'av' || v === 'ebw' || v === 'both') return v;
   return 'other';
-}
-
-function realEmail(e: string | null): string | null {
-  if (!e || !e.trim()) return null;
-  const v = e.trim();
-  if (/^(prospect|apollo|noemail)\+.*@eventsbywater\.com$/i.test(v)) return null;
-  if (/^info@eventsbywater\.com$/i.test(v)) return null;
-  return v;
 }
 
 function painSummaryOf(raw: string | object | null): string | null {

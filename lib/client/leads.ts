@@ -25,6 +25,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { addressFromSourcePayload } from '@/lib/client/lead_detail';
 import type { RowDataPacket } from 'mysql2';
+import { realEmail } from '@/lib/leads/normalize';
 
 export type LeadBand = 'hot' | 'warm' | 'cool' | null;
 
@@ -111,18 +112,6 @@ interface LeadRow extends RowDataPacket {
   // (#291) Fallback source for address when the dedicated columns are NULL
   // (legacy leads imported before #224 backfill landed). Read-only.
   source_payload: string | object | null;
-}
-
-/**
- * Real prospect emails only -- hide the apollo/clay/no-email placeholders the
- * discovery providers mint. Clients should never see scaffolding addresses.
- */
-function realEmail(e: string | null): string | null {
-  if (!e || !e.trim()) return null;
-  const v = e.trim();
-  if (/^(prospect|apollo|noemail)\+.*@eventsbywater\.com$/i.test(v)) return null;
-  if (/^info@eventsbywater\.com$/i.test(v)) return null;
-  return v;
 }
 
 /** Best-effort short pain summary from the extracted profile JSON. */

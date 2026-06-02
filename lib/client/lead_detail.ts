@@ -21,6 +21,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { linkedLinesForLead } from '@/lib/campaigns/lines_for_lead';
 import type { RowDataPacket } from 'mysql2';
+import { realEmail } from '@/lib/leads/normalize';
 
 export type LeadBand = 'hot' | 'warm' | 'cool' | null;
 
@@ -182,15 +183,6 @@ interface DetailRow extends RowDataPacket {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Hide the apollo/clay/no-email placeholders the discovery providers mint. */
-function realEmail(e: string | null): string | null {
-  if (!e || !e.trim()) return null;
-  const v = e.trim();
-  if (/^(prospect|apollo|noemail)\+/i.test(v)) return null;
-  if (/^info@eventsbywater\.com$/i.test(v)) return null;
-  return v;
-}
 
 function asObj(raw: string | object | null): Record<string, unknown> | null {
   if (raw == null) return null;
