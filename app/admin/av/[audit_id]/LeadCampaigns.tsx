@@ -6,6 +6,7 @@
  * board). Reads/writes the campaign_leads join.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { apiCall } from '@/lib/http';
 
 interface NamedCampaign {
   id: number;
@@ -19,18 +20,16 @@ export function LeadCampaigns({ leadId }: { leadId: number }) {
 
   const loadMine = useCallback(async () => {
     try {
-      const r = await fetch(`/api/admin/campaigns?leadId=${leadId}`, { cache: 'no-store' });
-      const j = await r.json();
-      if (r.ok) setMine(j.campaigns || []);
+      const j = await apiCall<{ campaigns?: NamedCampaign[] }>(`/api/admin/campaigns?leadId=${leadId}`);
+      setMine(j.campaigns || []);
     } catch {
       /* ignore */
     }
   }, [leadId]);
 
   useEffect(() => {
-    fetch('/api/admin/campaigns', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((j) => setAll((j.campaigns || []).map((c: { id: number; name: string }) => ({ id: c.id, name: c.name }))))
+    apiCall<{ campaigns?: { id: number; name: string }[] }>('/api/admin/campaigns')
+      .then((j) => setAll((j.campaigns || []).map((c) => ({ id: c.id, name: c.name }))))
       .catch(() => {});
     void loadMine();
   }, [loadMine]);
@@ -39,11 +38,11 @@ export function LeadCampaigns({ leadId }: { leadId: number }) {
     if (!campaignId) return;
     setBusy(true);
     try {
-      await fetch(`/api/admin/campaigns/${campaignId}/targets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds: [leadId] })
-      });
+      try {
+        await apiCall(`/api/admin/campaigns/${campaignId}/targets`, { leadIds: [leadId] });
+      } catch {
+        /* best-effort: the pre-apiCall code didn't surface HTTP errors here either */
+      }
       await loadMine();
     } finally {
       setBusy(false);
@@ -53,11 +52,11 @@ export function LeadCampaigns({ leadId }: { leadId: number }) {
   const remove = useCallback(async (campaignId: number) => {
     setBusy(true);
     try {
-      await fetch(`/api/admin/campaigns/${campaignId}/targets`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId })
-      });
+      try {
+        await apiCall(`/api/admin/campaigns/${campaignId}/targets`, { leadId }, { method: 'DELETE' });
+      } catch {
+        /* best-effort: the pre-apiCall code didn't surface HTTP errors here either */
+      }
       await loadMine();
     } finally {
       setBusy(false);

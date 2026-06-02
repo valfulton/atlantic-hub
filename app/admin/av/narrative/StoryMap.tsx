@@ -6,6 +6,7 @@
  * unlink them. Lazy: fetches only when opened, so the cockpit stays fast.
  */
 import { useState } from 'react';
+import { apiCall } from '@/lib/http';
 
 type Role = 'advances' | 'reinforces' | 'tests';
 interface Link { id: number; assetType: string; assetId: number; role: Role; note: string | null }
@@ -24,9 +25,8 @@ export function StoryMap({ lineId }: { lineId: number }) {
   async function load() {
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/campaigns/lines/${lineId}/links`, { cache: 'no-store' });
-      const j = await res.json();
-      if (res.ok) { setLinks(j.links || []); setCounts(j.counts || ZERO); setLoaded(true); }
+      const j = await apiCall<{ links?: Link[]; counts?: Counts }>(`/api/admin/campaigns/lines/${lineId}/links`);
+      setLinks(j.links || []); setCounts(j.counts || ZERO); setLoaded(true);
     } catch { /* quiet */ } finally { setBusy(false); }
   }
 
@@ -39,24 +39,16 @@ export function StoryMap({ lineId }: { lineId: number }) {
   async function setRole(link: Link, role: Role) {
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/campaigns/lines/${lineId}/links`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ assetType: link.assetType, assetId: link.assetId, role })
-      });
-      const j = await res.json();
-      if (res.ok) { setLinks((ls) => ls.map((l) => (l.id === link.id ? { ...l, role } : l))); setCounts(j.counts || counts); }
+      const j = await apiCall<{ counts?: Counts }>(`/api/admin/campaigns/lines/${lineId}/links`, { assetType: link.assetType, assetId: link.assetId, role });
+      setLinks((ls) => ls.map((l) => (l.id === link.id ? { ...l, role } : l))); setCounts(j.counts || counts);
     } catch { /* quiet */ } finally { setBusy(false); }
   }
 
   async function unlink(link: Link) {
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/campaigns/lines/${lineId}/links`, {
-        method: 'DELETE', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ assetType: link.assetType, assetId: link.assetId })
-      });
-      const j = await res.json();
-      if (res.ok) { setLinks((ls) => ls.filter((l) => l.id !== link.id)); setCounts(j.counts || ZERO); }
+      const j = await apiCall<{ counts?: Counts }>(`/api/admin/campaigns/lines/${lineId}/links`, { assetType: link.assetType, assetId: link.assetId }, { method: 'DELETE' });
+      setLinks((ls) => ls.filter((l) => l.id !== link.id)); setCounts(j.counts || ZERO);
     } catch { /* quiet */ } finally { setBusy(false); }
   }
 
