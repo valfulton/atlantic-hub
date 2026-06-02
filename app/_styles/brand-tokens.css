@@ -1,0 +1,163 @@
+/* ====================================================================
+   ATLANTIC & VINE — BRAND TOKENS
+   ====================================================================
+   The single source of truth for every color, type face, and spacing
+   value used across the hub.
+
+   HOW TO READ THIS FILE:
+     - The `:root` block at the top is the OPERATOR HUB default.
+       Every page in /admin/* inherits these.
+     - `[data-surface="client"]` overrides apply to the CLIENT PORTAL
+       (everything under /client/*). Lighter, editorial, emerald + cream.
+     - `[data-skin="royale"]` overrides apply to the Velvet Royale rep
+       arena ONLY. Obsidian + Aurum gold; never bleed into client.
+
+   HOW TO CHANGE A COLOR:
+     - Find the named token below (e.g. --brand, --emerald, --aurum).
+       Change the value once. Every component that uses var(--token)
+       updates everywhere.
+     - Do NOT add new component-scoped color overrides in *.tsx files.
+       If a component needs a color you don't see here, add it here,
+       give it a name, and reference the name.
+
+   HOW TO CHANGE A FONT:
+     - Edit --font-sans (UI/chrome) or --font-serif (display) below.
+     - Inter for chrome, Fraunces for client editorial, Cormorant
+       Garamond for the Velvet Royale arena.
+
+   THIS FILE IS THE LAW. Component-scoped color overrides are an
+   anti-pattern. If you find yourself reaching for a literal hex inside
+   a .tsx, stop and add it here first.
+
+   ==================================================================== */
+
+:root {
+  /* ─────────────────────────────────────────────────────────────────
+     OPERATOR HUB (default — /admin/*)
+     Dark navy + amber. The existing register, kept intact.
+     ───────────────────────────────────────────────────────────────── */
+
+  /* Brand accent (the amber CTA color) */
+  --brand: #f59e0b;
+  --brand-fg: #0a0f1a;
+  --brand-hover: #fbbf24;
+  --brand-glow: rgba(245, 158, 11, 0.25);
+
+  /* Surfaces — dark navy with glassy stacking */
+  --bg: #0b1220;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --surface-3: rgba(255, 255, 255, 0.12);
+
+  /* Text */
+  --ink: #f1f5f9;
+  --muted: #94a3b8;
+
+  /* Lines */
+  --border: rgba(255, 255, 255, 0.10);
+
+  /* Status */
+  --danger: #f87171;
+  --danger-fg: #ffffff;
+  --ok: #34d399;
+
+  /* Type families — global default */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace;
+
+  /* ─────────────────────────────────────────────────────────────────
+     SHARED PALETTE — named hexes used elsewhere
+     These are constants. Reference them by name from other tokens
+     above; don't repeat the literal hex outside this file.
+     ───────────────────────────────────────────────────────────────── */
+
+  /* Emerald (client surfaces) */
+  --emerald-deep: #0A4D3C;
+  --emerald: #1A6B52;
+  --emerald-soft: rgba(10, 77, 60, 0.08);
+
+  /* Cream / paper (client surfaces) */
+  --cream: #FAF8F4;
+  --paper: #FFFFFF;
+
+  /* Charcoal / warm grays (client surfaces) */
+  --charcoal: #1A1A1A;
+  --gray-warm: #4A4A4A;
+  --gray-soft: #8A8A8A;
+
+  /* Gold accent (used on cream — NOT primary CTA color) */
+  --gold-accent: #C9A961;
+
+  /* Aurum gold family (Velvet Royale rep arena ONLY) */
+  --aurum: #E8B923;
+  --aurum-bright: #FFDB66;
+  --aurum-deep: #B58912;
+  --obsidian: #0A0E18;
+  --obsidian-soft: #161A26;
+  --platinum: #C9D1DC;
+  --ice-cyan: #5FE3FF; /* live/in-play motion ONLY — never wins */
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   CLIENT PORTAL — applied when <body data-surface="client">
+   Emerald + cream + Fraunces. Mirrors the marketing inquire gate.
+   ───────────────────────────────────────────────────────────────── */
+
+[data-surface="client"] {
+  /* Override brand to be the emerald — buttons read green, not amber */
+  --brand: var(--emerald-deep);
+  --brand-fg: var(--cream);
+  --brand-hover: var(--charcoal);
+  --brand-glow: rgba(10, 77, 60, 0.18);
+
+  /* Light register */
+  --bg: var(--cream);
+  --surface: var(--paper);
+  --surface-2: var(--cream);
+  --surface-3: rgba(10, 77, 60, 0.04);
+
+  /* Type swaps to ink-on-cream */
+  --ink: var(--charcoal);
+  --muted: var(--gray-warm);
+
+  /* Lines */
+  --border: rgba(10, 77, 60, 0.10);
+
+  /* Editorial display face for client */
+  --font-serif: 'Fraunces', Georgia, serif;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   VELVET ROYALE rep-arena overlay skin — applied when
+   <html data-palette="black-gold"> OR any ancestor has
+   <... data-skin="royale">.
+   Obsidian + Aurum gold + platinum. Operator/rep-side ONLY.
+   Per memory `feedback_velvet_royale_overlay_skin` — never bleed
+   into /client/* or /newsroom/*.
+   ───────────────────────────────────────────────────────────────── */
+
+[data-skin="royale"],
+[data-palette="black-gold"] {
+  /* Brand becomes Aurum on obsidian — WINS-only register */
+  --brand: var(--aurum);
+  --brand-fg: var(--obsidian);
+  --brand-hover: var(--aurum-bright);
+  --brand-glow: rgba(232, 185, 35, 0.32);
+
+  /* Cosmic black surfaces */
+  --bg: var(--obsidian);
+  --surface: var(--obsidian-soft);
+  --surface-2: #1F2434;
+  --surface-3: #283042;
+
+  /* Ink stays warm */
+  --ink: #D9DFEA;
+  --muted: #7B85A0;
+
+  /* Platinum is the STRUCTURAL metal (eyebrows, secondary chrome) */
+  --border: rgba(201, 209, 220, 0.18);
+
+  /* Cormorant for content; Inter for UI labels — per memory */
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+}

@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* BRAND_TOKENS — the canonical source of truth for color, type, surfaces.
+   See app/_styles/brand-tokens.css for the full token system. That file
+   declares operator-hub defaults + client-portal overrides + Velvet Royale
+   overlay overrides, all in one place. The :root block below is retained
+   for legacy reference but anything new should be added to brand-tokens.css. */
+@import './_styles/brand-tokens.css';
+
 /* ─── DESIGN TOKEN CONTRACT -- do not modify without conductor approval ───
    The :root variables below are the single source of truth for color,
    surfaces, text, and brand glow. Multiple Claude Code sessions reference
