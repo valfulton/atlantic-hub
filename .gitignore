@@ -39,6 +39,14 @@ yarn-error.log*
 
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
+tsconfig.*.tsbuildinfo
+*.tsbuildinfo
+
+# OneDrive/FUSE filesystem placeholders — created when a process has a file
+# open and OneDrive tries to delete/move it. They auto-clean when the holding
+# process closes. Never real changes to commit.
+.fuse_hidden*
+**/.fuse_hidden*
 
 # Secrets / credentials — NEVER commit
 secrets.*
