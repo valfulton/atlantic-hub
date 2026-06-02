@@ -215,14 +215,9 @@ export default function SocialChannelsPanel({
         <textarea
           value={paste}
           onChange={(e) => setPaste(e.target.value)}
-          placeholder={
-            'Paste profile URLs, one per line:\n' +
-            'https://www.linkedin.com/in/adriana-candelaria-9108a839b/\n' +
-            'https://www.linkedin.com/company/central-business-bureau/\n' +
-            'https://www.facebook.com/profile.php?id=100057834751532'
-          }
+          placeholder={'One URL per line — LinkedIn / Facebook / Instagram / X / TikTok / YouTube. Personal and company pages both supported.'}
           rows={4}
-          className="w-full rounded-lg border border-border bg-black/30 px-3 py-2 text-xs text-ink placeholder-muted/60 focus:outline-none focus:border-brand font-mono"
+          className="w-full rounded-lg border border-border bg-black/30 px-3 py-2 text-xs text-ink placeholder-muted/50 italic focus:outline-none focus:border-brand focus:placeholder-muted/30 focus:not-italic font-sans"
           disabled={busy}
         />
         <div className="flex items-center justify-between gap-3">
@@ -272,7 +267,7 @@ export default function SocialChannelsPanel({
 
       {targets && targets.length === 0 && (
         <div className="text-xs text-muted italic border-t border-border pt-3">
-          No social channels saved yet. Paste URLs above to get started.
+          Nothing saved yet for this brand. Paste URLs above, or click &ldquo;Pull from website&rdquo; to let the scraper find them.
         </div>
       )}
 

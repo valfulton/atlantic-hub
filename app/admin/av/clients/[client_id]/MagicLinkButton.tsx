@@ -56,7 +56,7 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
     return (
       <span className="inline-flex items-center gap-2 flex-wrap">
         <button onClick={() => generate(false)} disabled={busy} className="text-brand hover:underline text-sm">
-          {busy ? 'Generating…' : 'Generate magic link →'}
+          {busy ? 'Generating…' : 'Generate portal sign-in link (intake-gated) →'}
         </button>
         {err && <span className="text-xs" style={{ color: '#fca5a5' }}>{err}</span>}
       </span>
