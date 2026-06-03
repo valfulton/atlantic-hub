@@ -63,7 +63,9 @@ export default function ClientDashboardV3(p: ClientDashboardV3Props) {
     <main className="v3-wrap">
       {/* Top bar — monogram + brand + chip switcher */}
       <header className="v3-top">
-        <img src="/brand/av_logo_white1152.png" alt="Atlantic & Vine" className="v3-top__logo" />
+        {/* monogram only — the full lockup is illegible shrunk to nav size;
+            the "Atlantic & Vine" wordmark beside it carries the name */}
+        <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
         <span className="v3-top__nm">Atlantic &amp; Vine</span>
         {p.brands.length > 1 && (
           <nav className="v3-switch" aria-label="Switch brand">

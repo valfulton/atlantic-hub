@@ -51,7 +51,7 @@ export default async function ClientWatchlistPage() {
   return (
     <main className="v3-wrap">
       <header className="v3-top">
-        <img src="/brand/av_logo_white1152.png" alt="Atlantic & Vine" className="v3-top__logo" />
+        <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
         <span className="v3-top__nm">Atlantic &amp; Vine</span>
       </header>
 

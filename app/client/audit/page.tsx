@@ -1,15 +1,16 @@
 /**
- * /client/audit
+ * /client/audit  — V3 (Velvet Royale chat, 2026-06-03)
  *
- * Full-page view of the client's Strategic Marketing Audit. Server-rendered.
- * Print-friendly (uses standard prose rendering, no client JS).
+ * Full-page view of the client's Strategic Marketing Audit, in the V3 navy
+ * register: monogram top bar → Cormorant eyebrow + title → prose in a single
+ * v3-card on navy. Server-rendered, print-friendly, no client JS, no
+ * PortalHeader, no WaveDivider. Narrow reading column (≈720px).
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientOwnAudit } from '@/lib/client/dashboard_data';
-import PortalHeader from '@/app/client/_components/PortalHeader';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -24,61 +25,50 @@ export default async function ClientAuditPage() {
   // Shared loader — the client's own audit, matched by email (one source of truth).
   const audit = await getClientOwnAudit(user.email);
 
+  const generated =
+    (audit?.audit_generated ?? audit?.created_at)?.toISOString().slice(0, 10) || 'recently';
+
   return (
-    <>
-      <PortalHeader
-        displayName={user.display_name}
-        email={user.email}
-        tier={user.tier}
-        active="audit"
-      />
+    <main className="v3-wrap" style={{ maxWidth: 720 }}>
+      <header className="v3-top">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="v3-top__logo" src="/brand/av-monogram.png" alt="Atlantic & Vine" />
+        <span className="v3-top__nm">Atlantic &amp; Vine</span>
+      </header>
 
-      <main className="w-full max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
-        <a
-          href="/client/dashboard"
-          className="text-sm text-muted hover:text-ink inline-block mb-4"
-        >
-          &lt;- Back to dashboard
-        </a>
+      <a href="/client/dashboard" className="v3-link" style={{ display: 'inline-block', margin: '18px 0 0' }}>
+        ← Back to dashboard
+      </a>
 
-        <div className="mb-6">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-muted">
-            Strategic Marketing Audit
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-ink mt-1">
-            {audit?.company || user.display_name || 'Your business audit'}
-          </h1>
-          {audit && (
-            <div className="mt-2 text-xs text-muted flex flex-wrap gap-x-4 gap-y-1">
-              {audit.industry && <span>Industry: <span className="text-ink">{audit.industry}</span></span>}
-              <span>
-                Generated:{' '}
-                <span className="text-ink">
-                  {(audit.audit_generated ?? audit.created_at)
-                    ?.toISOString()
-                    .slice(0, 10) || 'Recently'}
-                </span>
-              </span>
-            </div>
-          )}
-        </div>
-
-        {audit ? (
-          <article className="rounded-2xl border border-border bg-surface p-6 sm:p-8 text-ink leading-relaxed whitespace-pre-line text-[15px]">
-            {audit.audit_content}
-          </article>
-        ) : (
-          <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
-            Your audit hasn&apos;t been generated yet. Check back soon, or reply
-            to your intake confirmation email if it&apos;s been more than 48
-            hours.
-          </div>
+      <section className="v3-greet">
+        <p className="v3-eyebrow">Strategic Marketing Audit</p>
+        <h1 className="v3-h1">{audit?.company || user.display_name || 'Your business audit'}</h1>
+        {audit && (
+          <p className="v3-lede" style={{ fontStyle: 'normal', fontSize: 14 }}>
+            {audit.industry ? `${audit.industry} · ` : ''}Generated {generated}
+          </p>
         )}
+      </section>
 
-        <div className="mt-8 text-xs text-muted">
-          This audit is for your eyes only. Don&apos;t share publicly.
-        </div>
-      </main>
-    </>
+      {audit ? (
+        <article
+          className="v3-card"
+          style={{ whiteSpace: 'pre-line', lineHeight: 1.7, fontSize: 15, padding: '26px 28px' }}
+        >
+          {audit.audit_content}
+        </article>
+      ) : (
+        <article className="v3-card">
+          <p className="v3-card__p" style={{ marginBottom: 0 }}>
+            Your audit hasn&rsquo;t been generated yet. Check back soon, or reply to your intake
+            confirmation email if it&rsquo;s been more than 48 hours.
+          </p>
+        </article>
+      )}
+
+      <p className="v3-foot" style={{ textAlign: 'left', marginTop: 24 }}>
+        For your eyes only — please don&rsquo;t share publicly.
+      </p>
+    </main>
   );
 }

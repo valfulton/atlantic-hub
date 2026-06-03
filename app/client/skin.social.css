@@ -15,14 +15,14 @@
 [data-skin="social"]{
   /* V3 navy + cream + amber palette */
   --navy:#0B1B2D; --navy-soft:#11263C; --navy-elev:#15304C;
-  --cream:#F5EFE3; --cream-muted:#94A4B8;
-  --amber:#E5B879; --amber-deep:#A77A3F; --amber-bright:#F0CB95;
+  --cream:#F5EFE3; --cream-muted:#A7B4C6;
+  --amber:#EBCB6B; --amber-deep:#C7A64E; --amber-bright:#F2D88A;
   --rule:rgba(216,203,174,.16); --rule-soft:rgba(216,203,174,.09);
   --serif:"Cormorant Garamond",Georgia,serif;
   --sans:"Inter",system-ui,sans-serif;
 
   /* Distress + status accents (work on navy ground) */
-  --amber-sig:#E5B879;          /* distress signal accent */
+  --amber-sig:#EBCB6B;          /* distress signal accent (logo-gold, not orange) */
   --emerald-glow:#7CC4A1;       /* wins / done */
   --rose-glow:#FF9AA8;          /* hot / urgent */
   --sky-glow:#7BC1F0;           /* live / info */
@@ -57,17 +57,17 @@
 [data-skin="social"] .sig{font-size:.68rem;font-weight:500;color:var(--cream);
   background:rgba(216,203,174,.09);border:1px solid var(--rule);
   padding:.28rem .55rem;border-radius:7px;letter-spacing:.04em}
-[data-skin="social"] .sig--payoff{background:var(--amber);color:var(--navy);
-  border-color:var(--amber-deep);font-weight:600}
+[data-skin="social"] .sig--payoff{background:transparent;color:var(--amber);
+  border-color:var(--amber);font-weight:600}
 [data-skin="social"] .sig-arw{color:var(--cream-muted);font-size:.75rem}
 
 /* Primary CTA — amber-on-navy, the demo's signature button. */
 [data-skin="social"] .pcta{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
-  background:var(--amber);color:var(--navy);font-weight:500;font-size:.78rem;
+  background:transparent;color:var(--amber);font-weight:500;font-size:.78rem;
   padding:.78rem 1.1rem;border-radius:8px;cursor:pointer;
-  border:1px solid var(--amber-deep);letter-spacing:.12em;text-transform:uppercase;
-  transition:filter .2s,transform .15s}
-[data-skin="social"] .pcta:hover{filter:brightness(1.06);transform:translateY(-1px)}
+  border:1px solid var(--amber);letter-spacing:.12em;text-transform:uppercase;
+  transition:background .2s,transform .15s}
+[data-skin="social"] .pcta:hover{background:rgba(235,203,107,.10);transform:translateY(-1px)}
 [data-skin="social"] .pcta:focus-visible{outline:2px solid var(--cream);outline-offset:2px}
 
 /* Headings inside the skin lean Cormorant for the luxury register. */
