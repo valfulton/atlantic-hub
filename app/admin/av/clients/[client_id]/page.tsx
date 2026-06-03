@@ -28,6 +28,7 @@ import AttachLoginPanel from './AttachLoginPanel';
 import PublicIntelPanel from './PublicIntelPanel';
 import DistressWatchlistPanel from './DistressWatchlistPanel';
 import CascadePanel from './CascadePanel';
+import VerticalPackPanel from './VerticalPackPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import WeeklyDigestPanel from './WeeklyDigestPanel';
@@ -372,6 +373,14 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           client. HMDA (Marty) + CA SOS (Adriana) live; CFPB/ACS/recorders
           stubbed as "Coming soon." Collapsed by default — no fetch until
           val opens it. */}
+      {/* (#376) Vertical Packs — same engine, different pack per vertical.
+          Sits ABOVE Public Intelligence because the pack tells val which
+          adapters to enable. Applying a pack seeds weights + names the
+          recommended adapters + cascade recipes for that vertical. */}
+      <div id="vertical-pack" className="mb-5">
+        <VerticalPackPanel clientId={clientId} clientName={d.name} />
+      </div>
+
       <div id="public-intel" className="mb-5">
         <PublicIntelPanel clientId={clientId} clientName={d.name} />
       </div>

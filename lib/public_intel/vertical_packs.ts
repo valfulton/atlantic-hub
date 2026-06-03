@@ -1,0 +1,353 @@
+/**
+ * lib/public_intel/vertical_packs.ts  (#376, val 2026-06-03)
+ *
+ * Vertical Packs — the architectural unlock that turns Atlantic Hub from
+ * "SMB marketing tool" into "horizontal intelligence platform with vertical
+ * pricing." A VerticalPack is a self-contained recipe for serving a whole
+ * industry:
+ *
+ *   - signalWeights: the per-vertical tuning the Distress Engine needs
+ *   - cascadeRecipeIds: which cascade chains should be active for this vertical
+ *   - recommendedAdapters: which public-data sources to seed first
+ *   - pitchTemplate: the "we know who needs you before they look" sentence
+ *   - bestForRoles: ICPs within the vertical (e.g. "commercial credit reps")
+ *   - pricingThesis: how to price this pack (the differentiation argument)
+ *
+ * Applying a pack to a client_id:
+ *   1. Seeds the client's distress_signal_weights with the pack's weights
+ *      (idempotent — INSERT IGNORE so manual overrides win on re-apply).
+ *   2. Returns a structured "next steps" list val can hand the new client.
+ *
+ * Strategic framing (per advisor brief 2026-06-03):
+ *   "Same data, different buyer." A new LLC filing means a new client to a
+ *   collections agency, a lending prospect to a bank, a benefits prospect
+ *   to a payroll provider. The cascade engine + signal weights are the
+ *   per-vertical tuning. The platform is one product; the packs are eight.
+ *
+ * Adding a new vertical = add one entry to VERTICAL_PACKS. No new code, no
+ * new schema. That's the leverage.
+ */
+import { seedDefaultsForClient, type SignalKind } from './distress_engine';
+import type { PublicIntelKind } from './types';
+
+export type VerticalPackId =
+  | 'collections'              // CBB — collection agencies, legal referrals
+  | 'real_estate'              // Val's RE business — distress-property hunting
+  | 'b2b_sales'                // ADP / Paychex / payroll / merchant services
+  | 'commercial_insurance'     // Commercial insurance brokers
+  | 'commercial_lending'       // Banks, SBA lenders, equipment finance
+  | 'law_firm'                 // Practice-specific (employment, corporate, collections, bankruptcy)
+  | 'recruiting'               // Staffing + executive search
+  | 'marketing_agency'         // AV's own home turf — agencies selling marketing services
+  | 'luxury_hospitality';      // Yacht / marina / luxury hotel / high-end events (val's wheelhouse)
+
+export interface VerticalPack {
+  id: VerticalPackId;
+  displayName: string;
+  /** One-sentence positioning. */
+  shortPositioning: string;
+  /** Per-vertical signal weight tuning. Missing kinds keep library defaults. */
+  signalWeights: Partial<Record<SignalKind, number>>;
+  /** Cascade recipes that should be prioritized for this vertical. */
+  cascadeRecipeIds: string[];
+  /** Adapters val should enable first for this vertical. */
+  recommendedAdapters: PublicIntelKind[];
+  /** "Best for" — ICPs within the vertical. */
+  bestForRoles: string[];
+  /** The pitch template — verbatim sentence for cold outreach + decks. */
+  pitchTemplate: string;
+  /** Pricing thesis — why this pack supports premium pricing. */
+  pricingThesis: string;
+  /** Suggested monthly price band per seat (USD). For internal sales reference. */
+  suggestedPriceUsd: { low: number; high: number };
+}
+
+export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
+  collections: {
+    id: 'collections',
+    displayName: 'Collections agencies + legal referrals',
+    shortPositioning: 'Predictive intelligence on businesses about to need collections support.',
+    signalWeights: {
+      new_llc: 10,
+      ucc_filing: 20,
+      negative_review_trend: 15,
+      lawsuit_filed: 30,
+      bankruptcy_filed: 50,
+      credit_risk_increase: 40,
+      leadership_change: 15,
+      suspended_entity: 30,
+      dissolved_entity: 25
+    },
+    cascadeRecipeIds: [
+      'courtlistener_defendant_distress',
+      'new_llc_credit_opportunity',
+      'suspended_entity_vendor_exposure',
+      'bankruptcy_creditor_extraction'
+    ],
+    recommendedAdapters: ['ca_sos', 'courtlistener', 'ucc_ca', 'pacer_docket'],
+    bestForRoles: ['Commercial collections agencies', 'Legal referral networks', 'Credit recovery firms'],
+    pitchTemplate:
+      'Protect your cash flow before your first delinquent account. We identify businesses about to have a collections problem before they know they need help — using federal court filings, state suspensions, and UCC activity. You see the names this week; you call before anyone else has the chance.',
+    pricingThesis:
+      'A $99/mo lead list is replaceable. A $499/mo Revenue Distress Monitoring stream with signal-attribution receipts is not — because the customer can audit which signals fired on which entity. Reps close more because every call opens with "I noticed X just happened."',
+    suggestedPriceUsd: { low: 499, high: 1499 }
+  },
+
+  real_estate: {
+    id: 'real_estate',
+    displayName: 'Real estate investors + agents (distress hunting)',
+    shortPositioning: 'The agent who knows about the listing before there is a listing.',
+    signalWeights: {
+      suspended_entity: 20,
+      lawsuit_filed: 25,
+      leadership_change: 10,
+      address_change: 15,
+      // RE-specific signals would be added when CA recorder adapter ships.
+      // Placeholder weights here cover the cross-cutting signals.
+      new_llc: 5
+    },
+    cascadeRecipeIds: [
+      // Cascades that activate when CA recorder + tax-collector adapters ship:
+      'probate_filing_heir_outreach',
+      'nod_to_auction_window',
+      'divorce_to_forced_sale',
+      'code_violation_motivated_seller',
+      'tax_lien_absentee_cashout'
+    ],
+    recommendedAdapters: ['ca_sos', 'courtlistener', 'ca_recorder', 'census_acs'],
+    bestForRoles: ['Real estate investors (probate / NOD / divorce specialists)', 'Cash-buyer agents', 'Wholesale RE'],
+    pitchTemplate:
+      'I do not compete on commission. I compete on time-to-the-property. Probate, divorce, default, vacancy — by the time the heirs are figuring out who to call, the cascade engine has surfaced the property and pre-drafted my outreach.',
+    pricingThesis:
+      'Replaces $500-2000/mo absentee-owner lead lists (PropStream, REIPro, BatchLeads) with a transparent receipt for why each property surfaced. RE investors already spend on lead lists; this is a category swap, not a new spend.',
+    suggestedPriceUsd: { low: 499, high: 1999 }
+  },
+
+  b2b_sales: {
+    id: 'b2b_sales',
+    displayName: 'B2B sales teams (payroll / merchant / software)',
+    shortPositioning: 'We know which businesses are most likely to buy this quarter — before they ask.',
+    signalWeights: {
+      new_llc: 30,
+      leadership_change: 20,
+      address_change: 25,
+      rapid_growth: 25
+    },
+    cascadeRecipeIds: [
+      'new_llc_credit_opportunity',
+      // Future cascades for "new location" and "hiring surge" once adapters ship.
+    ],
+    recommendedAdapters: ['ca_sos', 'ca_sos_v2'],
+    bestForRoles: ['ADP / Paychex regional reps', 'Merchant services account execs', 'B2B SaaS field sales'],
+    pitchTemplate:
+      'Your reps stop hunting. We surface the businesses that just registered, just opened a new location, or just had a leadership change in your territory — the moments when they are most likely to buy. You arrive with a specific reason to call, not a cold pitch.',
+    pricingThesis:
+      'B2B sales orgs already spend $200-800/seat/month on ZoomInfo, Apollo, Cognism. We replace the "find me anyone" approach with "find me the ones changing right now" — higher conversion, same spend.',
+    suggestedPriceUsd: { low: 299, high: 999 }
+  },
+
+  commercial_insurance: {
+    id: 'commercial_insurance',
+    displayName: 'Commercial insurance brokers',
+    shortPositioning: 'Daily alerts on businesses with new insurable exposure.',
+    signalWeights: {
+      new_llc: 30,
+      rapid_growth: 25,
+      address_change: 20,
+      leadership_change: 15
+    },
+    cascadeRecipeIds: ['new_llc_credit_opportunity'],
+    recommendedAdapters: ['ca_sos', 'ca_sos_v2', 'census_acs'],
+    bestForRoles: ['Commercial P&C producers', 'Workers comp brokers', 'EPLI / D&O specialists'],
+    pitchTemplate:
+      '"42 businesses opened locations in your territory this week. 17 hired over 50 employees." Producers stop chasing renewals and start showing up the day the insurable event happens. The benefits broker who calls the day after a 50-person hiring round is the broker who gets the book.',
+    pricingThesis:
+      'A commission on one mid-market book pays the annual subscription. Insurance brokers already lose to whoever shows up first — we make them first.',
+    suggestedPriceUsd: { low: 499, high: 1499 }
+  },
+
+  commercial_lending: {
+    id: 'commercial_lending',
+    displayName: 'Banks + SBA lenders + equipment finance',
+    shortPositioning: 'Growth AND distress signals — borrowers AND defaults — in one feed.',
+    signalWeights: {
+      new_llc: 20,
+      ucc_filing: 35,
+      rapid_growth: 25,
+      credit_risk_increase: 40,
+      lawsuit_filed: 25,
+      bankruptcy_filed: 50,
+      suspended_entity: 30
+    },
+    cascadeRecipeIds: [
+      'new_llc_credit_opportunity',
+      'courtlistener_defendant_distress',
+      'bankruptcy_creditor_extraction'
+    ],
+    recommendedAdapters: ['ca_sos', 'courtlistener', 'ucc_ca', 'hmda', 'cfpb'],
+    bestForRoles: ['SBA loan officers', 'Equipment finance', 'Commercial bankers', 'Workout / special assets'],
+    pitchTemplate:
+      'One feed, two sides of your portfolio. New formations + expansion signals point to your next book of business. Distress signals point to the loans you need to action this week. Your relationship managers and your workout team work from the same intelligence layer.',
+    pricingThesis:
+      'Lenders pay $50-200K/year for FIS / Moody\'s commercial intelligence. We deliver per-market regional intelligence at 1/10 the cost with cascade attribution they can show their credit committee.',
+    suggestedPriceUsd: { low: 999, high: 4999 }
+  },
+
+  law_firm: {
+    id: 'law_firm',
+    displayName: 'Law firms (practice-specific intelligence)',
+    shortPositioning: 'Practice-specific alerts that match what each partner actually does.',
+    signalWeights: {
+      // Per-practice would be a sub-pack. Defaults below cover collections law +
+      // corporate law as the most common book.
+      lawsuit_filed: 30,
+      bankruptcy_filed: 45,
+      leadership_change: 25,
+      suspended_entity: 25,
+      dissolved_entity: 20,
+      new_llc: 15
+    },
+    cascadeRecipeIds: [
+      'courtlistener_defendant_distress',
+      'bankruptcy_creditor_extraction',
+      'new_llc_credit_opportunity',
+      'suspended_entity_vendor_exposure'
+    ],
+    recommendedAdapters: ['courtlistener', 'ca_sos', 'pacer_docket', 'ucc_ca'],
+    bestForRoles: [
+      'Collections law firms',
+      'Bankruptcy practitioners',
+      'Corporate / M&A partners',
+      'Employment law (with hiring-surge adapter)'
+    ],
+    pitchTemplate:
+      'Your partners stop relying on referrals. Daily alerts match their practice: collections sees the new judgments + UCC activity; bankruptcy sees the new Chapter 11 + creditor lists; corporate sees the new formations + agent changes. Each practice gets a different feed; one engine runs them all.',
+    pricingThesis:
+      'Law firms already pay $1-5K/seat/month for Lex Machina, Bloomberg Law, Westlaw. We are not replacing legal research — we are giving them the prospects to research. New category, additive spend.',
+    suggestedPriceUsd: { low: 799, high: 2999 }
+  },
+
+  recruiting: {
+    id: 'recruiting',
+    displayName: 'Staffing + executive recruiting',
+    shortPositioning: 'Companies likely to hire in the next 90 days — surfaced before the JD is posted.',
+    signalWeights: {
+      new_llc: 25,
+      rapid_growth: 35,
+      address_change: 15,
+      leadership_change: 25
+    },
+    cascadeRecipeIds: ['new_llc_credit_opportunity'],
+    recommendedAdapters: ['ca_sos', 'ca_sos_v2'],
+    bestForRoles: ['Staffing agencies', 'Executive recruiters', 'Industry-specific recruiting firms'],
+    pitchTemplate:
+      'Stop waiting for the JD. Companies hiring next quarter are visible NOW in the signals — funding events, leadership changes, expansion filings. The recruiter who calls the new VP of Sales the day they start placing the team — wins the placements.',
+    pricingThesis:
+      'Recruiters already pay LinkedIn Recruiter $10-15K/year per seat. We surface intent BEFORE the LinkedIn job-post phase, when no other recruiter has the lead yet.',
+    suggestedPriceUsd: { low: 399, high: 1299 }
+  },
+
+  marketing_agency: {
+    id: 'marketing_agency',
+    displayName: 'Marketing agencies (the AV home turf)',
+    shortPositioning: 'We know who needs marketing before they start looking.',
+    signalWeights: {
+      new_llc: 25,
+      address_change: 20,
+      rapid_growth: 25,
+      leadership_change: 15,
+      negative_review_trend: 30
+    },
+    cascadeRecipeIds: ['new_llc_credit_opportunity', 'review_drop_operational_stress'],
+    recommendedAdapters: ['ca_sos', 'ca_sos_v2', 'gbp'],
+    bestForRoles: ['Full-service agencies', 'Branding consultancies', 'Performance marketing shops'],
+    pitchTemplate:
+      'Stop selling marketing services. Sell knowing-who-needs-marketing-first. New CMO arrived this month? Rebrand signal. Review velocity dropped? Reputation work. Three new locations opened? Local + paid + brand. Agencies that arrive on day one of the need win the engagement.',
+    pricingThesis:
+      'Agencies already invest in BD time. We compress the BD cycle by handing them pre-qualified opportunities with cascade-attributed reasons-to-call. The pricing argument is "one engagement closed pays the year."',
+    suggestedPriceUsd: { low: 299, high: 1499 }
+  },
+
+  luxury_hospitality: {
+    id: 'luxury_hospitality',
+    displayName: 'Luxury hospitality intelligence (yacht / marina / hotel / event)',
+    shortPositioning: 'Specialized intelligence for a smaller, wealthier, relationship-driven market.',
+    signalWeights: {
+      new_llc: 20,
+      leadership_change: 25,
+      address_change: 30,
+      rapid_growth: 30
+    },
+    cascadeRecipeIds: [
+      'new_llc_credit_opportunity'
+      // Future: yacht_documentation_change, marina_permit_filed, luxury_hotel_opening
+    ],
+    recommendedAdapters: ['ca_sos', 'ca_sos_v2', 'census_acs'],
+    bestForRoles: [
+      'Luxury brand activation agencies',
+      'Yacht brokers',
+      'High-end concierge companies',
+      'Marina + yacht-management operators',
+      'Hospitality consultants',
+      'Luxury PR firms'
+    ],
+    pitchTemplate:
+      'The luxury market does not respond to broad lead lists. It responds to "we knew before anyone else." New marina expansion in the area, new yacht registered to a local LLC, new luxury hotel ownership change — these are the moments when a $50K activation contract becomes possible. Generic lead-gen tools cannot see these signals; we built the engine that does.',
+    pricingThesis:
+      'Smaller market, wealthier customers, higher per-deal value. Luxury market generic tools are weakest here precisely because the data is fragmented across yacht registries, marina permits, hotel filings. Specialization commands premium pricing. This is the niche the advisor flagged as the best fit for AV given Events by Water + nautical brand position.',
+    suggestedPriceUsd: { low: 999, high: 4999 }
+  }
+};
+
+export function listPacks(): VerticalPack[] {
+  return Object.values(VERTICAL_PACKS);
+}
+
+export function getPack(id: VerticalPackId): VerticalPack | null {
+  return VERTICAL_PACKS[id] ?? null;
+}
+
+/**
+ * Apply a vertical pack to a client: seeds the distress signal weights from
+ * the pack. Idempotent — uses INSERT IGNORE so manual weight overrides win.
+ * Returns the count of new weights inserted + a "next steps" list val can
+ * hand the new client.
+ */
+export interface ApplyPackResult {
+  ok: boolean;
+  packId: VerticalPackId;
+  weightsSeeded: number;
+  recommendedAdapters: PublicIntelKind[];
+  cascadeRecipesActivated: string[];
+  nextSteps: string[];
+}
+
+export async function applyVerticalPackToClient(clientId: number, packId: VerticalPackId): Promise<ApplyPackResult> {
+  const pack = getPack(packId);
+  if (!pack) {
+    return {
+      ok: false,
+      packId,
+      weightsSeeded: 0,
+      recommendedAdapters: [],
+      cascadeRecipesActivated: [],
+      nextSteps: [`Unknown pack id: ${packId}`]
+    };
+  }
+  const seeded = await seedDefaultsForClient(clientId, pack.signalWeights);
+  const nextSteps: string[] = [
+    `Vertical: ${pack.displayName}`,
+    `Pitch: ${pack.pitchTemplate}`,
+    `Next: enable adapters → ${pack.recommendedAdapters.join(', ')}`,
+    `Then: Run cascades → Rescore distress watchlist`,
+    `Pricing: $${pack.suggestedPriceUsd.low}-${pack.suggestedPriceUsd.high}/mo per seat`
+  ];
+  return {
+    ok: true,
+    packId,
+    weightsSeeded: seeded,
+    recommendedAdapters: pack.recommendedAdapters,
+    cascadeRecipesActivated: pack.cascadeRecipeIds,
+    nextSteps
+  };
+}
