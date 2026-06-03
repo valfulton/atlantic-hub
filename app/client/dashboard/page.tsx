@@ -1,10 +1,14 @@
 /**
- * /client/dashboard
+ * /client/dashboard  (#396, val 2026-06-03)
  *
- * The client's hub home. This page owns ONLY auth + the access gate; the entire
- * body is the shared <ClientDashboardBody>, fed by getClientDashboardData(). The
- * operator preview (/admin/av/clients/[id]/preview) renders the exact same body
- * from the same loader, so the two can never drift — fix once, both update.
+ * V3 — the luxury Cormorant register pulled directly from
+ * demo_client_portal_v3.html. NOT a retrofit of the old dashboard body.
+ * Monogram + brand chips → Cormorant greeting → ONE hero card → "In
+ * motion" quiet cards → QUIET · LEGIBLE · VERIFIABLE footer.
+ *
+ * The classic ClientDashboardBody (guidance feed, creative brief, team,
+ * plan) is intentionally NOT rendered here — its content moves into the
+ * "in motion" cards (one quiet line per item) or to dedicated pages.
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -15,17 +19,21 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
-import PortalHeader from '@/app/client/_components/PortalHeader';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import ClientDashboardBody from '@/app/client/_components/ClientDashboardBody';
-// (#394) V3 social skin top section.
-import SocialDashboardBody from './SocialDashboardBody';
 import { watchlistForClient } from '@/lib/public_intel/distress_engine';
 import { buildSignalCardData } from '@/lib/public_intel/signal_voice';
 import { listBrandsForUser } from '@/lib/client/membership';
+import ClientDashboardV3, { type ClientDashboardV3Props, type DashboardCardData } from './ClientDashboardV3';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+function weekLabelNow(): string {
+  const d = new Date();
+  const day = d.getDate();
+  const month = d.toLocaleString('en', { month: 'long' });
+  return `Your channel · week of ${day} ${month}`;
+}
 
 export default async function ClientDashboardPage() {
   const actor = readClientActorFromHeaders(headers() as unknown as Headers);
@@ -34,30 +42,21 @@ export default async function ClientDashboardPage() {
   const user = await findClientUserById(actor.clientUserId);
   if (!user) redirect('/client/login');
 
-  // Self-heal: an account created before provisioning landed (client_id NULL)
-  // gets its own hub on first visit, so its scoped data has somewhere to live.
+  // Self-heal for legacy accounts created pre-provisioning.
   if (!user.client_id) {
     try {
       const cid = await ensureClientHub(user);
       if (cid) user.client_id = cid;
-    } catch {
-      /* non-fatal */
-    }
+    } catch { /* non-fatal */ }
   }
 
-  // Multi-brand (#101): scope to the brand the owner is currently viewing.
   const clientId = await activeBrandFor(actor.clientUserId, user.client_id ?? null);
 
-  // Access gate: a lapsed trial or revoked account sees a calm "paused" screen.
+  // Access gate — lapsed/revoked accounts see the calm "paused" screen.
   if (clientId) {
     const access = await getClientAccessState(clientId);
     if (!access.active) {
-      return (
-        <>
-          <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="dashboard" />
-          <AccessPaused expired={access.expired} />
-        </>
-      );
+      return <AccessPaused expired={access.expired} />;
     }
   }
 
@@ -69,84 +68,102 @@ export default async function ClientDashboardPage() {
     displayName: user.display_name
   });
 
-  // (#394) V3 social skin — prepend the dashboard with a luxury social-feed
-  // preview of the distress watchlist + brand switcher. Adriana opens to ONE
-  // featured signal + her cards. The classic dashboard body (brief/team/plan/
-  // campaign) still renders below for continuity.
-  let social: React.ComponentProps<typeof SocialDashboardBody> | null = null;
+  // Build hero + motion cards from real data.
+  let heroProps: ClientDashboardV3Props['hero'] = null;
+  const motion: DashboardCardData[] = [];
+
   if (clientId) {
     try {
-      const [rows, brandsForUser] = await Promise.all([
-        watchlistForClient(clientId, 9),
-        listBrandsForUser(actor.clientUserId)
-      ]);
-      const brands = brandsForUser.map((b) => ({
-        id: String(b.clientId),
-        label: b.clientName || `Brand ${b.clientId}`,
-        monogram: (b.clientName || '?').charAt(0).toUpperCase()
-      }));
-      if (rows.length > 0 || brands.length > 1) {
-        const top = rows[0];
-        const featured = top
-          ? (() => {
-              const v = buildSignalCardData({
-                entityLabel: top.entityLabel || 'A flagged entity',
-                contributingSignals: top.contributingSignals,
-                score: top.score
-              });
-              return {
-                entity: `${top.entityLabel || 'A flagged entity'} · flagged on your watchlist`,
-                headline: v.headline,
-                trail: v.trail
-              };
-            })()
-          : null;
-        const cards = rows.slice(1).map((r) => {
-          const v = buildSignalCardData({
-            entityLabel: r.entityLabel || 'A flagged entity',
-            contributingSignals: r.contributingSignals,
-            score: r.score
-          });
-          return {
-            entityKey: r.entityKey,
-            entity: r.entityLabel || 'A flagged entity',
-            monogram: (r.entityLabel || '?').charAt(0).toUpperCase(),
-            chip: r.score >= 50 ? `Score ${r.score} · hot` : `Score ${r.score}`,
-            chipKind: 'signal' as const,
-            headline: v.headline,
-            trail: v.trail
-          };
+      const rows = await watchlistForClient(clientId, 4);
+      const top = rows[0];
+      if (top) {
+        const v = buildSignalCardData({
+          entityLabel: top.entityLabel || 'A flagged entity',
+          contributingSignals: top.contributingSignals,
+          score: top.score
         });
-        social = {
-          firstName: data.firstName,
-          brands,
-          activeBrandId: String(clientId),
-          featured,
-          cards
+        heroProps = {
+          label: "This week's strongest signal",
+          title: v.headline,
+          body: `${top.entityLabel || 'A flagged entity'} surfaced on your watchlist with a score of ${top.score}. The cascade engine traced it through public records — open the signal to see who they are and how to reach out.`,
+          ctaLabel: 'Open the signal',
+          ctaHref: '/client/watchlist',
+          trail: v.trail
         };
       }
-    } catch {
-      /* non-fatal — fall through without the social section */
-    }
+    } catch { /* non-fatal */ }
   }
+
+  // "In motion" cards — pulled from existing dashboard data so they're real.
+  if (data.brief.pipeline.total > 0) {
+    motion.push({
+      title: `${data.brief.pipeline.total} lead${data.brief.pipeline.total === 1 ? '' : 's'} in your pipeline${data.brief.pipeline.hot > 0 ? `, ${data.brief.pipeline.hot} scored hot` : ''}`,
+      body: 'Live prospects ranked by their AI Living Score. The strongest are always on top — open your pipeline to act on them today.',
+      linkLabel: 'Open your pipeline →',
+      linkHref: '/client/leads',
+      when: data.brief.pipeline.hot > 0 ? `${data.brief.pipeline.hot} hot` : 'live'
+    });
+  }
+  if (data.liveCount > 0) {
+    motion.push({
+      title: `${data.liveCount} piece${data.liveCount === 1 ? '' : 's'} live on the Wire`,
+      body: 'Your stories are out in the world, signed and dated. See how they\'re traveling on The Atlantic & Vine Wire.',
+      linkLabel: 'Read the features →',
+      linkHref: '/newsroom',
+      when: 'published'
+    });
+  }
+  if (data.inMotion > 0) {
+    motion.push({
+      title: `${data.inMotion} piece${data.inMotion === 1 ? '' : 's'} in motion`,
+      body: 'Scheduled across your channels for the coming days, in your voice. Approve the set or send notes.',
+      linkLabel: 'Review the queue →',
+      linkHref: '/client/social/review',
+      when: 'queued'
+    });
+  }
+  if (data.audit && motion.length < 3) {
+    motion.push({
+      title: 'Your strategic audit is current',
+      body: 'A living read on your audience, market, and pipeline. Refreshed as new signals land.',
+      linkLabel: 'Open the audit →',
+      linkHref: '/client/audit',
+      when: 'ready'
+    });
+  }
+  if (motion.length === 0) {
+    motion.push({
+      title: 'Your channel is being set in motion',
+      body: 'Your first audit and signals will appear here as the engine finds them. Nothing publishes until you approve — review, refine, release.',
+      linkLabel: 'Set up your details →',
+      linkHref: '/client/intake',
+      when: 'soon'
+    });
+  }
+
+  // Brand switcher chips.
+  const brandsRaw = await listBrandsForUser(actor.clientUserId);
+  const brands = brandsRaw.map((b) => ({
+    id: String(b.clientId),
+    label: b.clientName || `Brand ${b.clientId}`
+  }));
 
   return (
     <>
-      <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="dashboard" />
-      {/* (#189) First-login welcome card-flip popovers. Self-dismisses on
-          tour-complete, persists in localStorage so it shows once per
-          identity. Operator preview never renders it (renders directly
-          inside ClientDashboardBody only on the live page). */}
       <WelcomePopover
         clientUserId={user.client_user_id}
         firstName={data.firstName}
         brandName={user.display_name || data.firstName || 'your business'}
         tier={user.tier}
       />
-      {/* (#394) V3 social skin — luxury social-feed preview ABOVE the classic
-          dashboard body. Hidden when watchlist is empty AND single-brand. */}
-      {social && <SocialDashboardBody {...social} />}
-      <ClientDashboardBody data={data} email={user.email} />
+      <ClientDashboardV3
+        firstName={data.firstName}
+        weekLabel={weekLabelNow()}
+        brands={brands}
+        activeBrandId={String(clientId ?? '')}
+        hero={heroProps}
+        motion={motion}
+      />
     </>
   );
 }
