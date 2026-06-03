@@ -25,6 +25,7 @@ import OwnerIntakeLink from './OwnerIntakeLink';
 import SendPasswordButton from './SendPasswordButton';
 import ClientAccessGroup from './ClientAccessGroup';
 import AttachLoginPanel from './AttachLoginPanel';
+import PublicIntelPanel from './PublicIntelPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import WeeklyDigestPanel from './WeeklyDigestPanel';
@@ -364,6 +365,14 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* MagicLinkButton + SendPasswordButton now live inside ClientAccessGroup
           near the top of the page. Removed here to avoid double-render. */}
+
+      {/* (#369) Public Intelligence Layer — free public data adapters per
+          client. HMDA (Marty) + CA SOS (Adriana) live; CFPB/ACS/recorders
+          stubbed as "Coming soon." Collapsed by default — no fetch until
+          val opens it. */}
+      <div id="public-intel" className="mb-5">
+        <PublicIntelPanel clientId={clientId} clientName={d.name} />
+      </div>
 
       {/* Intake -> canonical intelligence (one visible-prompt pass). */}
       <div id="extract-intel" className="mb-5">
