@@ -44,25 +44,57 @@ interface IntelRecord {
   fetchedAt: string;
 }
 
-// Adapter-specific config hint strings — placeholder + example. Kept here in
-// the UI (vs. on the server adapter) so the form can be inline-helpful without
-// shipping more code into the client bundle.
-const CONFIG_HINT: Record<string, { placeholder: string; example: string }> = {
+// (#373) Per-adapter presets — click a chip and it drops formatted JSON
+// straight into the config box. Each preset has a human label + a config
+// object that gets JSON.stringify'd with 2-space indent. The placeholder is
+// what shows in the empty textarea so val sees the shape before clicking.
+interface ConfigPreset {
+  label: string;
+  config: Record<string, unknown>;
+}
+const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPreset[] }> = {
   hmda: {
-    placeholder: '{ "states": ["FL", "CA"], "year": 2024 }',
-    example: '{ "states": ["FL"], "year": 2024 }   or   { "countyFips": ["12099"], "year": 2024 }'
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'FL state · 2024', config: { states: ['FL'], year: 2024 } },
+      { label: 'FL + CA · 2024', config: { states: ['FL', 'CA'], year: 2024 } },
+      { label: 'Palm Beach county only', config: { countyFips: ['12099'], year: 2024 } }
+    ]
   },
   ca_sos: {
-    placeholder: '{ "query": "Candelaria" }',
-    example: '{ "query": "Candelaria" }   or   { "entityNumbers": ["C1234567"] }'
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'Search "Candelaria"', config: { query: 'Candelaria' } },
+      { label: 'Search "Acme"', config: { query: 'Acme' } },
+      { label: 'Active entities only', config: { query: 'Candelaria', includeInactive: false } },
+      { label: 'Specific entity number', config: { entityNumbers: ['C1234567'] } }
+    ]
   },
   cfpb: {
-    placeholder: '{ "states": ["FL"], "sinceDays": 90 }',
-    example: '{ "states": ["FL", "CA"], "products": ["Mortgage"], "sinceDays": 90 }'
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'FL · all products · 90d', config: { states: ['FL'], sinceDays: 90 } },
+      { label: 'FL + CA · Mortgage · 90d', config: { states: ['FL', 'CA'], products: ['Mortgage'], sinceDays: 90 } },
+      { label: 'CA · Debt collection · 180d', config: { states: ['CA'], products: ['Debt collection'], sinceDays: 180 } }
+    ]
   },
   census_acs: {
-    placeholder: '{ "countyFips": ["12099"], "year": 2022 }',
-    example: '{ "countyFips": ["12099"] }   (Palm Beach FL — pair with HMDA same county)'
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'Palm Beach FL (pairs with HMDA)', config: { countyFips: ['12099'] } },
+      { label: 'LA County CA', config: { countyFips: ['06037'] } },
+      { label: 'FL state-level', config: { stateFips: ['12'] } },
+      { label: 'CA state-level', config: { stateFips: ['06'] } }
+    ]
+  },
+  courtlistener: {
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'CA · last 14d (CBB starter)', config: { states: ['CA'], sinceDays: 14 } },
+      { label: 'CA + FL · last 14d', config: { states: ['CA', 'FL'], sinceDays: 14 } },
+      { label: 'CA · Bankruptcy only · 30d', config: { states: ['CA'], natureOfSuit: ['Bankruptcy'], sinceDays: 30 } },
+      { label: 'CA · Contract / debt · 14d', config: { states: ['CA'], natureOfSuit: ['Contract: Other'], sinceDays: 14 } }
+    ]
   }
 };
 
@@ -268,23 +300,47 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                   </div>
                   {a.available && (
                     <div className="mt-3 grid gap-2">
-                      <label className="grid gap-1">
+                      <label className="grid gap-1.5">
                         <span className="text-[10.5px] uppercase tracking-[0.12em] text-muted">
                           Config (JSON)
                         </span>
+                        {/* (#373) Click-to-fill preset chips. One click drops the
+                            formatted JSON straight into the textarea below — no
+                            typing required for the common cases. */}
+                        {CONFIG_PRESETS[a.kind] && (
+                          <div className="flex flex-wrap items-center gap-1.5 -mt-0.5">
+                            <span className="text-[10.5px] text-ink/70 uppercase tracking-[0.1em]">
+                              Quick fill:
+                            </span>
+                            {CONFIG_PRESETS[a.kind].presets.map((p) => (
+                              <button
+                                key={p.label}
+                                type="button"
+                                onClick={() =>
+                                  setDrafts((prev) => ({
+                                    ...prev,
+                                    [a.kind]: JSON.stringify(p.config, null, 2)
+                                  }))
+                                }
+                                className="rounded-md border border-brand/40 bg-brand/[0.08] hover:bg-brand/[0.16] text-brand text-[11px] font-medium px-2 py-1 transition-colors"
+                                title="Click to populate the config box with this preset"
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <textarea
                           value={drafts[a.kind] ?? ''}
                           onChange={(e) => setDrafts((p) => ({ ...p, [a.kind]: e.target.value }))}
-                          placeholder={CONFIG_HINT[a.kind]?.placeholder ?? '{}'}
-                          rows={3}
-                          className="rounded-md border border-border bg-black/30 px-2.5 py-1.5 text-[12px] text-ink font-mono"
+                          placeholder={CONFIG_PRESETS[a.kind]?.placeholder ?? '{}'}
+                          rows={5}
+                          className="rounded-md border border-border bg-black/40 px-3 py-2 text-[13px] text-ink font-mono leading-relaxed placeholder:text-ink/35"
                           spellCheck={false}
                         />
-                        {CONFIG_HINT[a.kind] && (
-                          <span className="text-[10.5px] text-muted">
-                            example: <code className="text-ink/80">{CONFIG_HINT[a.kind].example}</code>
-                          </span>
-                        )}
+                        <span className="text-[10.5px] text-ink/55">
+                          Tip: edit the JSON directly after a preset to tweak it. Save + enable persists; Run now fires the adapter.
+                        </span>
                       </label>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
