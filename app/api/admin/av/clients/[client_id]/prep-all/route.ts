@@ -41,6 +41,10 @@ interface StepResult {
   step: string;
   status: StepStatus;
   detail?: string;
+  /** (#367) Per-step LLM cost — set by the post-run llm_call_log roll-up. */
+  costMicrocents?: number;
+  /** (#367) `live` if a real call fired, `cache` if served from cache, undefined for non-LLM steps. */
+  costSource?: 'live' | 'cache' | null;
 }
 
 function ok(step: string, detail?: string): StepResult { return { step, status: 'ok', detail }; }
@@ -50,6 +54,17 @@ function failed(step: string, err: unknown): StepResult {
   const msg = err instanceof Error ? err.message.slice(0, 280) : String(err).slice(0, 280);
   return { step, status: 'failed', detail: msg };
 }
+
+/** (#367) Map our step ids ↔ the task_kind that each step's LLM call logs as,
+ *  so we can fan the per-step cost back out of llm_call_log after the run. */
+const STEP_TO_TASK_KIND: Record<string, string> = {
+  fill_intake: 'intake_web_fill',
+  brand_kit: 'brand_kit_extract',
+  sharpen_icp: 'icp_sharpen',
+  extract_intel: 'intake_intel_extract',
+  narrative_lines: 'narrative_line_propose'
+  // socials_scrape: no LLM call (pure HTML scrape)
+};
 
 function pickWebsiteUrl(
   bodyUrl: string | null | undefined,
@@ -263,6 +278,43 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       liveCallCount = Number(costRows[0].live_calls ?? 0);
       cacheHitCount = Number(costRows[0].cache_hits ?? 0);
       totalCostMicrocents = totalLiveMicrocents;
+    }
+
+    // (#367) Per-step cost: group log rows by task_kind for this run and fan
+    // them back into the matching StepResult so val sees which step spent
+    // what (and which steps came in free from cache).
+    const [perKindRows] = await db.execute<(import('mysql2').RowDataPacket & {
+      task_kind: string;
+      live_microcents: number | string | null;
+      live_calls: number | string;
+      cache_hits: number | string;
+    })[]>(
+      `SELECT
+         task_kind,
+         SUM(CASE WHEN source='live' THEN cost_microcents ELSE 0 END) AS live_microcents,
+         SUM(CASE WHEN source='live' THEN 1 ELSE 0 END) AS live_calls,
+         SUM(CASE WHEN source='cache' THEN 1 ELSE 0 END) AS cache_hits
+       FROM llm_call_log
+       WHERE client_id = ? AND ts >= ?
+       GROUP BY task_kind`,
+      [clientId, prepStarted]
+    );
+    const costByTaskKind = new Map<string, { live: number; liveCalls: number; cacheHits: number }>();
+    for (const r of perKindRows) {
+      costByTaskKind.set(String(r.task_kind), {
+        live: Number(r.live_microcents ?? 0),
+        liveCalls: Number(r.live_calls ?? 0),
+        cacheHits: Number(r.cache_hits ?? 0)
+      });
+    }
+    for (const r of results) {
+      const taskKind = STEP_TO_TASK_KIND[r.step];
+      if (!taskKind) continue;
+      const c = costByTaskKind.get(taskKind);
+      if (!c) continue;
+      r.costMicrocents = c.live;
+      // Live wins over cache for the source label if the step did both.
+      r.costSource = c.liveCalls > 0 ? 'live' : c.cacheHits > 0 ? 'cache' : null;
     }
   } catch { /* non-fatal */ }
 

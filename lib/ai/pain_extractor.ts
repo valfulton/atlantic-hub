@@ -24,12 +24,8 @@
  */
 
 import { getAvDb } from '@/lib/db/av';
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefSeed } from '@/lib/client/brief_store';
@@ -42,7 +38,7 @@ import {
 } from '@/lib/ai/lead_audits';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-const MODEL = 'gpt-4o-mini';
+// (#361) Model decided by TASK_MODEL['pain_extract'].
 const TEMPERATURE = 0.3; // low for consistency across runs
 const MAX_TOKENS = 800;
 const STALE_DAYS = 14;
@@ -115,6 +111,8 @@ interface PainPromptInput {
   contact_title: string | null;
   challenge: string | null;
   auditContent: string | null;
+  /** (#361) Client scope for cost accounting in llm_call_log. NULL = operator-wide. */
+  clientId?: number | null;
   /** Geography (#180) — model can ground urgency + opener in local context. */
   address_street?: string | null;
   address_city?: string | null;
@@ -255,39 +253,22 @@ async function generatePainProfile(
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: buildUserPrompt(input, briefContext) }
-      ],
-      { json: true, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, model: MODEL }
-    );
+    const userPrompt = buildUserPrompt(input, briefContext);
+    completion = await runLlm({
+      taskKind: 'pain_extract',
+      clientId: input.clientId ?? null,
+      note: `pain_extract · lead ${leadId}`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [String(leadId), systemPrompt.slice(0, 200)],
+      json: true,
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError) {
-      await logEvent({
-        eventType: 'api.openai_error',
-        leadId,
-        source: 'openai',
-        status: 'failure',
-        errorMessage: 'OPENAI_API_KEY missing during pain extract'
-      });
-      return null;
-    }
-    if (err instanceof OpenAIApiError) {
-      await logEvent({
-        eventType: err.status === 429 ? 'api.rate_limited' : 'api.openai_error',
-        leadId,
-        source: 'openai',
-        status: 'failure',
-        payload: { route: 'pain_extractor', status_code: err.status },
-        errorMessage: err.body.slice(0, 500)
-      });
-      return null;
-    }
     await logEvent({
       eventType: 'ai.pain_extract_failed',
       leadId,
-      source: 'openai',
+      source: 'llm_router',
       status: 'failure',
       errorMessage: (err as Error).message.slice(0, 500)
     });
@@ -332,7 +313,7 @@ async function generatePainProfile(
     extracted_at: new Date().toISOString()
   };
 
-  return { profile, tokensUsed: completion.usage.totalTokens };
+  return { profile, tokensUsed: completion.inputTokens + completion.outputTokens };
 }
 
 /**

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import BrandSeal from './BrandSeal';
 import PresentationModeToggle from '@/app/_components/PresentationModeToggle';
+import DailySpendChip from '@/app/_components/DailySpendChip';
 
 const HH_NAV = [
   { href: '/admin', label: 'Home', section: 'top' as const },
@@ -80,6 +81,12 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
             toggle so server components pick up the new value. */}
         <div className="mt-3 ml-[52px]">
           <PresentationModeToggle />
+        </div>
+        {/* (#367) Tenant-wide LLM spend over the last 24h — auto-hides under
+            Presentation Mode, auto-hides when spend is zero. The visible burn
+            rate while building. */}
+        <div className="mt-2 ml-[52px]">
+          <DailySpendChip />
         </div>
       </div>
 

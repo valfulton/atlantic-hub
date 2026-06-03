@@ -20,18 +20,14 @@
  */
 
 import { getAvDb } from '@/lib/db/av';
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefSeed } from '@/lib/client/brief_store';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-const MODEL = 'gpt-4o-mini';
+// (#361) Model decided by TASK_MODEL['outreach_draft'].
 const TEMPERATURE = 0.7;
 const MAX_TOKENS = 700;
 
@@ -136,21 +132,24 @@ export async function generateOutreachDraft(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, json: true }
-    );
+    completion = await runLlm({
+      taskKind: 'outreach_draft',
+      clientId: lead.client_id ?? null,
+      note: `outreach_draft · lead ${lead.id} (${args.campaign.campaignName})`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      // Outreach is creative — never cache (TASK_CACHE['outreach_draft']='none' enforces this).
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
+    {
       await logEvent({
         eventType: 'outreach.draft_failed',
         leadId: lead.id,
-        source: 'openai',
+        source: 'llm_router',
         status: 'failure',
-        errorMessage: err.message,
+        errorMessage: (err as Error).message,
         payload: { campaign_id: args.campaign.campaignId }
       });
     }
@@ -182,12 +181,14 @@ export async function generateOutreachDraft(args: {
   await logEvent({
     eventType: 'outreach.drafted',
     leadId: lead.id,
-    source: 'openai',
+    source: 'llm_router',
     executionTimeMs: Date.now() - started,
     payload: {
       campaign_id: args.campaign.campaignId,
       model: completion.model,
-      tokens: completion.usage.totalTokens,
+      tokens: completion.inputTokens + completion.outputTokens,
+      cost_microcents: completion.costMicrocents,
+      cost_source: completion.source,
       grounded_on_audit: groundedOnAudit
     }
   });
@@ -197,7 +198,7 @@ export async function generateOutreachDraft(args: {
     body,
     groundedExcerpt,
     model: completion.model,
-    tokensUsed: completion.usage.totalTokens,
+    tokensUsed: completion.inputTokens + completion.outputTokens,
     temperature: TEMPERATURE,
     groundedOnAudit
   };

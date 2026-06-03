@@ -8,6 +8,8 @@ import NewClientForm from './NewClientForm';
 import ConvertLeadToClient from './ConvertLeadToClient';
 import MiniStageStrip from './MiniStageStrip';
 import { loadOnboardingStatus, type OnboardingStatus } from '@/lib/av/onboarding_status';
+import { spendByClientLastDays, totalSpendLastDays } from '@/lib/llm/spend';
+import { CostBadge } from '@/app/_components/CostBadge';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -58,6 +60,13 @@ export default async function ClientsPage() {
     })
   );
 
+  // (#367) LLM spend rollup — per-client over 30d + tenant-wide total over 30d.
+  // Cheap aggregate queries; both auto-hide under Presentation Mode in the UI.
+  const [spendByClient, totalSpend] = await Promise.all([
+    spendByClientLastDays(30),
+    totalSpendLastDays(30)
+  ]);
+
   // Active leads available to convert into a client (no retyping — their info carries over).
   let convertible: { auditId: string; company: string; contactName: string | null; email: string; industry: string | null; score: number | null; band: string | null }[] = [];
   try {
@@ -85,7 +94,18 @@ export default async function ClientsPage() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-3xl font-semibold tracking-tight mb-1">Clients</h1>
+      <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+        <h1 className="text-3xl font-semibold tracking-tight">Clients</h1>
+        {/* (#367) Tenant-wide LLM spend over the last 30 days. CostBadge auto-hides
+            under Presentation Mode so this disappears on investor demos. */}
+        <div className="flex items-center gap-2 text-[11px] text-muted">
+          <span className="uppercase tracking-[0.14em]">LLM 30d</span>
+          <CostBadge microcents={totalSpend.liveMicrocents} />
+          {totalSpend.cacheHitCount > 0 && (
+            <span className="text-emerald-300">+ {totalSpend.cacheHitCount} cache hits</span>
+          )}
+        </div>
+      </div>
       <p className="text-sm text-muted mb-6 max-w-2xl">
         Every client hub. Each client runs their own scoped pipeline; you see them all here. Open one to
         review their leads, discovery activity, and any errors.
@@ -115,6 +135,9 @@ export default async function ClientsPage() {
                 <th className="px-4 py-3 font-medium text-right">Hot fits</th>
                 <th className="px-4 py-3 font-medium text-right">Total leads</th>
                 <th className="px-4 py-3 font-medium text-right">Pipeline / mo</th>
+                <th className="px-4 py-3 font-medium text-right" title="LLM spend on this client over the last 30 days. Cache hits cost $0.">
+                  LLM&nbsp;30d
+                </th>
                 <th className="px-4 py-3 font-medium text-right" title="Last weekly digest sent">
                   Last digest
                 </th>
@@ -173,6 +196,22 @@ export default async function ClientsPage() {
                   <td className="px-4 py-3 text-right align-top tabular-nums">
                     {c.pipelineCents && c.pipelineCents > 0 ? (
                       <span style={{ color: '#FFC73D', fontWeight: 600 }}>{formatUsd(c.pipelineCents)}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
+
+                  {/* (#367) LLM spend on this client over the last 30 days. */}
+                  <td className="px-4 py-3 text-right align-top tabular-nums">
+                    {spendByClient.has(c.clientId) ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <CostBadge microcents={spendByClient.get(c.clientId)!.liveMicrocents} />
+                        {spendByClient.get(c.clientId)!.cacheHitCount > 0 && (
+                          <span className="text-[10px] text-emerald-300">
+                            +{spendByClient.get(c.clientId)!.cacheHitCount} cache
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-muted">—</span>
                     )}

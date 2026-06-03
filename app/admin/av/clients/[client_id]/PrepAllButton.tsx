@@ -22,6 +22,9 @@ interface StepResult {
   step: string;
   status: 'ok' | 'skipped' | 'failed' | 'pre_skipped';
   detail?: string;
+  /** (#367) Per-step cost — fanned out of llm_call_log post-run. */
+  costMicrocents?: number;
+  costSource?: 'live' | 'cache' | null;
 }
 
 interface PrepResponse {
@@ -147,10 +150,20 @@ export default function PrepAllButton({
               <li key={i} className="flex items-start gap-2 text-[12px]">
                 <span aria-hidden className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${STATUS_DOT[r.status]}`} />
                 <span className="text-ink/90 shrink-0">{STEP_LABEL[r.step] ?? r.step}</span>
-                <span className={`${STATUS_COLOR[r.status]} truncate`}>
+                <span className={`${STATUS_COLOR[r.status]} truncate flex-1`}>
                   {STATUS_PREFIX[r.status]}
                   {r.detail}
                 </span>
+                {/* (#367) Per-step cost — hidden under Presentation Mode via CostBadge.
+                    Only shows for LLM steps that actually ran (live or cache). */}
+                {r.costSource === 'live' && typeof r.costMicrocents === 'number' && (
+                  <span className="shrink-0">
+                    <CostBadge microcents={r.costMicrocents} />
+                  </span>
+                )}
+                {r.costSource === 'cache' && (
+                  <span className="shrink-0 text-[10px] text-emerald-300 uppercase tracking-wider">cache</span>
+                )}
               </li>
             ))}
           </ul>
