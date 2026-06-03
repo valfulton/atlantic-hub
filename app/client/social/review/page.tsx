@@ -62,7 +62,7 @@ export default async function ClientSocialReviewPage() {
   return (
     <>
       <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="review" />
-      <main className="max-w-4xl mx-auto px-4 py-8 sm:py-10">
+      <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold text-ink">To Review</h1>
           <p className="text-sm text-muted mt-1 max-w-2xl">

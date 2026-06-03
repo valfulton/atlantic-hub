@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import BrandSeal from '@/components/BrandSeal';
 
 interface PortalHeaderProps {
@@ -16,8 +16,38 @@ const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
   scale: 'Scale'
 };
 
+interface NavItem {
+  href: string;
+  label: string;
+  key: PortalHeaderProps['active'];
+  /** Hide for audit_only tier. */
+  paidOnly?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { href: '/client/dashboard', label: 'Dashboard', key: 'dashboard' },
+  { href: '/client/leads', label: 'Your Leads', key: 'leads' },
+  { href: '/client/watchlist', label: 'Watchlist', key: 'watchlist', paidOnly: true },
+  { href: '/client/audit', label: 'Your Audit', key: 'audit' },
+  { href: '/client/pr', label: 'Your Press', key: 'pr', paidOnly: true },
+  { href: '/client/social/review', label: 'To Review', key: 'review', paidOnly: true },
+  { href: '/client/intelligence', label: 'Your Impact', key: 'intelligence', paidOnly: true },
+  { href: '/client/intake', label: 'Your Details', key: 'details' }
+];
+
 export default function PortalHeader({ displayName, email, tier, active }: PortalHeaderProps) {
   const [signingOut, setSigningOut] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close the mobile menu on Escape so phone users can dismiss without scrolling.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMobileOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileOpen]);
 
   async function signOut() {
     if (signingOut) return;
@@ -25,146 +55,49 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
     try {
       await fetch('/api/client/logout', { method: 'POST' });
     } catch {
-      // Even if the request fails, clear locally by reload.
+      /* Even if the request fails, clear locally by reload. */
     }
     window.location.href = '/client/login';
   }
 
+  const visibleNav = NAV_ITEMS.filter((n) => !n.paidOnly || tier !== 'audit_only');
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur supports-[backdrop-filter]:bg-surface/60">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          {/* Brand seal — the logo on its own red field (#186 phase 1).
-              Self-contained: never depends on page bg behind it. */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <BrandSeal size="md" />
-          <div className="leading-tight">
-            <div className="text-sm font-semibold text-ink">Atlantic &amp; Vine</div>
-            {/* Mirrors the operator chrome's "Live · Operator" line (components/
-                Sidebar.tsx) -- same live-dot + label CSS, but shows the client's
-                name instead of the operator label. */}
+          <div className="leading-tight min-w-0">
+            <div className="text-sm font-semibold text-ink truncate">Atlantic &amp; Vine</div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="live-dot" aria-hidden="true" />
-              <span className="text-[10.5px] text-muted uppercase tracking-[0.12em] font-medium">
+              <span className="text-[10.5px] text-muted uppercase tracking-[0.12em] font-medium truncate">
                 {displayName || 'Client'}
               </span>
             </div>
           </div>
         </div>
 
-        <nav aria-label="Primary" className="hidden sm:flex items-center gap-1">
-          <a
-            href="/client/dashboard"
-            aria-current={active === 'dashboard' ? 'page' : undefined}
-            className={`px-3 py-1.5 rounded-md text-sm ${
-              active === 'dashboard'
-                ? 'bg-surface-2 text-ink'
-                : 'text-muted hover:text-ink hover:bg-surface-2'
-            }`}
-          >
-            Dashboard
-          </a>
-          <a
-            href="/client/leads"
-            aria-current={active === 'leads' ? 'page' : undefined}
-            className={`px-3 py-1.5 rounded-md text-sm ${
-              active === 'leads'
-                ? 'bg-surface-2 text-ink'
-                : 'text-muted hover:text-ink hover:bg-surface-2'
-            }`}
-          >
-            Your Leads
-          </a>
-          {/* (#385) Watchlist — distressed entities surfaced from public-records
-              intelligence. Hidden for audit_only (no signals run yet). */}
-          {tier !== 'audit_only' && (
+        {/* Desktop nav — unchanged behavior, hidden below sm. */}
+        <nav aria-label="Primary" className="hidden sm:flex items-center gap-1 flex-wrap">
+          {visibleNav.map((n) => (
             <a
-              href="/client/watchlist"
-              aria-current={active === 'watchlist' ? 'page' : undefined}
+              key={n.key}
+              href={n.href}
+              aria-current={active === n.key ? 'page' : undefined}
               className={`px-3 py-1.5 rounded-md text-sm ${
-                active === 'watchlist'
+                active === n.key
                   ? 'bg-surface-2 text-ink'
                   : 'text-muted hover:text-ink hover:bg-surface-2'
               }`}
             >
-              Watchlist
+              {n.label}
             </a>
-          )}
-          <a
-            href="/client/audit"
-            aria-current={active === 'audit' ? 'page' : undefined}
-            className={`px-3 py-1.5 rounded-md text-sm ${
-              active === 'audit'
-                ? 'bg-surface-2 text-ink'
-                : 'text-muted hover:text-ink hover:bg-surface-2'
-            }`}
-          >
-            Your Audit
-          </a>
-          {/* PR is Momentum+ but we render the link for Sprint clients too,
-              since the page shows the upgrade panel itself. We hide it for
-              audit_only (they don't even have leads yet, no value in a
-              dead-end link). */}
-          {tier !== 'audit_only' && (
-            <a
-              href="/client/pr"
-              aria-current={active === 'pr' ? 'page' : undefined}
-              className={`px-3 py-1.5 rounded-md text-sm ${
-                active === 'pr'
-                  ? 'bg-surface-2 text-ink'
-                  : 'text-muted hover:text-ink hover:bg-surface-2'
-              }`}
-            >
-              Your Press
-            </a>
-          )}
-          {/* (#61 Inc 3) Review queue — line-born social drafts awaiting the
-              client's approval. Hidden for audit_only since their hub doesn't
-              produce content yet. Lights up by URL alone; an unread-count
-              badge can come in a follow-up. */}
-          {tier !== 'audit_only' && (
-            <a
-              href="/client/social/review"
-              aria-current={active === 'review' ? 'page' : undefined}
-              className={`px-3 py-1.5 rounded-md text-sm ${
-                active === 'review'
-                  ? 'bg-surface-2 text-ink'
-                  : 'text-muted hover:text-ink hover:bg-surface-2'
-              }`}
-            >
-              To Review
-            </a>
-          )}
-          {/* (#321) Impact — the live Created → Activated → Revenue view.
-              Sprint+ only (audit_only hubs don't produce activity yet). */}
-          {tier !== 'audit_only' && (
-            <a
-              href="/client/intelligence"
-              aria-current={active === 'intelligence' ? 'page' : undefined}
-              className={`px-3 py-1.5 rounded-md text-sm ${
-                active === 'intelligence'
-                  ? 'bg-surface-2 text-ink'
-                  : 'text-muted hover:text-ink hover:bg-surface-2'
-              }`}
-            >
-              Your Impact
-            </a>
-          )}
-          <a
-            href="/client/intake"
-            aria-current={active === 'details' ? 'page' : undefined}
-            className={`px-3 py-1.5 rounded-md text-sm ${
-              active === 'details'
-                ? 'bg-surface-2 text-ink'
-                : 'text-muted hover:text-ink hover:bg-surface-2'
-            }`}
-          >
-            Your Details
-          </a>
+          ))}
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* (#298) Desktop: full name + tier pill. Mobile: tier-only chip so
-              the client still sees their plan context on a phone. */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Desktop: full name + tier pill. Mobile: tier-only chip. */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-surface text-xs text-ink">
             <span className="text-muted truncate max-w-[160px]" title={email}>
               {displayName || email}
@@ -179,16 +112,69 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
           >
             {TIER_LABEL[tier]}
           </span>
+
+          {/* Desktop sign-out — text link. */}
           <button
             type="button"
             onClick={signOut}
             disabled={signingOut}
-            className="text-xs text-muted hover:text-ink px-2 py-1 disabled:opacity-60"
+            className="hidden sm:inline-flex text-xs text-muted hover:text-ink px-2 py-1 disabled:opacity-60"
           >
             {signingOut ? 'Signing out...' : 'Sign out'}
           </button>
+
+          {/* (#391) Mobile menu trigger — replaces the desktop nav on small screens. */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen((o) => !o)}
+            className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-md border border-border bg-surface hover:bg-surface-2 text-ink"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 3 L13 13 M13 3 L3 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M2 4 H14 M2 8 H14 M2 12 H14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* (#391) Mobile drawer — full-width vertical menu, slides under header.
+          Closes when any link is tapped (the page nav will reload anyway). */}
+      {mobileOpen && (
+        <div className="sm:hidden border-t border-border bg-surface/95 backdrop-blur">
+          <nav aria-label="Mobile primary" className="flex flex-col py-2 px-3">
+            {visibleNav.map((n) => (
+              <a
+                key={n.key}
+                href={n.href}
+                onClick={() => setMobileOpen(false)}
+                aria-current={active === n.key ? 'page' : undefined}
+                className={`px-3 py-2.5 rounded-md text-sm ${
+                  active === n.key
+                    ? 'bg-surface-2 text-ink font-medium'
+                    : 'text-ink/80 hover:text-ink hover:bg-surface-2'
+                }`}
+              >
+                {n.label}
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={signingOut}
+              className="mt-2 px-3 py-2.5 rounded-md text-sm text-left text-muted hover:text-ink hover:bg-surface-2 border-t border-border/60 disabled:opacity-60"
+            >
+              {signingOut ? 'Signing out...' : 'Sign out'}
+            </button>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

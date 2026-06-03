@@ -58,7 +58,7 @@ export default function ClientDashboardBody({
   const hasTeam = team.length > 0;
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10">
+    <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-12 space-y-8 sm:space-y-10">
       <ClientHero firstName={firstName} pipeline={brief.pipeline} monthlyPipelineCents={monthlyPipelineCents}>
         <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
           {brief.pipeline.hot > 0

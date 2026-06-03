@@ -62,7 +62,7 @@ export default async function ClientLeadDetailPage({ params }: { params: { audit
   return (
     <>
       <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="leads" />
-      <main className="max-w-4xl mx-auto px-4 py-8 sm:py-10">
+      <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
         <a href="/client/leads" className="inline-flex items-center gap-1 text-sm text-brand hover:underline mb-5">
           &larr; Back to your leads
         </a>

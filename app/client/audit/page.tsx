@@ -33,7 +33,7 @@ export default async function ClientAuditPage() {
         active="audit"
       />
 
-      <main className="max-w-3xl mx-auto px-4 py-8 sm:py-10">
+      <main className="w-full max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
         <a
           href="/client/dashboard"
           className="text-sm text-muted hover:text-ink inline-block mb-4"

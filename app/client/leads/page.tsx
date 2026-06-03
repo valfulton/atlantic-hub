@@ -134,7 +134,7 @@ export default async function ClientLeadsPage() {
     <>
       <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="leads" />
 
-      <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
+      <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
         <section
           className="mb-8 rounded-2xl border border-border overflow-hidden"
           style={{
@@ -142,9 +142,9 @@ export default async function ClientLeadsPage() {
               'radial-gradient(120% 140% at 0% 0%, rgba(245,158,11,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
           }}
         >
-          <div className="px-6 sm:px-8 py-7">
+          <div className="px-4 sm:px-8 py-5 sm:py-7">
             <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your pipeline</div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">Your leads, {headline}.</h1>
+            <h1 className="text-xl sm:text-3xl font-semibold text-ink tracking-tight break-words">Your leads, {headline}.</h1>
             <WaveDivider className="mt-3" width={120} />
             <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
               {locked

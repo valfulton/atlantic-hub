@@ -48,7 +48,7 @@ export default async function ClientIntakePage() {
   return (
     <>
       <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="details" />
-      <main className="max-w-4xl mx-auto px-4 py-8 sm:py-10">
+      <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
         <ClientIntakeForm initial={initial} brandName={brandName} />
       </main>
     </>

@@ -30,12 +30,12 @@ export default function ClientHero({
           'radial-gradient(120% 140% at 0% 0%, rgba(245,158,11,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
       }}
     >
-      <div className="px-6 sm:px-8 py-7">
+      <div className="px-4 sm:px-8 py-5 sm:py-7">
         <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your campaign, live</div>
-        <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">Welcome back, {firstName}.</h1>
+        <h1 className="text-xl sm:text-3xl font-semibold text-ink tracking-tight break-words">Welcome back, {firstName}.</h1>
         <WaveDivider className="mt-3" width={120} />
 
-        <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div className="mt-4 sm:mt-5 flex flex-wrap items-end gap-x-6 sm:gap-x-8 gap-y-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted mb-1">Live pipeline</div>
             <div className="flex items-baseline gap-2">

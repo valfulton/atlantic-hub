@@ -102,7 +102,7 @@ export default async function PublicIntakeFormPage({ params }: { params: { token
   }
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8 sm:py-10" data-tenant="av">
+    <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10" data-tenant="av">
       <ClientIntakeForm initial={initial} brandName={brandName} shareToken={params.token} />
     </main>
   );
