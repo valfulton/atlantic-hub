@@ -42,6 +42,7 @@ import ReleaseLeadsPanel from './ReleaseLeadsPanel';
 import AddBrandPanel from './AddBrandPanel';
 import StageStrip from './StageStrip';
 import ActionStatusChip from './ActionStatusChip';
+import PrepAllButton from './PrepAllButton';
 import { loadOnboardingStatus } from '@/lib/av/onboarding_status';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
@@ -244,6 +245,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           brand kit, socials, leads, audits, content, outreach. Chips link to
           panel anchors below so val can jump to whatever's still dim. */}
       <StageStrip status={onboarding} />
+
+      {/* (#353) Quick prep — fills the brand kit / intake / ICP / intel /
+          socials all at once for new clients (or top-ups for clients with
+          gaps). Blanks-only, so anything val typed stays. */}
+      <PrepAllButton clientId={clientId} clientName={d.name} />
 
       {/* (val 2026-06-02) All four access surfaces now live in ONE collapsible
           group with portal-vs-form sub-sections so val can see at a glance
