@@ -23,6 +23,9 @@ import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientLeadDetail } from '@/lib/client/lead_detail';
 import ClientLeadDetailTabs from '@/app/client/leads/[audit_id]/ClientLeadDetailTabs';
+// V3 skin imports — see preview/page.tsx for rationale.
+import '@/app/client/skin.social.css';
+import '@/app/client/client-social.css';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -101,9 +104,38 @@ export default async function ClientLeadDetailPreview({
         </span>
       </div>
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <ClientLeadDetailTabs lead={lead} />
-      </main>
+      <div data-skin="social">
+        <main className="v3-wrap" style={{ maxWidth: 980 }}>
+          <header className="v3-top">
+            <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
+            <span className="v3-top__nm">Atlantic &amp; Vine</span>
+          </header>
+
+          <section className="v3-greet">
+            <Link
+              href={`/admin/av/clients/${clientId}/preview/leads`}
+              className="v3-link"
+              style={{ display: 'inline-block', marginBottom: '14px' }}
+            >
+              ← Pipeline
+            </Link>
+            <p className="v3-eyebrow">
+              {lead.score !== null ? `Score ${Math.round(lead.score)}` : 'Lead'}
+              {lead.band ? ` · ${lead.band[0].toUpperCase()}${lead.band.slice(1)}` : ''}
+            </p>
+            <h1 className="v3-h1">{lead.company}</h1>
+            {lead.industry && (
+              <p className="v3-lede" style={{ marginTop: '4px' }}>{lead.industry}</p>
+            )}
+          </section>
+
+          <div style={{ marginTop: '8px' }}>
+            <ClientLeadDetailTabs lead={lead} />
+          </div>
+
+          <p className="v3-foot">Operator preview · read-only</p>
+        </main>
+      </div>
     </div>
   );
 }

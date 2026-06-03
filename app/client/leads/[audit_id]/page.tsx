@@ -1,14 +1,10 @@
 /**
- * /client/leads/[audit_id]
+ * /client/leads/[audit_id]  (#401, val 2026-06-03, per VR V3 leads spec)
  *
- * A client's view of ONE of their leads. Strictly scoped: getClientLeadDetail
- * only returns the lead if it belongs to this client's account, else 404. This
- * is the curated client mirror of the operator lead-detail page — the operator
- * machinery (model/version, sourcing, the self-reported Challenge tab) is left
- * out; clients see the audit, the score, and what to say on the call.
- *
- * Increment 1 (read): Audit, AI Scoring (no model), Identity, Commercials soon.
- * Increment 2 will add front-and-center call logging + notes + outreach.
+ * V3 shell — monogram top bar, Cormorant company name + score eyebrow,
+ * back-to-pipeline breadcrumb, ClientLeadDetailTabs body unchanged
+ * (interactive — VR will restyle tabs in a later pass). No PortalHeader,
+ * no WaveDivider.
  */
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
@@ -18,7 +14,6 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientLeadDetail } from '@/lib/client/lead_detail';
-import PortalHeader from '@/app/client/_components/PortalHeader';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import ClientLeadDetailTabs from './ClientLeadDetailTabs';
 
@@ -36,23 +31,15 @@ export default async function ClientLeadDetailPage({ params }: { params: { audit
     try {
       const cid = await ensureClientHub(user);
       if (cid) user.client_id = cid;
-    } catch {
-      /* non-fatal */
-    }
+    } catch { /* non-fatal */ }
   }
 
-  // Multi-brand (#101): scope to the brand the owner is currently viewing.
   const clientId = await activeBrandFor(actor.clientUserId, user.client_id ?? null);
 
   if (clientId) {
     const access = await getClientAccessState(clientId);
     if (!access.active) {
-      return (
-        <>
-          <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="leads" />
-          <AccessPaused expired={access.expired} />
-        </>
-      );
+      return <AccessPaused expired={access.expired} />;
     }
   }
 
@@ -60,18 +47,33 @@ export default async function ClientLeadDetailPage({ params }: { params: { audit
   if (!lead) notFound();
 
   return (
-    <>
-      <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="leads" />
-      <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
-        <a href="/client/leads" className="inline-flex items-center gap-1 text-sm text-brand hover:underline mb-5">
-          &larr; Back to your leads
+    <main className="v3-wrap" style={{ maxWidth: 980 }}>
+      <header className="v3-top">
+        <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
+        <span className="v3-top__nm">Atlantic &amp; Vine</span>
+      </header>
+
+      <section className="v3-greet">
+        <a href="/client/leads" className="v3-link" style={{ display: 'inline-block', marginBottom: '14px' }}>
+          ← Pipeline
         </a>
+        <p className="v3-eyebrow">
+          {lead.score !== null ? `Score ${Math.round(lead.score)}` : 'Lead'}
+          {lead.band ? ` · ${lead.band[0].toUpperCase()}${lead.band.slice(1)}` : ''}
+        </p>
+        <h1 className="v3-h1">{lead.company}</h1>
+        {lead.industry && (
+          <p className="v3-lede" style={{ marginTop: '4px' }}>
+            {lead.industry}
+          </p>
+        )}
+      </section>
+
+      <div style={{ marginTop: '8px' }}>
         <ClientLeadDetailTabs lead={lead} />
-        <footer className="border-t border-border mt-12 pt-5 text-xs text-muted text-center">
-          &copy; {new Date().getFullYear()} Atlantic And Vine LLC. Signed in as{' '}
-          <span className="text-ink">{user.email}</span>.
-        </footer>
-      </main>
-    </>
+      </div>
+
+      <p className="v3-foot">Signed in as {user.email}</p>
+    </main>
   );
 }
