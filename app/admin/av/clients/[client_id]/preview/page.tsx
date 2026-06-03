@@ -1,15 +1,15 @@
 /**
- * /admin/av/clients/[client_id]/preview
+ * /admin/av/clients/[client_id]/preview  (#397, val 2026-06-03)
  *
- * OPERATOR-ONLY, read-only TRUE MIRROR of a client's dashboard, for a given
- * client_id — WITHOUT the client logging in. Renders the EXACT same body the
- * client sees (<ClientDashboardBody> fed by getClientDashboardData), so the
- * preview can never drift from the real /client/dashboard. The `preview` flag
- * makes client-only actions read-only; leadsHref points lead links at the
- * operator client page instead of the live portal.
+ * OPERATOR-ONLY mirror of /client/dashboard — TRUE mirror that cannot
+ * drift, because it calls the same `loadDashboardV3` loader and renders
+ * the same `<ClientDashboardV3>` body that the live page renders.
  *
- * NOTE: this lives under [client_id] to match the sibling client-detail route —
- * Next.js forbids two different slug names at one path level.
+ * What's different from the live page:
+ *   - Operator amber banner up top ("Operator preview · Read-only")
+ *   - Sibling tab strip (Dashboard | Leads | Watchlist | Audit | Intake | Press)
+ *   - No <WelcomePopover> (that's identity-scoped to the real client_user)
+ *   - The body itself is identical to what the client sees
  */
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
@@ -17,13 +17,20 @@ import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
-import ClientDashboardBody from '@/app/client/_components/ClientDashboardBody';
+import { loadDashboardV3 } from '@/lib/client/dashboard_v3_loader';
+import ClientDashboardV3 from '@/app/client/dashboard/ClientDashboardV3';
+// The V3 skin CSS is scoped to [data-skin="social"]. The live client portal
+// gets it from app/client/layout.tsx; the operator route does not, so import
+// it here too or the mirror renders unstyled.
+import '@/app/client/skin.social.css';
+import '@/app/client/client-social.css';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 interface ClientRow extends RowDataPacket { client_name: string | null }
+interface MemberRow extends RowDataPacket { client_user_id: number }
 
 export default async function ClientDashboardPreview({ params }: { params: { client_id: string } }) {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
@@ -40,19 +47,14 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
   if (!crows[0]) notFound();
   const clientName = crows[0].client_name || `Client #${clientId}`;
 
-  // The representative member gives us the client identity the dashboard loads
-  // against. Reuse findClientUserById (same path the real dashboard uses) so tier
-  // / email / display_name are resolved identically — no column guessing.
-  const [mrows] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+  // Resolve the representative member exactly the way the live page does.
+  const [mrows] = await db.execute<MemberRow[]>(
     `SELECT client_user_id FROM client_users WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
     [clientId]
   );
   let memberUserId = mrows[0]?.client_user_id ?? null;
-  // Multi-brand (#101): an ADDED brand has no login directly linked to its
-  // client_id — its owner lives in brand_members. Fall back to that owner so the
-  // preview resolves the right identity (email/tier) instead of an empty shell.
   if (!memberUserId) {
-    const [orows] = await db.execute<(RowDataPacket & { client_user_id: number })[]>(
+    const [orows] = await db.execute<MemberRow[]>(
       `SELECT client_user_id FROM brand_members
         WHERE client_id = ? AND role = 'owner'
         ORDER BY client_user_id ASC LIMIT 1`,
@@ -70,9 +72,16 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
     displayName: member?.display_name ?? clientName
   });
 
+  // Shared loader — same function the live /client/dashboard page calls.
+  const v3 = await loadDashboardV3({
+    clientId,
+    clientUserId: member?.client_user_id ?? 0,
+    data
+  });
+
   return (
     <div>
-      {/* Operator preview banner — clearly not the client's own login. */}
+      {/* Operator preview banner */}
       <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200 flex items-center justify-between gap-3 flex-wrap">
         <span>
           <span className="font-semibold">Operator preview</span> — this is what{' '}
@@ -84,7 +93,7 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
         </span>
       </div>
 
-      {/* Sibling preview surfaces — click any to see exactly what the client sees there. */}
+      {/* Sibling preview surfaces */}
       <div className="mb-4 flex items-center gap-2 text-xs flex-wrap">
         <span className="text-muted/70 uppercase tracking-[0.2em] text-[10px] mr-1">See what {clientName} sees:</span>
         <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-400/5 px-2.5 py-1 text-amber-100">Dashboard</span>
@@ -95,12 +104,12 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
         <Link href={`/admin/av/clients/${clientId}/preview/pr`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Press queue</Link>
       </div>
 
-      <ClientDashboardBody
-        data={data}
-        email={member?.email ?? clientName}
-        preview
-        leadsHref={`/admin/av/clients/${clientId}`}
-      />
+      {/* The V3 dashboard body — exact same component the client sees.
+          Wrapped in data-skin="social" so the navy V3 tokens + classes apply
+          on the operator route (the skin CSS is scoped to that attribute). */}
+      <div data-skin="social">
+        <ClientDashboardV3 {...v3} />
+      </div>
     </div>
   );
 }
