@@ -1,0 +1,61 @@
+/* Component classes for the client social skin (paired with the *.tsx).
+   Scope everything under [data-skin="social"] so it can't touch operator pages.
+   Tokens come from skin.social.css. */
+
+/* STORY ROW (brand switcher) */
+[data-skin="social"] .brands{display:flex;gap:1.2rem;padding:1rem 0 1.4rem;overflow-x:auto}
+[data-skin="social"] .brands::-webkit-scrollbar{display:none}
+[data-skin="social"] .brand{flex:0 0 auto;width:80px;text-align:center;background:none;border:0;cursor:pointer;padding:0}
+[data-skin="social"] .brand__ring{display:block;width:72px;height:72px;border-radius:50%;padding:3px;margin:0 auto .4rem;background:rgba(10,77,60,.12)}
+[data-skin="social"] .brand.on .brand__ring{background:linear-gradient(135deg,var(--gold),var(--emerald-glow),var(--emerald-deep))}
+[data-skin="social"] .brand__pic{width:100%;height:100%;border-radius:50%;background-size:cover;background-position:center;border:3px solid var(--cream);display:grid;place-items:center;font-family:var(--serif);font-weight:600;color:#fff}
+[data-skin="social"] .brand--add .brand__ring{background:none;border:2px dashed rgba(10,77,60,.3)}
+[data-skin="social"] .brand--add .brand__pic{background:none;color:var(--emerald-deep);font-size:1.5rem;border-color:transparent}
+[data-skin="social"] .brand__lbl{font-size:.74rem;color:var(--charcoal);font-weight:600;white-space:nowrap}
+[data-skin="social"] .brand:not(.on) .brand__lbl{color:var(--gray-soft);font-weight:500}
+
+/* FEATURED SIGNAL HERO */
+[data-skin="social"] .feat{position:relative;display:flex;align-items:flex-end;width:100%;text-align:left;border:0;cursor:pointer;border-radius:16px;overflow:hidden;min-height:300px;box-shadow:0 24px 56px -30px rgba(10,77,60,.5)}
+[data-skin="social"] .feat__ph{position:absolute;inset:0;background-size:cover;background-position:center;transition:transform .6s;background-color:var(--emerald-deep)}
+[data-skin="social"] .feat:hover .feat__ph{transform:scale(1.04)}
+[data-skin="social"] .feat__sc{background:linear-gradient(110deg,rgba(6,40,28,.94),rgba(6,40,28,.7) 48%,rgba(6,40,28,.25))}
+[data-skin="social"] .feat__b{position:relative;padding:2.2rem;max-width:640px;display:flex;flex-direction:column;gap:.5rem}
+[data-skin="social"] .feat__eb{align-self:flex-start;display:inline-flex;align-items:center;gap:.45rem;background:var(--gold);color:var(--emerald-deep);font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.35rem .75rem;border-radius:999px}
+[data-skin="social"] .feat__h{font-family:var(--serif);font-weight:600;font-size:clamp(1.6rem,3vw,2.4rem);line-height:1.08;color:var(--cream)}
+[data-skin="social"] .feat__who{color:rgba(250,248,244,.8);font-size:.92rem}
+[data-skin="social"] .feat__trail .sig{color:var(--cream);background:rgba(250,248,244,.14);border:1px solid rgba(250,248,244,.25)}
+[data-skin="social"] .feat__trail .sig--payoff{background:var(--gold);color:var(--emerald-deep);border-color:var(--gold)}
+[data-skin="social"] .feat__cta{align-self:flex-start;margin-top:.5rem;background:var(--cream);color:var(--emerald-deep);font-weight:700;font-size:.86rem;padding:.75rem 1.5rem;border-radius:999px}
+[data-skin="social"] .feat:hover .feat__cta{background:var(--gold-bright)}
+
+/* SIGNAL CARD */
+[data-skin="social"] .cards{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+@media(max-width:760px){[data-skin="social"] .cards{grid-template-columns:1fr}}
+[data-skin="social"] .sigcard{background:var(--paper);border:1px solid var(--rule);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;transition:transform .25s,box-shadow .25s}
+[data-skin="social"] .sigcard:hover{transform:translateY(-4px);box-shadow:0 20px 44px -26px rgba(10,77,60,.4)}
+[data-skin="social"] .sigcard__hd{display:flex;align-items:center;gap:.75rem;padding:1rem 1.1rem .2rem}
+[data-skin="social"] .sigcard__logo{width:44px;height:44px;border-radius:11px;position:relative;overflow:hidden;flex-shrink:0;background-size:cover;background-position:center;background-color:var(--emerald-deep)}
+[data-skin="social"] .sigcard__logo b{position:relative;color:#fff;font-family:var(--serif);font-weight:600;display:grid;place-items:center;height:100%}
+[data-skin="social"] .sigcard__nm{flex:1;min-width:0}
+[data-skin="social"] .sigcard__nm b{font-size:1rem;color:var(--black);font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-skin="social"] .chip{font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:.18rem .5rem;border-radius:999px;display:inline-block;margin-top:.2rem}
+[data-skin="social"] .chip--signal{color:var(--amber-sig);background:rgba(181,116,43,.1)}
+[data-skin="social"] .chip--fit{color:var(--emerald-deep);background:var(--emerald-mist)}
+[data-skin="social"] .sigcard__more{margin-left:auto;background:none;border:0;color:var(--gray-soft);font-size:1.2rem;cursor:pointer;align-self:flex-start;line-height:1}
+[data-skin="social"] .sigcard__ln{font-family:var(--serif);font-weight:500;font-size:1.18rem;line-height:1.25;color:var(--black);padding:.5rem 1.1rem .2rem}
+[data-skin="social"] .sigcard .sig-trail{padding:.6rem 1.1rem 1rem}
+[data-skin="social"] .sigcard__foot{margin-top:auto;padding:0 1.1rem 1.1rem;display:flex;gap:.6rem;align-items:center}
+[data-skin="social"] .sigcard__foot .pcta{flex:1}
+[data-skin="social"] .sigcard__reveal{display:flex;flex-direction:column;border-top:1px solid var(--rule)}
+[data-skin="social"] .sigcard__reveal-item{text-align:left;background:none;border:0;padding:.7rem 1.1rem;font-size:.85rem;color:var(--gray-warm);cursor:pointer}
+[data-skin="social"] .sigcard__reveal-item:hover{background:var(--emerald-mist);color:var(--emerald-deep)}
+
+/* BOTTOM TAB BAR (mobile only) */
+[data-skin="social"] .av-tabs{display:none}
+@media(max-width:760px){
+  [data-skin="social"] .av-tabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:200;justify-content:space-around;align-items:center;padding:.6rem 0 .9rem;background:rgba(250,248,244,.97);backdrop-filter:blur(16px);border-top:1px solid var(--rule)}
+  [data-skin="social"] .client-shell{padding-bottom:5rem}
+  [data-skin="social"] .av-tab{display:flex;flex-direction:column;align-items:center;gap:.2rem;font-size:.6rem;color:var(--gray-soft);font-weight:600;text-decoration:none}
+  [data-skin="social"] .av-tab.on{color:var(--emerald-deep)}
+  [data-skin="social"] .av-tab.on svg{fill:var(--emerald-mist)}
+}

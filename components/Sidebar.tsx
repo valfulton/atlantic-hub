@@ -62,31 +62,25 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
   }
   return (
     <aside className="w-64 min-h-screen flex flex-col bg-[rgba(10,15,26,0.55)] backdrop-blur-xl border-r border-border">
-      {/* Brand header */}
-      <div className="px-6 py-5 border-b border-border">
-        <div className="flex items-center gap-2.5">
-          {/* Brand seal — the logo on its own red field (#186 phase 1).
-              Self-contained — never depends on the page bg behind it. */}
-          <BrandSeal size="md" />
-          <div className="text-base font-semibold tracking-tight text-ink">Atlantic Hub</div>
+      {/* Brand header — V3 polish (#392). Grid replaces the magic ml-[52px]
+          indents so logo + label + meta share one visual column. */}
+      <div className="px-5 py-5 border-b border-border">
+        <div className="grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-1 items-center">
+          <BrandSeal size="md" className="row-span-2" />
+          <div className="text-[15px] font-semibold tracking-tight text-ink leading-tight">Atlantic Hub</div>
+          <div className="flex items-center gap-2">
+            <span className="live-dot" aria-hidden="true" />
+            <span className="text-[10px] text-muted uppercase tracking-[0.14em] font-medium">
+              Live · Operator
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 mt-2 ml-[52px]">
-          <span className="live-dot" aria-hidden="true" />
-          <span className="text-[10.5px] text-muted uppercase tracking-[0.12em] font-medium">
-            Live · Operator
-          </span>
-        </div>
-        {/* (#361) Presentation mode — hides cost / model / tech labels for
-            investor or client demos. Persists in a cookie; soft-reloads on
-            toggle so server components pick up the new value. */}
-        <div className="mt-3 ml-[52px]">
-          <PresentationModeToggle />
-        </div>
-        {/* (#367) Tenant-wide LLM spend over the last 24h — auto-hides under
-            Presentation Mode, auto-hides when spend is zero. The visible burn
-            rate while building. */}
-        <div className="mt-2 ml-[52px]">
-          <DailySpendChip />
+        <div className="mt-3 grid grid-cols-[40px_minmax(0,1fr)] gap-x-3">
+          <div aria-hidden="true" />
+          <div className="space-y-2">
+            <PresentationModeToggle />
+            <DailySpendChip />
+          </div>
         </div>
       </div>
 

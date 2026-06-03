@@ -65,12 +65,17 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur supports-[backdrop-filter]:bg-surface/60">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        {/* V3 polish (#392) — flex with proper rhythm. On mobile the seal
+            + display-name line are one row; on desktop "Atlantic & Vine"
+            appears stacked above the live-dot line. */}
+        <div className="flex items-center gap-3 min-w-0">
           <BrandSeal size="md" />
           <div className="leading-tight min-w-0">
-            <div className="text-sm font-semibold text-ink truncate">Atlantic &amp; Vine</div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="live-dot" aria-hidden="true" />
+            <div className="text-sm font-semibold text-ink truncate hidden sm:block">
+              Atlantic &amp; Vine
+            </div>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="live-dot shrink-0" aria-hidden="true" />
               <span className="text-[10.5px] text-muted uppercase tracking-[0.12em] font-medium truncate">
                 {displayName || 'Client'}
               </span>

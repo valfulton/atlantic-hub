@@ -2,10 +2,16 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import ClientIntelTicker from './_components/ClientIntelTicker';
 import BrandSwitcher from './_components/BrandSwitcher';
+import BottomTabBar from './_components/BottomTabBar';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { listBrandsForUser } from '@/lib/client/membership';
 import { activeBrandFor } from '@/lib/client/active-brand';
+// (#393) V3 social skin — cream + emerald + gold + Fraunces/Inter palette
+// pulled from live atlanticandvine.com. Scoped under [data-skin="social"]
+// so operator pages stay dark-obsidian.
+import './skin.social.css';
+import './client-social.css';
 
 export const metadata: Metadata = {
   title: 'Client Portal - Atlantic & Vine',
@@ -32,19 +38,18 @@ async function loadSwitcher(): Promise<{ brands: { clientId: number; clientName:
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const { brands, activeClientId } = await loadSwitcher();
   return (
-    /* (#341, val 2026-06-02) data-skin="royale" applies the Velvet Royale
-       palette (obsidian + Aurum gold + platinum + ice-cyan live, per
-       app/_styles/brand-tokens.css) to every page under /client/*. Reverses
-       the earlier "Royale never on client" rule. One attribute = every
-       client page picks up the register. To swap palettes site-wide,
-       change this attribute OR edit the [data-skin="royale"] block in
-       brand-tokens.css. */
-    <div data-tenant="av" data-skin="royale" className="min-h-screen">
+    /* (#393, val 2026-06-03) data-skin="social" — newsroom palette (cream +
+       emerald + gold) pulled from live atlanticandvine.com. Two-mood
+       architecture: client wears this; operator (/admin/av/*) stays dark.
+       Toggling data-skin off mid-demo falls back to default tokens. */
+    <div data-tenant="av" data-skin="social" className="client-shell min-h-screen">
       <BrandSwitcher brands={brands} activeClientId={activeClientId} />
       <ClientIntelTicker />
       <main className="min-w-0" style={{ maxWidth: '100%' }}>
         {children}
       </main>
+      {/* Mobile tab bar — CSS hides it at >=761px so desktop stays clean. */}
+      <BottomTabBar />
     </div>
   );
 }
