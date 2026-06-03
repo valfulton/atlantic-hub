@@ -10,6 +10,8 @@ import { LifecycleControls } from './LifecycleControls';
 import { celebrateConversion } from '@/components/ConversionConfetti';
 import { CommercialPanel } from './CommercialPanel';
 import { OutreachPanel } from './OutreachPanel';
+import EnrichmentSourcesPanel from './EnrichmentSourcesPanel';
+import type { EnrichmentSourcesBundle } from '@/lib/leads/enrichment_sources';
 
 const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Calls', 'Commercials', 'Outreach', 'Notes', 'Events'] as const;
 type Tab = (typeof TABS)[number];
@@ -93,6 +95,8 @@ interface Lead {
   dealMonthlyCents?: number | null;
   dealAnnualCents?: number | null;
   auditLenses?: Array<{ lens: string; auditContent: string | null; aiScore: number | null; aiScoreBand: string | null; generatedAt: string | null }>;
+  /** (#368 / #180) Per-vendor enrichment fields distilled from source_payload. */
+  enrichmentSources?: EnrichmentSourcesBundle | null;
 }
 
 function lensLabel(lens: string): string {
@@ -366,6 +370,12 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               </div>
             );
           })()}
+
+          {/* (#368 / #180) Data sources — Apollo / Hunter / Places / Clay /
+              scrape buried fields surfaced inline. Self-hides on leads with
+              no enrichment data yet. Sits ABOVE the high-level "Enrichment"
+              status block so val sees the raw inputs before the summary. */}
+          <EnrichmentSourcesPanel sources={lead.enrichmentSources ?? null} />
 
           <div className="md:col-span-2 border-t border-border pt-4">
             <div className="field-label mb-2">Enrichment</div>

@@ -34,7 +34,18 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   try {
     const db = getAvDb();
-    const [rows] = await db.execute<(RowDataPacket & { client_user_id: number; email: string; display_name: string | null; password_hash: string | null })[]>(
+    // (#368) Resolve the login that should receive the magic link in this order:
+    //   1. A client_user directly keyed to this client_id (single-brand case)
+    //   2. The OWNER member of this brand via brand_members (multi-brand case,
+    //      e.g. Adriana — CLDA has no direct client_user, the owner row points
+    //      at CBB and shows up here only through brand_members)
+    //   3. Any member of this brand as a last resort.
+    // The 'attachedVia' field on the response tells the UI which path resolved
+    // so we can show "this magic link belongs to Adriana@..., owner across both
+    // brands" rather than just dropping a URL.
+    let user: { client_user_id: number; email: string; display_name: string | null; password_hash: string | null } | undefined;
+    let attachedVia: 'direct' | 'brand_member_owner' | 'brand_member' | null = null;
+    const [directRows] = await db.execute<(RowDataPacket & { client_user_id: number; email: string; display_name: string | null; password_hash: string | null })[]>(
       `SELECT client_user_id, email, display_name, password_hash
          FROM client_users
         WHERE client_id = ?
@@ -42,8 +53,33 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         LIMIT 1`,
       [clientId]
     );
-    const user = rows[0];
-    if (!user) return NextResponse.json({ error: 'no user on this account' }, { status: 404 });
+    if (directRows[0]) {
+      user = directRows[0];
+      attachedVia = 'direct';
+    } else {
+      const [memberRows] = await db.execute<(RowDataPacket & { client_user_id: number; email: string; display_name: string | null; password_hash: string | null; role: string })[]>(
+        `SELECT cu.client_user_id, cu.email, cu.display_name, cu.password_hash, bm.role
+           FROM brand_members bm
+           JOIN client_users cu ON cu.client_user_id = bm.client_user_id
+          WHERE bm.client_id = ? AND cu.archived_at IS NULL
+          ORDER BY FIELD(bm.role,'owner','rep','viewer'), bm.created_at ASC
+          LIMIT 1`,
+        [clientId]
+      );
+      if (memberRows[0]) {
+        user = { ...memberRows[0] };
+        attachedVia = memberRows[0].role === 'owner' ? 'brand_member_owner' : 'brand_member';
+      }
+    }
+    if (!user) {
+      return NextResponse.json(
+        {
+          error: 'no_user',
+          reason: 'No login is attached to this brand yet. Use the "Email + password" panel below to create one — that provisions a client_user, then this link will work.'
+        },
+        { status: 404 }
+      );
+    }
 
     const token = generateMagicToken();
     const expiresAt = magicTokenExpiresAt();
@@ -72,7 +108,17 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
     }
 
-    return NextResponse.json({ ok: true, link, email: user.email, expiresInHours: MAGIC_TOKEN_TTL_HOURS, emailSent });
+    return NextResponse.json({
+      ok: true,
+      link,
+      email: user.email,
+      displayName: user.display_name,
+      expiresInHours: MAGIC_TOKEN_TTL_HOURS,
+      emailSent,
+      // (#368) UI uses this to disambiguate when the login is a shared owner
+      // across multiple brands ("Sent to the owner of CBB + CLDA").
+      attachedVia
+    });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }

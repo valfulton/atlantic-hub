@@ -78,7 +78,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   try {
     const db = getAvDb();
-    const [rows] = await db.execute<
+    // (#368) Same resolution order as magic-link: direct client_user first,
+    // then brand_members owner, then any brand_member. Lets val set a password
+    // on a multi-brand owner who only shows up here via brand_members.
+    let user: { client_user_id: number; email: string; display_name: string | null } | undefined;
+    let attachedVia: 'direct' | 'brand_member_owner' | 'brand_member' | null = null;
+    const [directRows] = await db.execute<
       (RowDataPacket & { client_user_id: number; email: string; display_name: string | null })[]
     >(
       `SELECT client_user_id, email, display_name
@@ -88,12 +93,35 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         LIMIT 1`,
       [clientId]
     );
-    const user = rows[0];
+    if (directRows[0]) {
+      user = directRows[0];
+      attachedVia = 'direct';
+    } else {
+      const [memberRows] = await db.execute<
+        (RowDataPacket & { client_user_id: number; email: string; display_name: string | null; role: string })[]
+      >(
+        `SELECT cu.client_user_id, cu.email, cu.display_name, bm.role
+           FROM brand_members bm
+           JOIN client_users cu ON cu.client_user_id = bm.client_user_id
+          WHERE bm.client_id = ? AND cu.archived_at IS NULL
+          ORDER BY FIELD(bm.role,'owner','rep','viewer'), bm.created_at ASC
+          LIMIT 1`,
+        [clientId]
+      );
+      if (memberRows[0]) {
+        user = {
+          client_user_id: memberRows[0].client_user_id,
+          email: memberRows[0].email,
+          display_name: memberRows[0].display_name
+        };
+        attachedVia = memberRows[0].role === 'owner' ? 'brand_member_owner' : 'brand_member';
+      }
+    }
     if (!user) {
       return NextResponse.json(
         {
           error: 'no_user',
-          reason: 'This account has no login attached yet. Add a brand member (Add Brand panel) or wait for them to submit the intake — it auto-creates the login.'
+          reason: 'No login on this brand yet. Use the "Attach login" panel to create one (we\'ll provision the client_user + this password in one step).'
         },
         { status: 404 }
       );
@@ -143,7 +171,8 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       emailSent,
       emailError,
       sentSkipped: !shouldSend,
-      manual: useManual
+      manual: useManual,
+      attachedVia
     });
   } catch (err) {
     return NextResponse.json(

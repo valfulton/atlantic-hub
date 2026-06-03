@@ -37,7 +37,14 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ send })
       });
       const j = await res.json();
-      if (!res.ok || !j.ok) { setErr(j.error || 'Could not generate.'); return; }
+      if (!res.ok || !j.ok) {
+        // (#368) The route now returns {error:'no_user', reason:'...'} with a
+        // friendly explanation when no login is attached. Surface the reason
+        // verbatim — it points val at the right next step (the EMAIL+PASSWORD
+        // panel below) instead of leaving her staring at a raw error.
+        setErr(j.reason || j.error || 'Could not generate.');
+        return;
+      }
       setLink(j.link); setEmail(j.email); setHours(j.expiresInHours ?? 24);
       if (send) setEmailSent(!!j.emailSent);
       if (isRegen) setJustRegenerated(true);

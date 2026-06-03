@@ -5,6 +5,7 @@ import { isFlagEnabled, mysqlBoolToJs } from '@/lib/feature-flags';
 import { getClientDealModel, leadMonthlyCents, annualCents } from '@/lib/sales/deal_model';
 import { listLeadAudits } from '@/lib/ai/lead_audits';
 import { prospectIntelFrom } from '@/lib/client/lead_detail';
+import { enrichmentSourcesFrom } from '@/lib/leads/enrichment_sources';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -224,6 +225,11 @@ export async function GET(
         // Gates the "Find another POC" button — it only works for leads that
         // originally came from Apollo (we need the org id to re-call).
         hasApolloOrg: hasApolloOrgFrom(r.source_payload),
+        // (#368 / #180) Distilled per-vendor enrichment fields — buried in
+        // source_payload before this. Renders on the Identity tab as a "Data
+        // sources" section so val sees what Apollo/Hunter/Places/Clay actually
+        // populated, not just employee_count + address.
+        enrichmentSources: enrichmentSourcesFrom(r.source_payload),
         archivedAt: r.archived_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at

@@ -24,6 +24,7 @@ import SocialChannelsPanel from './SocialChannelsPanel';
 import OwnerIntakeLink from './OwnerIntakeLink';
 import SendPasswordButton from './SendPasswordButton';
 import ClientAccessGroup from './ClientAccessGroup';
+import AttachLoginPanel from './AttachLoginPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import WeeklyDigestPanel from './WeeklyDigestPanel';
@@ -117,6 +118,10 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   let ownerIntakeShareUrl: string | null = null;
   let ownerBrandCount = 0;
   const ownerIntakeName: string = d.members[0]?.displayName || d.name;
+  // (#368) Track whether ANY login resolves for this brand (direct or via
+  // brand_members). When false, the AttachLoginPanel shows so val isn't stuck
+  // on the "no user on this account" error with no obvious next step.
+  let hasAnyLogin = false;
   try {
     const _db = getAvDb();
     const [_rows] = await _db.execute<(RowDataPacket & { client_user_id: number })[]>(
@@ -126,13 +131,36 @@ export default async function ClientDetailPage({ params }: { params: { client_id
     );
     const _ownerUserId = _rows[0]?.client_user_id;
     if (_ownerUserId) {
+      hasAnyLogin = true;
       const _memberships = await listBrandsForUser(_ownerUserId);
       if (_memberships.length >= 2) {
         ownerBrandCount = _memberships.length;
         ownerIntakeShareUrl = `${_hubBase}/client/intake-form/${await signOwnerIntakeShareToken(_ownerUserId)}`;
       }
+    } else {
+      // No direct client_user — does brand_members point a login at this brand?
+      const [_memberRows] = await _db.execute<(RowDataPacket & { client_user_id: number })[]>(
+        `SELECT client_user_id FROM brand_members WHERE client_id = ? LIMIT 1`,
+        [clientId]
+      );
+      if (_memberRows[0]?.client_user_id) hasAnyLogin = true;
     }
   } catch { /* non-fatal — single-brand link is still available */ }
+
+  // (#368) Suggested email for the AttachLoginPanel — prefer the brand contact
+  // on the brief, else the brand's first member email. val edits before submit.
+  let suggestedLoginEmail: string | null = null;
+  try {
+    const bp = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
+    const candidates = [bp?.primary_contact_email, bp?.contact_email, bp?.email];
+    for (const c of candidates) {
+      if (typeof c === 'string' && c.trim() && c.includes('@')) {
+        suggestedLoginEmail = c.trim();
+        break;
+      }
+    }
+    if (!suggestedLoginEmail && d.members[0]?.email) suggestedLoginEmail = d.members[0].email;
+  } catch { /* non-fatal */ }
 
   // (#88) Per-client PR drafter voice + posture, read from the brief payload.
   // Both null when val hasn't picked any yet.
@@ -276,6 +304,18 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           which sat above two scattered controls; that copy is now the group's
           sub-section headers. */}
       <div id="access-group">
+      {/* (#368) When NO login resolves for this brand (no direct client_user
+          and no brand_members row), show the attach panel BEFORE the access
+          group — it's the only thing that'll make any of those buttons work. */}
+      {!hasAnyLogin && (
+        <div className="mb-4">
+          <AttachLoginPanel
+            clientId={clientId}
+            clientName={d.name}
+            suggestedEmail={suggestedLoginEmail}
+          />
+        </div>
+      )}
       <ClientAccessGroup
         portal={
           <>
