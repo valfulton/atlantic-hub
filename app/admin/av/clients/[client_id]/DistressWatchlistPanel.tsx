@@ -70,12 +70,26 @@ function relTime(iso: string | null): string {
   return `${Math.round(d / 30)}mo ago`;
 }
 
+// (#382) Modal data when val clicks "Draft outreach" on a watchlist row.
+interface DraftModalState {
+  entityKey: string;
+  entityLabel: string | null;
+  status: 'loading' | 'ready' | 'error';
+  subject?: string;
+  body?: string;
+  attributionHumanLine?: string | null;
+  costMicrocents?: number;
+  errorMessage?: string;
+}
+
 export default function DistressWatchlistPanel({ clientId, clientName }: { clientId: number; clientName: string }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<WatchlistRow[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<string | null>(null);
+  const [draftModal, setDraftModal] = useState<DraftModalState | null>(null);
+  const [copied, setCopied] = useState<'subject' | 'body' | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +129,62 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
     } finally {
       setBusy(false);
     }
+  }
+
+  // (#382) Kick off a one-click outreach draft for a watchlist entity.
+  async function draftFor(row: WatchlistRow) {
+    setDraftModal({
+      entityKey: row.entityKey,
+      entityLabel: row.entityLabel,
+      status: 'loading'
+    });
+    try {
+      const r = await fetch(`/api/admin/av/clients/${clientId}/distress/draft-outreach`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          entityKey: row.entityKey,
+          entityLabel: row.entityLabel,
+          score: row.score,
+          signalKinds: row.contributingSignals.map((s) => s.signalKind),
+          regionCode: row.regionCode
+        })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        setDraftModal({
+          entityKey: row.entityKey,
+          entityLabel: row.entityLabel,
+          status: 'error',
+          errorMessage: j.error || 'Draft failed.'
+        });
+        return;
+      }
+      setDraftModal({
+        entityKey: row.entityKey,
+        entityLabel: row.entityLabel,
+        status: 'ready',
+        subject: j.draft.subject,
+        body: j.draft.body,
+        attributionHumanLine: j.draft.attribution?.humanLine ?? null,
+        costMicrocents: j.draft.costMicrocents
+      });
+    } catch {
+      setDraftModal({
+        entityKey: row.entityKey,
+        entityLabel: row.entityLabel,
+        status: 'error',
+        errorMessage: 'Draft failed.'
+      });
+    }
+  }
+
+  async function copyText(kind: 'subject' | 'body', text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied(null), 1400);
+    } catch { /* clipboard unavailable */ }
   }
 
   const empty = rows && rows.length === 0;
@@ -191,7 +261,7 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
               {rows.map((row, i) => (
                 <li
                   key={row.entityKey}
-                  className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-baseline gap-3 rounded-lg border border-border bg-black/20 px-3 py-2"
+                  className="grid grid-cols-[36px_minmax(0,1fr)_auto_auto] items-baseline gap-3 rounded-lg border border-border bg-black/20 px-3 py-2"
                 >
                   <span className="text-[11px] text-muted tabular-nums">{i + 1}.</span>
                   <div className="min-w-0">
@@ -216,14 +286,110 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <div className={`text-sm font-medium tabular-nums ${scoreColor(row.score)}`}>{row.score}</div>
                     <div className="text-[10px] text-muted">{relTime(row.lastRecomputedAt)}</div>
                   </div>
+                  {/* (#382) Per-row one-click outreach: turn the cascade signal
+                      into a drafted email that references it. */}
+                  <button
+                    type="button"
+                    onClick={() => draftFor(row)}
+                    className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[11px] px-2 py-1"
+                    title="Draft a cold-outreach opener for this entity using the cascade attribution chain"
+                  >
+                    ✎ Draft
+                  </button>
                 </li>
               ))}
             </ol>
           )}
+        </div>
+      )}
+
+      {/* (#382) Draft modal — the institutional-memory-to-sales-artifact moment. */}
+      {draftModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setDraftModal(null)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-emerald-400/30 bg-surface shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-emerald-400/[0.04]">
+              <div className="min-w-0">
+                <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-300">Drafted outreach</div>
+                <div className="text-sm text-ink/95 truncate">
+                  to {draftModal.entityLabel ?? draftModal.entityKey}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDraftModal(null)}
+                className="text-muted hover:text-ink text-lg leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-4 py-4">
+              {draftModal.status === 'loading' && (
+                <div className="text-[12px] text-muted py-6 text-center">
+                  Drafting from the cascade attribution + the client offer… (≈3s)
+                </div>
+              )}
+              {draftModal.status === 'error' && (
+                <div className="text-[12px] text-danger rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2">
+                  {draftModal.errorMessage}
+                </div>
+              )}
+              {draftModal.status === 'ready' && (
+                <>
+                  {draftModal.attributionHumanLine && (
+                    <div className="mb-3 text-[11px] rounded-md border border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-200 px-3 py-2">
+                      <span className="uppercase tracking-[0.1em] mr-1.5 text-emerald-300/80">Signal chain ·</span>
+                      {draftModal.attributionHumanLine}
+                    </div>
+                  )}
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase tracking-[0.14em] text-muted">Subject</span>
+                      <button
+                        type="button"
+                        onClick={() => copyText('subject', draftModal.subject ?? '')}
+                        className="text-[11px] text-emerald-300 hover:text-emerald-200"
+                      >
+                        {copied === 'subject' ? '✓ copied' : 'Copy'}
+                      </button>
+                    </div>
+                    <div className="text-sm text-ink rounded-md border border-border bg-bg/40 px-3 py-2">
+                      {draftModal.subject}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase tracking-[0.14em] text-muted">Body</span>
+                      <button
+                        type="button"
+                        onClick={() => copyText('body', draftModal.body ?? '')}
+                        className="text-[11px] text-emerald-300 hover:text-emerald-200"
+                      >
+                        {copied === 'body' ? '✓ copied' : 'Copy'}
+                      </button>
+                    </div>
+                    <div className="text-[13px] text-ink/90 rounded-md border border-border bg-bg/40 px-3 py-2 whitespace-pre-wrap leading-relaxed">
+                      {draftModal.body}
+                    </div>
+                  </div>
+                  <div className="mt-3 text-[10.5px] text-muted text-right">
+                    {typeof draftModal.costMicrocents === 'number' &&
+                      `cost ≈ $${(draftModal.costMicrocents / 1_000_000).toFixed(4)}`}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
