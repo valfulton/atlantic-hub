@@ -22,6 +22,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
+import { attributionForCompany, type EntityAttribution } from '@/lib/public_intel/attribution';
 import { logEvent } from '@/lib/events/log';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefSeed } from '@/lib/client/brief_store';
@@ -128,7 +129,14 @@ export async function generateOutreachDraft(args: {
   // belongs to a client. House leads get null and fall back to the campaign
   // offerSummary that's already part of the prompt.
   const briefContext = await buildOutreachBriefContext(lead.client_id);
-  const userPrompt = buildUserPrompt({ lead, campaign: args.campaign, auditExcerpt, briefContext });
+  // (#375) If this lead was surfaced by a cascade recipe, fetch the
+  // attribution chain and inject it into the prompt — the draft email then
+  // literally references the public-records signal the prospect doesn't
+  // know about yet. Visibility-gap close for Driver 8.
+  const cascadeAttribution = lead.client_id
+    ? await attributionForCompany(lead.client_id, lead.company)
+    : null;
+  const userPrompt = buildUserPrompt({ lead, campaign: args.campaign, auditExcerpt, briefContext, cascadeAttribution });
 
   let completion;
   try {
@@ -271,8 +279,11 @@ function buildUserPrompt(args: {
   auditExcerpt: string | null;
   /** (#197) Optional CLIENT_OFFER block built from the lead's client brief. */
   briefContext?: string | null;
+  /** (#375) Cascade attribution — when present, the email should reference
+   *  the public-data signal that surfaced this prospect. */
+  cascadeAttribution?: EntityAttribution | null;
 }): string {
-  const { lead, campaign, auditExcerpt, briefContext } = args;
+  const { lead, campaign, auditExcerpt, briefContext, cascadeAttribution } = args;
   const parts: string[] = [];
   parts.push(`COMPANY: ${lead.company}`);
   if (lead.industry) parts.push(`INDUSTRY: ${lead.industry}`);
@@ -307,6 +318,16 @@ function buildUserPrompt(args: {
   if (briefContext && briefContext.trim()) {
     parts.push(``);
     parts.push(briefContext.trim());
+  }
+  // (#375) CASCADE ATTRIBUTION — when this prospect was surfaced by the
+  // Atlantic Hub Revenue Distress Intelligence Engine, the draft MUST
+  // reference the underlying public-data signal. This is the visibility-gap
+  // close for Driver 8: the magic literally renders into the email body so
+  // the prospect understands why they're being contacted.
+  if (cascadeAttribution) {
+    parts.push(``);
+    parts.push(`CASCADE_ATTRIBUTION (use ONE sentence in the email body that references this signal — be specific and grounded, e.g. "I noticed a federal filing land in your area" — do NOT name the data source by name):`);
+    parts.push(cascadeAttribution.promptLine);
   }
   parts.push(``);
   if (auditExcerpt) {

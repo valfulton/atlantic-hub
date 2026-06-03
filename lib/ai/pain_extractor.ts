@@ -26,6 +26,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
+import { attributionForCompany } from '@/lib/public_intel/attribution';
 import { logEvent } from '@/lib/events/log';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefSeed } from '@/lib/client/brief_store';
@@ -124,7 +125,7 @@ interface PainPromptInput {
   website_status?: 'unknown' | 'valid' | 'placeholder' | 'dead' | null;
 }
 
-function buildUserPrompt(input: PainPromptInput, briefContext: string | null): string {
+function buildUserPrompt(input: PainPromptInput, briefContext: string | null, cascadeAttributionLine?: string | null): string {
   const lines: string[] = [];
   lines.push(`Build a pain-point profile for the following prospect.`);
   lines.push('');
@@ -156,6 +157,15 @@ function buildUserPrompt(input: PainPromptInput, briefContext: string | null): s
   if (briefContext && briefContext.trim()) {
     lines.push('');
     lines.push(briefContext.trim());
+  }
+  // (#375) Cascade attribution — when this prospect surfaced via the
+  // Revenue Distress Intelligence Engine, the call-script generator gets
+  // the trigger as a "conversation_starter" suggestion. The model uses it
+  // to give the rep a specific, timely opener.
+  if (cascadeAttributionLine) {
+    lines.push('');
+    lines.push(`Atlantic Hub Revenue Distress Intelligence: ${cascadeAttributionLine}`);
+    lines.push(`(Use this as the basis for ONE conversation_starter that names the underlying signal in plain language without naming the data source.)`);
   }
   if (input.challenge) {
     lines.push('');
@@ -251,9 +261,17 @@ async function generatePainProfile(
   // ai_prompt_overrides if set, else PAIN_EXTRACTOR_DEFAULT (#80, #196).
   const systemPrompt = await getSystemPrompt('pain_extractor');
 
+  // (#375) Fetch cascade attribution for this prospect if the client has
+  // the Revenue Distress Intelligence Engine running. Soft-fails to null.
+  let cascadeLine: string | null = null;
+  if (input.clientId) {
+    const att = await attributionForCompany(input.clientId, input.company);
+    if (att) cascadeLine = att.promptLine;
+  }
+
   let completion;
   try {
-    const userPrompt = buildUserPrompt(input, briefContext);
+    const userPrompt = buildUserPrompt(input, briefContext, cascadeLine);
     completion = await runLlm({
       taskKind: 'pain_extract',
       clientId: input.clientId ?? null,
