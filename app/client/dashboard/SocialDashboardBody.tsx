@@ -73,14 +73,14 @@ export default function SocialDashboardBody({ firstName, brands, activeBrandId, 
 
   return (
     <section className="w-full max-w-6xl mx-auto px-3 sm:px-4 pt-6 sm:pt-10 pb-2">
-      {/* Greeting — Fraunces via skin.social.css */}
+      {/* Greeting — Cormorant Garamond via skin.social.css (navy palette). */}
       <header className="mb-2">
-        <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: 'var(--emerald-deep)' }}>
+        <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: 'var(--amber-deep)' }}>
           Your channel · live
         </div>
         <h1
-          className="text-2xl sm:text-3xl font-semibold tracking-tight mt-1.5"
-          style={{ fontFamily: 'var(--serif)', color: 'var(--black)' }}
+          className="text-2xl sm:text-4xl font-medium tracking-tight mt-2"
+          style={{ fontFamily: 'var(--serif)', color: 'var(--cream)', lineHeight: 1.05 }}
         >
           Good morning, {firstName}.
         </h1>
@@ -118,7 +118,7 @@ export default function SocialDashboardBody({ firstName, brands, activeBrandId, 
               type="button"
               onClick={openWatchlist}
               className="hover:underline"
-              style={{ color: 'var(--emerald-deep)', fontWeight: 600 }}
+              style={{ color: 'var(--amber)', fontWeight: 500, letterSpacing: '0.08em' }}
             >
               Open watchlist →
             </button>

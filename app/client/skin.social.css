@@ -1,40 +1,76 @@
 /* =====================================================================
-   CLIENT VIEW · SOCIAL SKIN  —  data-skin="social"
-   Apply on the <html> (or root) element of /client/* pages ONLY.
-   Two-mood architecture: operator (/admin/av/*) stays dark-obsidian + champagne;
-   client (/client/*) wears this newsroom palette. Never bleeds into operator.
+   CLIENT VIEW · V3 SOCIAL SKIN  —  data-skin="social"
+   NAVY + CREAM + AMBER (luxury hotel / yacht register)
+   Pulled from Atlantic_Hub_Playbook/demo_client_portal_v3.html (Velvet
+   Royale chat, 2026-06-03). Two-mood architecture: operator hub gets the
+   same navy register from demo_operator_hub_v3.html; rep arena gets a
+   darker obsidian-and-aurum variant via data-skin="royale".
 
-   Palette pulled from the live atlanticandvine.com (index.html inline tokens).
+   Critical: this block REMAPS the legacy Tailwind CSS variables (--ink,
+   --muted, --bg, --surface, --border) to navy-appropriate values so the
+   existing ClientDashboardBody renders legibly on the new ground. Bone
+   text (#F5EFE3) on navy (#0B1B2D) = AAA contrast. WCAG compliant.
    ===================================================================== */
 
 [data-skin="social"]{
-  --cream:#FAF8F4; --paper:#FFFFFF;
-  --emerald-deep:#0A4D3C; --emerald:#1A6B52; --emerald-glow:#3DAB85; --emerald-mist:#E8F2EE;
-  --black:#0A0A0A; --charcoal:#1A1A1A; --gray-warm:#4A4A4A; --gray-soft:#8A8A8A;
-  --gold:#C9A961; --gold-bright:#E2C886;
-  --amber-sig:#B5742B;                 /* the distress-signal accent (NOT brand gold) */
-  --rule:rgba(10,77,60,.12);
-  --serif:"Fraunces",Georgia,serif; --sans:"Inter",system-ui,sans-serif;
+  /* V3 navy + cream + amber palette */
+  --navy:#0B1B2D; --navy-soft:#11263C; --navy-elev:#15304C;
+  --cream:#F5EFE3; --cream-muted:#94A4B8;
+  --amber:#E5B879; --amber-deep:#A77A3F; --amber-bright:#F0CB95;
+  --rule:rgba(216,203,174,.16); --rule-soft:rgba(216,203,174,.09);
+  --serif:"Cormorant Garamond",Georgia,serif;
+  --sans:"Inter",system-ui,sans-serif;
 
-  background:var(--cream); color:var(--charcoal); font-family:var(--sans);
+  /* Distress + status accents (work on navy ground) */
+  --amber-sig:#E5B879;          /* distress signal accent */
+  --emerald-glow:#7CC4A1;       /* wins / done */
+  --rose-glow:#FF9AA8;          /* hot / urgent */
+  --sky-glow:#7BC1F0;           /* live / info */
+
+  /* === REMAP legacy Tailwind tokens so existing components render correctly === */
+  --bg:var(--navy);
+  --surface:var(--navy-soft);
+  --surface-2:var(--navy-elev);
+  --border:var(--rule);
+  --ink:var(--cream);
+  --muted:var(--cream-muted);
+  --brand:var(--amber);
+  --brand-fg:var(--navy);
+  --danger:var(--rose-glow);
+  --ok:var(--emerald-glow);
+
+  background:
+    radial-gradient(900px 460px at 90% -10%,rgba(229,184,121,.09),transparent 60%),
+    var(--navy);
+  color:var(--cream); font-family:var(--sans); min-height:100vh;
 }
 
-/* The emerald scrim — the trick that makes the feed look intentional even when
-   no company logo / photo loads. Put a <span class="av-scrim"> over any media. */
+/* The amber wash — same trick the scrim performed in the cream version.
+   Use on hero media + card heads. Keeps a unified luxury register. */
 [data-skin="social"] .av-scrim{position:absolute;inset:0;
-  background:linear-gradient(135deg,rgba(10,77,60,.35),rgba(6,40,28,.7));}
+  background:linear-gradient(135deg,rgba(11,27,45,.55),rgba(11,27,45,.85));}
 
-/* Cascade signal trail — REPLACES likes/plays on sales surfaces.
-   Real information in the same visual rhythm a social feed uses for engagement. */
+/* Cascade signal trail — REPLACES likes/plays. Real information, same
+   visual rhythm. Trail nodes on navy use a soft cream pill with amber
+   payoff so the last node pops. */
 [data-skin="social"] .sig-trail{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
-[data-skin="social"] .sig{font-size:.68rem;font-weight:600;color:var(--charcoal);
-  background:var(--emerald-mist);padding:.28rem .55rem;border-radius:7px}
-[data-skin="social"] .sig--payoff{background:rgba(181,116,43,.14);color:var(--amber-sig);font-weight:700}
-[data-skin="social"] .sig-arw{color:var(--gray-soft);font-size:.75rem}
+[data-skin="social"] .sig{font-size:.68rem;font-weight:500;color:var(--cream);
+  background:rgba(216,203,174,.09);border:1px solid var(--rule);
+  padding:.28rem .55rem;border-radius:7px;letter-spacing:.04em}
+[data-skin="social"] .sig--payoff{background:var(--amber);color:var(--navy);
+  border-color:var(--amber-deep);font-weight:600}
+[data-skin="social"] .sig-arw{color:var(--cream-muted);font-size:.75rem}
 
-/* One-primary-CTA rule, enforced in markup: exactly one .pcta per card. */
+/* Primary CTA — amber-on-navy, the demo's signature button. */
 [data-skin="social"] .pcta{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
-  background:var(--emerald-deep);color:var(--cream);font-weight:600;font-size:.85rem;
-  padding:.7rem 1rem;border-radius:9px;cursor:pointer;border:0;transition:background .2s}
-[data-skin="social"] .pcta:hover{background:var(--black)}
-[data-skin="social"] .pcta:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  background:var(--amber);color:var(--navy);font-weight:500;font-size:.78rem;
+  padding:.78rem 1.1rem;border-radius:8px;cursor:pointer;
+  border:1px solid var(--amber-deep);letter-spacing:.12em;text-transform:uppercase;
+  transition:filter .2s,transform .15s}
+[data-skin="social"] .pcta:hover{filter:brightness(1.06);transform:translateY(-1px)}
+[data-skin="social"] .pcta:focus-visible{outline:2px solid var(--cream);outline-offset:2px}
+
+/* Headings inside the skin lean Cormorant for the luxury register. */
+[data-skin="social"] h1,
+[data-skin="social"] h2,
+[data-skin="social"] h3{font-family:var(--serif);font-weight:500}
