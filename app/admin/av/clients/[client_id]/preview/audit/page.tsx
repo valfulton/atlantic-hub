@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientOwnAudit } from '@/lib/client/dashboard_data';
+import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
 // V3 skin CSS is scoped to [data-skin="social"]. Live /client/audit gets it
 // from app/client/layout.tsx; the operator route doesn't, so import here
 // and wrap the body so the mirror renders in the navy register.
@@ -58,26 +59,12 @@ export default async function ClientAuditPreview({ params }: { params: { client_
 
   return (
     <div>
-      <div className="mb-4 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200 flex items-center justify-between gap-3">
-        <span>
-          <span className="font-semibold">Operator preview</span> — {clientName}&apos;s Strategic Marketing Audit
-          {member?.email && <> (resolved by <span className="text-amber-100">{member.email}</span>)</>}.
-        </span>
-        <span className="shrink-0 flex items-center gap-4">
-          <Link href={`/admin/av/clients/${clientId}`} className="text-amber-100 hover:underline">Back to client</Link>
-        </span>
-      </div>
-
-      {/* (#389) Sibling preview surfaces — consistent nav across every mirror. */}
-      <div className="mb-4 flex items-center gap-2 text-xs flex-wrap">
-        <span className="text-muted/70 uppercase tracking-[0.2em] text-[10px] mr-1">See what {clientName} sees:</span>
-        <Link href={`/admin/av/clients/${clientId}/preview`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Dashboard</Link>
-        <Link href={`/admin/av/clients/${clientId}/preview/leads`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Leads list</Link>
-        <Link href={`/admin/av/clients/${clientId}/preview/watchlist`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Watchlist</Link>
-        <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-400/5 px-2.5 py-1 text-amber-100">Audit</span>
-        <Link href={`/admin/av/clients/${clientId}/preview/intake`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Intake / brief</Link>
-        <Link href={`/admin/av/clients/${clientId}/preview/pr`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Press queue</Link>
-      </div>
+      <OperatorPreviewChrome
+        clientId={clientId}
+        clientName={clientName}
+        active="audit"
+        bannerLine={member?.email ? <>Resolved by {member.email}.</> : undefined}
+      />
 
       <div data-skin="social">
       <main className="max-w-3xl mx-auto px-4 py-6">

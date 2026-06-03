@@ -17,6 +17,7 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import { loadIntelligenceTrifecta } from '@/lib/av/intelligence_metrics';
 import IntelligenceImpactBody from '@/app/client/_components/IntelligenceImpactBody';
+import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
 // V3 skin imports — see preview/page.tsx for the rationale.
 import '@/app/client/skin.social.css';
 import '@/app/client/client-social.css';
@@ -63,27 +64,21 @@ export default async function ClientIntelligencePreview({ params }: { params: { 
 
   return (
     <div>
-      {/* Operator preview banner */}
-      <div className="mb-4 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200 flex items-center justify-between gap-3 flex-wrap">
-        <span>
-          <span className="font-semibold">Operator preview</span> — {clientName}&apos;s impact view. Exactly what they see at /client/intelligence.
-        </span>
-        <span className="shrink-0 flex items-center gap-4">
-          <Link href={`/admin/av/clients/${clientId}/preview`} className="text-amber-100 hover:underline">&larr; Dashboard preview</Link>
-          <Link href={`/admin/av/intelligence?client=${clientId}`} className="text-amber-100 hover:underline">Operator chain &rarr;</Link>
-        </span>
-      </div>
-
-      {/* Sibling preview surfaces - match the other preview pages' nav. */}
-      <div className="mb-4 flex items-center gap-2 text-xs flex-wrap">
-        <span className="text-muted/70 uppercase tracking-[0.2em] text-[10px] mr-1">See what {clientName} sees:</span>
-        <Link href={`/admin/av/clients/${clientId}/preview`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Dashboard</Link>
-        <Link href={`/admin/av/clients/${clientId}/preview/leads`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Leads list</Link>
-        <Link href={`/admin/av/clients/${clientId}/preview/watchlist`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Watchlist</Link>
-        <Link href={`/admin/av/clients/${clientId}/preview/audit`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Audit</Link>
-        <Link href={`/admin/av/clients/${clientId}/preview/pr`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Press queue</Link>
-        <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-400/5 px-2.5 py-1 text-amber-100">Impact</span>
-      </div>
+      <OperatorPreviewChrome
+        clientId={clientId}
+        clientName={clientName}
+        active="dashboard"
+        bannerLine="Exactly what they see at /client/intelligence."
+        bannerExtra={
+          <Link
+            href={`/admin/av/intelligence?client=${clientId}`}
+            style={{ color: '#EBCB6B', textDecoration: 'none' }}
+            className="hover:underline"
+          >
+            Operator chain →
+          </Link>
+        }
+      />
 
       <div data-skin="social">
         {locked ? (

@@ -18,12 +18,13 @@
  */
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
-import Link from 'next/link';
+import Link from 'next/link'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientLeadDetail } from '@/lib/client/lead_detail';
 import ClientLeadDetailTabs from '@/app/client/leads/[audit_id]/ClientLeadDetailTabs';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
+import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
 // V3 skin imports — see preview/page.tsx for rationale.
 import '@/app/client/skin.social.css';
 import '@/app/client/client-social.css';
@@ -78,35 +79,15 @@ export default async function ClientLeadDetailPreview({
 
   return (
     <div>
-      {/* Operator preview banner — clearly not the client's own login. */}
-      <div className="mb-4 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200 flex items-center justify-between gap-3">
-        <span>
-          <span className="font-semibold">Operator preview</span> — this is the lead-detail view{' '}
-          <span className="font-semibold">{clientName}</span> sees when they click into this lead.
-          {member?.email && (
-            <>
-              {' '}Resolved as <span className="text-amber-100">{member.email}</span>.
-            </>
-          )}
-        </span>
-        <span className="shrink-0 flex items-center gap-4">
-          <Link
-            href={`/admin/av/clients/${clientId}/preview`}
-            className="text-amber-100 hover:underline"
-          >
-            &larr; Preview dashboard
-          </Link>
-          <Link
-            href={`/admin/av/clients/${clientId}`}
-            className="text-amber-100 hover:underline"
-          >
-            Back to client
-          </Link>
-        </span>
-      </div>
+      <OperatorPreviewChrome
+        clientId={clientId}
+        clientName={clientName}
+        active="leads"
+        bannerLine={member?.email ? <>Resolved as {member.email}.</> : undefined}
+      />
 
       <div data-skin="social">
-        <main className="v3-wrap" style={{ maxWidth: 980 }}>
+        <main className="v3-wrap" style={{ maxWidth: 1200 }}>
           <ClientV3TopNav preview />
 
           <section className="v3-greet">

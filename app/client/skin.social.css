@@ -40,7 +40,7 @@
   --ok:var(--emerald-glow);
 
   background:
-    radial-gradient(900px 460px at 90% -10%,rgba(229,184,121,.09),transparent 60%),
+    radial-gradient(900px 460px at 90% -10%,rgba(235,203,107,.09),transparent 60%),
     var(--navy);
   color:var(--cream); font-family:var(--sans); min-height:100vh;
 }
