@@ -25,21 +25,19 @@
  *
  * Preview-first, never writes. The route handler applies via brief_store.
  */
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_HTML_BYTES = 1_500_000;
 const MAX_TEXT_CHARS = 10_000;
-const MODEL = 'gpt-4o-mini';
 const TEMPERATURE = 0.2;
 const MAX_TOKENS = 700;
+// (#361) Model is decided by lib/llm/types.ts TASK_MODEL['brand_kit_extract'].
+// Default today: openai:gpt-4o-mini. Swap to google:gemini-1.5-flash for ~95%
+// cost savings (no code change needed -- change the one line in types.ts).
 
 export class BrandKitFetchError extends Error {
   constructor(public statusCode: number, message: string) {
@@ -66,6 +64,9 @@ export interface BrandKitSuggestion {
   htmlBytes: number;
   tokensUsed: number;
   model: string;
+  /** (#361) Cost accounting from the router. costMicrocents = 0 + source='cache' = free reuse. */
+  costMicrocents: number;
+  costSource: 'live' | 'cache';
 }
 
 function isHttpUrl(raw: string): boolean {
@@ -248,6 +249,9 @@ function pickLogoCandidate(signals: HtmlSignals): { primary: string | null; cand
 export async function extractBrandKitFromUrl(args: {
   url: string;
   brandHint?: string | null;
+  /** (#361) When provided, the LLM call gets tagged with this client_id in
+   *  llm_call_log so per-client spend reporting works. */
+  clientId?: number | null;
 }): Promise<BrandKitSuggestion> {
   const url = args.url.trim();
   if (!isHttpUrl(url)) throw new BrandKitFetchError(400, 'URL must be http(s) and well-formed.');
@@ -288,23 +292,29 @@ export async function extractBrandKitFromUrl(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, json: true }
-    );
+    // (#361) Routes through OpenRouter when OPENROUTER_API_KEY is set; falls
+    // back to direct OpenAI on transient OpenRouter errors for OpenAI models.
+    // Cache keyed on URL + brandHint + system prompt version so re-runs on the
+    // same URL within 7 days are free.
+    const sysPromptForKey = systemPrompt.slice(0, 200);
+    completion = await runLlm({
+      taskKind: 'brand_kit_extract',
+      clientId: args.clientId ?? null,
+      note: `brand_kit · ${args.brandHint ?? page.finalUrl.slice(0, 60)}`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [page.finalUrl, args.brandHint ?? '', sysPromptForKey],
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
-      await logEvent({
-        eventType: 'brand_kit.llm_failed',
-        source: 'openai',
-        status: 'failure',
-        errorMessage: err.message,
-        payload: { url: page.finalUrl }
-      });
-    }
+    await logEvent({
+      eventType: 'brand_kit.llm_failed',
+      source: 'llm_router',
+      status: 'failure',
+      errorMessage: (err as Error).message,
+      payload: { url: page.finalUrl }
+    });
     throw err;
   }
 
@@ -348,20 +358,24 @@ export async function extractBrandKitFromUrl(args: {
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning.slice(0, 800) : '',
     fetchedUrl: page.finalUrl,
     htmlBytes: page.bytes,
-    tokensUsed: completion.usage.totalTokens,
-    model: completion.model
+    tokensUsed: completion.inputTokens + completion.outputTokens,
+    model: completion.model,
+    costMicrocents: completion.costMicrocents,
+    costSource: completion.source
   };
 
   await logEvent({
     eventType: 'brand_kit.suggested',
-    source: 'openai',
+    source: 'llm_router',
     executionTimeMs: Date.now() - started,
     payload: {
       url: page.finalUrl,
       colors_count: result.colors.length,
       logo_found: !!result.logoUrl,
       logo_candidates: result.logoCandidates.length,
-      tokens: result.tokensUsed
+      tokens: result.tokensUsed,
+      cost_microcents: result.costMicrocents,
+      cost_source: result.costSource
     }
   });
 

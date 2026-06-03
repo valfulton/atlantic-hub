@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     results.push(skipped('fill_intake', 'No website URL on brief or in request'));
   } else {
     try {
-      const sug = await suggestIntakeFromUrl({ url: websiteUrl, brandHint: null });
+      const sug = await suggestIntakeFromUrl({ url: websiteUrl, brandHint: null, clientId });
       // Apply all proposed values blanks-only: respect any field val curated.
       const patch: Record<string, string> = {};
       for (const [k, v] of Object.entries(sug.suggestions || {})) {

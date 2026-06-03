@@ -23,12 +23,8 @@
  *   - The prompt is editable via the prompt_registry (key 'intake_web_filler')
  *     so val can sharpen it without a deploy.
  */
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { INTAKE_KEYS, INTAKE_GROUPS } from '@/lib/client/intake_fields';
 import { logEvent } from '@/lib/events/log';
@@ -36,9 +32,9 @@ import { logEvent } from '@/lib/events/log';
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_HTML_BYTES = 1_500_000; // 1.5MB ceiling on the raw page
 const MAX_TEXT_CHARS = 18_000;    // hard cap on what we send to the model
-const MODEL = 'gpt-4o-mini';
 const TEMPERATURE = 0.2;
 const MAX_TOKENS = 1500;
+// (#361) Model decided by lib/llm/types.ts TASK_MODEL['intake_web_fill'].
 
 export class IntakeWebFetchError extends Error {
   constructor(public statusCode: number, message: string) {
@@ -59,9 +55,12 @@ export interface IntakeFillSuggestion {
   /** Bytes downloaded + characters of cleaned text actually sent to the model. */
   htmlBytes: number;
   textChars: number;
-  /** OpenAI usage so val can keep an eye on cost. */
+  /** LLM usage so val can keep an eye on cost. */
   tokensUsed: number;
   model: string;
+  /** (#361) Cost accounting from the router. */
+  costMicrocents: number;
+  costSource: 'live' | 'cache';
 }
 
 function isHttpUrl(raw: string): boolean {
@@ -184,6 +183,9 @@ function describeFieldsForPrompt(): string {
 export async function suggestIntakeFromUrl(args: {
   url: string;
   brandHint?: string | null;
+  /** (#361) Tags the LLM call with this client_id in llm_call_log so
+   *  per-client spend reporting works end-to-end. */
+  clientId?: number | null;
 }): Promise<IntakeFillSuggestion> {
   const url = args.url.trim();
   if (!isHttpUrl(url)) {
@@ -228,23 +230,29 @@ export async function suggestIntakeFromUrl(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, json: true }
-    );
+    // (#361) Routed via OpenRouter when OPENROUTER_API_KEY is set; transient
+    // OpenRouter errors auto-fall-back to direct OpenAI for OpenAI models.
+    // Cache key includes URL + brandHint + a prompt-version hash so re-runs
+    // on the same URL within 7 days are free.
+    const sysPromptForKey = systemPrompt.slice(0, 200);
+    completion = await runLlm({
+      taskKind: 'intake_web_fill',
+      clientId: args.clientId ?? null,
+      note: `intake_web_fill · ${args.brandHint ?? page.finalUrl.slice(0, 60)}`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [page.finalUrl, args.brandHint ?? '', sysPromptForKey],
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
-      await logEvent({
-        eventType: 'intake.web_fill.llm_failed',
-        source: 'openai',
-        status: 'failure',
-        errorMessage: err.message,
-        payload: { url: page.finalUrl }
-      });
-    }
+    await logEvent({
+      eventType: 'intake.web_fill.llm_failed',
+      source: 'llm_router',
+      status: 'failure',
+      errorMessage: (err as Error).message,
+      payload: { url: page.finalUrl }
+    });
     throw err;
   }
 
@@ -278,14 +286,16 @@ export async function suggestIntakeFromUrl(args: {
 
   await logEvent({
     eventType: 'intake.web_fill.suggested',
-    source: 'openai',
+    source: 'llm_router',
     executionTimeMs: Date.now() - started,
     payload: {
       url: page.finalUrl,
       html_bytes: page.bytes,
       text_chars: cleaned.length,
       suggested_keys: Object.keys(suggestions),
-      tokens: completion.usage.totalTokens
+      tokens: completion.inputTokens + completion.outputTokens,
+      cost_microcents: completion.costMicrocents,
+      cost_source: completion.source
     }
   });
 
@@ -295,7 +305,9 @@ export async function suggestIntakeFromUrl(args: {
     fetchedUrl: page.finalUrl,
     htmlBytes: page.bytes,
     textChars: cleaned.length,
-    tokensUsed: completion.usage.totalTokens,
-    model: completion.model
+    tokensUsed: completion.inputTokens + completion.outputTokens,
+    model: completion.model,
+    costMicrocents: completion.costMicrocents,
+    costSource: completion.source
   };
 }
