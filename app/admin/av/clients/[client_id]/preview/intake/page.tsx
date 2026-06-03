@@ -15,6 +15,9 @@ import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import ClientIntakeForm from '@/app/client/intake/ClientIntakeForm';
+// V3 skin imports — see preview/page.tsx for the rationale.
+import '@/app/client/skin.social.css';
+import '@/app/client/client-social.css';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -85,9 +88,11 @@ export default async function ClientIntakePreview({ params }: { params: { client
         <Link href={`/admin/av/clients/${clientId}/preview/pr`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Press queue</Link>
       </div>
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <ClientIntakeForm initial={initial} brandName={brandName} />
-      </main>
+      <div data-skin="social">
+        <main className="max-w-4xl mx-auto px-4 py-6">
+          <ClientIntakeForm initial={initial} brandName={brandName} />
+        </main>
+      </div>
     </div>
   );
 }

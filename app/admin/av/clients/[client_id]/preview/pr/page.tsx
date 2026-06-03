@@ -18,7 +18,9 @@ import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
-import WaveDivider from '@/app/_components/WaveDivider';
+// V3 skin imports — see preview/page.tsx for the rationale.
+import '@/app/client/skin.social.css';
+import '@/app/client/client-social.css';
 import {
   listPrOpportunitiesForClientView,
   summarizeForClient,
@@ -105,18 +107,18 @@ export default async function ClientPrPreview({ params }: { params: { client_id:
         <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-400/5 px-2.5 py-1 text-amber-100">Press queue</span>
       </div>
 
+      <div data-skin="social">
       <main className="max-w-6xl mx-auto px-4 py-6">
         <section
           className="mb-8 rounded-2xl border border-border overflow-hidden"
           style={{
             background:
-              'radial-gradient(120% 140% at 0% 0%, rgba(245,158,11,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
+              'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
           }}
         >
           <div className="px-6 sm:px-8 py-7">
             <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your press queue</div>
             <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">In the news for you, {headline}.</h1>
-            <WaveDivider className="mt-3" width={120} />
             <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
               {locked
                 ? 'Press opportunities — journalist requests + relevant stories matched to your business, with a drafted pitch in your voice for one-click approval. Unlocks on Momentum.'
@@ -140,6 +142,7 @@ export default async function ClientPrPreview({ params }: { params: { client_id:
           <ClientPrView opps={opps} stats={stats} headline={headline} mode="preview" />
         )}
       </main>
+      </div>
     </div>
   );
 }

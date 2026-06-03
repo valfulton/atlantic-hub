@@ -11,6 +11,11 @@ import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientOwnAudit } from '@/lib/client/dashboard_data';
+// V3 skin CSS is scoped to [data-skin="social"]. Live /client/audit gets it
+// from app/client/layout.tsx; the operator route doesn't, so import here
+// and wrap the body so the mirror renders in the navy register.
+import '@/app/client/skin.social.css';
+import '@/app/client/client-social.css';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -74,6 +79,7 @@ export default async function ClientAuditPreview({ params }: { params: { client_
         <Link href={`/admin/av/clients/${clientId}/preview/pr`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Press queue</Link>
       </div>
 
+      <div data-skin="social">
       <main className="max-w-3xl mx-auto px-4 py-6">
         <div className="mb-6">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted">
@@ -105,6 +111,7 @@ export default async function ClientAuditPreview({ params }: { params: { client_
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }

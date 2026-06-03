@@ -17,6 +17,9 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import { loadIntelligenceTrifecta } from '@/lib/av/intelligence_metrics';
 import IntelligenceImpactBody from '@/app/client/_components/IntelligenceImpactBody';
+// V3 skin imports — see preview/page.tsx for the rationale.
+import '@/app/client/skin.social.css';
+import '@/app/client/client-social.css';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -82,20 +85,22 @@ export default async function ClientIntelligencePreview({ params }: { params: { 
         <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-400/5 px-2.5 py-1 text-amber-100">Impact</span>
       </div>
 
-      {locked ? (
-        <main className="max-w-6xl mx-auto px-4 py-6">
-          <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-8 text-center">
-            <div className="text-3xl mb-3" aria-hidden="true">&#x1F4C8;</div>
-            <h2 className="text-lg font-semibold text-ink">Impact view unlocks on Sprint</h2>
-            <p className="text-sm text-muted mt-2 max-w-md mx-auto leading-relaxed">
-              {clientName} is on the <span className="text-ink font-medium">{TIER_LABEL[tier]}</span> plan. They&apos;d see
-              this upgrade panel until you move them to Sprint or higher.
-            </p>
-          </section>
-        </main>
-      ) : (
-        <IntelligenceImpactBody trifecta={await loadIntelligenceTrifecta({ clientId, sinceDays: 30 })} headline={headline} />
-      )}
+      <div data-skin="social">
+        {locked ? (
+          <main className="max-w-6xl mx-auto px-4 py-6">
+            <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-8 text-center">
+              <div className="text-3xl mb-3" aria-hidden="true">&#x1F4C8;</div>
+              <h2 className="text-lg font-semibold text-ink">Impact view unlocks on Sprint</h2>
+              <p className="text-sm text-muted mt-2 max-w-md mx-auto leading-relaxed">
+                {clientName} is on the <span className="text-ink font-medium">{TIER_LABEL[tier]}</span> plan. They&apos;d see
+                this upgrade panel until you move them to Sprint or higher.
+              </p>
+            </section>
+          </main>
+        ) : (
+          <IntelligenceImpactBody trifecta={await loadIntelligenceTrifecta({ clientId, sinceDays: 30 })} headline={headline} />
+        )}
+      </div>
     </div>
   );
 }
