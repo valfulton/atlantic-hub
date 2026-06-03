@@ -299,7 +299,11 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       label: 'Brand kit',
       status: brandHasKit ? 'done' : 'notStarted',
       detail: brandHasKit
-        ? `${brandColorCount} color${brandColorCount === 1 ? '' : 's'}${brandTypo ? ' · type' : ''}`
+        ? ([
+            brandColorCount > 0 ? `${brandColorCount} color${brandColorCount === 1 ? '' : 's'}` : null,
+            hasLogo ? 'logo' : null,
+            brandTypo ? 'type' : null
+          ].filter(Boolean).join(' · ') || 'kit saved')
         : undefined,
       anchor: 'brand-kit'
     },

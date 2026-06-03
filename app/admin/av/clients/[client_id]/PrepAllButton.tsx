@@ -51,14 +51,30 @@ const STATUS_DOT: Record<StepResult['status'], string> = {
   failed: 'bg-red-400'
 };
 
-export default function PrepAllButton({ clientId, clientName }: { clientId: number; clientName: string }) {
+export default function PrepAllButton({
+  clientId,
+  clientName,
+  briefFilledCount = '0'
+}: {
+  clientId: number;
+  clientName: string;
+  /** First-segment of stage 3's detail (e.g. "3" from "3 / 51") so we can
+   *  warn before burning LLM calls on a near-empty brief. */
+  briefFilledCount?: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PrepResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
-    if (!confirm(`Run the full prep chain for ${clientName}? This fills blanks only — anything you typed stays.`)) return;
+    const filled = parseInt(briefFilledCount, 10) || 0;
+    const sparse = filled < 3;
+    const base = `Run the full prep chain for ${clientName}?\n\nThis fires ~5 LLM calls (cents per run) and fills blanks only — anything you typed stays.`;
+    const msg = sparse
+      ? `${base}\n\n⚠ Heads up: their brief is sparse (${filled} field${filled === 1 ? '' : 's'} filled). The LLM steps will run on thin signal — output will be vague. Consider typing in their company name + industry first.\n\nProceed anyway?`
+      : `${base}\n\nContinue?`;
+    if (!confirm(msg)) return;
     setBusy(true);
     setError(null);
     setResult(null);

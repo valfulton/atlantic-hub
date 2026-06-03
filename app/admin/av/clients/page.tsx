@@ -6,6 +6,8 @@ import { getAvDb } from '@/lib/db/av';
 import { formatUsd } from '@/lib/sales/deal_model';
 import NewClientForm from './NewClientForm';
 import ConvertLeadToClient from './ConvertLeadToClient';
+import MiniStageStrip from './MiniStageStrip';
+import { loadOnboardingStatus, type OnboardingStatus } from '@/lib/av/onboarding_status';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -39,6 +41,22 @@ export default async function ClientsPage() {
   } catch {
     failed = true;
   }
+
+  // (val 2026-06-02) Cross-client roll-up: compute the 13-stage onboarding
+  // status for every client in parallel so the table renders a mini-strip
+  // per row. Soft-fail per client — a missing brief on one row shouldn't
+  // blank the whole table.
+  const onboardingByClient: Map<number, OnboardingStatus> = new Map();
+  await Promise.all(
+    clients.map(async (c) => {
+      try {
+        const s = await loadOnboardingStatus(c.clientId);
+        onboardingByClient.set(c.clientId, s);
+      } catch {
+        /* leave unset; row will fall back to '—' */
+      }
+    })
+  );
 
   // Active leads available to convert into a client (no retyping — their info carries over).
   let convertible: { auditId: string; company: string; contactName: string | null; email: string; industry: string | null; score: number | null; band: string | null }[] = [];
@@ -91,8 +109,8 @@ export default async function ClientsPage() {
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-muted border-b border-border">
                 <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium text-center" title="ICP populated · Brand kit set">
-                  Autopilot
+                <th className="px-4 py-3 font-medium" title="13-stage onboarding — green=done, amber=needs you, dim=not started. Hover dots for detail.">
+                  Onboarding
                 </th>
                 <th className="px-4 py-3 font-medium text-right">Hot fits</th>
                 <th className="px-4 py-3 font-medium text-right">Total leads</th>
@@ -120,32 +138,19 @@ export default async function ClientsPage() {
                     </Link>
                   </td>
 
-                  {/* Autopilot health: two tiny chips, ICP and Brand kit. */}
-                  <td className="px-4 py-3 align-top">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span
-                        title={c.icpPopulated ? 'ICP populated' : 'ICP empty — Sharpen from intake'}
-                        className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-wider"
-                        style={
-                          c.icpPopulated
-                            ? { borderColor: 'rgba(110,231,183,0.4)', background: 'rgba(110,231,183,0.10)', color: '#6ee7b7' }
-                            : { borderColor: 'rgba(255,154,168,0.4)', background: 'rgba(255,154,168,0.08)', color: '#FF9AA8' }
-                        }
-                      >
-                        ICP
-                      </span>
-                      <span
-                        title={c.brandKitSet ? 'Brand kit extracted' : 'Brand kit empty — Extract brand kit'}
-                        className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-wider"
-                        style={
-                          c.brandKitSet
-                            ? { borderColor: 'rgba(167,139,250,0.4)', background: 'rgba(167,139,250,0.10)', color: '#c4b5fd' }
-                            : { borderColor: 'rgba(255,154,168,0.4)', background: 'rgba(255,154,168,0.08)', color: '#FF9AA8' }
-                        }
-                      >
-                        Brand
-                      </span>
-                    </div>
+                  {/* (val 2026-06-02) Mini stage strip — 13 dots showing
+                      onboarding state, hover for per-stage details. Click row
+                      for the full StageStrip + Prep button on the detail page. */}
+                  <td className="px-4 py-3 align-middle">
+                    {onboardingByClient.has(c.clientId) ? (
+                      <MiniStageStrip
+                        stages={onboardingByClient.get(c.clientId)!.stages}
+                        doneCount={onboardingByClient.get(c.clientId)!.doneCount}
+                        totalCount={onboardingByClient.get(c.clientId)!.totalCount}
+                      />
+                    ) : (
+                      <span className="text-muted text-xs">—</span>
+                    )}
                   </td>
 
                   <td className="px-4 py-3 text-right align-top tabular-nums">

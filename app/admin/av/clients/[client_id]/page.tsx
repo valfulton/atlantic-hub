@@ -43,6 +43,7 @@ import AddBrandPanel from './AddBrandPanel';
 import StageStrip from './StageStrip';
 import ActionStatusChip from './ActionStatusChip';
 import PrepAllButton from './PrepAllButton';
+import NextActionHint from './NextActionHint';
 import { loadOnboardingStatus } from '@/lib/av/onboarding_status';
 import type { ClientTier } from '@/lib/client-portal/tiers';
 import type { RowDataPacket } from 'mysql2';
@@ -240,6 +241,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <Link href={`/admin/av/clients/${clientId}/timeline`} className="text-brand hover:underline">Activity timeline →</Link>
       </div>
 
+      {/* (val 2026-06-02) Next-action hint — reads the strip, surfaces the
+          first un-done stage as a "→ Next:" CTA with a jump-to-panel button.
+          Cuts decision fatigue when opening a half-prepped client. */}
+      <NextActionHint status={onboarding} />
+
       {/* (#347) "Lights turning on" — 13-stage onboarding strip. Computed
           server-side from real data: brief fields, intelligence_objects, ICP,
           brand kit, socials, leads, audits, content, outreach. Chips link to
@@ -248,8 +254,14 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* (#353) Quick prep — fills the brand kit / intake / ICP / intel /
           socials all at once for new clients (or top-ups for clients with
-          gaps). Blanks-only, so anything val typed stays. */}
-      <PrepAllButton clientId={clientId} clientName={d.name} />
+          gaps). Blanks-only, so anything val typed stays. The briefFilledCount
+          drives a sparse-brief warning in the confirm dialog so val doesn't
+          burn LLM cycles on near-empty briefs. */}
+      <PrepAllButton
+        clientId={clientId}
+        clientName={d.name}
+        briefFilledCount={onboarding.stages.find((s) => s.key === 'intake_filled')?.detail?.split(' ')[0] ?? '0'}
+      />
 
       {/* (val 2026-06-02) All four access surfaces now live in ONE collapsible
           group with portal-vs-form sub-sections so val can see at a glance
