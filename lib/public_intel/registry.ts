@@ -18,6 +18,7 @@ import { courtListenerAdapter } from './adapters/courtlistener';
 import { uccCaAdapter } from './adapters/ucc_ca';
 import { pacerDocketAdapter } from './adapters/pacer_docket';
 import { gbpAdapter } from './adapters/gbp';
+import { dataSfAdapter } from './adapters/datasf';
 
 export interface AdapterEntry {
   adapter: PublicIntelAdapter;
@@ -106,7 +107,8 @@ const IMPLEMENTED: PublicIntelAdapter[] = [
   courtListenerAdapter,
   uccCaAdapter,
   pacerDocketAdapter,
-  gbpAdapter
+  gbpAdapter,
+  dataSfAdapter
 ];
 
 const REGISTRY: Map<PublicIntelKind, AdapterEntry> = new Map();

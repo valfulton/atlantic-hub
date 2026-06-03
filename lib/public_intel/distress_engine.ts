@@ -56,6 +56,8 @@ export type SignalKind =
   // From CourtListener adapter:
   | 'lawsuit_filed'
   | 'bankruptcy_filed'
+  // (#388) From DataSF adapter:
+  | 'code_violation'
   // Generic / cross-source:
   | 'ucc_filing'
   | 'credit_risk_increase'
@@ -75,6 +77,7 @@ export const SIGNAL_LIBRARY: Record<SignalKind, { label: string; description: st
   lender_under_fire: { label: 'Lender under fire', description: 'Specific lender accumulating CFPB complaints in this market.', defaultWeight: 20 },
   lawsuit_filed: { label: 'Lawsuit filed', description: 'Federal civil suit filed (plaintiff or defendant). Indicates active dispute or recovery need.', defaultWeight: 30 },
   bankruptcy_filed: { label: 'Bankruptcy filed', description: 'Chapter 7 / 11 / 13 filing. Gold for collections — creditor identification + skip tracing leads.', defaultWeight: 50 },
+  code_violation: { label: 'Code violation / building complaint', description: 'Active complaint or Notice of Violation against a property. Motivated-seller signal for RE investors; operational-stress signal for collections agencies targeting the owning entity.', defaultWeight: 20 },
   ucc_filing: { label: 'UCC financing statement', description: 'Equipment / inventory / asset-backed financing. Future collections opportunity.', defaultWeight: 20 },
   credit_risk_increase: { label: 'Credit risk increase', description: 'D&B / Experian risk score deteriorated (when wired).', defaultWeight: 40 },
   negative_review_trend: { label: 'Negative review trend', description: 'Google / Yelp rating drop + review velocity shift. Often precedes operational problems.', defaultWeight: 15 },
@@ -206,6 +209,19 @@ export function classifyRecord(r: IntelRecord): ClassifiedSignal[] {
       entityLabel: j.entity ?? r.summaryLabel,
       regionCode: r.regionCode,
       source: `CourtListener · ${j.court ?? 'court'} · ${j.nature ?? 'civil'}`
+    });
+  }
+
+  // (#388) DataSF records: each row is a complaint or NOV on a property.
+  // Entity-keyed by the row id so re-runs dedup; signal applies to the
+  // address as the watchlist entity ("which property is hot").
+  if (r.sourceKind === 'datasf') {
+    out.push({
+      signalKind: 'code_violation',
+      entityKey: r.entityKey,
+      entityLabel: r.summaryLabel,
+      regionCode: r.regionCode,
+      source: `DataSF · ${r.summaryLabel ?? r.entityKey}`
     });
   }
 

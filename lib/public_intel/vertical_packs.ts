@@ -41,11 +41,22 @@ export type VerticalPackId =
   | 'marketing_agency'         // AV's own home turf — agencies selling marketing services
   | 'luxury_hospitality';      // Yacht / marina / luxury hotel / high-end events (val's wheelhouse)
 
+/**
+ * (#384) Target audience: drives the score-time filter that prevents
+ * corporate-only signals (e.g. corporate bankruptcies, UCC counterparties)
+ * from polluting consumer-facing packs (legal aid, RE-distress, etc.), and
+ * vice versa. 'both' = no filtering. Used by the distress engine when
+ * deciding whether to surface an entity for this client.
+ */
+export type TargetAudience = 'consumer' | 'corporate' | 'both';
+
 export interface VerticalPack {
   id: VerticalPackId;
   displayName: string;
   /** One-sentence positioning. */
   shortPositioning: string;
+  /** (#384) Who does this pack serve? Drives consumer/corporate routing. */
+  targetAudience: TargetAudience;
   /** Per-vertical signal weight tuning. Missing kinds keep library defaults. */
   signalWeights: Partial<Record<SignalKind, number>>;
   /** Cascade recipes that should be prioritized for this vertical. */
@@ -67,6 +78,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'collections',
     displayName: 'Collections agencies + legal referrals',
     shortPositioning: 'Predictive intelligence on businesses about to need collections support.',
+    targetAudience: 'corporate',
     signalWeights: {
       new_llc: 10,
       ucc_filing: 20,
@@ -97,12 +109,16 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'real_estate',
     displayName: 'Real estate investors + agents (distress hunting)',
     shortPositioning: 'The agent who knows about the listing before there is a listing.',
+    targetAudience: 'consumer',
     signalWeights: {
       suspended_entity: 20,
       lawsuit_filed: 25,
       leadership_change: 10,
       address_change: 15,
-      // RE-specific signals would be added when CA recorder adapter ships.
+      // (#388) DataSF adapter now live — code violations are a leading
+      // motivated-seller signal for SF properties.
+      code_violation: 35,
+      // RE-specific signals expand when CA recorder adapter ships.
       // Placeholder weights here cover the cross-cutting signals.
       new_llc: 5
     },
@@ -114,7 +130,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
       'code_violation_motivated_seller',
       'tax_lien_absentee_cashout'
     ],
-    recommendedAdapters: ['ca_sos', 'courtlistener', 'ca_recorder', 'census_acs'],
+    recommendedAdapters: ['ca_sos', 'courtlistener', 'ca_recorder', 'census_acs', 'datasf'],
     bestForRoles: ['Real estate investors (probate / NOD / divorce specialists)', 'Cash-buyer agents', 'Wholesale RE'],
     pitchTemplate:
       'I do not compete on commission. I compete on time-to-the-property. Probate, divorce, default, vacancy — by the time the heirs are figuring out who to call, the cascade engine has surfaced the property and pre-drafted my outreach.',
@@ -127,6 +143,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'b2b_sales',
     displayName: 'B2B sales teams (payroll / merchant / software)',
     shortPositioning: 'We know which businesses are most likely to buy this quarter — before they ask.',
+    targetAudience: 'corporate',
     signalWeights: {
       new_llc: 30,
       leadership_change: 20,
@@ -150,6 +167,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'commercial_insurance',
     displayName: 'Commercial insurance brokers',
     shortPositioning: 'Daily alerts on businesses with new insurable exposure.',
+    targetAudience: 'corporate',
     signalWeights: {
       new_llc: 30,
       rapid_growth: 25,
@@ -170,6 +188,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'commercial_lending',
     displayName: 'Banks + SBA lenders + equipment finance',
     shortPositioning: 'Growth AND distress signals — borrowers AND defaults — in one feed.',
+    targetAudience: 'both',
     signalWeights: {
       new_llc: 20,
       ucc_filing: 35,
@@ -197,6 +216,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'law_firm',
     displayName: 'Law firms (practice-specific intelligence)',
     shortPositioning: 'Practice-specific alerts that match what each partner actually does.',
+    targetAudience: 'both',
     signalWeights: {
       // Per-practice would be a sub-pack. Defaults below cover collections law +
       // corporate law as the most common book.
@@ -231,6 +251,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'recruiting',
     displayName: 'Staffing + executive recruiting',
     shortPositioning: 'Companies likely to hire in the next 90 days — surfaced before the JD is posted.',
+    targetAudience: 'corporate',
     signalWeights: {
       new_llc: 25,
       rapid_growth: 35,
@@ -251,6 +272,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'marketing_agency',
     displayName: 'Marketing agencies (the AV home turf)',
     shortPositioning: 'We know who needs marketing before they start looking.',
+    targetAudience: 'corporate',
     signalWeights: {
       new_llc: 25,
       address_change: 20,
@@ -272,6 +294,7 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     id: 'luxury_hospitality',
     displayName: 'Luxury hospitality intelligence (yacht / marina / hotel / event)',
     shortPositioning: 'Specialized intelligence for a smaller, wealthier, relationship-driven market.',
+    targetAudience: 'both',
     signalWeights: {
       new_llc: 20,
       leadership_change: 25,

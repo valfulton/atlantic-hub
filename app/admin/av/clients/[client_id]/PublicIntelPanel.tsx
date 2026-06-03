@@ -118,6 +118,15 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
       { label: 'Empty (paste your place IDs)', config: { placeIds: [] } },
       { label: 'Seed from a search', config: { seedQuery: 'collections agency Los Angeles' } }
     ]
+  },
+  datasf: {
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'SF building complaints · last 30d', config: { dataset: 'building_complaints', sinceDays: 30, maxRecords: 100 } },
+      { label: 'SF Notices of Violation · last 30d', config: { dataset: 'code_violations', sinceDays: 30, maxRecords: 100 } },
+      { label: 'SF 311 cases · last 14d', config: { dataset: '311_cases', sinceDays: 14, maxRecords: 100 } },
+      { label: 'Mission district · last 60d', config: { dataset: 'building_complaints', sinceDays: 60, neighborhood: 'Mission', maxRecords: 100 } }
+    ]
   }
 };
 
