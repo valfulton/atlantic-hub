@@ -210,7 +210,7 @@ export const dataSfAdapter: PublicIntelAdapter = {
         // Last resort — synthesize from address + date so re-runs dedup.
         `${pickString(row, spec.addressField) ?? 'unknown'}-${pickString(row, spec.dateField) ?? '0'}`;
       const entityKey = `datasf:${spec.entityPrefix}:${rowId}`;
-      const cached = await findCachedRecord(spec.entityPrefix, entityKey);
+      const cached = await findCachedRecord('datasf', entityKey);
       if (cached) { fromCache++; continue; }
       const address = pickString(row, spec.addressField);
       const summary = pickString(row, spec.summaryField) ?? spec.label;
