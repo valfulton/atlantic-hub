@@ -55,6 +55,14 @@ const CONFIG_HINT: Record<string, { placeholder: string; example: string }> = {
   ca_sos: {
     placeholder: '{ "query": "Candelaria" }',
     example: '{ "query": "Candelaria" }   or   { "entityNumbers": ["C1234567"] }'
+  },
+  cfpb: {
+    placeholder: '{ "states": ["FL"], "sinceDays": 90 }',
+    example: '{ "states": ["FL", "CA"], "products": ["Mortgage"], "sinceDays": 90 }'
+  },
+  census_acs: {
+    placeholder: '{ "countyFips": ["12099"], "year": 2022 }',
+    example: '{ "countyFips": ["12099"] }   (Palm Beach FL — pair with HMDA same county)'
   }
 };
 

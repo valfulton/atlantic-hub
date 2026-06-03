@@ -12,6 +12,8 @@
 import type { PublicIntelAdapter, PublicIntelKind } from './types';
 import { hmdaAdapter } from './adapters/hmda';
 import { caSosAdapter } from './adapters/ca_sos';
+import { cfpbAdapter } from './adapters/cfpb';
+import { censusAcsAdapter } from './adapters/census_acs';
 
 export interface AdapterEntry {
   adapter: PublicIntelAdapter;
@@ -63,7 +65,7 @@ const PLANNED: Array<{ kind: PublicIntelKind; displayName: string; description: 
   }
 ];
 
-const IMPLEMENTED: PublicIntelAdapter[] = [hmdaAdapter, caSosAdapter];
+const IMPLEMENTED: PublicIntelAdapter[] = [hmdaAdapter, caSosAdapter, cfpbAdapter, censusAcsAdapter];
 
 const REGISTRY: Map<PublicIntelKind, AdapterEntry> = new Map();
 
