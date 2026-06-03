@@ -17,9 +17,9 @@ import { getLane, listLanes, type NarrativeLane } from '@/lib/campaigns/store';
 import { getLineLeadFit, type LineFit } from '@/lib/campaigns/line_fit';
 import { getBriefForPrompt } from '@/lib/client/brief_store';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
-import { openaiChatCompletion, parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 
-const MODEL = 'gpt-4o-mini';
 const HOW_MANY = 2; // fewer, sharper choices — operator was discarding >50% of 3.
 
 export interface ThesisSuggestion {
@@ -33,7 +33,7 @@ export interface ThesisSuggestion {
 /** Build the editable user prompt for a line — pure, no LLM call. */
 export async function buildThesisSuggestPrompt(
   lineId: number
-): Promise<{ system: string; user: string; needTerms: string[]; totalLeads: number } | null> {
+): Promise<{ system: string; user: string; needTerms: string[]; totalLeads: number; clientId: number | null } | null> {
   const line = await getLane(lineId);
   if (!line) return null;
   const fit = await getLineLeadFit(lineId);
@@ -85,7 +85,7 @@ export async function buildThesisSuggestPrompt(
   ].filter(Boolean).join('\n');
 
   const system = await getSystemPrompt('thesis_suggester');
-  return { system, user, needTerms: needTermsFromFit(fit), totalLeads: fit.totalLeads };
+  return { system, user, needTerms: needTermsFromFit(fit), totalLeads: fit.totalLeads, clientId: line.clientId };
 }
 
 /**
@@ -143,13 +143,18 @@ export async function suggestThesesForLine(
   const user = opts.customPrompt && opts.customPrompt.trim() ? opts.customPrompt.trim() : built.user;
 
   try {
-    const completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: built.system },
-        { role: 'user', content: user }
-      ],
-      { json: true, temperature: 0.8, maxTokens: 600, model: MODEL }
-    );
+    // (#371) Migrated onto runLlm. cachePolicy 'event' — invalidated by
+    // narrative-line updated_at via the prompt itself (lineId in extras).
+    const completion = await runLlm({
+      taskKind: 'thesis_suggest',
+      note: `thesis-suggest line=${lineId}`,
+      clientId: built.clientId,
+      prompt: `SYSTEM:\n${built.system}\n\nUSER:\n${user}`,
+      cacheKeyExtras: [String(lineId), built.system.slice(0, 200)],
+      temperature: 0.8,
+      maxTokens: 600,
+      json: true
+    });
     const parsed = parseOpenAIJson<{ theses?: Array<{ thesis?: unknown; why?: unknown }> }>(completion.text);
     const out: ThesisSuggestion[] = [];
     for (const t of parsed?.theses ?? []) {

@@ -49,6 +49,16 @@ export type TaskKind =
   | 'commercial_voice'       // VO script for a commercial — mid
   | 'pr_match'               // match a PR opportunity to lead/client — mid
   | 'social_caption'         // social post caption — cheap
+  // (#371) Added during the LLM Coverage 100% sweep.
+  | 'reply_classify'         // inbound email reply classifier — cheap, deterministic
+  | 'icp_fit_reason'         // per-lead ICP fit reasoning — mid
+  | 'thesis_suggest'         // narrative-thesis suggester — strategic
+  | 'visual_brief'           // visual brief for a commercial — mid
+  | 'pr_opportunity_parse'   // parse a journalist query into structured opportunity — mid
+  | 'pr_draft_pitch'         // draft a pitch from an opportunity — strategic
+  | 'pr_draft_release'       // draft a press release from a win — strategic
+  | 'pr_artifact'            // PR artifact generation (boilerplate / talking points) — mid
+  | 'lead_audit_with_score'  // combined audit+scorer (lib/ai/score_and_audit) — strategic
   | 'misc';                  // catch-all fallback
 
 /**
@@ -134,6 +144,16 @@ export const TASK_MODEL: Record<TaskKind, ModelId> = {
   commercial_voice: 'openai:gpt-4o-mini',
   pr_match: 'openai:gpt-4o-mini',
   social_caption: 'openai:gpt-4o-mini',
+  // (#371) Added during the LLM Coverage 100% sweep.
+  reply_classify: 'openai:gpt-4o-mini',
+  icp_fit_reason: 'openai:gpt-4o-mini',
+  thesis_suggest: 'openai:gpt-4o',
+  visual_brief: 'openai:gpt-4o-mini',
+  pr_opportunity_parse: 'openai:gpt-4o-mini',
+  pr_draft_pitch: 'openai:gpt-4o',
+  pr_draft_release: 'openai:gpt-4o',
+  pr_artifact: 'openai:gpt-4o-mini',
+  lead_audit_with_score: 'openai:gpt-4o',
   misc: 'openai:gpt-4o-mini'
 };
 
@@ -164,6 +184,16 @@ export const TASK_CACHE: Record<TaskKind, CachePolicy> = {
   outreach_draft: { kind: 'none' },           // creative output, never reuse
   commercial_voice: { kind: 'none' },
   social_caption: { kind: 'none' },
+  // (#371) Added during the LLM Coverage 100% sweep.
+  reply_classify: { kind: 'time', ttlSeconds: SEVEN_DAYS }, // same body → same label
+  icp_fit_reason: { kind: 'event' },           // invalidated by ICP / lead updated_at
+  thesis_suggest: { kind: 'event' },           // invalidated by narrative-line updated_at
+  visual_brief: { kind: 'none' },              // creative, never reuse
+  pr_opportunity_parse: { kind: 'time', ttlSeconds: SEVEN_DAYS }, // same query → same structure
+  pr_draft_pitch: { kind: 'none' },            // creative, never reuse
+  pr_draft_release: { kind: 'none' },          // creative, never reuse
+  pr_artifact: { kind: 'event' },
+  lead_audit_with_score: { kind: 'event' },
   misc: { kind: 'none' }
 };
 

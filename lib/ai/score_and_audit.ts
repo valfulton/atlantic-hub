@@ -24,12 +24,8 @@
 
 import { getAvDb } from '@/lib/db/av';
 import { recomputeCombinedForLead } from '@/lib/ai/engagement_score';
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';
 import { extractPainProfileForLead, extractPainProfileForLeadLens } from '@/lib/ai/pain_extractor';
@@ -257,38 +253,30 @@ async function generateAuditPayload(lead: LeadRow, briefContext: string | null):
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: buildUserPrompt(lead, briefContext) }
-      ],
-      { json: true, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, model: MODEL }
-    );
+    // (#371) Migrated onto runLlm. cachePolicy 'event' — invalidated by
+    // brief/lead updated_at via the briefContext + lead.id in cacheKeyExtras.
+    const userPrompt = buildUserPrompt(lead, briefContext);
+    completion = await runLlm({
+      taskKind: 'lead_audit_with_score',
+      note: `lead-audit lead=${lead.id} client=${lead.client_id ?? 'none'}`,
+      clientId: lead.client_id ?? null,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [String(lead.id), (briefContext ?? '').slice(0, 200), systemPrompt.slice(0, 200)],
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
     const errMsg = (err as Error).message;
-    if (err instanceof OpenAIKeyMissingError) {
-      await logEvent({
-        eventType: 'api.openai_error',
-        leadId: lead.id,
-        source: 'openai',
-        status: 'failure',
-        errorMessage: 'OPENAI_API_KEY missing'
-      });
-      return null;
-    }
-    if (err instanceof OpenAIApiError) {
-      await logEvent({
-        eventType: 'api.openai_error',
-        leadId: lead.id,
-        source: 'openai',
-        status: 'failure',
-        payload: { status_code: err.status },
-        errorMessage: err.body.slice(0, 500)
-      });
-      return null;
-    }
+    const errName = (err as Error).name;
+    const isApiError =
+      errName === 'OpenAIKeyMissingError' ||
+      errName === 'OpenAIApiError' ||
+      errName === 'OpenRouterTransientError' ||
+      errName === 'GeminiTransientError' ||
+      errName === 'UnsupportedProviderError';
     await logEvent({
-      eventType: 'ai.score_failed',
+      eventType: isApiError ? 'api.openai_error' : 'ai.score_failed',
       leadId: lead.id,
       source: 'openai',
       status: 'failure',
@@ -306,7 +294,7 @@ async function generateAuditPayload(lead: LeadRow, briefContext: string | null):
       status: 'failure',
       payload: {
         raw_first_300: completion.text.slice(0, 300),
-        tokens_used: completion.usage.totalTokens
+        tokens_used: (completion.inputTokens + completion.outputTokens)
       },
       errorMessage: 'malformed JSON from openai'
     });
@@ -357,7 +345,7 @@ async function generateAuditPayload(lead: LeadRow, briefContext: string | null):
     auditContent,
     rawJson: JSON.stringify(parsed),
     model: completion.model || MODEL,
-    tokensUsed: completion.usage.totalTokens
+    tokensUsed: (completion.inputTokens + completion.outputTokens)
   };
 }
 

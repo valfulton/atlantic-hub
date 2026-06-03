@@ -24,7 +24,8 @@
  */
 
 import { getAvDb } from '@/lib/db/av';
-import { openaiChatCompletion, parseOpenAIJson, OpenAIApiError, OpenAIKeyMissingError } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -193,8 +194,9 @@ export async function generateVisualBriefForLead(
   const db = getAvDb();
   const actorUserId = opts.actorUserId ?? null;
 
-  const [leadRows] = await db.execute<LeadContextRow[]>(
-    `SELECT id, audit_id, company, industry, contact_title, website, audit_content, challenge
+  // (#371) Also fetch client_id for per-client cost attribution.
+  const [leadRows] = await db.execute<(LeadContextRow & { client_id: number | null })[]>(
+    `SELECT id, client_id, audit_id, company, industry, contact_title, website, audit_content, challenge
      FROM leads WHERE id = ? AND archived_at IS NULL LIMIT 1`,
     [leadId]
   );
@@ -212,13 +214,18 @@ export async function generateVisualBriefForLead(
   // from ai_prompt_overrides if set, else VISUAL_BRIEF_DEFAULT.
   const systemPrompt = await getSystemPrompt('visual_brief');
   try {
-    const completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: buildUserPrompt(lead, opts.narrativeContext) }
-      ],
-      { json: true, temperature: 0.6, maxTokens: 1200 }
-    );
+    // (#371) Migrated onto runLlm. cachePolicy 'none' (creative output, never
+    // reuse). Per-client cost attribution via clientId thread.
+    const completion = await runLlm({
+      taskKind: 'visual_brief',
+      note: `visual-brief lead=${leadId}`,
+      clientId: lead.client_id,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${buildUserPrompt(lead, opts.narrativeContext)}`,
+      cacheKeyExtras: [String(leadId)],
+      temperature: 0.6,
+      maxTokens: 1200,
+      json: true
+    });
 
     const parsed = parseOpenAIJson<VisualBrief>(completion.text);
     if (!parsed || !parsed.heroShot) {
@@ -233,10 +240,11 @@ export async function generateVisualBriefForLead(
       [lead.id]
     );
 
-    const tokens = completion.usage.totalTokens;
-    // gpt-4o-mini approx cost: $0.15/M prompt + $0.60/M completion.
-    // Crude blended estimate for logging only -- internal surfaces only.
-    const costUsd = Math.round(((completion.usage.promptTokens * 0.15 + completion.usage.completionTokens * 0.60) / 1000) * 10000) / 10000;
+    const tokens = completion.inputTokens + completion.outputTokens;
+    // (#371) Use the router-computed microcent cost directly — converted to
+    // $USD for backwards compat with existing column. No more local guess at
+    // per-million-token pricing; the router owns this.
+    const costUsd = Math.round((completion.costMicrocents / 100_000) * 10000) / 10000;
 
     const [ins] = await db.execute<ResultSetHeader>(
       `INSERT INTO lead_visual_briefs
@@ -308,13 +316,15 @@ export async function generateVisualBriefForLead(
       // swallow
     }
 
+    const errName = (err as Error).name;
+    const isApiError =
+      errName === 'OpenAIKeyMissingError' ||
+      errName === 'OpenAIApiError' ||
+      errName === 'OpenRouterTransientError' ||
+      errName === 'GeminiTransientError' ||
+      errName === 'UnsupportedProviderError';
     await logEvent({
-      eventType:
-        err instanceof OpenAIKeyMissingError
-          ? 'api.openai_error'
-          : err instanceof OpenAIApiError
-          ? 'api.openai_error'
-          : 'workflow.failed',
+      eventType: isApiError ? 'api.openai_error' : 'workflow.failed',
       leadId: lead.id,
       userId: actorUserId,
       source: 'openai',

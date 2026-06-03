@@ -26,12 +26,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson, OpenAIKeyMissingError, OpenAIApiError } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -43,6 +39,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 interface LeadRow extends RowDataPacket {
   id: number;
+  client_id: number | null;
   company: string;
   industry: string | null;
   contact_name: string | null;
@@ -86,7 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
 
   const db = getAvDb();
   const [rows] = await db.execute<LeadRow[]>(
-    `SELECT id, company, industry, contact_name, contact_title, website, audit_content, challenge
+    `SELECT id, client_id, company, industry, contact_name, contact_title, website, audit_content, challenge
      FROM leads WHERE audit_id = ? AND archived_at IS NULL LIMIT 1`,
     [params.audit_id]
   );
@@ -105,13 +102,19 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
   // from ai_prompt_overrides if set, else SOCIAL_CONTENT_GENERATOR_DEFAULT.
   const editableSystemPrompt = await getSystemPrompt('social_content_generator');
   try {
-    const completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: editableSystemPrompt },
-        { role: 'user', content: systemPrompt }
-      ],
-      { json: true, temperature: 0.85, maxTokens: 1800 }
-    );
+    // (#371) Migrated onto runLlm — content-hash cached, three-tier provider
+    // fallback, per-microcent cost logging. cachePolicy for social_caption is
+    // 'none' (creative output, never reuse) so re-runs always hit live.
+    const completion = await runLlm({
+      taskKind: 'social_caption',
+      note: `social-content variant=${variant} count=${count} lead=${lead.id}`,
+      clientId: lead.client_id ?? null,
+      prompt: `SYSTEM:\n${editableSystemPrompt}\n\nUSER:\n${systemPrompt}`,
+      cacheKeyExtras: [String(lead.id), variant, String(count)],
+      temperature: 0.85,
+      maxTokens: 1800,
+      json: true
+    });
 
     const parsed = parseOpenAIJson<AiSocialPayload>(completion.text);
     if (!parsed || !Array.isArray(parsed.linkedin)) {
@@ -147,7 +150,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
         linkedin_n: parsed.linkedin?.length ?? 0,
         twitter_n: parsed.twitter?.length ?? 0,
         instagram_n: parsed.instagram?.length ?? 0,
-        tokens_used: completion.usage.totalTokens,
+        tokens_used: (completion.inputTokens + completion.outputTokens),
         model: completion.model
       },
       executionTimeMs: Date.now() - startMs
@@ -161,7 +164,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       leadId: lead.id,
       variant,
       model: completion.model,
-      tokensTotal: completion.usage.totalTokens,
+      tokensTotal: (completion.inputTokens + completion.outputTokens),
       actorUserId: guard.actor.userId,
       drafts: [
         ...(parsed.linkedin ?? []).map((body) => ({ platform: 'linkedin' as const, body })),
@@ -179,7 +182,7 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       twitter: parsed.twitter ?? [],
       instagram: parsed.instagram ?? [],
       usage: {
-        tokens: completion.usage.totalTokens,
+        tokens: (completion.inputTokens + completion.outputTokens),
         model: completion.model
       }
     });

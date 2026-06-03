@@ -13,13 +13,10 @@
  * Cost: ~$0.003 per reply (gpt-4o-mini, ~400-token completion).
  */
 
-import {
-  openaiChatCompletion,
-  parseOpenAIJson
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 
-const MODEL = 'gpt-4o-mini';
 const TEMPERATURE = 0.2;
 const MAX_TOKENS = 200;
 
@@ -48,6 +45,8 @@ export async function classifyReply(args: {
   fromAddress: string;
   subject: string | null;
   bodyPlain: string;
+  /** (#371) Optional, threaded for per-client cost attribution. */
+  clientId?: number | null;
 }): Promise<ReplyClassifyResult> {
   // Cheap autoresponder + unsubscribe heuristics first -- save tokens
   // and reduce ambiguity for the model.
@@ -68,13 +67,18 @@ export async function classifyReply(args: {
     args.bodyPlain.slice(0, 2000)
   ].join('\n');
 
-  const out = await openaiChatCompletion(
-    [
-      { role: 'system', content: system },
-      { role: 'user', content: user }
-    ],
-    { model: MODEL, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, json: true }
-  );
+  // (#371) Cached by content hash — same body → same classification, so the
+  // 7-day TTL on reply_classify means re-running a reply costs $0.
+  const out = await runLlm({
+    taskKind: 'reply_classify',
+    note: `reply from ${args.fromAddress.slice(0, 64)}`,
+    clientId: args.clientId ?? null,
+    prompt: `SYSTEM:\n${system}\n\nUSER:\n${user}`,
+    cacheKeyExtras: [args.fromAddress, args.subject ?? '', args.bodyPlain.slice(0, 400)],
+    temperature: TEMPERATURE,
+    maxTokens: MAX_TOKENS,
+    json: true
+  });
 
   const parsed = parseOpenAIJson<ClassifierJson>(out.text);
   const classification = (parsed?.classification ?? 'unknown') as ReplyClassification;
@@ -87,7 +91,7 @@ export async function classifyReply(args: {
     classification: VALID_LABELS.has(classification) ? classification : 'unknown',
     confidence,
     model: out.model,
-    tokensUsed: out.usage.totalTokens
+    tokensUsed: out.inputTokens + out.outputTokens
   };
 }
 

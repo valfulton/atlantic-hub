@@ -16,7 +16,8 @@ import {
   OutreachDraftInsufficientDataError,
   OutreachDraftLeadNotFoundError
 } from '@/lib/ai/outreach_drafter';
-import { OpenAIApiError, OpenAIKeyMissingError } from '@/lib/openai/client';
+// (#371) Provider/key errors caught by name (set by router.ts + openai/client)
+// instead of importing the legacy classes.
 import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -132,12 +133,13 @@ export async function POST(
     if (err instanceof OutreachDraftInsufficientDataError) {
       return NextResponse.json({ error: err.message }, { status: 422 });
     }
-    if (err instanceof OpenAIKeyMissingError) {
-      return NextResponse.json({ error: err.message }, { status: 503 });
+    const e = err as Error;
+    if (e.name === 'OpenAIKeyMissingError' || e.name === 'UnsupportedProviderError') {
+      return NextResponse.json({ error: e.message }, { status: 503 });
     }
-    if (err instanceof OpenAIApiError) {
-      return NextResponse.json({ error: err.message }, { status: 502 });
+    if (e.name === 'OpenAIApiError' || e.name === 'OpenRouterTransientError' || e.name === 'GeminiTransientError') {
+      return NextResponse.json({ error: e.message }, { status: 502 });
     }
-    return NextResponse.json({ error: (err as Error).message || 'internal error' }, { status: 500 });
+    return NextResponse.json({ error: e.message || 'internal error' }, { status: 500 });
   }
 }

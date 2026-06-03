@@ -31,12 +31,8 @@
  */
 
 import { getAvDb } from '@/lib/db/av';
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getBriefForPrompt, getIntelConfig, getVoiceLockBlock } from '@/lib/client/brief_store';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
@@ -140,20 +136,30 @@ export async function parseOpportunity(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: 0.3, maxTokens: PARSE_MAX_TOKENS, json: true }
-    );
+    // (#371) Migrated onto runLlm. cachePolicy 'time' 7d — same raw text
+    // parses to the same structure for that window.
+    completion = await runLlm({
+      taskKind: 'pr_opportunity_parse',
+      note: `pr-parse source=${args.sourceHint ?? 'manual'}`,
+      clientId: null, // pre-match, no client known yet
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [args.rawText.slice(0, 400), args.sourceHint ?? 'manual'],
+      temperature: 0.3,
+      maxTokens: PARSE_MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
+    const e = err as Error;
+    const isApi =
+      e.name === 'OpenAIKeyMissingError' || e.name === 'OpenAIApiError' ||
+      e.name === 'OpenRouterTransientError' || e.name === 'GeminiTransientError' ||
+      e.name === 'UnsupportedProviderError';
+    if (isApi) {
       await logEvent({
         eventType: 'pr.opportunity.parse_failed',
         source: 'openai',
         status: 'failure',
-        errorMessage: err.message
+        errorMessage: e.message
       });
     }
     throw err;
@@ -216,7 +222,7 @@ export async function parseOpportunity(args: {
       topic_tags: result.topicTags,
       matched_lead_id: matchedLeadId,
       model: completion.model,
-      tokens: completion.usage.totalTokens
+      tokens: (completion.inputTokens + completion.outputTokens)
     }
   });
 
@@ -276,21 +282,31 @@ export async function draftPitch(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: DRAFT_MAX_TOKENS, json: true }
-    );
+    // (#371) Migrated onto runLlm. cachePolicy 'none' — pitch is creative
+    // output, never reuse. Per-client cost attribution via intel.lead.client_id.
+    completion = await runLlm({
+      taskKind: 'pr_draft_pitch',
+      note: `pr-pitch opp=${args.opportunity.id} mode=${mode}`,
+      clientId: intel.lead?.client_id ?? null,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [String(args.opportunity.id), mode],
+      temperature: TEMPERATURE,
+      maxTokens: DRAFT_MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
+    const e = err as Error;
+    const isApi =
+      e.name === 'OpenAIKeyMissingError' || e.name === 'OpenAIApiError' ||
+      e.name === 'OpenRouterTransientError' || e.name === 'GeminiTransientError' ||
+      e.name === 'UnsupportedProviderError';
+    if (isApi) {
       await logEvent({
         eventType: 'pr.pitch.generate_failed',
         leadId: args.leadId,
         source: 'openai',
         status: 'failure',
-        errorMessage: err.message,
+        errorMessage: e.message,
         payload: { opportunity_id: args.opportunity.id }
       });
     }
@@ -325,7 +341,7 @@ export async function draftPitch(args: {
     payload: {
       opportunity_id: args.opportunity.id,
       model: completion.model,
-      tokens: completion.usage.totalTokens,
+      tokens: (completion.inputTokens + completion.outputTokens),
       grounded_on_intelligence: intel.grounded,
       derived_object_types: derivedObjects.map((o) => o.objectType)
     }
@@ -336,7 +352,7 @@ export async function draftPitch(args: {
     bodyText: parsed.body_text.trim(),
     whyItMatters: (parsed.why_it_matters ?? args.opportunity.whyItMatters ?? '').trim().slice(0, 4000),
     model: completion.model,
-    tokensUsed: completion.usage.totalTokens,
+    tokensUsed: (completion.inputTokens + completion.outputTokens),
     derivedObjects,
     groundedOnIntelligence: intel.grounded
   };
@@ -378,21 +394,31 @@ export async function draftRelease(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: DRAFT_MAX_TOKENS, json: true }
-    );
+    // (#371) Migrated onto runLlm. cachePolicy 'none' — release is creative
+    // output, never reuse.
+    completion = await runLlm({
+      taskKind: 'pr_draft_release',
+      note: `pr-release lead=${args.leadId ?? 'none'}`,
+      clientId: releaseClientId,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [String(args.leadId ?? 'none'), args.announcement.slice(0, 200)],
+      temperature: TEMPERATURE,
+      maxTokens: DRAFT_MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
+    const e = err as Error;
+    const isApi =
+      e.name === 'OpenAIKeyMissingError' || e.name === 'OpenAIApiError' ||
+      e.name === 'OpenRouterTransientError' || e.name === 'GeminiTransientError' ||
+      e.name === 'UnsupportedProviderError';
+    if (isApi) {
       await logEvent({
         eventType: 'pr.release.generate_failed',
         leadId: args.leadId,
         source: 'openai',
         status: 'failure',
-        errorMessage: err.message
+        errorMessage: e.message
       });
     }
     throw err;
@@ -425,7 +451,7 @@ export async function draftRelease(args: {
     executionTimeMs: Date.now() - started,
     payload: {
       model: completion.model,
-      tokens: completion.usage.totalTokens,
+      tokens: (completion.inputTokens + completion.outputTokens),
       grounded_on_intelligence: intel.grounded,
       derived_object_types: derivedObjects.map((o) => o.objectType)
     }
@@ -435,7 +461,7 @@ export async function draftRelease(args: {
     title: parsed.title.trim().slice(0, 300),
     bodyText: parsed.body_text.trim(),
     model: completion.model,
-    tokensUsed: completion.usage.totalTokens,
+    tokensUsed: (completion.inputTokens + completion.outputTokens),
     derivedObjects,
     groundedOnIntelligence: intel.grounded
   };

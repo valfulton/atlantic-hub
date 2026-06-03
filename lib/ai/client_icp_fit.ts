@@ -17,12 +17,8 @@
  *     keeps going.
  *   - Prompt is editable via prompt_registry key 'client_icp_fit_scorer'.
  */
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefForPrompt } from '@/lib/client/brief_store';
 import { getClientIcp } from '@/lib/client/icp';
@@ -30,7 +26,6 @@ import { getAvDb } from '@/lib/db/av';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
-const MODEL = 'gpt-4o-mini';
 const TEMPERATURE = 0.2;
 const MAX_TOKENS = 250;
 
@@ -155,23 +150,27 @@ export async function scoreClientIcpFit(leadId: number): Promise<IcpFitResult | 
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, json: true }
-    );
+    // (#371) Migrated onto runLlm. Cache policy 'event' — invalidated by ICP
+    // and brief updated_at via cacheKeyExtras. Per-client cost attribution.
+    completion = await runLlm({
+      taskKind: 'icp_fit_reason',
+      note: `icp-fit lead=${leadId} client=${lead.client_id}`,
+      clientId: lead.client_id,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [String(leadId), String(lead.client_id), systemPrompt.slice(0, 200)],
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
-      await logEvent({
-        eventType: 'lead.icp_fit.scoring_failed',
-        leadId,
-        source: 'openai',
-        status: 'failure',
-        errorMessage: err.message
-      });
-    }
+    const e = err as Error;
+    await logEvent({
+      eventType: 'lead.icp_fit.scoring_failed',
+      leadId,
+      source: 'openai',
+      status: 'failure',
+      errorMessage: e.message
+    });
     return null;
   }
 
@@ -195,7 +194,7 @@ export async function scoreClientIcpFit(leadId: number): Promise<IcpFitResult | 
     score,
     reasoning,
     model: completion.model,
-    tokensUsed: completion.usage.totalTokens
+    tokensUsed: completion.inputTokens + completion.outputTokens
   };
 }
 

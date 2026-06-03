@@ -22,7 +22,9 @@ import {
   OutreachDraftInsufficientDataError,
   OutreachDraftLeadNotFoundError
 } from '@/lib/ai/outreach_drafter';
-import { OpenAIApiError, OpenAIKeyMissingError } from '@/lib/openai/client';
+// (#371) Provider/key errors now propagate from inside runLlm; we recognize
+// them by name rather than importing the legacy openai/client classes so this
+// file doesn't bring the legacy import path back.
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -79,11 +81,12 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
     if (err instanceof OutreachDraftInsufficientDataError) {
       return NextResponse.json({ error: 'insufficient_data', message: err.message }, { status: 422 });
     }
-    if (err instanceof OpenAIKeyMissingError) {
-      return NextResponse.json({ error: 'openai_key_missing' }, { status: 503 });
+    const e = err as Error;
+    if (e.name === 'OpenAIKeyMissingError' || e.name === 'UnsupportedProviderError') {
+      return NextResponse.json({ error: 'llm_key_missing', message: e.message.slice(0, 300) }, { status: 503 });
     }
-    if (err instanceof OpenAIApiError) {
-      return NextResponse.json({ error: 'openai_error', message: err.message.slice(0, 300) }, { status: 502 });
+    if (e.name === 'OpenAIApiError' || e.name === 'OpenRouterTransientError' || e.name === 'GeminiTransientError') {
+      return NextResponse.json({ error: 'llm_provider_error', message: e.message.slice(0, 300) }, { status: 502 });
     }
     console.error('[draft-email-quick]', (err as Error).message);
     return NextResponse.json(

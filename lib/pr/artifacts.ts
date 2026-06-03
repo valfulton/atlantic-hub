@@ -35,12 +35,8 @@
  * never reveal the content was AI-generated (artifacts get published).
  */
 
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 import {
   loadClientIntelligence,
@@ -60,7 +56,6 @@ import {
   type PitchMode
 } from '@/lib/pr/types';
 
-const MODEL = 'gpt-4o-mini';
 const TEMPERATURE = 0.7;
 const ARTICLE_MAX_TOKENS = 2000; // blog / seo / client deliverable: long-form
 const POST_MAX_TOKENS = 700; // own-brand social post: short
@@ -140,21 +135,38 @@ export async function draftArtifact(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+    // (#371) Migrated onto runLlm. cachePolicy 'event' — invalidated by
+    // intel changes via cacheKeyExtras.
+    completion = await runLlm({
+      taskKind: 'pr_artifact',
+      note: `pr-artifact type=${args.artifactType} lead=${effectiveLeadId ?? 'none'}`,
+      clientId: intel.lead?.client_id ?? null,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [
+        args.artifactType,
+        String(effectiveLeadId ?? 'none'),
+        args.topic ?? '',
+        (args.narrativeContext ?? '').slice(0, 200)
       ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: isPost ? POST_MAX_TOKENS : ARTICLE_MAX_TOKENS, json: true }
-    );
+      temperature: TEMPERATURE,
+      maxTokens: isPost ? POST_MAX_TOKENS : ARTICLE_MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
+    const e = err as Error;
+    const isApiError =
+      e.name === 'OpenAIKeyMissingError' ||
+      e.name === 'OpenAIApiError' ||
+      e.name === 'OpenRouterTransientError' ||
+      e.name === 'GeminiTransientError' ||
+      e.name === 'UnsupportedProviderError';
+    if (isApiError) {
       await logEvent({
         eventType: CONTENT_EVENTS.artifactDraftFailed,
         leadId: effectiveLeadId,
         source: 'openai',
         status: 'failure',
-        errorMessage: err.message,
+        errorMessage: e.message,
         payload: { artifact_type: args.artifactType }
       });
     }
@@ -192,7 +204,7 @@ export async function draftArtifact(args: {
       artifact_type: args.artifactType,
       voice_mode: voiceMode,
       model: completion.model,
-      tokens: completion.usage.totalTokens,
+      tokens: (completion.inputTokens + completion.outputTokens),
       grounded_on_intelligence: intel.grounded,
       derived_object_types: derivedObjects.map((o) => o.objectType),
       keyword_cluster_size: Array.isArray(metaJson.keyword_cluster) ? metaJson.keyword_cluster.length : 0
@@ -206,7 +218,7 @@ export async function draftArtifact(args: {
     bodyText: parsed.body_text.trim(),
     metaJson,
     model: completion.model,
-    tokensUsed: completion.usage.totalTokens,
+    tokensUsed: (completion.inputTokens + completion.outputTokens),
     derivedObjects,
     groundedOnIntelligence: intel.grounded,
     effectiveLeadId
