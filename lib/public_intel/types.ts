@@ -26,7 +26,9 @@ export type PublicIntelKind =
   | 'ca_sos'
   | 'ca_recorder'
   | 'datasf'
-  | 'la_assessor';
+  | 'la_assessor'
+  // (#372) Added during the Revenue Distress Intelligence Engine bundle.
+  | 'courtlistener';
 
 export interface PublicIntelSource {
   sourceId: number;

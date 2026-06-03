@@ -13,7 +13,7 @@
 import { createLane, listLinesForCockpit } from '@/lib/campaigns/store';
 import { getBriefForPrompt, getBriefPayload } from '@/lib/client/brief_store';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 

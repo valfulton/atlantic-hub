@@ -17,7 +17,7 @@
  *     keeps going.
  *   - Prompt is editable via prompt_registry key 'client_icp_fit_scorer'.
  */
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefForPrompt } from '@/lib/client/brief_store';

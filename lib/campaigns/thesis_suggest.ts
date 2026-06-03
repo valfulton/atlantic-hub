@@ -17,7 +17,7 @@ import { getLane, listLanes, type NarrativeLane } from '@/lib/campaigns/store';
 import { getLineLeadFit, type LineFit } from '@/lib/campaigns/line_fit';
 import { getBriefForPrompt } from '@/lib/client/brief_store';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 
 const HOW_MANY = 2; // fewer, sharper choices — operator was discarding >50% of 3.

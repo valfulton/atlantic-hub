@@ -17,7 +17,7 @@
  * `intake_intelligence_extractor`, so val can QC it before it spends.
  */
 import { getBriefPayload } from '@/lib/client/brief_store';
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { upsertIntelligenceObjects } from '@/lib/pr/drafter';

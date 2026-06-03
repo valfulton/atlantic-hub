@@ -13,7 +13,7 @@
  * Cost: ~$0.003 per reply (gpt-4o-mini, ~400-token completion).
  */
 
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 

@@ -26,8 +26,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getAvDb } from '@/lib/db/av';
-import { parseOpenAIJson, OpenAIKeyMissingError, OpenAIApiError } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
+// (#372) Provider/key errors caught by name (set by router.ts + openai/client)
+// instead of importing the legacy error classes.
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -187,7 +189,8 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
       }
     });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError) {
+    const e = err as Error;
+    if (e.name === 'OpenAIKeyMissingError' || e.name === 'UnsupportedProviderError') {
       await logEvent({
         eventType: 'api.openai_error',
         leadId: lead.id,
@@ -195,30 +198,34 @@ export async function POST(req: NextRequest, { params }: { params: { audit_id: s
         source: 'openai',
         status: 'failure',
         payload: { route: 'social-content', variant },
-        errorMessage: 'OPENAI_API_KEY missing'
+        errorMessage: e.message
       });
       return NextResponse.json(
-        { error: 'OPENAI_API_KEY not configured in Netlify env vars' },
+        { error: 'llm_key_missing', detail: e.message.slice(0, 300) },
         { status: 503 }
       );
     }
-    if (err instanceof OpenAIApiError) {
+    if (
+      e.name === 'OpenAIApiError' ||
+      e.name === 'OpenRouterTransientError' ||
+      e.name === 'GeminiTransientError'
+    ) {
       await logEvent({
-        eventType: err.status === 429 ? 'api.rate_limited' : 'api.openai_error',
+        eventType: 'api.openai_error',
         leadId: lead.id,
         userId: guard.actor.userId,
         source: 'openai',
         status: 'failure',
-        payload: { route: 'social-content', status_code: err.status },
-        errorMessage: err.body.slice(0, 500),
+        payload: { route: 'social-content' },
+        errorMessage: e.message.slice(0, 500),
         executionTimeMs: Date.now() - startMs
       });
       return NextResponse.json(
-        { error: 'openai api error', detail: err.body.slice(0, 500), status: err.status },
+        { error: 'llm_provider_error', detail: e.message.slice(0, 500) },
         { status: 502 }
       );
     }
-    console.error('[av:social-content]', (err as Error).message);
+    console.error('[av:social-content]', e.message);
     await logEvent({
       eventType: 'workflow.failed',
       leadId: lead.id,

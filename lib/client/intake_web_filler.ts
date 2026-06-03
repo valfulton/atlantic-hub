@@ -23,7 +23,7 @@
  *   - The prompt is editable via the prompt_registry (key 'intake_web_filler')
  *     so val can sharpen it without a deploy.
  */
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { INTAKE_KEYS, INTAKE_GROUPS } from '@/lib/client/intake_fields';

@@ -24,7 +24,7 @@
 
 import { getAvDb } from '@/lib/db/av';
 import { recomputeCombinedForLead } from '@/lib/ai/engagement_score';
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 import { getBriefSeed } from '@/lib/client/brief_store';

@@ -35,7 +35,7 @@
  * never reveal the content was AI-generated (artifacts get published).
  */
 
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 import {

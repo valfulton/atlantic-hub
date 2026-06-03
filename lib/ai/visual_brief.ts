@@ -24,7 +24,7 @@
  */
 
 import { getAvDb } from '@/lib/db/av';
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { logEvent } from '@/lib/events/log';

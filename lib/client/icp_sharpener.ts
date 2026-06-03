@@ -19,7 +19,7 @@
  *
  * Prompt is editable via prompt_registry key 'client_icp_sharpener'.
  */
-import { parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefSeed, getBriefPayload } from '@/lib/client/brief_store';
