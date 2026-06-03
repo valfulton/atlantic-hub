@@ -6,7 +6,7 @@ interface PortalHeaderProps {
   displayName: string | null;
   email: string;
   tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
-  active: 'dashboard' | 'audit' | 'leads' | 'details' | 'pr' | 'review' | 'intelligence';
+  active: 'dashboard' | 'audit' | 'leads' | 'details' | 'pr' | 'review' | 'intelligence' | 'watchlist';
 }
 
 const TIER_LABEL: Record<PortalHeaderProps['tier'], string> = {
@@ -74,6 +74,21 @@ export default function PortalHeader({ displayName, email, tier, active }: Porta
           >
             Your Leads
           </a>
+          {/* (#385) Watchlist — distressed entities surfaced from public-records
+              intelligence. Hidden for audit_only (no signals run yet). */}
+          {tier !== 'audit_only' && (
+            <a
+              href="/client/watchlist"
+              aria-current={active === 'watchlist' ? 'page' : undefined}
+              className={`px-3 py-1.5 rounded-md text-sm ${
+                active === 'watchlist'
+                  ? 'bg-surface-2 text-ink'
+                  : 'text-muted hover:text-ink hover:bg-surface-2'
+              }`}
+            >
+              Watchlist
+            </a>
+          )}
           <a
             href="/client/audit"
             aria-current={active === 'audit' ? 'page' : undefined}

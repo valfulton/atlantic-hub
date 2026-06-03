@@ -82,7 +82,18 @@ interface DraftModalState {
   errorMessage?: string;
 }
 
-export default function DistressWatchlistPanel({ clientId, clientName }: { clientId: number; clientName: string }) {
+// (#385) Two-mode panel: 'operator' (val) hits /api/admin/av/clients/[id]/* paths
+// and exposes the Seed-CBB-defaults button; 'client' (Adriana) hits /api/client/*
+// paths and hides operator-only controls. Both expose Draft + Promote-to-lead.
+export type DistressPanelMode = 'operator' | 'client';
+
+interface DistressPanelProps {
+  clientId: number;
+  clientName: string;
+  mode?: DistressPanelMode;
+}
+
+export default function DistressWatchlistPanel({ clientId, clientName, mode = 'operator' }: DistressPanelProps) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<WatchlistRow[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,10 +101,21 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
   const [lastSummary, setLastSummary] = useState<string | null>(null);
   const [draftModal, setDraftModal] = useState<DraftModalState | null>(null);
   const [copied, setCopied] = useState<'subject' | 'body' | null>(null);
+  const [promoteState, setPromoteState] = useState<Record<string, 'idle' | 'busy' | 'done' | 'error'>>({});
+
+  // (#385) API path base derived from mode. Operator surface = scoped under
+  // /admin/av/clients/[id]; client surface = unscoped /client/* (server reads
+  // activeBrandFor() to scope to Adriana's current brand).
+  const apiBase = mode === 'operator'
+    ? `/api/admin/av/clients/${clientId}/distress`
+    : `/api/client/distress`;
+  const leadDetailPath = (auditId: string) => mode === 'operator'
+    ? `/admin/av/leads/${auditId}`
+    : `/client/leads/${auditId}`;
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`/api/admin/av/clients/${clientId}/distress?limit=25`, { cache: 'no-store' });
+      const r = await fetch(`${apiBase}?limit=25`, { cache: 'no-store' });
       const j = await r.json();
       if (!r.ok || !j.ok) { setError(j.error || 'Could not load.'); return; }
       setRows(j.rows as WatchlistRow[]);
@@ -101,13 +123,15 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
     } catch {
       setError('Could not load.');
     }
-  }, [clientId]);
+  }, [apiBase]);
 
   useEffect(() => {
     if (open && !rows) load();
   }, [open, rows, load]);
 
   async function rescore(seed: boolean) {
+    // Client mode doesn't expose rescore (they read the operator's scored watchlist).
+    if (mode === 'client') return;
     setBusy(true);
     setError(null);
     try {
@@ -139,7 +163,7 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
       status: 'loading'
     });
     try {
-      const r = await fetch(`/api/admin/av/clients/${clientId}/distress/draft-outreach`, {
+      const r = await fetch(`${apiBase}/draft-outreach`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -176,6 +200,36 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
         status: 'error',
         errorMessage: 'Draft failed.'
       });
+    }
+  }
+
+  // (#387) Promote a watchlist entity straight into the leads pipeline.
+  async function promoteFor(row: WatchlistRow) {
+    setPromoteState((s) => ({ ...s, [row.entityKey]: 'busy' }));
+    try {
+      const r = await fetch(`${apiBase}/promote-to-lead`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          entityKey: row.entityKey,
+          entityLabel: row.entityLabel,
+          score: row.score,
+          signalKinds: row.contributingSignals.map((s) => s.signalKind),
+          regionCode: row.regionCode
+        })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        setPromoteState((s) => ({ ...s, [row.entityKey]: 'error' }));
+        return;
+      }
+      setPromoteState((s) => ({ ...s, [row.entityKey]: 'done' }));
+      // Open the new lead in a new tab so the watchlist context isn't lost.
+      if (j.auditId) {
+        window.open(leadDetailPath(j.auditId), '_blank', 'noopener');
+      }
+    } catch {
+      setPromoteState((s) => ({ ...s, [row.entityKey]: 'error' }));
     }
   }
 
@@ -226,23 +280,38 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
             cached records do most of the work.
           </p>
           <div className="flex items-center gap-2 flex-wrap mb-3">
-            <button
-              type="button"
-              onClick={() => rescore(false)}
-              disabled={busy}
-              className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[12px] px-3 py-1.5 disabled:opacity-50"
-            >
-              {busy ? 'Scoring…' : '▶ Rescore now'}
-            </button>
-            <button
-              type="button"
-              onClick={() => rescore(true)}
-              disabled={busy}
-              className="rounded-lg border border-border bg-black/30 hover:bg-white/5 text-ink text-[12px] px-3 py-1.5 disabled:opacity-50"
-              title="Apply the advisor's 7 default weights for collections / legal services clients. Idempotent — won't overwrite existing weights."
-            >
-              Seed CBB defaults + rescore
-            </button>
+            {/* (#385) Operator-only controls: rescore + seed-defaults.
+                Client view reads the latest scored watchlist as-is. */}
+            {mode === 'operator' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => rescore(false)}
+                  disabled={busy}
+                  className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[12px] px-3 py-1.5 disabled:opacity-50"
+                >
+                  {busy ? 'Scoring…' : '▶ Rescore now'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rescore(true)}
+                  disabled={busy}
+                  className="rounded-lg border border-border bg-black/30 hover:bg-white/5 text-ink text-[12px] px-3 py-1.5 disabled:opacity-50"
+                  title="Apply the advisor's 7 default weights for collections / legal services clients. Idempotent — won't overwrite existing weights."
+                >
+                  Seed CBB defaults + rescore
+                </button>
+              </>
+            )}
+            {mode === 'client' && (
+              <button
+                type="button"
+                onClick={load}
+                className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[12px] px-3 py-1.5"
+              >
+                ↻ Refresh
+              </button>
+            )}
             {lastSummary && <span className="text-[11px] text-muted">{lastSummary}</span>}
           </div>
           {error && (
@@ -290,16 +359,46 @@ export default function DistressWatchlistPanel({ clientId, clientName }: { clien
                     <div className={`text-sm font-medium tabular-nums ${scoreColor(row.score)}`}>{row.score}</div>
                     <div className="text-[10px] text-muted">{relTime(row.lastRecomputedAt)}</div>
                   </div>
-                  {/* (#382) Per-row one-click outreach: turn the cascade signal
-                      into a drafted email that references it. */}
-                  <button
-                    type="button"
-                    onClick={() => draftFor(row)}
-                    className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[11px] px-2 py-1"
-                    title="Draft a cold-outreach opener for this entity using the cascade attribution chain"
-                  >
-                    ✎ Draft
-                  </button>
+                  {/* (#382/#387) Per-row actions: draft an opener OR promote
+                      the entity into the leads pipeline. Two-step funnel:
+                      Draft = explore the message, Promote = commit to working
+                      this prospect. */}
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => draftFor(row)}
+                      className="rounded-md border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[11px] px-2 py-1"
+                      title="Draft a cold-outreach opener for this entity using the cascade attribution chain"
+                    >
+                      ✎ Draft
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => promoteFor(row)}
+                      disabled={promoteState[row.entityKey] === 'busy' || promoteState[row.entityKey] === 'done'}
+                      className={
+                        'rounded-md border text-[11px] px-2 py-1 ' +
+                        (promoteState[row.entityKey] === 'done'
+                          ? 'border-emerald-400/60 bg-emerald-400/20 text-emerald-100'
+                          : promoteState[row.entityKey] === 'error'
+                          ? 'border-red-400/40 bg-red-400/10 text-red-200'
+                          : 'border-sky-400/40 bg-sky-400/10 hover:bg-sky-400/20 text-sky-200')
+                      }
+                      title={
+                        promoteState[row.entityKey] === 'done'
+                          ? 'Added to your pipeline · opens lead detail in a new tab'
+                          : 'Add this entity to the leads pipeline so it shows up alongside the rest of your prospects'
+                      }
+                    >
+                      {promoteState[row.entityKey] === 'busy'
+                        ? '…'
+                        : promoteState[row.entityKey] === 'done'
+                        ? '✓ Added'
+                        : promoteState[row.entityKey] === 'error'
+                        ? '! Retry'
+                        : '✚ Add to pipeline'}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ol>
