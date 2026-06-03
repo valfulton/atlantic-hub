@@ -110,6 +110,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   const preflight = await runPrepPreflight({ url: websiteUrl, briefPayload, hasIntakePayload });
 
+  // Timestamp used to scope the final llm_call_log cost rollup to JUST this run.
+  const prepStarted = new Date();
+
   const results: StepResult[] = [];
 
   // -------- Step 1: Fill intake from web ----------------------------------
@@ -225,6 +228,44 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const okCount = results.filter((r) => r.status === 'ok').length;
   const failedCount = results.filter((r) => r.status === 'failed').length;
   const preSkippedCount = results.filter((r) => r.status === 'pre_skipped').length;
+
+  // (#361) Total LLM cost for this Prep run — query llm_call_log for the rows
+  // we just generated. Bound by the prep_started timestamp + this client_id so
+  // we don't pick up unrelated calls.
+  let totalCostMicrocents = 0;
+  let totalLiveMicrocents = 0;
+  let totalCacheSavedMicrocents = 0;
+  let liveCallCount = 0;
+  let cacheHitCount = 0;
+  try {
+    const db = getAvDb();
+    const [costRows] = await db.execute<(import('mysql2').RowDataPacket & {
+      total_live: number | string | null;
+      total_cache_saved: number | string | null;
+      live_calls: number | string;
+      cache_hits: number | string;
+    })[]>(
+      `SELECT
+         SUM(CASE WHEN source='live' THEN cost_microcents ELSE 0 END) AS total_live,
+         SUM(CASE WHEN source='cache' THEN
+           /* cost the live call WOULD have been; we don't have that here, so
+              estimate from cached metadata in a follow-up. For now report 0. */
+           0 ELSE 0 END) AS total_cache_saved,
+         SUM(CASE WHEN source='live' THEN 1 ELSE 0 END) AS live_calls,
+         SUM(CASE WHEN source='cache' THEN 1 ELSE 0 END) AS cache_hits
+       FROM llm_call_log
+       WHERE client_id = ? AND ts >= ?`,
+      [clientId, prepStarted]
+    );
+    if (costRows[0]) {
+      totalLiveMicrocents = Number(costRows[0].total_live ?? 0);
+      totalCacheSavedMicrocents = Number(costRows[0].total_cache_saved ?? 0);
+      liveCallCount = Number(costRows[0].live_calls ?? 0);
+      cacheHitCount = Number(costRows[0].cache_hits ?? 0);
+      totalCostMicrocents = totalLiveMicrocents;
+    }
+  } catch { /* non-fatal */ }
+
   return NextResponse.json({
     ok: true,
     websiteUrl,
@@ -234,6 +275,10 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     /** (#358) Per-step readiness from pre-flight, surfaced to the UI so val sees
      *  "URL 404 → skipped 3 LLM calls" rather than failed attempts after charges. */
     preflight,
+    /** (#361) Total cost + cache stats for this prep run. */
+    totalCostMicrocents,
+    liveCallCount,
+    cacheHitCount,
     results
   });
 }

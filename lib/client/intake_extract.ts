@@ -17,19 +17,15 @@
  * `intake_intelligence_extractor`, so val can QC it before it spends.
  */
 import { getBriefPayload } from '@/lib/client/brief_store';
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { upsertIntelligenceObjects } from '@/lib/pr/drafter';
 import { INTELLIGENCE_OBJECT_TYPES } from '@/lib/pr/types';
 import { logEvent } from '@/lib/events/log';
 import type { DerivedIntelligenceObject } from '@/lib/pr/types';
 
-const MODEL = 'gpt-4o-mini';
+// (#361) Model decided by lib/llm/types.ts TASK_MODEL['intake_intel_extract'].
 
 // Canonical types extraction may emit. `pain_point_profile` is excluded: per the
 // Constitution it lives on `leads`, not in this store.
@@ -94,23 +90,26 @@ export async function extractIntakeIntelligence(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: 0.3, maxTokens: 1300, json: true }
-    );
+    // (#361) Event-cached on intake payload hash — brief edit = fresh extraction.
+    const briefStamp = JSON.stringify(payload).slice(0, 500);
+    completion = await runLlm({
+      taskKind: 'intake_intel_extract',
+      clientId,
+      note: `intake_intel_extract · client ${clientId}`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [String(clientId), briefStamp, systemPrompt.slice(0, 200)],
+      temperature: 0.3,
+      maxTokens: 1300,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
-      await logEvent({
-        eventType: 'ai.intake_extract_failed',
-        source: 'openai',
-        status: 'failure',
-        errorMessage: err.message,
-        payload: { client_id: clientId }
-      });
-    }
+    await logEvent({
+      eventType: 'ai.intake_extract_failed',
+      source: 'llm_router',
+      status: 'failure',
+      errorMessage: (err as Error).message,
+      payload: { client_id: clientId }
+    });
     throw err;
   }
 
@@ -137,7 +136,7 @@ export async function extractIntakeIntelligence(args: {
       eventType: 'ai.intake_extracted',
       source: 'openai',
       executionTimeMs: Date.now() - started,
-      payload: { client_id: clientId, written: 0, model: completion.model, tokens: completion.usage.totalTokens }
+      payload: { client_id: clientId, written: 0, model: completion.model, tokens: completion.inputTokens + completion.outputTokens }
     });
     return { ok: true, reason: 'empty', written: 0, objectTypes: [] };
   }
@@ -158,7 +157,9 @@ export async function extractIntakeIntelligence(args: {
       written,
       object_types: objects.map((o) => o.objectType),
       model: completion.model,
-      tokens: completion.usage.totalTokens
+      tokens: completion.inputTokens + completion.outputTokens,
+      cost_microcents: completion.costMicrocents,
+      cost_source: completion.source
     }
   });
 

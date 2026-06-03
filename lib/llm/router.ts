@@ -23,6 +23,11 @@ import {
   OpenRouterTransientError
 } from './providers/openrouter';
 import {
+  geminiChatCompletion,
+  hasGeminiKey,
+  GeminiTransientError
+} from './providers/gemini';
+import {
   TASK_MODEL,
   TASK_CACHE,
   MODEL_PRICE,
@@ -84,7 +89,7 @@ async function callProvider(
   model: ModelId,
   prompt: string,
   opts: { temperature?: number; maxTokens?: number; json?: boolean }
-): Promise<{ text: string; inputTokens: number; outputTokens: number; viaProvider: 'openrouter' | 'openai_direct' }> {
+): Promise<{ text: string; inputTokens: number; outputTokens: number; viaProvider: 'openrouter' | 'openai_direct' | 'gemini_direct' }> {
   const provider = providerOf(model);
 
   // Preferred path: OpenRouter (covers every provider via one key).
@@ -106,12 +111,45 @@ async function callProvider(
         viaProvider: 'openrouter'
       };
     } catch (e) {
-      // Only fall back on transient errors AND only to OpenAI direct.
-      if (e instanceof OpenRouterTransientError && provider === 'openai') {
-        // fall through to direct-OpenAI branch below
+      // Fall back on transient errors, by provider:
+      //   - OpenAI models -> direct OpenAI below
+      //   - Google models -> direct Gemini below (if GEMINI_API_KEY set)
+      //   - Others -> propagate, no second path
+      if (e instanceof OpenRouterTransientError) {
+        if (provider === 'openai') {
+          // fall through to direct-OpenAI branch below
+        } else if (provider === 'google' && hasGeminiKey()) {
+          // fall through to direct-Gemini branch below
+        } else {
+          throw e;
+        }
       } else {
         throw e;
       }
+    }
+  }
+
+  // Direct-Gemini path (resilience fallback + free-tier headroom).
+  if (provider === 'google' && hasGeminiKey()) {
+    try {
+      const res = await geminiChatCompletion(prompt, {
+        model: modelNameOf(model),
+        temperature: opts.temperature,
+        maxTokens: opts.maxTokens,
+        json: opts.json
+      });
+      return {
+        text: res.text,
+        inputTokens: res.inputTokens,
+        outputTokens: res.outputTokens,
+        viaProvider: 'gemini_direct'
+      };
+    } catch (e) {
+      if (e instanceof GeminiTransientError) {
+        // No deeper fallback for Google models without OpenAI equivalent.
+        // Propagate so the caller sees the real error.
+      }
+      throw e;
     }
   }
 

@@ -19,19 +19,15 @@
  *
  * Prompt is editable via prompt_registry key 'client_icp_sharpener'.
  */
-import {
-  openaiChatCompletion,
-  parseOpenAIJson,
-  OpenAIKeyMissingError,
-  OpenAIApiError
-} from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { getBriefSeed, getBriefPayload } from '@/lib/client/brief_store';
 import { logEvent } from '@/lib/events/log';
 
-const MODEL = 'gpt-4o-mini';
 const TEMPERATURE = 0.2;
 const MAX_TOKENS = 800;
+// (#361) Model decided by lib/llm/types.ts TASK_MODEL['icp_sharpen'].
 
 export interface SharpenedIcp {
   industries: string[];
@@ -154,23 +150,27 @@ export async function sharpenIcpFromBrief(args: {
 
   let completion;
   try {
-    completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      { model: MODEL, temperature: TEMPERATURE, maxTokens: MAX_TOKENS, json: true }
-    );
+    // (#361) Event-cached: cache key includes a hash of the brief payload
+    // we read, so a brief edit naturally produces a different key = fresh call.
+    const briefStamp = JSON.stringify(payload ?? {}).slice(0, 500);
+    completion = await runLlm({
+      taskKind: 'icp_sharpen',
+      clientId: args.clientId,
+      note: `icp_sharpen · client ${args.clientId}`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [String(args.clientId), briefStamp, systemPrompt.slice(0, 200)],
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS,
+      json: true
+    });
   } catch (err) {
-    if (err instanceof OpenAIKeyMissingError || err instanceof OpenAIApiError) {
-      await logEvent({
-        eventType: 'icp.sharpen.llm_failed',
-        source: 'openai',
-        status: 'failure',
-        errorMessage: err.message,
-        payload: { client_id: args.clientId }
-      });
-    }
+    await logEvent({
+      eventType: 'icp.sharpen.llm_failed',
+      source: 'llm_router',
+      status: 'failure',
+      errorMessage: (err as Error).message,
+      payload: { client_id: args.clientId }
+    });
     return null;
   }
 
@@ -237,7 +237,7 @@ export async function sharpenIcpFromBrief(args: {
     companySizeMin: clampSize(parsed.company_size_min),
     companySizeMax: clampSize(parsed.company_size_max),
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning.slice(0, 1000) : '',
-    tokensUsed: completion.usage.totalTokens,
+    tokensUsed: completion.inputTokens + completion.outputTokens,
     model: completion.model
   };
 

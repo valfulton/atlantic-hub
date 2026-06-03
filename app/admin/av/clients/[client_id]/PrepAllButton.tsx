@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiCall, ApiError } from '@/lib/http';
+import { CostBadge } from '@/app/_components/CostBadge';
 
 interface StepResult {
   step: string;
@@ -29,6 +30,9 @@ interface PrepResponse {
   okCount: number;
   failedCount: number;
   preSkippedCount?: number;
+  totalCostMicrocents?: number;
+  liveCallCount?: number;
+  cacheHitCount?: number;
   results: StepResult[];
 }
 
@@ -123,12 +127,20 @@ export default function PrepAllButton({
       {error && <div className="text-xs text-danger mt-2">{error}</div>}
       {result && (
         <div className="mt-3 grid gap-1.5">
-          <div className="text-[11px] text-muted">
-            {result.okCount} succeeded · {result.failedCount} failed
+          <div className="text-[11px] text-muted flex items-center gap-2 flex-wrap">
+            <span>{result.okCount} succeeded · {result.failedCount} failed</span>
             {typeof result.preSkippedCount === 'number' && result.preSkippedCount > 0 && (
-              <> · <span className="text-amber-300">{result.preSkippedCount} pre-skipped (LLM not fired)</span></>
+              <span className="text-amber-300">· {result.preSkippedCount} pre-skipped (LLM not fired)</span>
             )}
-            {result.websiteUrl ? <> · website <span className="text-ink">{result.websiteUrl}</span></> : null}
+            {/* (#361) Total cost for this run — auto-hidden under Presentation Mode. */}
+            {typeof result.totalCostMicrocents === 'number' && (
+              <span className="inline-flex items-center gap-1.5">
+                · spent <CostBadge microcents={result.totalCostMicrocents} />
+                {result.liveCallCount ? <span>· {result.liveCallCount} live</span> : null}
+                {result.cacheHitCount ? <span className="text-emerald-300">· {result.cacheHitCount} cache hit{result.cacheHitCount === 1 ? '' : 's'}</span> : null}
+              </span>
+            )}
+            {result.websiteUrl ? <span>· website <span className="text-ink">{result.websiteUrl}</span></span> : null}
           </div>
           <ul className="grid gap-1">
             {result.results.map((r, i) => (

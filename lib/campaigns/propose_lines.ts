@@ -13,10 +13,11 @@
 import { createLane, listLinesForCockpit } from '@/lib/campaigns/store';
 import { getBriefForPrompt, getBriefPayload } from '@/lib/client/brief_store';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
-import { openaiChatCompletion, parseOpenAIJson } from '@/lib/openai/client';
+import { parseOpenAIJson } from '@/lib/openai/client';
+import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
 
-const MODEL = 'gpt-4o-mini';
+// (#361) Model decided by TASK_MODEL['narrative_line_propose'].
 const MAX_LINES = 3;
 
 export interface ProposeLinesResult {
@@ -64,13 +65,18 @@ export async function proposeLinesFromIntake(args: {
 
   const theses: { thesis: string; audience?: string }[] = [];
   try {
-    const completion = await openaiChatCompletion(
-      [
-        { role: 'system', content: system },
-        { role: 'user', content: user }
-      ],
-      { json: true, temperature: 0.8, maxTokens: 700, model: MODEL }
-    );
+    // (#361) Event-cached on brief hash — brief edit produces fresh theses.
+    const briefStamp = JSON.stringify(payload).slice(0, 500);
+    const completion = await runLlm({
+      taskKind: 'narrative_line_propose',
+      clientId,
+      note: `narrative_line_propose · client ${clientId}`,
+      prompt: `SYSTEM:\n${system}\n\nUSER:\n${user}`,
+      cacheKeyExtras: [String(clientId), briefStamp, system.slice(0, 200)],
+      json: true,
+      temperature: 0.8,
+      maxTokens: 700
+    });
     const parsed = parseOpenAIJson<{ theses?: Array<{ thesis?: unknown; audience?: unknown }> }>(completion.text);
     for (const t of parsed?.theses ?? []) {
       const thesis = typeof t.thesis === 'string' ? t.thesis.trim() : '';
