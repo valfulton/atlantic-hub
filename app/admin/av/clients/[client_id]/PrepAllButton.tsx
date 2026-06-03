@@ -19,7 +19,7 @@ import { apiCall, ApiError } from '@/lib/http';
 
 interface StepResult {
   step: string;
-  status: 'ok' | 'skipped' | 'failed';
+  status: 'ok' | 'skipped' | 'failed' | 'pre_skipped';
   detail?: string;
 }
 
@@ -28,6 +28,7 @@ interface PrepResponse {
   websiteUrl: string | null;
   okCount: number;
   failedCount: number;
+  preSkippedCount?: number;
   results: StepResult[];
 }
 
@@ -43,12 +44,20 @@ const STEP_LABEL: Record<string, string> = {
 const STATUS_COLOR: Record<StepResult['status'], string> = {
   ok: 'text-emerald-300',
   skipped: 'text-muted',
+  pre_skipped: 'text-amber-200/85',
   failed: 'text-danger'
 };
 const STATUS_DOT: Record<StepResult['status'], string> = {
   ok: 'bg-emerald-400',
   skipped: 'bg-muted/50',
+  pre_skipped: 'bg-amber-400',
   failed: 'bg-red-400'
+};
+const STATUS_PREFIX: Record<StepResult['status'], string> = {
+  ok: '— ',
+  skipped: '— ',
+  pre_skipped: '— pre-skipped (no LLM fired): ',
+  failed: '— failed: '
 };
 
 export default function PrepAllButton({
@@ -116,6 +125,9 @@ export default function PrepAllButton({
         <div className="mt-3 grid gap-1.5">
           <div className="text-[11px] text-muted">
             {result.okCount} succeeded · {result.failedCount} failed
+            {typeof result.preSkippedCount === 'number' && result.preSkippedCount > 0 && (
+              <> · <span className="text-amber-300">{result.preSkippedCount} pre-skipped (LLM not fired)</span></>
+            )}
             {result.websiteUrl ? <> · website <span className="text-ink">{result.websiteUrl}</span></> : null}
           </div>
           <ul className="grid gap-1">
@@ -124,7 +136,7 @@ export default function PrepAllButton({
                 <span aria-hidden className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${STATUS_DOT[r.status]}`} />
                 <span className="text-ink/90 shrink-0">{STEP_LABEL[r.step] ?? r.step}</span>
                 <span className={`${STATUS_COLOR[r.status]} truncate`}>
-                  {r.status === 'ok' ? '— ' : r.status === 'failed' ? '— failed: ' : '— '}
+                  {STATUS_PREFIX[r.status]}
                   {r.detail}
                 </span>
               </li>

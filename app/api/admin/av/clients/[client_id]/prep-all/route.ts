@@ -19,6 +19,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
+import { getAvDb } from '@/lib/db/av';
 import { getBriefPayload, saveBriefPayload } from '@/lib/client/brief_store';
 import { suggestIntakeFromUrl } from '@/lib/client/intake_web_filler';
 import {
@@ -28,12 +29,13 @@ import {
 import { extractIntakeIntelligence } from '@/lib/client/intake_extract';
 import { proposeLinesFromIntake } from '@/lib/campaigns/propose_lines';
 import { scrapeAndSuggestForBrand } from '@/lib/social/targets';
+import { runPrepPreflight } from '@/lib/av/prep_preflight';
 
 export const runtime = 'nodejs';
 // Web fetches + 2 LLM calls in sequence; cap at the platform max.
 export const maxDuration = 60;
 
-type StepStatus = 'ok' | 'skipped' | 'failed';
+type StepStatus = 'ok' | 'skipped' | 'failed' | 'pre_skipped';
 
 interface StepResult {
   step: string;
@@ -43,6 +45,7 @@ interface StepResult {
 
 function ok(step: string, detail?: string): StepResult { return { step, status: 'ok', detail }; }
 function skipped(step: string, detail: string): StepResult { return { step, status: 'skipped', detail }; }
+function preSkipped(step: string, reason: string): StepResult { return { step, status: 'pre_skipped', detail: reason }; }
 function failed(step: string, err: unknown): StepResult {
   const msg = err instanceof Error ? err.message.slice(0, 280) : String(err).slice(0, 280);
   return { step, status: 'failed', detail: msg };
@@ -89,10 +92,30 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const briefPayload = (briefPayloadRaw as Record<string, unknown> | null) ?? {};
   const websiteUrl = pickWebsiteUrl(typeof body.websiteUrl === 'string' ? body.websiteUrl : null, briefPayload);
 
+  // (#358) Pre-flight FIRST — free checks before any paid LLM call. Steps
+  // that would fail or run on garbage are pre_skipped, never firing the LLM.
+  // Has any client_user got an intake_payload? (cheap one-shot query)
+  let hasIntakePayload = false;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(import('mysql2').RowDataPacket & { intake_payload: unknown })[]>(
+      `SELECT intake_payload FROM client_users WHERE client_id = ? AND intake_payload IS NOT NULL LIMIT 1`,
+      [clientId]
+    );
+    if (rows[0]?.intake_payload) {
+      const p = typeof rows[0].intake_payload === 'string' ? JSON.parse(rows[0].intake_payload) : rows[0].intake_payload;
+      if (p && Object.keys(p).length > 0) hasIntakePayload = true;
+    }
+  } catch { /* non-fatal */ }
+
+  const preflight = await runPrepPreflight({ url: websiteUrl, briefPayload, hasIntakePayload });
+
   const results: StepResult[] = [];
 
   // -------- Step 1: Fill intake from web ----------------------------------
-  if (!websiteUrl) {
+  if (!preflight.steps.fill_intake.ok) {
+    results.push(preSkipped('fill_intake', preflight.steps.fill_intake.reason));
+  } else if (!websiteUrl) {
     results.push(skipped('fill_intake', 'No website URL on brief or in request'));
   } else {
     try {
@@ -126,7 +149,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   // Autopilot helper reads brief.website_url, fetches the page, runs the LLM,
   // and persists the kit blanks-only. If brand_colors is already populated it
   // skips silently — perfect for val's "rerun whenever" intent.
-  try {
+  if (!preflight.steps.brand_kit.ok) {
+    results.push(preSkipped('brand_kit', preflight.steps.brand_kit.reason));
+  } else try {
     await maybeExtractBrandKitAfterBriefSave({ clientId });
     // Re-read brief to report what's there now.
     const after = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
@@ -145,7 +170,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   }
 
   // -------- Step 3: Sharpen ICP -------------------------------------------
-  try {
+  if (!preflight.steps.sharpen_icp.ok) {
+    results.push(preSkipped('sharpen_icp', preflight.steps.sharpen_icp.reason));
+  } else try {
     await maybeSharpenIcpAfterBriefSave({ clientId, source: 'prep_all' });
     results.push(ok('sharpen_icp', 'ICP auto-sharpener ran'));
   } catch (e) {
@@ -153,7 +180,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   }
 
   // -------- Step 4: Extract intelligence from intake ----------------------
-  try {
+  if (!preflight.steps.extract_intel.ok) {
+    results.push(preSkipped('extract_intel', preflight.steps.extract_intel.reason));
+  } else try {
     const intel = await extractIntakeIntelligence({ clientId, actorUserId: guard.actor.userId ?? null });
     const written = intel.written ?? 0;
     const detail = intel.reason === 'no_intake'
@@ -176,7 +205,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   }
 
   // -------- Step 5: Scrape socials from the brand's website ---------------
-  if (!websiteUrl) {
+  if (!preflight.steps.scrape_socials.ok) {
+    results.push(preSkipped('socials_scrape', preflight.steps.scrape_socials.reason));
+  } else if (!websiteUrl) {
     results.push(skipped('socials_scrape', 'No website URL'));
   } else {
     try {
@@ -193,11 +224,16 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   const okCount = results.filter((r) => r.status === 'ok').length;
   const failedCount = results.filter((r) => r.status === 'failed').length;
+  const preSkippedCount = results.filter((r) => r.status === 'pre_skipped').length;
   return NextResponse.json({
     ok: true,
     websiteUrl,
     okCount,
     failedCount,
+    preSkippedCount,
+    /** (#358) Per-step readiness from pre-flight, surfaced to the UI so val sees
+     *  "URL 404 → skipped 3 LLM calls" rather than failed attempts after charges. */
+    preflight,
     results
   });
 }

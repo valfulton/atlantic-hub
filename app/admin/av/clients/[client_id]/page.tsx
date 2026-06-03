@@ -43,6 +43,7 @@ import AddBrandPanel from './AddBrandPanel';
 import StageStrip from './StageStrip';
 import ActionStatusChip from './ActionStatusChip';
 import PrepAllButton from './PrepAllButton';
+import PrepPreflightButton from './PrepPreflightButton';
 import NextActionHint from './NextActionHint';
 import { loadOnboardingStatus } from '@/lib/av/onboarding_status';
 import type { ClientTier } from '@/lib/client-portal/tiers';
@@ -252,11 +253,17 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           panel anchors below so val can jump to whatever's still dim. */}
       <StageStrip status={onboarding} />
 
+      {/* (#358) Free pre-flight — runs no LLM. Surfaces website reachability +
+          brief-fillness + per-step readiness so val sees what Prep will and
+          won't do BEFORE spending tokens. */}
+      <PrepPreflightButton clientId={clientId} />
+
       {/* (#353) Quick prep — fills the brand kit / intake / ICP / intel /
           socials all at once for new clients (or top-ups for clients with
           gaps). Blanks-only, so anything val typed stays. The briefFilledCount
           drives a sparse-brief warning in the confirm dialog so val doesn't
-          burn LLM cycles on near-empty briefs. */}
+          burn LLM cycles on near-empty briefs. Prep also runs the pre-flight
+          internally and pre-skips (never fires the LLM on) doomed steps. */}
       <PrepAllButton
         clientId={clientId}
         clientName={d.name}
