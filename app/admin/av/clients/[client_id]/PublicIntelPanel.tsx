@@ -95,6 +95,14 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
       { label: 'CA · Bankruptcy only · 30d', config: { states: ['CA'], natureOfSuit: ['Bankruptcy'], sinceDays: 30 } },
       { label: 'CA · Contract / debt · 14d', config: { states: ['CA'], natureOfSuit: ['Contract: Other'], sinceDays: 14 } }
     ]
+  },
+  ucc_ca: {
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'Search "Candelaria"', config: { debtor: 'Candelaria' } },
+      { label: 'Search "Acme"', config: { debtor: 'Acme' } },
+      { label: 'Include lapsed filings', config: { debtor: 'Candelaria', includeLapsed: true } }
+    ]
   }
 };
 

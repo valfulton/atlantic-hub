@@ -15,6 +15,7 @@ import { caSosAdapter } from './adapters/ca_sos';
 import { cfpbAdapter } from './adapters/cfpb';
 import { censusAcsAdapter } from './adapters/census_acs';
 import { courtListenerAdapter } from './adapters/courtlistener';
+import { uccCaAdapter } from './adapters/ucc_ca';
 
 export interface AdapterEntry {
   adapter: PublicIntelAdapter;
@@ -100,7 +101,8 @@ const IMPLEMENTED: PublicIntelAdapter[] = [
   caSosAdapter,
   cfpbAdapter,
   censusAcsAdapter,
-  courtListenerAdapter
+  courtListenerAdapter,
+  uccCaAdapter
 ];
 
 const REGISTRY: Map<PublicIntelKind, AdapterEntry> = new Map();

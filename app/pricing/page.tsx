@@ -1,13 +1,18 @@
 /**
- * /pricing  (#378, val 2026-06-03)
+ * /pricing  (#378→#379 reframed, val 2026-06-03)
  *
- * Public pricing page. Renders the 3 tiers × 9 packs matrix from
- * lib/billing/tiers.ts so the numbers are never duplicated between
- * Stripe + marketing copy + sales reference.
+ * NOTE: This is NOT the public-facing pricing for AV's main offering.
+ * AV's main packages (Sprint $1,995 / Momentum $3,995 / Scale $7,995) are
+ * on the marketing site at atlanticandvine.com — those are done-for-you
+ * agency packages where AV runs the platform for the client.
  *
- * Aesthetic per memory `feedback_brand_aesthetic`: dark-navy + amber + nautical
- * luxury. Per memory `feedback_contrast_rule`: never white-on-amber; bg-brand
- * always text-black.
+ * This page is a FUTURE platform-license reference — for when AV is ready
+ * to license the Hub to OTHER agencies / in-house teams who want to
+ * self-serve. Not advertised yet; lives at /pricing in the app for val's
+ * internal review only. When val is ready to open self-serve, this becomes
+ * the public surface.
+ *
+ * Renders from lib/billing/tiers.ts so the matrix has one source of truth.
  */
 import { TIER_MATRIX, tierLabel, tierShortPositioning, type TierId } from '@/lib/billing/tiers';
 import { VERTICAL_PACKS, type VerticalPackId } from '@/lib/public_intel/vertical_packs';
@@ -26,18 +31,34 @@ export default function PricingPage() {
   return (
     <main className="min-h-screen bg-bg text-ink">
       <div className="max-w-6xl mx-auto px-6 py-12">
-        <header className="mb-10">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-brand mb-2">Pricing</div>
+        <header className="mb-8">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-brand mb-2">Platform license · internal preview</div>
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight mb-3">
-            One platform. Nine industries. Your tier.
+            Atlantic Hub — self-serve platform license
           </h1>
           <p className="text-lg text-ink/80 max-w-3xl leading-snug">
-            Atlantic Hub is a <strong className="text-ink">Revenue Intelligence Operating System</strong> — the
-            same engine watches business formation, growth, legal activity, reputation, financing, and
-            operational signals across every vertical. Pick the pack for your industry, the tier for your team,
-            and start seeing the businesses about to need what you sell.
+            Looking for the done-for-you Atlantic & Vine agency packages (Sprint / Momentum / Scale)? Those live at{' '}
+            <a href="https://atlanticandvine.com" className="text-brand hover:underline">atlanticandvine.com</a>.
+            This page is the future self-serve platform license — when AV opens up direct access for in-house teams
+            and partner agencies who want to run the engine themselves.
           </p>
+          <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-[12px] text-amber-200">
+            <span className="text-amber-300">●</span> Not yet available for purchase — internal reference for pricing decisions.
+          </div>
         </header>
+
+        <section className="rounded-2xl border border-border bg-surface p-6 mb-8">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-brand mb-2">How this relates to AV's main packages</div>
+          <p className="text-[13px] text-ink/85 leading-snug">
+            AV's <strong className="text-ink">Sprint / Momentum / Scale</strong> packages are done-for-you services where AV's team runs the
+            platform on the client's behalf — full-service marketing + intelligence + outreach. Those packages
+            include everything the platform does, configured for the client's vertical, with AV's experts driving
+            it. <br /><br />
+            This license tier is the same platform, self-served. For partner agencies who want to resell it under
+            their own brand, or in-house teams that want the intelligence engine without the agency service.
+            The pack you pick configures the engine for your industry; the tier you pick scales it to your team.
+          </p>
+        </section>
 
         {/* Tier overview row */}
         <section className="grid md:grid-cols-3 gap-4 mb-10">
@@ -59,7 +80,7 @@ export default function PricingPage() {
                     <li>· 5 seats</li>
                     <li>· 100 watchlist entries / week</li>
                     <li>· Daily refresh</li>
-                    <li>· Live + pending recipes (activate as adapters ship)</li>
+                    <li>· Live + pending recipes</li>
                   </>
                 )}
                 {tier === 'pro' && (
@@ -67,7 +88,7 @@ export default function PricingPage() {
                     <li>· Unlimited seats</li>
                     <li>· Unlimited watchlist</li>
                     <li>· Hourly refresh</li>
-                    <li>· White-label / pack-resale option</li>
+                    <li>· White-label / pack-resale</li>
                   </>
                 )}
               </ul>
@@ -75,14 +96,13 @@ export default function PricingPage() {
           ))}
         </section>
 
-        {/* Pack pricing rows */}
         <section className="rounded-2xl border border-border bg-surface overflow-hidden mb-8">
           <div className="px-5 py-4 border-b border-border bg-brand/[0.04]">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-brand mb-1">Pick your pack</div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-brand mb-1">By vertical pack (internal reference)</div>
             <p className="text-sm text-ink/85 leading-snug">
-              Each pack tunes the engine for one industry — different signal weights, different cascade recipes,
-              different pitch language. The platform is one product; the packs are nine. The marketing automation
-              (commercials, outreach, PR, social, calendar) is included with every pack.
+              Pricing varies by pack because the underlying adapter costs and per-deal LTV differ. Commercial Lending
+              and Luxury Hospitality include premium adapters (HMDA + PACER docket / yacht registries). Marketing
+              and B2B Sales price at the entry band.
             </p>
           </div>
           <table className="w-full text-sm">
@@ -104,9 +124,6 @@ export default function PricingPage() {
                       <div className="text-[11.5px] text-ink/65 italic leading-snug mt-0.5">
                         &ldquo;{pack.shortPositioning}&rdquo;
                       </div>
-                      <div className="text-[11px] text-muted mt-1">
-                        Best for: {pack.bestForRoles.slice(0, 2).join(' · ')}
-                      </div>
                     </td>
                     {TIER_ORDER.map((tier) => {
                       const row = TIER_MATRIX[tier].find((r) => r.packId === packId);
@@ -114,11 +131,6 @@ export default function PricingPage() {
                       return (
                         <td key={tier} className="px-4 py-3 text-right align-top">
                           <div className="text-lg text-ink font-medium tabular-nums">{formatPrice(row.monthlyUsd)}<span className="text-[11px] text-muted font-normal">/mo</span></div>
-                          <ul className="mt-1 text-[10.5px] text-ink/65 leading-snug">
-                            {row.highlights.slice(0, 3).map((h, i) => (
-                              <li key={i}>· {h}</li>
-                            ))}
-                          </ul>
                         </td>
                       );
                     })}
@@ -129,39 +141,9 @@ export default function PricingPage() {
           </table>
         </section>
 
-        {/* The "what's in it" block */}
-        <section className="rounded-2xl border border-border bg-surface p-6 mb-8">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-brand mb-2">What every plan includes</div>
-          <div className="grid md:grid-cols-3 gap-5">
-            <div>
-              <div className="text-sm text-ink font-medium mb-1">Predictive intelligence engine</div>
-              <p className="text-[12.5px] text-ink/75 leading-snug">
-                Federal court filings, state filings, UCC, Census ACS, CFPB, reputation signals — cascade-chained
-                into per-entity scores. You see who&apos;s about to need what you sell, with the signal-attribution
-                receipts to prove it.
-              </p>
-            </div>
-            <div>
-              <div className="text-sm text-ink font-medium mb-1">Marketing activation suite</div>
-              <p className="text-[12.5px] text-ink/75 leading-snug">
-                AI-drafted commercials, outreach emails, PR pitches, social content, brand-aware calendar. Every
-                artifact reads like you wrote it because it&apos;s grounded in your client brief + the cascade
-                signal that surfaced the prospect.
-              </p>
-            </div>
-            <div>
-              <div className="text-sm text-ink font-medium mb-1">Institutional memory spine</div>
-              <p className="text-[12.5px] text-ink/75 leading-snug">
-                Every interaction deposits structured intelligence into a per-client memory. By month six the
-                platform knows more about your buyers than you do. By month twelve, more than your competitors
-                ever will.
-              </p>
-            </div>
-          </div>
-        </section>
-
         <p className="text-[11.5px] text-muted text-center">
-          Inquire about volume + custom packs at <a href="mailto:hello@atlanticandvine.com" className="text-brand hover:underline">hello@atlanticandvine.com</a>. White-label and pack-resale available on Pro.
+          Internal reference · For AV's done-for-you Sprint / Momentum / Scale packages see{' '}
+          <a href="https://atlanticandvine.com" className="text-brand hover:underline">atlanticandvine.com</a>.
         </p>
       </div>
     </main>
