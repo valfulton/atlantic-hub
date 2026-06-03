@@ -17,8 +17,8 @@
  */
 'use client';
 
-import { useRouter } from 'next/navigation';
 import type { SignalTrailNode } from '@/app/client/_components/SignalCard';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
 export interface DashboardCardData {
   title: string;
@@ -45,43 +45,9 @@ export interface ClientDashboardV3Props {
 }
 
 export default function ClientDashboardV3(p: ClientDashboardV3Props) {
-  const router = useRouter();
-
-  async function switchBrand(id: string) {
-    if (id === p.activeBrandId) return;
-    try {
-      const r = await fetch('/api/client/active-brand', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ clientId: Number.parseInt(id, 10) })
-      });
-      if (r.ok) router.refresh();
-    } catch { /* non-fatal */ }
-  }
-
   return (
     <main className="v3-wrap">
-      {/* Top bar — monogram + brand + chip switcher */}
-      <header className="v3-top">
-        {/* monogram only — the full lockup is illegible shrunk to nav size;
-            the "Atlantic & Vine" wordmark beside it carries the name */}
-        <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
-        <span className="v3-top__nm">Atlantic &amp; Vine</span>
-        {p.brands.length > 1 && (
-          <nav className="v3-switch" aria-label="Switch brand">
-            {p.brands.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                className={`v3-chip ${b.id === p.activeBrandId ? 'on' : ''}`}
-                onClick={() => switchBrand(b.id)}
-              >
-                {b.label}
-              </button>
-            ))}
-          </nav>
-        )}
-      </header>
+      <ClientV3TopNav brands={p.brands} activeBrandId={p.activeBrandId} />
 
       {/* Greeting */}
       <section className="v3-greet">

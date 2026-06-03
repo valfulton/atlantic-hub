@@ -68,7 +68,17 @@
 [data-skin="social"] .v3-top{display:flex;align-items:center;gap:16px;padding:20px 0;border-bottom:1px solid var(--rule)}
 [data-skin="social"] .v3-top__logo{height:40px;width:auto;display:block}
 [data-skin="social"] .v3-top__nm{font-family:var(--serif);font-size:21px;font-weight:500;color:var(--cream)}
-[data-skin="social"] .v3-switch{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+[data-skin="social"] .v3-switch{margin-left:18px;display:flex;gap:8px;flex-wrap:wrap}
+/* Shared desktop nav (mirrors the mobile BottomTabBar item set). Hidden on
+   mobile, where .av-tabs takes over. */
+[data-skin="social"] .v3-nav{display:flex;gap:2px;align-items:center;margin-left:auto}
+[data-skin="social"] .v3-nav__lnk{font-family:var(--sans);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--cream-muted);text-decoration:none;padding:8px 11px;border-radius:8px;cursor:pointer;
+  transition:color .2s,background .2s}
+[data-skin="social"] .v3-nav__lnk:hover{color:var(--cream);background:rgba(255,255,255,.03)}
+[data-skin="social"] .v3-nav__lnk.on{color:var(--amber)}
+[data-skin="social"] .v3-nav + .v3-switch{margin-left:18px}
+@media(max-width:760px){[data-skin="social"] .v3-nav{display:none}}
 [data-skin="social"] .v3-chip{font-family:var(--sans);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--cream-muted);border:1px solid var(--rule);border-radius:999px;padding:6px 14px;
   background:transparent;cursor:pointer;transition:color .2s,background .2s,border-color .2s}

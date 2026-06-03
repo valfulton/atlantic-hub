@@ -15,6 +15,7 @@ import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientLeadDetail } from '@/lib/client/lead_detail';
 import AccessPaused from '@/app/client/_components/AccessPaused';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import ClientLeadDetailTabs from './ClientLeadDetailTabs';
 
 export const dynamic = 'force-dynamic';
@@ -48,10 +49,7 @@ export default async function ClientLeadDetailPage({ params }: { params: { audit
 
   return (
     <main className="v3-wrap" style={{ maxWidth: 980 }}>
-      <header className="v3-top">
-        <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
-        <span className="v3-top__nm">Atlantic &amp; Vine</span>
-      </header>
+      <ClientV3TopNav />
 
       <section className="v3-greet">
         <a href="/client/leads" className="v3-link" style={{ display: 'inline-block', marginBottom: '14px' }}>

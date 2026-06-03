@@ -31,7 +31,6 @@ import {
 } from '@/lib/pr/client_pr_actions';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import WaveDivider from '@/app/_components/WaveDivider';
 import ClientPrView from './ClientPrView';
 
 export const dynamic = 'force-dynamic';
@@ -100,7 +99,6 @@ export default async function ClientPrPage() {
           <div className="px-6 sm:px-8 py-7">
             <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your press queue</div>
             <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">In the news for you, {headline}.</h1>
-            <WaveDivider className="mt-3" width={120} />
             <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
               {locked
                 ? 'Press opportunities — journalist requests + relevant stories matched to your business, with a drafted pitch in your voice for one-click approval. Unlocks on Momentum.'

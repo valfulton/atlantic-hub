@@ -23,6 +23,7 @@ import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientLeadDetail } from '@/lib/client/lead_detail';
 import ClientLeadDetailTabs from '@/app/client/leads/[audit_id]/ClientLeadDetailTabs';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 // V3 skin imports — see preview/page.tsx for rationale.
 import '@/app/client/skin.social.css';
 import '@/app/client/client-social.css';
@@ -106,10 +107,7 @@ export default async function ClientLeadDetailPreview({
 
       <div data-skin="social">
         <main className="v3-wrap" style={{ maxWidth: 980 }}>
-          <header className="v3-top">
-            <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
-            <span className="v3-top__nm">Atlantic &amp; Vine</span>
-          </header>
+          <ClientV3TopNav preview />
 
           <section className="v3-greet">
             <Link

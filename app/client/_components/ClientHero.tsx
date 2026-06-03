@@ -8,7 +8,6 @@
  * model set, their POTENTIAL PIPELINE in real monthly dollars. Page-specific
  * copy goes in via children.
  */
-import WaveDivider from '@/app/_components/WaveDivider';
 import { formatUsd } from '@/lib/sales/deal_model';
 
 export default function ClientHero({
@@ -33,7 +32,6 @@ export default function ClientHero({
       <div className="px-4 sm:px-8 py-5 sm:py-7">
         <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your campaign, live</div>
         <h1 className="text-xl sm:text-3xl font-semibold text-ink tracking-tight break-words">Welcome back, {firstName}.</h1>
-        <WaveDivider className="mt-3" width={120} />
 
         <div className="mt-4 sm:mt-5 flex flex-wrap items-end gap-x-6 sm:gap-x-8 gap-y-3">
           <div>

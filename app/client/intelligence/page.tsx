@@ -20,7 +20,6 @@ import { TIER_LABEL } from '@/lib/client-portal/tiers';
 import { loadIntelligenceTrifecta } from '@/lib/av/intelligence_metrics';
 import PortalHeader from '@/app/client/_components/PortalHeader';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import WaveDivider from '@/app/_components/WaveDivider';
 import IntelligenceImpactBody from '@/app/client/_components/IntelligenceImpactBody';
 
 export const dynamic = 'force-dynamic';
@@ -76,7 +75,6 @@ export default async function ClientIntelligencePage() {
             <div className="px-6 sm:px-8 py-7">
               <div className="text-[10px] uppercase tracking-[0.22em] text-brand mb-2">Your impact</div>
               <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">See your work compound, {headline}.</h1>
-              <WaveDivider className="mt-3" width={120} />
             </div>
           </section>
           <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-8 text-center">

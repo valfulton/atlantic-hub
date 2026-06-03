@@ -18,6 +18,7 @@ import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import ClientWatchlistV3 from '@/app/client/_components/ClientWatchlistV3';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -50,10 +51,7 @@ export default async function ClientWatchlistPage() {
 
   return (
     <main className="v3-wrap">
-      <header className="v3-top">
-        <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
-        <span className="v3-top__nm">Atlantic &amp; Vine</span>
-      </header>
+      <ClientV3TopNav />
 
       <section className="v3-greet">
         <p className="v3-eyebrow">Your watchlist</p>

@@ -3,8 +3,6 @@
  * revoked. Calm and on-brand; never a hard error. The door is closed politely,
  * with a clear path to turn it back on (contact). Operator side is unaffected.
  */
-import WaveDivider from '@/app/_components/WaveDivider';
-
 export default function AccessPaused({ expired }: { expired: boolean }) {
   return (
     <main className="max-w-2xl mx-auto px-4 py-16 sm:py-24">
@@ -20,7 +18,6 @@ export default function AccessPaused({ expired }: { expired: boolean }) {
           <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
             {expired ? 'Your trial has wrapped up.' : 'Your access is paused.'}
           </h1>
-          <WaveDivider className="mt-3" width={120} />
           <p className="text-muted text-sm mt-5 leading-relaxed">
             {expired
               ? 'Your full-access window has ended — we hope you loved seeing your story come together. Everything we built for you is saved and waiting.'

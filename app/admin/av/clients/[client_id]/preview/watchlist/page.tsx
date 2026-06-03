@@ -18,6 +18,7 @@ import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
 import { watchlistForClient } from '@/lib/public_intel/distress_engine';
 import ClientWatchlistV3, { type ClientWatchlistRow } from '@/app/client/_components/ClientWatchlistV3';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import '@/app/client/skin.social.css';
 import '@/app/client/client-social.css';
 
@@ -86,10 +87,7 @@ export default async function PreviewWatchlistMirror({ params }: { params: { cli
       {/* V3 body — wrapped in data-skin="social" so the navy register applies on the operator route. */}
       <div data-skin="social">
         <main className="v3-wrap">
-          <header className="v3-top">
-            <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
-            <span className="v3-top__nm">Atlantic &amp; Vine</span>
-          </header>
+          <ClientV3TopNav preview />
 
           <section className="v3-greet">
             <p className="v3-eyebrow">Your watchlist</p>

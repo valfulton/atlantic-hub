@@ -7,7 +7,6 @@
  * assembled in lib/client/brief.ts. Luxury-nautical, calm, never noisy.
  */
 import Link from 'next/link';
-import WaveDivider from '@/app/_components/WaveDivider';
 import type { CreativeBrief as Brief } from '@/lib/client/brief';
 
 const BAND_PILL: Record<string, string> = {
@@ -33,8 +32,7 @@ export default function CreativeBrief({
   return (
     <section aria-labelledby="brief-h" className="mb-10">
       <h2 id="brief-h" className="text-lg font-semibold text-ink mb-1">Your creative brief</h2>
-      <p className="text-sm text-muted">The story we&apos;re telling for you right now, who to reach next, and what&apos;s ready for your eyes.</p>
-      <WaveDivider className="mt-3 mb-4" width={104} />
+      <p className="text-sm text-muted mb-4">The story we&apos;re telling for you right now, who to reach next, and what&apos;s ready for your eyes.</p>
 
       <div className="grid gap-4 md:grid-cols-3">
         {/* The story (active narrative line) */}

@@ -15,6 +15,7 @@ import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import ClientLeadCardV3 from '@/app/client/_components/ClientLeadCardV3';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import '@/app/client/skin.social.css';
 import '@/app/client/client-social.css';
 import type { RowDataPacket } from 'mysql2';
@@ -93,10 +94,7 @@ export default async function ClientLeadsPreview({ params }: { params: { client_
 
       <div data-skin="social">
         <main className="v3-wrap" style={{ maxWidth: 980 }}>
-          <header className="v3-top">
-            <img src="/brand/av-monogram.png" alt="Atlantic & Vine" className="v3-top__logo" />
-            <span className="v3-top__nm">Atlantic &amp; Vine</span>
-          </header>
+          <ClientV3TopNav preview />
 
           <section className="v3-greet">
             <p className="v3-eyebrow">Your pipeline</p>

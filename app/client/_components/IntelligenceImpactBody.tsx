@@ -16,7 +16,6 @@
  * plain language. No raw lists, no machinery — that's the operator's view.
  */
 import type { IntelligenceTrifecta } from '@/lib/av/intelligence_metrics';
-import WaveDivider from '@/app/_components/WaveDivider';
 
 function fmt(n: number): string {
   return n.toLocaleString('en-US');
@@ -62,7 +61,6 @@ export default function IntelligenceImpactBody({
           <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
             What we&apos;ve built for you, {headline}.
           </h1>
-          <WaveDivider className="mt-3" width={120} />
           <p className="text-muted text-sm mt-4 max-w-xl leading-relaxed">
             Everything we learn about your market gets put to work across your channels — and tied back to real revenue
             motion. Here&apos;s the last {sinceDays} days.

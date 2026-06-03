@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientOwnAudit } from '@/lib/client/dashboard_data';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -30,11 +31,7 @@ export default async function ClientAuditPage() {
 
   return (
     <main className="v3-wrap" style={{ maxWidth: 720 }}>
-      <header className="v3-top">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="v3-top__logo" src="/brand/av-monogram.png" alt="Atlantic & Vine" />
-        <span className="v3-top__nm">Atlantic &amp; Vine</span>
-      </header>
+      <ClientV3TopNav />
 
       <a href="/client/dashboard" className="v3-link" style={{ display: 'inline-block', margin: '18px 0 0' }}>
         ← Back to dashboard
