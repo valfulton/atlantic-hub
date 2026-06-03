@@ -39,6 +39,10 @@ export async function intelligenceFeedForClient(clientId: number, limit = 50): P
   const out: FeedEvent[] = [];
   try {
     const db = getAvDb();
+    // (#383) mysql2 execute() rejects bound LIMIT params; inline validated ints.
+    const safeOuter = Math.max(1, Math.min(500, Math.floor(limit)));
+    const halfLimit = Math.max(1, Math.floor(safeOuter / 2));
+    const quarterLimit = Math.max(1, Math.floor(safeOuter / 4));
 
     // 1. Recent records.
     const [recordRows] = await db.execute<(RowDataPacket & {
@@ -52,8 +56,8 @@ export async function intelligenceFeedForClient(clientId: number, limit = 50): P
          FROM public_intel_records
         WHERE client_id = ?
         ORDER BY fetched_at DESC
-        LIMIT ?`,
-      [clientId, Math.max(1, Math.floor(limit / 2))]
+        LIMIT ${halfLimit}`,
+      [clientId]
     );
     for (const r of recordRows) {
       out.push({
@@ -79,8 +83,8 @@ export async function intelligenceFeedForClient(clientId: number, limit = 50): P
          FROM entity_distress_scores
         WHERE client_id = ?
         ORDER BY last_recomputed_at DESC
-        LIMIT ?`,
-      [clientId, Math.max(1, Math.floor(limit / 4))]
+        LIMIT ${quarterLimit}`,
+      [clientId]
     );
     for (const r of scoreRows) {
       out.push({
@@ -109,8 +113,8 @@ export async function intelligenceFeedForClient(clientId: number, limit = 50): P
            FROM worker_run_log
           WHERE client_id = ? OR client_id IS NULL
           ORDER BY started_at DESC
-          LIMIT ?`,
-        [clientId, Math.max(1, Math.floor(limit / 4))]
+          LIMIT ${quarterLimit}`,
+        [clientId]
       );
       for (const r of runRows) {
         out.push({

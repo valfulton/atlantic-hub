@@ -30,13 +30,15 @@ export async function GET(req: NextRequest, { params }: { params: { client_id: s
 
   try {
     const db = getAvDb();
+    // (#383) Validated integer — safe to inline. mysql2 execute() rejects
+    // bound LIMIT params as strings, causing 500s on the Show records call.
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
     const args: (string | number)[] = [clientId];
     let where = `client_id = ?`;
     if (kind) {
       where += ` AND source_kind = ?`;
       args.push(kind);
     }
-    args.push(limit);
     const [rows] = await db.execute<(RowDataPacket & {
       record_id: number;
       source_kind: string;
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: { client_id: s
          FROM public_intel_records
         WHERE ${where}
         ORDER BY fetched_at DESC
-        LIMIT ?`,
+        LIMIT ${safeLimit}`,
       args
     );
 

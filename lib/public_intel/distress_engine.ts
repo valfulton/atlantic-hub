@@ -414,13 +414,14 @@ export async function watchlistForClient(clientId: number, limit = 25): Promise<
       last_action: 'contacted' | 'dismissed' | 'converted' | 'ignored' | null;
       last_acted_at: Date | null;
     })[]>(
+      // (#383) Inline validated LIMIT — mysql2 execute() rejects bound LIMIT params.
       `SELECT entity_key, entity_label, region_code, score, contributing_signals,
               first_seen_at, last_recomputed_at, last_action, last_acted_at
          FROM entity_distress_scores
         WHERE client_id = ?
         ORDER BY score DESC, last_recomputed_at DESC
-        LIMIT ?`,
-      [clientId, limit]
+        LIMIT ${Math.max(1, Math.min(500, Math.floor(limit)))}`,
+      [clientId]
     );
     return rows.map((r) => {
       let parsed: ClassifiedSignal[] = [];
