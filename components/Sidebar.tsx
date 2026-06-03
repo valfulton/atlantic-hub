@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import BrandSeal from './BrandSeal';
+import PresentationModeToggle from '@/app/_components/PresentationModeToggle';
 
 const HH_NAV = [
   { href: '/admin', label: 'Home', section: 'top' as const },
@@ -73,6 +74,12 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
           <span className="text-[10.5px] text-muted uppercase tracking-[0.12em] font-medium">
             Live · Operator
           </span>
+        </div>
+        {/* (#361) Presentation mode — hides cost / model / tech labels for
+            investor or client demos. Persists in a cookie; soft-reloads on
+            toggle so server components pick up the new value. */}
+        <div className="mt-3 ml-[52px]">
+          <PresentationModeToggle />
         </div>
       </div>
 
