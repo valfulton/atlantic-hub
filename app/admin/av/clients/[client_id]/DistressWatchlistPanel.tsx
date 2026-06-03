@@ -91,11 +91,20 @@ interface DistressPanelProps {
   clientId: number;
   clientName: string;
   mode?: DistressPanelMode;
+  /**
+   * (#389) Server-rendered initial rows. When provided, the panel opens
+   * pre-populated and skips the initial fetch. Used by the operator's
+   * preview-as-client mirror so val can SEE the client's watchlist data
+   * even though her operator-session cookie can't hit /api/client/*.
+   */
+  initialRows?: WatchlistRow[];
+  /** (#389) Open the panel on mount when initialRows is provided. */
+  startOpen?: boolean;
 }
 
-export default function DistressWatchlistPanel({ clientId, clientName, mode = 'operator' }: DistressPanelProps) {
-  const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<WatchlistRow[] | null>(null);
+export default function DistressWatchlistPanel({ clientId, clientName, mode = 'operator', initialRows, startOpen }: DistressPanelProps) {
+  const [open, setOpen] = useState(!!startOpen);
+  const [rows, setRows] = useState<WatchlistRow[] | null>(initialRows ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<string | null>(null);
@@ -126,8 +135,11 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
   }, [apiBase]);
 
   useEffect(() => {
-    if (open && !rows) load();
-  }, [open, rows, load]);
+    // (#389) Skip the auto-fetch when initialRows seeded the panel — those
+    // were server-rendered on the operator side and we don't want to clobber
+    // them with a client-API call that will 401 in the preview context.
+    if (open && !rows && !initialRows) load();
+  }, [open, rows, load, initialRows]);
 
   async function rescore(seed: boolean) {
     // Client mode doesn't expose rescore (they read the operator's scored watchlist).

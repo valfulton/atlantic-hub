@@ -1,20 +1,25 @@
 /**
- * /admin/av/clients/[client_id]/preview/watchlist  (#385, val 2026-06-03)
+ * /admin/av/clients/[client_id]/preview/watchlist  (#385/#389, val 2026-06-03)
  *
- * Operator's preview-as-client mirror of /client/watchlist. Val opens this
- * route to confirm exactly what Adriana sees on her watchlist — without
- * needing to log in as Adriana. Per the mirror-every-client-page rule.
+ * Operator's preview-as-client mirror of /client/watchlist. Renders the SAME
+ * DistressWatchlistPanel Adriana sees, with server-rendered initial data so
+ * val gets a real watchlist view (not a 401 placeholder).
  *
- * NOTE on live data: the panel renders in mode='client', which hits the
- * /api/client/distress endpoints. Those endpoints check the client-session
- * cookie — when val (operator) is on this preview page, those XHRs will 401.
- * The preview is for layout + copy verification; for live data flow val uses
- * the operator-mode panel on /admin/av/clients/[id].
+ * Chrome matches the rest of the preview pages (dashboard / leads / audit /
+ * intake / pr) — same operator banner, same tab strip with Watchlist
+ * highlighted.
+ *
+ * Draft / Promote-to-lead buttons inside the panel will 401 in this preview
+ * because they POST to /api/client/* (client-session-gated). That's expected
+ * — the operator has her own write surface on the main client page. The
+ * preview is for "what does Adriana see when she logs in," not for action.
  */
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
+import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
+import { watchlistForClient } from '@/lib/public_intel/distress_engine';
 import DistressWatchlistPanel from '@/app/admin/av/clients/[client_id]/DistressWatchlistPanel';
 
 export const runtime = 'nodejs';
@@ -32,25 +37,62 @@ export default async function PreviewWatchlistMirror({ params }: { params: { cli
   if (!Number.isFinite(clientId) || clientId <= 0) notFound();
 
   const db = getAvDb();
-  const [rows] = await db.execute<ClientRow[]>(
+  const [crows] = await db.execute<ClientRow[]>(
     `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
     [clientId]
   );
-  if (!rows[0]) notFound();
-  const clientName = rows[0].client_name || `Client #${clientId}`;
+  if (!crows[0]) notFound();
+  const clientName = crows[0].client_name || `Client #${clientId}`;
+
+  // (#389) Server-render the watchlist. operatorsAuth works here; the panel
+  // gets data without ever hitting the client-session-gated API.
+  const rawRows = await watchlistForClient(clientId, 25);
+  // Convert Date fields to ISO strings for the client component boundary.
+  const initialRows = rawRows.map((r) => ({
+    entityKey: r.entityKey,
+    entityLabel: r.entityLabel,
+    regionCode: r.regionCode,
+    score: r.score,
+    contributingSignals: r.contributingSignals,
+    firstSeenAt: r.firstSeenAt instanceof Date ? r.firstSeenAt.toISOString() : String(r.firstSeenAt),
+    lastRecomputedAt: r.lastRecomputedAt instanceof Date ? r.lastRecomputedAt.toISOString() : String(r.lastRecomputedAt),
+    lastAction: r.lastAction,
+    lastActedAt: r.lastActedAt instanceof Date ? r.lastActedAt.toISOString() : (r.lastActedAt ?? null)
+  }));
 
   return (
-    <main className="max-w-5xl mx-auto px-6 py-8">
-      <div className="mb-5 text-[11px] uppercase tracking-[0.18em] text-muted">
-        Preview as client · {clientName}
+    <div>
+      {/* Operator preview banner — same shape as the dashboard / leads / etc. mirrors. */}
+      <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+        <span>
+          <span className="font-semibold">Operator preview</span> — this is{' '}
+          <span className="font-semibold">{clientName}</span>&apos;s watchlist exactly as they see it. Draft + Add to pipeline buttons inside route to the client&apos;s session; use your own panel on the client page to take action.
+        </span>
+        <span className="shrink-0 flex items-center gap-4">
+          <Link href={`/admin/av/clients/${clientId}`} className="text-amber-100 hover:underline">Back to client</Link>
+        </span>
       </div>
-      <h1 className="text-xl font-semibold text-ink mb-1">Watchlist mirror</h1>
-      <p className="text-[12px] text-muted mb-6 leading-relaxed max-w-2xl">
-        This renders the client-side Watchlist panel exactly as {clientName} sees it at{' '}
-        <code className="text-ink">/client/watchlist</code>. Layout + copy are verified here; live data flow
-        requires a real client session (their cookie scope can&apos;t cross over to an operator session).
-      </p>
-      <DistressWatchlistPanel clientId={clientId} clientName={clientName} mode="client" />
-    </main>
+
+      {/* Sibling preview surfaces — Watchlist is the active tab here. */}
+      <div className="mb-4 flex items-center gap-2 text-xs flex-wrap">
+        <span className="text-muted/70 uppercase tracking-[0.2em] text-[10px] mr-1">See what {clientName} sees:</span>
+        <Link href={`/admin/av/clients/${clientId}/preview`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Dashboard</Link>
+        <Link href={`/admin/av/clients/${clientId}/preview/leads`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Leads list</Link>
+        <span className="inline-flex items-center rounded-md border border-amber-400/30 bg-amber-400/5 px-2.5 py-1 text-amber-100">Watchlist</span>
+        <Link href={`/admin/av/clients/${clientId}/preview/audit`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Audit</Link>
+        <Link href={`/admin/av/clients/${clientId}/preview/intake`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Intake / brief</Link>
+        <Link href={`/admin/av/clients/${clientId}/preview/pr`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Press queue</Link>
+      </div>
+
+      <div className="max-w-5xl">
+        <DistressWatchlistPanel
+          clientId={clientId}
+          clientName={clientName}
+          mode="client"
+          initialRows={initialRows}
+          startOpen
+        />
+      </div>
+    </div>
   );
 }
