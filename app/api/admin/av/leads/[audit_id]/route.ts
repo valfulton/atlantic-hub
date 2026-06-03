@@ -6,6 +6,7 @@ import { getClientDealModel, leadMonthlyCents, annualCents } from '@/lib/sales/d
 import { listLeadAudits } from '@/lib/ai/lead_audits';
 import { prospectIntelFrom } from '@/lib/client/lead_detail';
 import { enrichmentSourcesFrom } from '@/lib/leads/enrichment_sources';
+import { matchedRecordsForLead } from '@/lib/public_intel/lead_match';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -230,6 +231,15 @@ export async function GET(
         // sources" section so val sees what Apollo/Hunter/Places/Clay actually
         // populated, not just employee_count + address.
         enrichmentSources: enrichmentSourcesFrom(r.source_payload),
+        // (#370) Visibility-gap close for Driver 8 — public_intel_records that
+        // match this lead by client / region / company name. Shown on the
+        // Identity tab as "Public records for this lead."
+        publicIntelMatches: await matchedRecordsForLead({
+          leadId: r.id,
+          clientId: r.client_id,
+          company: r.company,
+          addressState: r.address_state
+        }, 4),
         archivedAt: r.archived_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at

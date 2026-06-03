@@ -12,6 +12,7 @@ import { CommercialPanel } from './CommercialPanel';
 import { OutreachPanel } from './OutreachPanel';
 import EnrichmentSourcesPanel from './EnrichmentSourcesPanel';
 import type { EnrichmentSourcesBundle } from '@/lib/leads/enrichment_sources';
+import PublicIntelMatchesPanel from './PublicIntelMatchesPanel';
 
 const TABS = ['Identity', 'Audit', 'Challenge', 'AI Scoring', 'Calls', 'Commercials', 'Outreach', 'Notes', 'Events'] as const;
 type Tab = (typeof TABS)[number];
@@ -97,6 +98,17 @@ interface Lead {
   auditLenses?: Array<{ lens: string; auditContent: string | null; aiScore: number | null; aiScoreBand: string | null; generatedAt: string | null }>;
   /** (#368 / #180) Per-vendor enrichment fields distilled from source_payload. */
   enrichmentSources?: EnrichmentSourcesBundle | null;
+  /** (#370) Public Intel records that match this lead by client/region/company. */
+  publicIntelMatches?: Array<{
+    recordId: number;
+    sourceKind: string;
+    entityKey: string;
+    summaryLabel: string | null;
+    regionCode: string | null;
+    record: unknown;
+    fetchedAt: string;
+    matchReason: 'client' | 'region' | 'company';
+  }> | null;
 }
 
 function lensLabel(lens: string): string {
@@ -376,6 +388,11 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               no enrichment data yet. Sits ABOVE the high-level "Enrichment"
               status block so val sees the raw inputs before the summary. */}
           <EnrichmentSourcesPanel sources={lead.enrichmentSources ?? null} />
+
+          {/* (#370) Public Intelligence Layer matches — HMDA / CFPB / Census /
+              CA SOS records matched to this lead by client / region / company.
+              Self-hides on leads with no matches. Visibility-gap rule. */}
+          <PublicIntelMatchesPanel matches={lead.publicIntelMatches ?? null} />
 
           <div className="md:col-span-2 border-t border-border pt-4">
             <div className="field-label mb-2">Enrichment</div>
