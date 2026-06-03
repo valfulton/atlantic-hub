@@ -23,7 +23,14 @@ export type ModelId =
   | 'google:gemini-1.5-flash'
   | 'google:gemini-1.5-pro'
   | 'deepseek:deepseek-v3'
-  | 'groq:llama-3.3-70b';
+  | 'groq:llama-3.3-70b'
+  // ---- Free tier via OpenRouter (rate-limited, ~$0/call). Only callable when
+  //      OPENROUTER_API_KEY is set; great for cheap routine work. ----
+  | 'meta-llama:llama-3.2-3b-instruct:free'
+  | 'google:gemma-2-9b-it:free'
+  | 'microsoft:phi-3-mini-128k-instruct:free'
+  | 'mistralai:mistral-7b-instruct:free'
+  | 'qwen:qwen-2.5-7b-instruct:free';
 
 /**
  * Task kinds — what a step is FOR, not what model runs it. The router decides
@@ -96,7 +103,13 @@ export const MODEL_PRICE: Record<ModelId, ModelPrice> = {
   'groq:llama-3.3-70b': {
     inputMicrocentsPerMillion: dollarsToMicrocents(0.59),
     outputMicrocentsPerMillion: dollarsToMicrocents(0.79)
-  }
+  },
+  // Free-tier models — actual cost is $0 (rate-limited; OpenRouter throttles).
+  'meta-llama:llama-3.2-3b-instruct:free': { inputMicrocentsPerMillion: 0, outputMicrocentsPerMillion: 0 },
+  'google:gemma-2-9b-it:free': { inputMicrocentsPerMillion: 0, outputMicrocentsPerMillion: 0 },
+  'microsoft:phi-3-mini-128k-instruct:free': { inputMicrocentsPerMillion: 0, outputMicrocentsPerMillion: 0 },
+  'mistralai:mistral-7b-instruct:free': { inputMicrocentsPerMillion: 0, outputMicrocentsPerMillion: 0 },
+  'qwen:qwen-2.5-7b-instruct:free': { inputMicrocentsPerMillion: 0, outputMicrocentsPerMillion: 0 }
 };
 
 /**

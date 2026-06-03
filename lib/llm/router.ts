@@ -18,6 +18,11 @@
  */
 import { openaiChatCompletion } from '@/lib/openai/client';
 import {
+  openRouterChatCompletion,
+  hasOpenRouterKey,
+  OpenRouterTransientError
+} from './providers/openrouter';
+import {
   TASK_MODEL,
   TASK_CACHE,
   MODEL_PRICE,
@@ -48,28 +53,74 @@ function estimateCost(model: ModelId, inputTokens: number, outputTokens: number)
 
 class UnsupportedProviderError extends Error {
   constructor(provider: Provider) {
-    super(`LLM provider '${provider}' is not wired yet. Add the client + env key, then enable in router.ts.`);
+    super(`LLM provider '${provider}' is not reachable. Set OPENROUTER_API_KEY (covers all providers) or wire the provider's direct client.`);
     this.name = 'UnsupportedProviderError';
   }
+}
+
+/** Translate our internal ModelId -> the model string OpenRouter expects.
+ *  OpenRouter uses `provider/model` slugs; free-tier rows are `provider/model:free`. */
+function toOpenRouterModelString(model: ModelId): string {
+  // Free-tier ids carry the ':free' suffix as part of their ModelId.
+  // Our parser splits on FIRST colon only, so 'meta-llama:llama-3.2-3b-instruct:free'
+  // becomes provider='meta-llama', name='llama-3.2-3b-instruct:free'. Reassemble.
+  const firstColon = model.indexOf(':');
+  if (firstColon < 0) return model;
+  const provider = model.slice(0, firstColon);
+  const name = model.slice(firstColon + 1);
+  return `${provider}/${name}`;
 }
 
 /**
  * Call the provider directly (no cache, no log) — used by runLlm after a cache
  * miss. Returns text + token counts.
+ *
+ * Resilience: when OpenRouter is the chosen route and returns a transient
+ * error (5xx, timeout, rate limit), we fall back to direct OpenAI IF the model
+ * is an OpenAI model. Non-OpenAI models propagate the error — no silent route
+ * to the wrong model.
  */
 async function callProvider(
   model: ModelId,
   prompt: string,
   opts: { temperature?: number; maxTokens?: number; json?: boolean }
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
+): Promise<{ text: string; inputTokens: number; outputTokens: number; viaProvider: 'openrouter' | 'openai_direct' }> {
   const provider = providerOf(model);
-  const modelName = modelNameOf(model);
 
+  // Preferred path: OpenRouter (covers every provider via one key).
+  if (hasOpenRouterKey()) {
+    try {
+      const res = await openRouterChatCompletion(
+        [{ role: 'user', content: prompt }],
+        {
+          model: toOpenRouterModelString(model),
+          temperature: opts.temperature,
+          maxTokens: opts.maxTokens,
+          json: opts.json
+        }
+      );
+      return {
+        text: res.text,
+        inputTokens: res.inputTokens,
+        outputTokens: res.outputTokens,
+        viaProvider: 'openrouter'
+      };
+    } catch (e) {
+      // Only fall back on transient errors AND only to OpenAI direct.
+      if (e instanceof OpenRouterTransientError && provider === 'openai') {
+        // fall through to direct-OpenAI branch below
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  // Direct-OpenAI fallback (and primary when OPENROUTER_API_KEY is unset).
   if (provider === 'openai') {
     const res = await openaiChatCompletion(
       [{ role: 'user', content: prompt }],
       {
-        model: modelName,
+        model: modelNameOf(model),
         temperature: opts.temperature,
         maxTokens: opts.maxTokens,
         json: opts.json
@@ -78,13 +129,12 @@ async function callProvider(
     return {
       text: res.text,
       inputTokens: res.usage.promptTokens,
-      outputTokens: res.usage.completionTokens
+      outputTokens: res.usage.completionTokens,
+      viaProvider: 'openai_direct'
     };
   }
 
-  // Stubs — provider client + env key not wired yet. Throwing here keeps the
-  // contract honest: a future task swap to a non-wired provider fails loud
-  // rather than silently routing to the wrong model.
+  // Non-OpenAI model, no OpenRouter key set. Tell the caller exactly what's wrong.
   throw new UnsupportedProviderError(provider);
 }
 
@@ -162,6 +212,8 @@ export async function runLlm(call: LlmCall): Promise<LlmCallResult> {
     costMicrocents,
     source: 'live',
     note: call.note
+      ? `${call.note} · via ${provResult.viaProvider}`
+      : `${call.taskKind} · via ${provResult.viaProvider}`
   });
 
   return {
