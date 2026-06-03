@@ -84,7 +84,9 @@ export default async function PreviewWatchlistMirror({ params }: { params: { cli
         <Link href={`/admin/av/clients/${clientId}/preview/pr`} className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-amber-400/40 hover:text-amber-100">Press queue</Link>
       </div>
 
-      <div className="max-w-5xl">
+      {/* (#390) Flex to screen size — no fixed max-width that traps the panel
+          to a narrow strip on wide monitors. */}
+      <div className="w-full">
         <DistressWatchlistPanel
           clientId={clientId}
           clientName={clientName}

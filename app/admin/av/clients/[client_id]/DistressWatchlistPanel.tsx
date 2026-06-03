@@ -111,6 +111,10 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
   const [draftModal, setDraftModal] = useState<DraftModalState | null>(null);
   const [copied, setCopied] = useState<'subject' | 'body' | null>(null);
   const [promoteState, setPromoteState] = useState<Record<string, 'idle' | 'busy' | 'done' | 'error'>>({});
+  // (#390) Bulk selection state + bulk promote outcomes.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkSummary, setBulkSummary] = useState<string | null>(null);
 
   // (#385) API path base derived from mode. Operator surface = scoped under
   // /admin/av/clients/[id]; client surface = unscoped /client/* (server reads
@@ -245,6 +249,54 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
     }
   }
 
+  // (#390) Bulk-promote: take all currently selected rows → leads pipeline.
+  async function promoteSelected() {
+    const keys = Array.from(selected);
+    if (keys.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    setBulkSummary(null);
+    try {
+      const r = await fetch(`${apiBase}/promote-bulk`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ entityKeys: keys })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        setBulkSummary(j.error || 'Bulk promote failed.');
+        setBulkBusy(false);
+        return;
+      }
+      // Mark all promoted rows as "done" so individual buttons reflect state.
+      const nextState: Record<string, 'idle' | 'busy' | 'done' | 'error'> = { ...promoteState };
+      for (const res of j.results as Array<{ entityKey: string; created?: boolean; error?: string }>) {
+        nextState[res.entityKey] = res.error ? 'error' : 'done';
+      }
+      setPromoteState(nextState);
+      setSelected(new Set());
+      setBulkSummary(`${j.created} added · ${j.alreadyExisted} already in pipeline${j.errored > 0 ? ` · ${j.errored} errored` : ''}`);
+    } catch {
+      setBulkSummary('Bulk promote failed.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  function toggleRow(entityKey: string) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(entityKey)) next.delete(entityKey);
+      else next.add(entityKey);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (!rows) return;
+    if (selected.size === rows.length) setSelected(new Set());
+    else setSelected(new Set(rows.map((r) => r.entityKey)));
+  }
+
   async function copyText(kind: 'subject' | 'body', text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -338,94 +390,139 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
             </div>
           )}
           {rows && rows.length > 0 && (
-            <ol className="grid gap-1.5">
-              {rows.map((row, i) => (
-                <li
-                  key={row.entityKey}
-                  className="grid grid-cols-[36px_minmax(0,1fr)_auto_auto] items-baseline gap-3 rounded-lg border border-border bg-black/20 px-3 py-2"
-                >
-                  <span className="text-[11px] text-muted tabular-nums">{i + 1}.</span>
-                  <div className="min-w-0">
-                    <div className="text-[12.5px] text-ink truncate">
-                      {row.entityLabel ?? row.entityKey}
+            <>
+              {/* (#390) Bulk action bar — appears whenever rows are selected.
+                  Mobile-stacks naturally via flex-wrap. */}
+              <div className="mb-2 flex items-center justify-between gap-2 flex-wrap rounded-md border border-sky-400/30 bg-sky-400/[0.04] px-3 py-2">
+                <label className="flex items-center gap-2 text-[11px] text-ink cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selected.size > 0 && selected.size === rows.length}
+                    ref={(el) => { if (el) el.indeterminate = selected.size > 0 && selected.size < rows.length; }}
+                    onChange={toggleAll}
+                    className="accent-sky-400"
+                  />
+                  <span>
+                    {selected.size === 0
+                      ? `Select rows to bulk-add`
+                      : `${selected.size} of ${rows.length} selected`}
+                  </span>
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {bulkSummary && <span className="text-[11px] text-muted">{bulkSummary}</span>}
+                  <button
+                    type="button"
+                    onClick={promoteSelected}
+                    disabled={bulkBusy || selected.size === 0}
+                    className="rounded-md border border-sky-400/40 bg-sky-400/10 hover:bg-sky-400/20 text-sky-200 text-[11.5px] px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {bulkBusy ? `Adding ${selected.size}…` : `✚ Add ${selected.size || ''} to pipeline`.trim()}
+                  </button>
+                </div>
+              </div>
+              <ol className="grid gap-1.5">
+                {rows.map((row, i) => (
+                  <li
+                    key={row.entityKey}
+                    /* (#390) Mobile-first: stack everything on small screens
+                        (rank+checkbox row, then content, then score+actions
+                        rows). sm:grid restores the desktop columns. */
+                    className="rounded-lg border border-border bg-black/20 px-3 py-2 grid gap-2 sm:gap-3 sm:grid-cols-[28px_28px_minmax(0,1fr)_auto_auto] sm:items-baseline"
+                  >
+                    {/* Rank + checkbox — share a row on mobile, separate cols on desktop. */}
+                    <div className="flex items-center gap-2 sm:contents">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(row.entityKey)}
+                        onChange={() => toggleRow(row.entityKey)}
+                        className="accent-sky-400 sm:mt-1"
+                        aria-label={`Select ${row.entityLabel ?? row.entityKey}`}
+                      />
+                      <span className="text-[11px] text-muted tabular-nums">{i + 1}.</span>
+                      {/* Score on mobile only — moves up so it's visible without scrolling right. */}
+                      <span className={`sm:hidden ml-auto text-sm font-medium tabular-nums ${scoreColor(row.score)}`}>{row.score}</span>
                     </div>
-                    <div className="text-[11px] text-muted flex flex-wrap gap-1.5 mt-0.5">
-                      {row.regionCode && (
-                        <span className="rounded bg-bg/60 border border-border px-1 py-0.5">{row.regionCode}</span>
-                      )}
-                      {row.contributingSignals.slice(0, 4).map((s, j) => (
-                        <span
-                          key={j}
-                          className="rounded bg-amber-400/10 border border-amber-400/25 text-amber-200 px-1 py-0.5"
-                          title={s.source}
-                        >
-                          {SIGNAL_LABEL[s.signalKind] ?? s.signalKind}
-                        </span>
-                      ))}
-                      {row.contributingSignals.length > 4 && (
-                        <span className="text-muted/60">+{row.contributingSignals.length - 4} more</span>
-                      )}
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] text-ink break-words sm:truncate">
+                        {row.entityLabel ?? row.entityKey}
+                      </div>
+                      <div className="text-[11px] text-muted flex flex-wrap gap-1.5 mt-0.5">
+                        {row.regionCode && (
+                          <span className="rounded bg-bg/60 border border-border px-1 py-0.5">{row.regionCode}</span>
+                        )}
+                        {row.contributingSignals.slice(0, 4).map((s, j) => (
+                          <span
+                            key={j}
+                            className="rounded bg-amber-400/10 border border-amber-400/25 text-amber-200 px-1 py-0.5"
+                            title={s.source}
+                          >
+                            {SIGNAL_LABEL[s.signalKind] ?? s.signalKind}
+                          </span>
+                        ))}
+                        {row.contributingSignals.length > 4 && (
+                          <span className="text-muted/60">+{row.contributingSignals.length - 4} more</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className={`text-sm font-medium tabular-nums ${scoreColor(row.score)}`}>{row.score}</div>
-                    <div className="text-[10px] text-muted">{relTime(row.lastRecomputedAt)}</div>
-                  </div>
-                  {/* (#382/#387) Per-row actions: draft an opener OR promote
-                      the entity into the leads pipeline. Two-step funnel:
-                      Draft = explore the message, Promote = commit to working
-                      this prospect. */}
-                  <div className="shrink-0 flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => draftFor(row)}
-                      className="rounded-md border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[11px] px-2 py-1"
-                      title="Draft a cold-outreach opener for this entity using the cascade attribution chain"
-                    >
-                      ✎ Draft
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => promoteFor(row)}
-                      disabled={promoteState[row.entityKey] === 'busy' || promoteState[row.entityKey] === 'done'}
-                      className={
-                        'rounded-md border text-[11px] px-2 py-1 ' +
-                        (promoteState[row.entityKey] === 'done'
-                          ? 'border-emerald-400/60 bg-emerald-400/20 text-emerald-100'
+                    {/* Score column — desktop only; mobile shows it in the rank row. */}
+                    <div className="hidden sm:block text-right shrink-0">
+                      <div className={`text-sm font-medium tabular-nums ${scoreColor(row.score)}`}>{row.score}</div>
+                      <div className="text-[10px] text-muted">{relTime(row.lastRecomputedAt)}</div>
+                    </div>
+                    {/* Action buttons — wrap on mobile, inline on desktop. */}
+                    <div className="flex items-center gap-1.5 flex-wrap sm:shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => draftFor(row)}
+                        className="rounded-md border border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-200 text-[11px] px-2 py-1"
+                        title="Draft a cold-outreach opener for this entity using the cascade attribution chain"
+                      >
+                        ✎ Draft
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => promoteFor(row)}
+                        disabled={promoteState[row.entityKey] === 'busy' || promoteState[row.entityKey] === 'done'}
+                        className={
+                          'rounded-md border text-[11px] px-2 py-1 ' +
+                          (promoteState[row.entityKey] === 'done'
+                            ? 'border-emerald-400/60 bg-emerald-400/20 text-emerald-100'
+                            : promoteState[row.entityKey] === 'error'
+                            ? 'border-red-400/40 bg-red-400/10 text-red-200'
+                            : 'border-sky-400/40 bg-sky-400/10 hover:bg-sky-400/20 text-sky-200')
+                        }
+                        title={
+                          promoteState[row.entityKey] === 'done'
+                            ? 'Added to your pipeline · opens lead detail in a new tab'
+                            : 'Add this entity to the leads pipeline so it shows up alongside the rest of your prospects'
+                        }
+                      >
+                        {promoteState[row.entityKey] === 'busy'
+                          ? '…'
+                          : promoteState[row.entityKey] === 'done'
+                          ? '✓ Added'
                           : promoteState[row.entityKey] === 'error'
-                          ? 'border-red-400/40 bg-red-400/10 text-red-200'
-                          : 'border-sky-400/40 bg-sky-400/10 hover:bg-sky-400/20 text-sky-200')
-                      }
-                      title={
-                        promoteState[row.entityKey] === 'done'
-                          ? 'Added to your pipeline · opens lead detail in a new tab'
-                          : 'Add this entity to the leads pipeline so it shows up alongside the rest of your prospects'
-                      }
-                    >
-                      {promoteState[row.entityKey] === 'busy'
-                        ? '…'
-                        : promoteState[row.entityKey] === 'done'
-                        ? '✓ Added'
-                        : promoteState[row.entityKey] === 'error'
-                        ? '! Retry'
-                        : '✚ Add to pipeline'}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                          ? '! Retry'
+                          : '✚ Add'}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
           )}
         </div>
       )}
 
-      {/* (#382) Draft modal — the institutional-memory-to-sales-artifact moment. */}
+      {/* (#382) Draft modal — the institutional-memory-to-sales-artifact moment.
+          (#390) Mobile-safe: full-height scrolling on small viewports, max-w-2xl on desktop. */}
       {draftModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto"
           onClick={() => setDraftModal(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl border border-emerald-400/30 bg-surface shadow-2xl overflow-hidden"
+            className="w-full max-w-2xl my-4 rounded-2xl border border-emerald-400/30 bg-surface shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-emerald-400/[0.04]">
@@ -444,7 +541,7 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                 ×
               </button>
             </div>
-            <div className="px-4 py-4">
+            <div className="px-4 py-4 overflow-y-auto">
               {draftModal.status === 'loading' && (
                 <div className="text-[12px] text-muted py-6 text-center">
                   Drafting from the cascade attribution + the client offer… (≈3s)

@@ -64,7 +64,7 @@ export default async function ClientWatchlistPage() {
     <>
       <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="watchlist" />
 
-      <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
+      <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
         <section
           className="mb-8 rounded-2xl border border-border overflow-hidden"
           style={{
