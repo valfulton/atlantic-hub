@@ -103,6 +103,21 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
       { label: 'Search "Acme"', config: { debtor: 'Acme' } },
       { label: 'Include lapsed filings', config: { debtor: 'Candelaria', includeLapsed: true } }
     ]
+  },
+  pacer_docket: {
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'CA bankruptcies · last 30d', config: { states: ['CA'], sinceDays: 30 } },
+      { label: 'CA + FL bankruptcies · 30d', config: { states: ['CA', 'FL'], sinceDays: 30 } },
+      { label: 'Specific docket IDs', config: { docketIds: [123456] } }
+    ]
+  },
+  gbp: {
+    placeholder: 'click a preset →',
+    presets: [
+      { label: 'Empty (paste your place IDs)', config: { placeIds: [] } },
+      { label: 'Seed from a search', config: { seedQuery: 'collections agency Los Angeles' } }
+    ]
   }
 };
 

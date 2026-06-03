@@ -29,6 +29,7 @@ import PublicIntelPanel from './PublicIntelPanel';
 import DistressWatchlistPanel from './DistressWatchlistPanel';
 import CascadePanel from './CascadePanel';
 import VerticalPackPanel from './VerticalPackPanel';
+import IntelligenceFeedPanel from './IntelligenceFeedPanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import WeeklyDigestPanel from './WeeklyDigestPanel';
@@ -399,6 +400,13 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           producer) and Distress watchlist (scoring consumer). */}
       <div id="cascade-pipeline" className="mb-5">
         <CascadePanel clientId={clientId} clientName={d.name} />
+      </div>
+
+      {/* (#380) Intelligence Feed — unified chronological view of every record
+          from every adapter + every cascade emission + every worker run.
+          The "information everywhere" surface so nothing rots invisible. */}
+      <div id="intelligence-feed" className="mb-5">
+        <IntelligenceFeedPanel clientId={clientId} clientName={d.name} />
       </div>
 
       {/* Intake -> canonical intelligence (one visible-prompt pass). */}
