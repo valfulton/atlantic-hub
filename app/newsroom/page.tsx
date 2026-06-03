@@ -6,7 +6,6 @@
  * lib/newsroom/published.ts; no API hop, no auth.
  */
 import Link from 'next/link';
-import WaveDivider from '@/app/_components/WaveDivider';
 import { listPublishedArticles, articleHref, type NewsroomArticle } from '@/lib/newsroom/published';
 
 export const dynamic = 'force-dynamic';
@@ -86,7 +85,6 @@ export default async function NewsroomIndexPage() {
     <main className="max-w-5xl mx-auto px-4 py-12 sm:py-16">
       <section className="mb-12 sm:mb-16">
         <h1 className="text-3xl sm:text-5xl font-semibold text-ink tracking-tight">Newsroom</h1>
-        <WaveDivider className="mt-5" />
         <p className="text-muted mt-5 max-w-2xl text-base sm:text-lg leading-relaxed">
           Insights, announcements, and field notes on AI-native marketing - written from the
           intelligence we accumulate working with real businesses.
