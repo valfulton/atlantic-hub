@@ -63,6 +63,35 @@ const PLANNED: Array<{ kind: PublicIntelKind; displayName: string; description: 
     description: 'Parcel-level assessor data for LA County — valuation, ownership, classification.',
     bestFor: ['Adriana (CLDA)', 'Real estate'],
     costNote: 'Free · Socrata API'
+  },
+  // (#374) Planned adapters referenced by Cascade Pipeline recipes.
+  {
+    kind: 'ucc_ca',
+    displayName: 'CA UCC financing statements',
+    description: 'Search UCC-1 / UCC-3 filings by debtor name. Each filing names a secured party (the vendor/lender). Lights up the "Suspended entity → Vendor exposure" cascade — when a suspended LLC has UCC filings, every secured party becomes an exposed-vendor watchlist entry.',
+    bestFor: ['CBB (collections — vendors exposed to suspended debtors)', 'Equipment finance', 'B2B credit'],
+    costNote: 'Free · CA SOS UCC search portal (separate endpoint from bizfileOnline)'
+  },
+  {
+    kind: 'gbp',
+    displayName: 'Google Business Profile (review trend)',
+    description: 'Rolling snapshots of rating + review velocity per business. Drops + sudden volume shifts emit "operational_stress" signals via the cascade engine. Per advisor brief: review trends often precede cash-flow problems by 30-60 days.',
+    bestFor: ['CBB (early-warning collections)', 'Local-services advisors'],
+    costNote: 'Uses existing Google Places API allotment · low marginal cost · scheduled per tracked entity'
+  },
+  {
+    kind: 'ca_sos_v2',
+    displayName: 'CA SOS v2 (filing history + officers + agent changes)',
+    description: 'Pulls the SI-200/SI-550 statement-of-information stream beyond the search results bizfileOnline exposes today. Detects leadership changes, address changes, late filings — high-value distress signals invisible to the v1 adapter.',
+    bestFor: ['CBB', 'Adriana (CLDA)', 'B2B sales targeting officer changes'],
+    costNote: 'Free · bizfileOnline filing detail page (requires per-entity fetch + parse)'
+  },
+  {
+    kind: 'pacer_docket',
+    displayName: 'PACER docket fetcher (bankruptcy creditor schedules)',
+    description: 'For CourtListener bankruptcy hits, fetch the full docket and parse the Schedule of Creditors (Form 106). Lights up the bankruptcy_creditor_extraction cascade — each scheduled creditor becomes an exposed-creditor watchlist entry. Crown jewel for collections.',
+    bestFor: ['CBB (the ICP of their ICP)', 'Distressed-debt buyers', 'Credit recovery'],
+    costNote: 'Free via CourtListener RECAP archive when filings are already in archive · PACER per-page fees only if fetched live'
   }
 ];
 

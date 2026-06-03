@@ -27,6 +27,7 @@ import ClientAccessGroup from './ClientAccessGroup';
 import AttachLoginPanel from './AttachLoginPanel';
 import PublicIntelPanel from './PublicIntelPanel';
 import DistressWatchlistPanel from './DistressWatchlistPanel';
+import CascadePanel from './CascadePanel';
 import IcpFitScorePanel from './IcpFitScorePanel';
 import AutopilotActivity from './AutopilotActivity';
 import WeeklyDigestPanel from './WeeklyDigestPanel';
@@ -382,6 +383,13 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           engine reads what those adapters write. */}
       <div id="distress-watchlist" className="mb-5">
         <DistressWatchlistPanel clientId={clientId} clientName={d.name} />
+      </div>
+
+      {/* (#374) Cascade Pipeline — chain reactions that fire automatically when
+          a triggering record lands. Sits between Public Intel (raw record
+          producer) and Distress watchlist (scoring consumer). */}
+      <div id="cascade-pipeline" className="mb-5">
+        <CascadePanel clientId={clientId} clientName={d.name} />
       </div>
 
       {/* Intake -> canonical intelligence (one visible-prompt pass). */}

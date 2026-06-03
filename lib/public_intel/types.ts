@@ -28,7 +28,14 @@ export type PublicIntelKind =
   | 'datasf'
   | 'la_assessor'
   // (#372) Added during the Revenue Distress Intelligence Engine bundle.
-  | 'courtlistener';
+  | 'courtlistener'
+  // (#374) Added during the Cascade Pipeline bundle — adapters scaffolded
+  // in registry; recipes already reference them so lighting up an adapter
+  // here activates a downstream cascade automatically.
+  | 'ucc_ca'             // California UCC financing statements
+  | 'gbp'                // Google Business Profile rolling snapshots (rating + reviews)
+  | 'ca_sos_v2'          // CA SOS filing history + officers + agent changes
+  | 'pacer_docket';      // Federal docket fetcher for bankruptcy creditor schedules
 
 export interface PublicIntelSource {
   sourceId: number;
