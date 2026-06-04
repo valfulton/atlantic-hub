@@ -7,9 +7,13 @@ import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { listBrandsForUser } from '@/lib/client/membership';
 import { activeBrandFor } from '@/lib/client/active-brand';
-// (#393) V3 social skin — cream + emerald + gold + Fraunces/Inter palette
-// pulled from live atlanticandvine.com. Scoped under [data-skin="social"]
-// so operator pages stay dark-obsidian.
+// Canonical client-app design system — ONE file controls every /client/*
+// surface. Tokens, top bar, greeting, brand switcher, hero, section heads,
+// signal cards, ghost-gold CTAs, empty states. Edit `_styles/app.css` to
+// retune the entire app.
+import './_styles/app.css';
+// Legacy skin files (kept temporarily so v3-* / amber utility refs don't
+// break mid-migration). Remove once every page uses the canonical .app-*.
 import './skin.social.css';
 import './client-social.css';
 
@@ -38,11 +42,11 @@ async function loadSwitcher(): Promise<{ brands: { clientId: number; clientName:
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const { brands, activeClientId } = await loadSwitcher();
   return (
-    /* (#393, val 2026-06-03) data-skin="social" — newsroom palette (cream +
-       emerald + gold) pulled from live atlanticandvine.com. Two-mood
-       architecture: client wears this; operator (/admin/av/*) stays dark.
-       Toggling data-skin off mid-demo falls back to default tokens. */
-    <div data-tenant="av" data-skin="social" className="client-shell min-h-screen">
+    /* `.app` is the canonical client-app shell — cream + emerald + gold,
+       Fraunces serif, Inter sans. Every /client/* page inherits the design
+       system from `_styles/app.css`. `data-skin="social"` kept for legacy
+       components that still scope under it; new code uses .app-* classes. */
+    <div data-tenant="av" data-skin="social" className="app client-shell min-h-screen">
       <BrandSwitcher brands={brands} activeClientId={activeClientId} />
       <ClientIntelTicker />
       <main className="min-w-0" style={{ maxWidth: '100%' }}>

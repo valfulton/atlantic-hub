@@ -10,7 +10,9 @@
  *   6. "Fresh leads" SignalCard grid (same shape)
  *   7. Bottom tab bar — provided by app/client/layout.tsx (no-op here)
  *
- * All styling lives in `adriana-dashboard.css`. No hex literals here.
+ * All styling lives in the canonical design system at
+ * `app/client/_styles/app.css` (loaded by app/client/layout.tsx for live;
+ * imported directly by the operator preview route). NO hex literals here.
  * Dummy initials + emerald-tinted card logos keep the layout from reading
  * vacant when a brand has no logo/cover yet.
  */
@@ -19,7 +21,6 @@
 import Link from 'next/link';
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import './adriana-dashboard.css';
 
 export interface BrandChip {
   id: number;
@@ -117,7 +118,7 @@ function Card({ card }: { card: SignalCard }) {
   }
 
   return (
-    <article className="adr-card">
+    <article className="app-card">
       <div className="hd">
         <div
           className="logo"
@@ -150,11 +151,13 @@ function Card({ card }: { card: SignalCard }) {
 }
 
 export default function AdrianaDashboard(p: AdrianaDashboardProps) {
+  // Outer .app wrapper lives in app/client/layout.tsx so every /client/*
+  // page inherits the design system without re-wrapping.
   return (
-    <div className="adr">
+    <>
       {/* Top bar */}
-      <div className="adr-top">
-        <div className="adr-top-in">
+      <div className="app-top">
+        <div className="app-top-in">
           <img src="https://atlanticandvine.netlify.app/av-logo.png" alt="A&amp;V" />
           <span className="bt">{p.brandName}</span>
           <span className="pill">{p.brandPill}</span>
@@ -165,9 +168,9 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
         </div>
       </div>
 
-      <div className="adr-wrap">
+      <div className="app-wrap">
         {/* Greeting */}
-        <section className="adr-hello">
+        <section className="app-hello">
           <h1>
             {timeWord(p.greetingTime)}, <em>{p.firstName}.</em>
           </h1>
@@ -175,12 +178,12 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
         </section>
 
         {/* Brand switcher Stories */}
-        <div className="adr-brands" aria-label="Switch brand">
+        <div className="app-brands" aria-label="Switch brand">
           {p.brands.map((b) => (
             <Link
               key={b.id}
               href={b.href}
-              className={`adr-brand${b.active ? ' on' : ''}`}
+              className={`app-brand${b.active ? ' on' : ''}`}
               aria-current={b.active ? 'page' : undefined}
             >
               <div className="ring">
@@ -189,7 +192,7 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
               <span className="lbl">{b.name}</span>
             </Link>
           ))}
-          <Link href="/client/intake" className="adr-brand add">
+          <Link href="/client/intake" className="app-brand add">
             <div className="ring">
               <div className="pic">+</div>
             </div>
@@ -199,7 +202,7 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
 
         {/* Featured Signal hero */}
         {p.hero && (
-          <Link href={p.hero.ctaHref} className="adr-feat" aria-label={p.hero.headline}>
+          <Link href={p.hero.ctaHref} className="app-feat" aria-label={p.hero.headline}>
             <div
               className="ph"
               style={p.hero.heroUrl ? { backgroundImage: `url(${p.hero.heroUrl})` } : undefined}
@@ -219,37 +222,37 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
         )}
 
         {/* Watchlist */}
-        <div className="adr-sh">
+        <div className="app-sh">
           <h3>Your <em>watchlist</em></h3>
           {p.watchlist.activeCountLabel && <span className="ct">{p.watchlist.activeCountLabel}</span>}
           <Link href={p.watchlist.moreHref} className="more">View all →</Link>
         </div>
         {p.watchlist.cards.length === 0 ? (
-          <div className="adr-empty">
+          <div className="app-empty">
             <p>No entries yet. As your public-records sources fire, the strongest signals will land here.</p>
           </div>
         ) : (
-          <div className="adr-cards">
+          <div className="app-cards">
             {p.watchlist.cards.map((c) => <Card key={c.id} card={c} />)}
           </div>
         )}
 
         {/* Fresh leads */}
-        <div className="adr-sh">
+        <div className="app-sh">
           <h3>Fresh <em>leads</em></h3>
           {p.freshLeads.sublabel && <span className="ct">{p.freshLeads.sublabel}</span>}
           <Link href={p.freshLeads.moreHref} className="more">View all →</Link>
         </div>
         {p.freshLeads.cards.length === 0 ? (
-          <div className="adr-empty">
+          <div className="app-empty">
             <p>Your enrichment queue is quiet right now. New leads will surface here as they're scored.</p>
           </div>
         ) : (
-          <div className="adr-cards">
+          <div className="app-cards">
             {p.freshLeads.cards.map((c) => <Card key={c.id} card={c} />)}
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

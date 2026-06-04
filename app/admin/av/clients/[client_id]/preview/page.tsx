@@ -20,7 +20,10 @@ import { getClientDashboardData } from '@/lib/client/dashboard_data';
 import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
 import AdrianaDashboard from '@/app/client/dashboard/AdrianaDashboard';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
-// AdrianaDashboard self-imports adriana-dashboard.css; no skin CSS needed here.
+// AdrianaDashboard renders against the canonical client-app design system.
+// The operator preview route doesn't go through app/client/layout.tsx, so
+// we import the design system here directly.
+import '@/app/client/_styles/app.css';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -96,9 +99,12 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
         }
       />
 
-      {/* Exact same component the client sees — adriana-dashboard.css scopes
-          all styling inside `.adr` so it doesn't fight the operator chrome. */}
-      <AdrianaDashboard {...props} />
+      {/* Exact same component the client sees. Wrap in `.app` because this
+          route doesn't pass through app/client/layout.tsx (which is where
+          the design-system shell normally hangs). */}
+      <div className="app">
+        <AdrianaDashboard {...props} />
+      </div>
     </div>
   );
 }

@@ -1,30 +1,39 @@
 /**
- * /client/leads  (#401, val 2026-06-03, per VR V3 leads spec)
+ * /client/leads
  *
- * V3 — luxury Cormorant register. Worst-offender page on the kill list:
- * the amber radial-gradient hero, the colored band pills, the rose
- * "No working website" dot, the rose "Avoid:" all gone. The body now
- * uses `ClientLeadCardV3` which is shared with the operator preview
- * mirror — single source of truth, cannot drift.
+ * Mobile-app pipeline page. Same design vocabulary as /client/dashboard:
+ *   - Sticky top bar (.app-top)
+ *   - Fraunces greeting (.app-hello) — "Your pipeline, Adriana"
+ *   - Brand switcher Stories row (.app-brands) — same as dashboard
+ *   - Section head (.app-sh) with count chip + Find-new-leads link
+ *   - SignalCard grid (.app-cards / .app-card) — every lead = same card shape
  *
- * Auth + provision + active-brand + access-gate + tier gate logic
- * preserved verbatim. Only the markup register changes.
+ * The whole experience reads as one continuous app, not a per-page invention.
+ * Styles come from app/client/_styles/app.css (loaded by client/layout.tsx).
+ * Auth + access + tier gates preserved verbatim from the prior page.
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
+import { listBrandsForUser } from '@/lib/client/membership';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import ClientLeadCardV3 from '@/app/client/_components/ClientLeadCardV3';
-import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
-import DiscoverPanel from './DiscoverPanel';
+import LeadsView from './LeadsView';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '·';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export default async function ClientLeadsPage() {
   const actor = readClientActorFromHeaders(headers() as unknown as Headers);
@@ -61,65 +70,95 @@ export default async function ClientLeadsPage() {
     }
   }
 
+  // Brand switcher — same shape as the dashboard's Stories row.
+  let brands: { id: number; name: string; initials: string; href: string; active: boolean }[] = [];
+  try {
+    const memberships = await listBrandsForUser(actor.clientUserId);
+    brands = memberships.map((m) => ({
+      id: m.clientId,
+      name: m.clientName || `Brand ${m.clientId}`,
+      initials: initialsOf(m.clientName || `B${m.clientId}`),
+      href: `/client/leads?brand=${m.clientId}`,
+      active: m.clientId === clientId
+    }));
+  } catch { brands = []; }
+
   const hot = leads.filter((l) => l.band === 'hot').length;
+  const userInitial = firstName.charAt(0).toUpperCase();
 
   return (
-    <main className="v3-wrap" style={{ maxWidth: 980 }}>
-      <ClientV3TopNav />
-
-      <section className="v3-greet">
-        <p className="v3-eyebrow">Your pipeline</p>
-        <h1 className="v3-h1">
-          Your leads, <em>{firstName}.</em>
-        </h1>
-        <p className="v3-lede">
-          {locked
-            ? 'Lead discovery finds and scores prospects for your business automatically. Unlocks on Sprint.'
-            : leads.length > 0
-              ? `${leads.length} in your pipeline${hot > 0 ? `, ${hot} scored hot` : ''}. Ranked best-first.`
-              : 'We surface prospects for your business and they land here, best-first.'}
-        </p>
-      </section>
-
-      {!locked && (
-        <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-          <DiscoverPanel />
-        </div>
-      )}
-
-      {locked ? (
-        <article className="v3-card">
-          <h3 className="v3-card__h">Lead discovery unlocks on Sprint.</h3>
-          <p className="v3-card__p">
-            You&apos;re on the audit tier. Upgrade to Sprint to have prospects discovered, enriched, and
-            scored for your business automatically — the strongest fits always on top.
-          </p>
-          <div className="v3-card__row">
-            <a className="v3-link" href="mailto:val@atlanticandvine.com?subject=Upgrade%20to%20Sprint">
-              Talk to Val about upgrading →
-            </a>
+    <>
+      {/* Top bar — identical to the dashboard's */}
+      <div className="app-top">
+        <div className="app-top-in">
+          <img src="https://atlanticandvine.netlify.app/av-logo.png" alt="A&amp;V" />
+          <span className="bt">Atlantic &amp; Vine</span>
+          <span className="pill">Client</span>
+          <div className="me">
+            <span>{firstName}</span>
+            <span className="av" aria-hidden="true">{userInitial}</span>
           </div>
-        </article>
-      ) : leads.length === 0 ? (
-        <article className="v3-card">
-          <h3 className="v3-card__h">Pipeline is empty.</h3>
-          <p className="v3-card__p">
-            Prospects appear here as they&apos;re identified — ranked by fit, highest first.
-          </p>
-        </article>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px' }}>
-          {leads.map((l) => (
-            <ClientLeadCardV3
-              key={l.id}
-              lead={l}
-              leadHref={l.auditId ? `/client/leads/${l.auditId}` : '#'}
-            />
-          ))}
         </div>
-      )}
+      </div>
 
-      <p className="v3-foot">Signed in as {user.email}</p>
-    </main>
+      <div className="app-wrap">
+        {/* Greeting */}
+        <section className="app-hello">
+          <h1>
+            Your pipeline, <em>{firstName}.</em>
+          </h1>
+          <p>
+            {locked
+              ? 'Lead discovery finds and scores prospects for your business automatically. Unlocks on Sprint.'
+              : leads.length > 0
+                ? `${leads.length} in your pipeline${hot > 0 ? ` · ${hot} scored hot` : ''}. Best-fit first.`
+                : 'Prospects for your business land here, best-fit first.'}
+          </p>
+        </section>
+
+        {/* Brand switcher Stories — same as dashboard */}
+        {brands.length > 0 && (
+          <div className="app-brands" aria-label="Switch brand">
+            {brands.map((b) => (
+              <Link
+                key={b.id}
+                href={b.href}
+                className={`app-brand${b.active ? ' on' : ''}`}
+                aria-current={b.active ? 'page' : undefined}
+              >
+                <div className="ring">
+                  <div className="pic">{b.initials}</div>
+                </div>
+                <span className="lbl">{b.name}</span>
+              </Link>
+            ))}
+            <Link href="/client/intake" className="app-brand add">
+              <div className="ring"><div className="pic">+</div></div>
+              <span className="lbl">Add brand</span>
+            </Link>
+          </div>
+        )}
+
+        {locked ? (
+          <div className="app-empty" style={{ textAlign: 'left' }}>
+            <p>
+              <strong style={{ color: 'var(--black)' }}>Lead discovery unlocks on Sprint.</strong>
+              {' '}You&apos;re on the audit tier. Upgrade to have prospects discovered, enriched, and
+              scored for your business automatically — strongest fits always on top.
+            </p>
+            <p style={{ marginTop: '0.7rem' }}>
+              <a
+                className="app-cta"
+                href="mailto:val@atlanticandvine.com?subject=Upgrade%20to%20Sprint"
+              >
+                Talk to Val about upgrading →
+              </a>
+            </p>
+          </div>
+        ) : (
+          <LeadsView leads={leads} />
+        )}
+      </div>
+    </>
   );
 }

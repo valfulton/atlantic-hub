@@ -1,0 +1,183 @@
+/**
+ * LeadsView — the pipeline rendered in the canonical .app-* vocabulary.
+ *
+ * Each lead becomes a SignalCard (same shape as dashboard watchlist + fresh-
+ * leads cards). Section heads (.app-sh) carve the page into:
+ *   - "Hot fits" — band === 'hot'
+ *   - "In your pipeline" — everything else
+ *
+ * Discover form is a single ghost-gold CTA in the section head so the page
+ * stays a feed of cards, not a form-heavy operator surface.
+ */
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import type { ClientLead } from '@/lib/client/leads';
+import DiscoverPanel from './DiscoverPanel';
+
+interface Props {
+  leads: ClientLead[];
+}
+
+function chipLabel(l: ClientLead): { kind: 'distress' | 'fit'; label: string } {
+  if (l.band === 'hot') {
+    const score = l.icpFitScore ?? l.score ?? 0;
+    return { kind: 'fit', label: `${score} fit · hot` };
+  }
+  if (l.icpFitScore != null) {
+    const band = l.band ? ` · ${l.band}` : '';
+    return { kind: 'fit', label: `${l.icpFitScore} fit${band}` };
+  }
+  return { kind: 'fit', label: l.leadStatus || 'New lead' };
+}
+
+function trailOf(l: ClientLead): { label: string; payoff?: boolean }[] {
+  const trail: { label: string; payoff?: boolean }[] = [];
+  if (l.contactName) {
+    trail.push({ label: l.contactTitle ? `${l.contactTitle} found` : 'Contact found' });
+  }
+  if (l.email) trail.push({ label: 'Email verified' });
+  if (l.phone) trail.push({ label: 'Phone in hand' });
+  if (l.callScript?.primaryPain) {
+    trail.push({ label: 'Pain extracted', payoff: true });
+  } else if (trail.length > 0) {
+    trail[trail.length - 1].payoff = true;
+  } else {
+    trail.push({ label: 'Scored', payoff: true });
+  }
+  return trail.slice(0, 3);
+}
+
+function oneLinerOf(l: ClientLead): string {
+  return l.painSummary ||
+         l.icpFitReasoning ||
+         (l.contactName ? `${l.contactName} reachable. Ready to send.` : 'Enriched and ready.');
+}
+
+function ctaLabelOf(l: ClientLead): string {
+  if (l.phone) return '📞 Call now';
+  if (l.email) return '✎ Review & send';
+  return '✚ Add to pipeline';
+}
+
+function LeadCard({ lead }: { lead: ClientLead }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const chip = chipLabel(lead);
+  const trail = trailOf(lead);
+  const href = lead.auditId ? `/client/leads/${lead.auditId}` : '#';
+  function open() {
+    if (href !== '#') startTransition(() => router.push(href));
+  }
+  const initial = (lead.company || '·').trim().charAt(0).toUpperCase();
+  return (
+    <article className="app-card">
+      <div className="hd">
+        <div className="logo">
+          <span className="sc" />
+          <b>{initial}</b>
+        </div>
+        <div className="nm">
+          <b title={lead.company}>{lead.company}</b>
+          <span className={`chip${chip.kind === 'fit' ? ' fit' : ''}`}>{chip.label}</span>
+        </div>
+        <button type="button" className="more" aria-label="More actions">⋯</button>
+      </div>
+      <p className="ln">{oneLinerOf(lead)}</p>
+      <div className="trail">
+        {trail.map((n, i) => (
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
+            <span className={`sig${n.payoff ? ' pay' : ''}`}>{n.label}</span>
+            {i < trail.length - 1 && <span className="arw" aria-hidden="true">→</span>}
+          </span>
+        ))}
+      </div>
+      <div className="foot">
+        <button type="button" className="pcta" onClick={open} disabled={pending}>
+          {pending ? 'Opening…' : ctaLabelOf(lead)}
+        </button>
+        <Link href={href} className="scnd" aria-label="View lead">→</Link>
+      </div>
+    </article>
+  );
+}
+
+export default function LeadsView({ leads }: Props) {
+  const [showDiscover, setShowDiscover] = useState(false);
+
+  if (leads.length === 0) {
+    return (
+      <>
+        <div className="app-sh">
+          <h3>Your <em>pipeline</em></h3>
+          <button
+            type="button"
+            className="app-cta"
+            onClick={() => setShowDiscover((s) => !s)}
+            style={{ marginLeft: 'auto' }}
+          >
+            {showDiscover ? 'Hide find-new-leads' : 'Find new leads'}
+          </button>
+        </div>
+        {showDiscover && (
+          <div style={{ marginBottom: '1.4rem' }}>
+            <DiscoverPanel />
+          </div>
+        )}
+        <div className="app-empty">
+          <p>Pipeline is empty. Prospects appear here as they&apos;re identified — ranked by fit, highest first.</p>
+        </div>
+      </>
+    );
+  }
+
+  const hot = leads.filter((l) => l.band === 'hot');
+  const rest = leads.filter((l) => l.band !== 'hot');
+
+  return (
+    <>
+      <div className="app-sh">
+        <h3>Hot <em>fits</em></h3>
+        <span className="ct">{hot.length} on the board</span>
+        <button
+          type="button"
+          className="app-cta"
+          onClick={() => setShowDiscover((s) => !s)}
+          style={{ marginLeft: 'auto' }}
+        >
+          {showDiscover ? 'Hide find-new-leads' : 'Find new leads'}
+        </button>
+      </div>
+
+      {showDiscover && (
+        <div style={{ marginBottom: '1.4rem' }}>
+          <DiscoverPanel />
+        </div>
+      )}
+
+      {hot.length > 0 ? (
+        <div className="app-cards">
+          {hot.map((l) => <LeadCard key={l.id} lead={l} />)}
+        </div>
+      ) : (
+        <div className="app-empty">
+          <p>No hot fits yet. Newly scored prospects will land here.</p>
+        </div>
+      )}
+
+      {rest.length > 0 && (
+        <>
+          <div className="app-sh">
+            <h3>In your <em>pipeline</em></h3>
+            <span className="ct">{rest.length}</span>
+          </div>
+          <div className="app-cards">
+            {rest.map((l) => <LeadCard key={l.id} lead={l} />)}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
