@@ -104,11 +104,11 @@ export async function loadDashboardV3(args: DashboardV3LoaderArgs): Promise<Clie
   }
   if (motion.length === 0) {
     motion.push({
-      title: 'Your channel is being set in motion',
-      body: 'Your first audit and signals will appear here as the engine finds them. Nothing publishes until you approve — review, refine, release.',
-      linkLabel: 'Set up your details →',
+      title: 'No activity yet on this account.',
+      body: 'Your audit and pipeline will populate as records post. Nothing publishes without your approval.',
+      linkLabel: 'Complete your details →',
       linkHref: '/client/intake',
-      when: 'soon'
+      when: ''
     });
   }
 

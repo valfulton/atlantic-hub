@@ -90,13 +90,13 @@ export default function AuditStalePill({
       ? 'Refreshed ✓'
       : state === 'error'
       ? 'Refresh failed'
-      : 'Audit catching up';
+      : 'Audit out of date';
 
   const tooltipIdle = canAct
     ? 'The brief was edited after this audit ran. Click to refresh this lead now.'
     : actionable
     ? 'The brief was edited after this audit ran. Click "Refresh AI intel" on the client page to regenerate.'
-    : 'The brief was edited after this audit ran — Atlantic & Vine is refreshing it.';
+    : 'The brief was edited after this audit ran.';
 
   const baseStyle: React.CSSProperties = {
     background: 'rgba(245,158,11,0.12)',
@@ -149,7 +149,7 @@ export default function AuditStalePill({
   return (
     <span className={classes} style={baseStyle} title={tooltipIdle}>
       <span aria-hidden="true">&#9203;</span>
-      Audit catching up
+      Audit out of date
     </span>
   );
 }

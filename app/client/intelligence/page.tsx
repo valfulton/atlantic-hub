@@ -68,7 +68,7 @@ export default async function ClientIntelligencePage() {
           <article className="v3-card">
             <h2 className="v3-card__h">Your impact view unlocks on Sprint</h2>
             <p className="v3-card__p">
-              You&rsquo;re on the {TIER_LABEL[user.tier]} plan. On Sprint and up, this page shows everything we learn
+              You&rsquo;re on the {TIER_LABEL[user.tier]} plan. On Sprint and up, this page shows the records saved
               about your market, where we put it to work, and the revenue motion it drives — updated live.
             </p>
             <a

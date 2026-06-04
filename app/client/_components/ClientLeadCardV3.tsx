@@ -132,7 +132,7 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
               borderRadius: '999px',
               fontWeight: 500
             }}>
-              Audit catching up
+              Audit out of date
             </span>
           )}
         </div>

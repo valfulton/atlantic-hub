@@ -47,35 +47,23 @@ export default function IntelligenceImpactBody({
   return (
     <>
       <section className="v3-greet">
-        <p className="v3-eyebrow">Your impact</p>
-        <h1 className="v3-h1">What we&rsquo;ve built for you, <em>{headline}.</em></h1>
-        <p className="v3-lede" style={{ fontStyle: 'normal', fontSize: 16 }}>
-          Everything we learn about your market gets put to work across your channels — and tied back to real revenue
-          motion. Here&rsquo;s the last {sinceDays} days.
-        </p>
+        <p className="v3-eyebrow">Activity · last {sinceDays} days</p>
+        <h1 className="v3-h1">Your account, <em>{headline}.</em></h1>
       </section>
 
       <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 18 }}>
         <Stat
-          kicker="Insight captured"
+          kicker="Records saved"
           value={fmt(created.total)}
-          caption="Distinct pieces of market, audience, and positioning intelligence we discovered and saved for you — the kind most teams never write down."
+          caption="Records and observations saved to this account."
         />
         <Stat
-          kicker="Put to work"
+          kicker="Records used"
           value={fmt(activated.totalActivated)}
-          caption="Times that intelligence powered something real — a pitch, a post, a commercial, a call — instead of sitting in a folder."
+          caption="Times a saved record was used in a pitch, post, commercial, or call."
         />
-        <Stat kicker="Revenue in motion" value={revenueValue} caption={revenueCaption} />
+        <Stat kicker="Revenue movement" value={revenueValue} caption={revenueCaption} />
       </div>
-
-      <article className="v3-card" style={{ marginTop: 14 }}>
-        <p className="v3-card__p" style={{ marginBottom: 0 }}>
-          The idea is simple: <span style={{ color: 'var(--cream)', fontFamily: 'var(--serif)', fontStyle: 'italic' }}>learn something once, use it everywhere.</span>{' '}
-          Every insight we capture about your business can power your press, your social, your outreach, and your sales
-          conversations — so the work compounds instead of starting over each month.
-        </p>
-      </article>
     </>
   );
 }

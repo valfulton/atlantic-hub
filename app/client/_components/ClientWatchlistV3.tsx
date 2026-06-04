@@ -153,10 +153,10 @@ export default function ClientWatchlistV3(p: ClientWatchlistV3Props) {
   if (rows.length === 0) {
     return (
       <div className="v3-card">
-        <h3 className="v3-card__h">Your watchlist is being built.</h3>
+        <h3 className="v3-card__h">Your watchlist is empty.</h3>
         <p className="v3-card__p">
-          The first signals will appear here as the engine finds them. Court filings, suspensions, vendor
-          exposure, review trends — we ranked them every morning, top of the list first.
+          Court filings, suspensions, vendor exposure, and review trends post here as they&apos;re filed.
+          Refreshed each morning, highest-score first.
         </p>
       </div>
     );

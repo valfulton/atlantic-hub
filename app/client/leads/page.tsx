@@ -102,11 +102,9 @@ export default async function ClientLeadsPage() {
         </article>
       ) : leads.length === 0 ? (
         <article className="v3-card">
-          <h3 className="v3-card__h">Your pipeline is warming up.</h3>
+          <h3 className="v3-card__h">Pipeline is empty.</h3>
           <p className="v3-card__p">
-            We&apos;re discovering and scoring prospects for your business. As they come in, each one
-            appears here ranked by its AI Living Score, so you always see your strongest opportunities
-            first.
+            Prospects appear here as they&apos;re identified — ranked by fit, highest first.
           </p>
         </article>
       ) : (
