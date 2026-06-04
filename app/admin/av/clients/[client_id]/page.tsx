@@ -286,6 +286,24 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           panel anchors below so val can jump to whatever's still dim. */}
       <StageStrip status={onboarding} />
 
+      {/* Cross-client watchlist deep-link (#411) — during onboarding val needs
+          to verify this client's distress signals are firing across all
+          adapters. The unified watchlist is the operator's single board. */}
+      <div className="-mt-3 mb-5 flex flex-wrap items-center gap-3 text-[12px]">
+        <Link
+          href={`/admin/av/watchlist?client=${clientId}`}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#EBCB6B]/35 text-[#EBCB6B] hover:bg-[#EBCB6B]/10 px-3 py-1.5 transition-colors"
+        >
+          🔭 Open this client&apos;s watchlist on the unified board →
+        </Link>
+        <Link
+          href="/admin/av/watchlist"
+          className="text-muted hover:text-ink"
+        >
+          See all clients&apos; watchlists
+        </Link>
+      </div>
+
       {/* (#358) Free pre-flight — runs no LLM. Surfaces website reachability +
           brief-fillness + per-step readiness so val sees what Prep will and
           won't do BEFORE spending tokens. */}

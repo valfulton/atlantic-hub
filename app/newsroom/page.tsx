@@ -16,10 +16,18 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { listPublishedArticles, articleHref, type NewsroomArticle } from '@/lib/newsroom/published';
 import { listChannels } from '@/lib/newsroom/channel';
+import { getCopyMap } from '@/lib/copy/store';
 import './the-wire.css';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+/** Editable chrome copy for the newsroom (article title/excerpt stay DB-driven). */
+const NEWSROOM_COPY_KEYS = [
+  'newsroom.wire.sub', 'newsroom.live.badge', 'newsroom.nav.cta', 'newsroom.hero.kicker',
+  'newsroom.footer.tagline', 'newsroom.footer.signoff', 'newsroom.footer.copyright',
+];
+type Copy = Record<string, string>;
 
 /** Map our artifact_type taxonomy to the designer's kick-label vocabulary. */
 const KICK_LABEL: Record<string, string> = {
@@ -113,12 +121,14 @@ function WireBody({
   articles,
   brands,
   failed,
-  inApp
+  inApp,
+  copy
 }: {
   articles: NewsroomArticle[];
   brands: StoryBrand[];
   failed: boolean;
   inApp: boolean;
+  copy: Copy;
 }) {
   const [featured, ...rest] = articles;
   const trending = rest.slice(0, 6);
@@ -153,7 +163,7 @@ function WireBody({
             <li><Link className="here" href="/newsroom">The Wire</Link></li>
             <li className="wire-menu-cta">
               <a className="wire-cta" href="https://atlanticandvine.netlify.app/pop-journey.html">
-                Apply Now
+                {copy['newsroom.nav.cta']}
               </a>
             </li>
           </ul>
@@ -164,8 +174,8 @@ function WireBody({
         {/* Wire head */}
         <div className="wire-head">
           <h1>The <em>Wire</em></h1>
-          <span className="sub">stories worth stopping for.</span>
-          <span className="live"><span className="d" /> Live</span>
+          <span className="sub">{copy['newsroom.wire.sub']}</span>
+          <span className="live"><span className="d" /> {copy['newsroom.live.badge']}</span>
         </div>
 
         {/* Stories row — chips link to /newsroom/channel/[slug] */}
@@ -195,7 +205,7 @@ function WireBody({
             <div className="play"><PlayIcon size={30} /></div>
             <div className="body">
               <span className="pill">
-                <PlayIcon size={10} /> Featured · {KICK_LABEL[featured.artifactType] ?? 'Insight'}
+                <PlayIcon size={10} /> {copy['newsroom.hero.kicker']} · {KICK_LABEL[featured.artifactType] ?? 'Insight'}
               </span>
               <h2>{featured.title}</h2>
               {featured.excerpt && <p>{featured.excerpt}</p>}
@@ -241,8 +251,8 @@ function WireBody({
         <div className="wire-footer-inner">
           <div className="wire-footer-brand">
             <h3>Atlantic &amp; Vine</h3>
-            <p>Strategic marketing for ambitious companies. Founded by Val Fulton — connecting institutional memory with real-world execution.</p>
-            <span className="tag">Deeply rooted. Visions of freedom.</span>
+            <p>{copy['newsroom.footer.tagline']}</p>
+            <span className="tag">{copy['newsroom.footer.signoff']}</span>
           </div>
           <div className="wire-footer-links">
             <h5>Services</h5>
@@ -269,7 +279,7 @@ function WireBody({
           </div>
         </div>
         <div className="wire-footer-bottom">
-          <span>© {new Date().getFullYear()} Atlantic &amp; Vine. All rights reserved.</span>
+          <span>{copy['newsroom.footer.copyright']}</span>
           <span>Made with intention.</span>
         </div>
       </footer>
@@ -286,6 +296,12 @@ export default async function NewsroomIndexPage({
   const hasClientSession = !!cookieStore.get('ah_client_session');
   const fromApp = searchParams?.from === 'app';
   const inApp = hasClientSession || fromApp;
+
+  // Editable chrome copy. Global scope for now; per-client newsroom override
+  // (D3 acceptance for an in-app client_id) needs the ah_client_session →
+  // client_id resolver — wire `clientId` here once the conductor confirms the
+  // session helper. getCopyMap never throws; defaults render on any failure.
+  const copy = await getCopyMap(NEWSROOM_COPY_KEYS, {});
 
   let articles: NewsroomArticle[] = [];
   let channels: { clientName: string; clientSlug: string; segmentCount: number }[] = [];
@@ -312,5 +328,5 @@ export default async function NewsroomIndexPage({
     if (brands.length >= 7) break;
   }
 
-  return <WireBody articles={articles} brands={brands} failed={failed} inApp={inApp} />;
+  return <WireBody articles={articles} brands={brands} failed={failed} inApp={inApp} copy={copy} />;
 }

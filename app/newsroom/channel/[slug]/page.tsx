@@ -19,8 +19,11 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getChannelBySlug, listChannelArticles } from '@/lib/newsroom/channel';
 import { articleHref, type NewsroomArticle } from '@/lib/newsroom/published';
+import { getCopyMap } from '@/lib/copy/store';
 import '../../the-wire.css';
 import './channel.css';
+
+const CHANNEL_COPY_KEYS = ['newsroom.nav.cta', 'channel.verified', 'channel.network.strip', 'newsroom.footer.copyright'];
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -98,6 +101,10 @@ export default async function ChannelPage({
   const channel = await getChannelBySlug(params.slug);
   if (!channel) notFound();
 
+  // Editable chrome copy (global scope; per-client override can pass the
+  // channel's client_id once confirmed). Never throws — defaults on failure.
+  const copy = await getCopyMap(CHANNEL_COPY_KEYS, {});
+
   const articles = await listChannelArticles(channel, 24);
 
   // Split into "commercials" (video / own-brand) and "briefs" (PR / market / analysis).
@@ -148,7 +155,7 @@ export default async function ChannelPage({
             <li><a href="https://atlanticandvine.netlify.app/audit-form.html">Free Audit</a></li>
             <li><Link className="here" href={inApp ? '/newsroom?from=app' : '/newsroom'}>The Wire</Link></li>
             <li className="wire-menu-cta">
-              <a className="wire-cta" href="https://atlanticandvine.netlify.app/pop-journey.html">Apply Now</a>
+              <a className="wire-cta" href="https://atlanticandvine.netlify.app/pop-journey.html">{copy['newsroom.nav.cta']}</a>
             </li>
           </ul>
         </div>
@@ -163,7 +170,7 @@ export default async function ChannelPage({
       <div className="ch-head">
         <div className="ch-avatar" style={{ backgroundImage: `url(${avatar})` }} />
         <div className="ch-id">
-          <div className="ch-vbadge">✦ Verified on the Wire</div>
+          <div className="ch-vbadge">{copy['channel.verified']}</div>
           <h1>{channel.clientName}</h1>
           {channel.tagline && <div className="ch-tag">{channel.tagline}</div>}
           <div className="ch-stats">
@@ -181,10 +188,7 @@ export default async function ChannelPage({
       {/* Network strip */}
       <div className="ch-net">
         <span className="ch-net-badge">◈ On the network</span>
-        <span className="ch-net-copy">
-          Part of the Atlantic &amp; Vine network — every story here builds the shared
-          authority that lifts the whole roster.
-        </span>
+        <span className="ch-net-copy">{copy['channel.network.strip']}</span>
         <Link href={inApp ? '/newsroom?from=app' : '/newsroom'} className="ch-net-back">
           Back to The Wire →
         </Link>
@@ -260,7 +264,7 @@ export default async function ChannelPage({
           </div>
         </div>
         <div className="wire-footer-bottom">
-          <span>© {new Date().getFullYear()} Atlantic &amp; Vine. All rights reserved.</span>
+          <span>{copy['newsroom.footer.copyright']}</span>
           <span>Made with intention.</span>
         </div>
       </footer>

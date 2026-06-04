@@ -28,6 +28,7 @@ const AV_NAV = [
   // small index that lets her open any lead in the new view.
   { href: '/admin/av/lead', label: 'Leads (new view)', section: 'sub' as const },
   { href: '/admin/av/clients', label: 'Clients', section: 'sub' as const },
+  { href: '/admin/av/watchlist', label: 'Watchlist (all)', section: 'sub' as const },
   { href: '/admin/av/employees', label: 'Employees', section: 'sub' as const },
   { href: '/admin/av/discover', label: 'Find new leads', section: 'sub' as const },
   { href: '/admin/av/import', label: 'Import CSV', section: 'sub' as const },

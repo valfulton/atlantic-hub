@@ -1,0 +1,267 @@
+/**
+ * /admin/av/watchlist — UNIFIED WATCHLIST
+ *
+ * Cross-client view of every distress watchlist entry. Filter by client,
+ * signal kind, recency, min score. Search by entity name. Each row links
+ * to the originating client's distress panel.
+ *
+ * The "buried" search val flagged is now a single page with GET-param
+ * filters. Linkable from anywhere — including the onboarding step strip
+ * on /admin/av/clients/[id].
+ */
+import Link from 'next/link';
+import {
+  listUnifiedWatchlist,
+  listClientsWithWatchlist,
+  listSignalKinds
+} from '@/lib/public_intel/all_watchlists';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+interface Query {
+  client?: string;
+  kind?: string;
+  min?: string;
+  days?: string;
+  q?: string;
+}
+
+function fmtRel(d: Date): string {
+  const ms = Date.now() - d.getTime();
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  return d.toLocaleDateString();
+}
+
+export default async function UnifiedWatchlistPage({ searchParams }: { searchParams?: Query }) {
+  const clientId = searchParams?.client ? Number.parseInt(searchParams.client, 10) : null;
+  const kind = searchParams?.kind || null;
+  const minScore = searchParams?.min ? Number.parseInt(searchParams.min, 10) : 0;
+  const days = searchParams?.days ? Number.parseInt(searchParams.days, 10) : null;
+  const q = searchParams?.q || null;
+
+  const [rows, clientChoices, kindChoices] = await Promise.all([
+    listUnifiedWatchlist({ clientId, signalKind: kind, minScore, withinDays: days, q, limit: 200 }),
+    listClientsWithWatchlist(),
+    listSignalKinds()
+  ]);
+
+  const totalRows = rows.length;
+  const totalScore = rows.reduce((s, r) => s + r.score, 0);
+  const avgScore = totalRows ? Math.round((totalScore / totalRows) * 10) / 10 : 0;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <header className="mb-6">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-muted mb-2">
+          Operator · Cross-client view
+        </p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+          Unified watchlist
+        </h1>
+        <p className="text-muted mt-2 max-w-3xl text-sm leading-relaxed">
+          Every entity flagged across every client&apos;s public-records feed, score-descending.
+          Filter, search, and jump to the client where it was flagged. Use this during onboarding
+          to confirm a new client&apos;s feed is firing.
+        </p>
+      </header>
+
+      {/* Filters — GET-param form so deep-linking works (e.g. ?client=9&days=7) */}
+      <form
+        method="GET"
+        className="rounded-2xl border border-border bg-surface p-4 mb-6"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.7rem' }}
+      >
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">Client</span>
+          <select
+            name="client"
+            defaultValue={clientId ?? ''}
+            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+          >
+            <option value="">All clients</option>
+            {clientChoices.map((c) => (
+              <option key={c.clientId} value={c.clientId}>{c.clientName} ({c.count})</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">Signal kind</span>
+          <select
+            name="kind"
+            defaultValue={kind ?? ''}
+            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+          >
+            <option value="">All kinds</option>
+            {kindChoices.map((k) => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">Min score</span>
+          <input
+            type="number"
+            name="min"
+            min="0"
+            max="100"
+            defaultValue={minScore || ''}
+            placeholder="0"
+            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">Recency</span>
+          <select
+            name="days"
+            defaultValue={days ?? ''}
+            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+          >
+            <option value="">Any time</option>
+            <option value="1">Last 24h</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </label>
+        <label className="block sm:col-span-2" style={{ gridColumn: 'span 2' }}>
+          <span className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">Search by entity name</span>
+          <input
+            type="text"
+            name="q"
+            defaultValue={q ?? ''}
+            placeholder="e.g. Meridian, Harbor, Calumet…"
+            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+          />
+        </label>
+        <div className="flex items-end gap-2">
+          <button
+            type="submit"
+            className="rounded-lg border border-[#EBCB6B] text-[#EBCB6B] hover:bg-[#EBCB6B]/10 text-[12.5px] px-4 py-1.5 font-medium"
+          >
+            Apply
+          </button>
+          <Link
+            href="/admin/av/watchlist"
+            className="text-[11.5px] text-muted hover:text-ink pb-2"
+          >
+            Reset
+          </Link>
+        </div>
+      </form>
+
+      {/* Summary strip */}
+      <div className="flex flex-wrap gap-4 mb-6 text-[12px]">
+        <div className="rounded-md border border-border bg-surface px-3 py-1.5">
+          <span className="text-muted">Entries · </span>
+          <span className="text-ink font-medium">{totalRows}</span>
+        </div>
+        <div className="rounded-md border border-border bg-surface px-3 py-1.5">
+          <span className="text-muted">Avg score · </span>
+          <span className="text-ink font-medium">{avgScore}</span>
+        </div>
+        <div className="rounded-md border border-border bg-surface px-3 py-1.5">
+          <span className="text-muted">Clients on watch · </span>
+          <span className="text-ink font-medium">
+            {new Set(rows.map((r) => r.clientId)).size}
+          </span>
+        </div>
+      </div>
+
+      {/* Rows */}
+      {rows.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-surface p-8 text-center">
+          <p className="text-ink font-medium">No watchlist entries match these filters.</p>
+          <p className="text-muted mt-2 text-sm">
+            Try clearing filters, or apply a vertical pack on a client + run public-intel sources to populate.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {rows.map((r) => {
+            const entityRef = encodeURIComponent(r.entityKey);
+            const trail = r.contributingSignals.slice(0, 4);
+            return (
+              <li
+                key={`${r.clientId}-${r.entityKey}`}
+                className="rounded-2xl border border-border bg-surface p-4 hover:border-[#EBCB6B]/40 transition-colors"
+              >
+                <div className="flex items-start gap-4 flex-wrap">
+                  <div className="shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-[#EBCB6B]/20 to-[#EBCB6B]/5 border border-[#EBCB6B]/30 grid place-items-center">
+                    <span className="text-[#EBCB6B] font-semibold text-lg">{Math.round(r.score)}</span>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h3 className="text-ink font-semibold text-[15px] truncate">
+                        {r.entityLabel || r.entityKey}
+                      </h3>
+                      {r.regionCode && (
+                        <span className="text-[10px] uppercase tracking-wider text-muted">{r.regionCode}</span>
+                      )}
+                      {r.lastAction && (
+                        <span className="text-[10px] uppercase tracking-wider text-[#EBCB6B]/80 border border-[#EBCB6B]/30 rounded-full px-2 py-0.5">
+                          {r.lastAction}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-[12px] text-muted mb-2">
+                      Flagged for{' '}
+                      <Link
+                        href={`/admin/av/clients/${r.clientId}`}
+                        className="text-[#EBCB6B] hover:underline"
+                      >
+                        {r.clientName}
+                      </Link>{' '}
+                      · {fmtRel(r.firstSeenAt)} · last refreshed {fmtRel(r.lastRecomputedAt)}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1 mb-3">
+                      {trail.map((s, i) => (
+                        <span key={i} className="inline-flex items-center gap-1">
+                          <span className={
+                            i === trail.length - 1
+                              ? 'text-[11px] text-[#EBCB6B] border border-[#EBCB6B]/40 bg-[#EBCB6B]/10 rounded-md px-2 py-0.5'
+                              : 'text-[11px] text-muted border border-border rounded-md px-2 py-0.5'
+                          }>{s.label}</span>
+                          {i < trail.length - 1 && <span className="text-muted text-[11px]">→</span>}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-[11.5px]">
+                      <Link
+                        href={`/admin/av/clients/${r.clientId}/preview/watchlist#${entityRef}`}
+                        className="text-[#EBCB6B] hover:underline"
+                      >
+                        Open in client view →
+                      </Link>
+                      <span className="text-muted">·</span>
+                      <Link
+                        href={`/admin/av/clients/${r.clientId}#distress`}
+                        className="text-muted hover:text-ink"
+                      >
+                        Tune signal weights
+                      </Link>
+                      <span className="text-muted">·</span>
+                      <Link
+                        href={`/admin/av/clients/${r.clientId}/preview/leads`}
+                        className="text-muted hover:text-ink"
+                      >
+                        Promote → lead
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
