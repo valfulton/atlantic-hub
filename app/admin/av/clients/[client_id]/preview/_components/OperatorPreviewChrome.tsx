@@ -18,6 +18,8 @@ const TABS = [
   { id: 'dashboard', label: 'Dashboard', path: '' },
   { id: 'leads', label: 'Leads list', path: '/leads' },
   { id: 'watchlist', label: 'Watchlist', path: '/watchlist' },
+  // (#419) Content Studio mirror — shows generated posts true-to-platform.
+  { id: 'content', label: 'Content', path: '/content' },
   { id: 'audit', label: 'Audit', path: '/audit' },
   { id: 'intake', label: 'Intake / brief', path: '/intake' },
   { id: 'pr', label: 'Press queue', path: '/pr' }

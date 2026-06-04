@@ -1,0 +1,39 @@
+/* Content Studio chrome. The post cards are platform-authentic (inline);
+   THIS only styles the surrounding chrome and follows the app skin via
+   --rg-accent (royale Aurum / champagne) with a champagne fallback so it
+   reads fine on cream too. Conductor: align these vars to the canonical
+   design tokens in your CSS polish if you prefer one source. */
+.studio { max-width: 760px; margin: 0 auto; }
+
+.studio-tag {
+  display: flex; align-items: center; gap: .4rem;
+  font-size: .66rem; font-weight: 600; letter-spacing: .04em;
+  margin: 1rem .2rem .4rem; color: var(--brand, #EBCB6B);
+}
+.studio-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.studio-tag b { color: inherit; }
+
+.studio-filters { display: flex; gap: .45rem; padding: .4rem .2rem 1rem; overflow-x: auto; }
+.studio-filters::-webkit-scrollbar { display: none; }
+.studio-chip {
+  flex: 0 0 auto; font-size: .74rem; font-weight: 600; padding: .42rem .85rem;
+  border-radius: 999px; border: 1px solid rgba(150,160,180,.3); background: transparent;
+  color: inherit; cursor: pointer; opacity: .72; min-height: 36px;
+}
+.studio-chip.on { background: var(--brand, #EBCB6B); color: #0A0E18; border-color: transparent; opacity: 1; }
+
+.studio-feed { display: flex; flex-direction: column; gap: 1.1rem; padding-bottom: 2rem; }
+
+.studio-actions { display: flex; gap: .4rem; margin-top: .55rem; }
+.studio-actions button {
+  flex: 1; font-size: .74rem; font-weight: 600; padding: .62rem; border-radius: 9px;
+  border: 1px solid rgba(150,160,180,.3); background: transparent; color: inherit; cursor: pointer; min-height: 44px;
+}
+.studio-pri { background: var(--brand, #EBCB6B) !important; color: #0A0E18 !important; border-color: transparent !important; }
+.studio-actions button:disabled { opacity: .5; cursor: default; }
+
+.studio-toast {
+  position: fixed; left: 50%; bottom: 5rem; transform: translateX(-50%);
+  background: #0A0E18; color: #fff; padding: .7rem 1.2rem; border-radius: 999px;
+  font-size: .85rem; z-index: 60; box-shadow: 0 12px 30px -10px rgba(0,0,0,.5);
+}

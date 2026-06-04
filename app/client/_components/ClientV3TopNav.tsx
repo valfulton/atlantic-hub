@@ -16,6 +16,8 @@ const NAV = [
   { href: '/client/dashboard', label: 'Home' },
   { href: '/client/leads', label: 'Leads' },
   { href: '/client/watchlist', label: 'Watchlist' },
+  // (#419) Content Studio — generated posts ready to approve, true-to-platform preview.
+  { href: '/client/content', label: 'Content' },
   { href: '/client/pr', label: 'Press' },
   { href: '/client/intake', label: 'You' }
 ];

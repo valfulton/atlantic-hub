@@ -9,6 +9,8 @@ const TABS = [
   { href: '/client/dashboard', label: 'Dashboard', icon: 'M3 11l9-8 9 8 M5 10v10h14V10' },
   { href: '/client/leads',     label: 'Leads',     icon: 'M4 6h16 M4 12h16 M4 18h10' },
   { href: '/client/watchlist', label: 'Watchlist', icon: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0' },
+  // (#419) Content Studio — generated posts ready to approve, true-to-platform preview.
+  { href: '/client/content',   label: 'Content',   icon: 'M5 4h11l3 3v13H5z M14 4v4h4 M8 12h8 M8 16h6' },
   { href: '/client/pr',        label: 'Press',     icon: 'M4 4h16v12H7l-3 3V4z' },
   { href: '/client/intake',    label: 'You',       icon: 'M8 8a4 4 0 1 0 8 0 4 4 0 0 0-8 0 M4 21c0-4 4-6 8-6s8 2 8 6' }
 ];
