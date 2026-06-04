@@ -15,6 +15,7 @@
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { listPublishedArticles, articleHref, type NewsroomArticle } from '@/lib/newsroom/published';
+import { listChannels } from '@/lib/newsroom/channel';
 import './the-wire.css';
 
 export const dynamic = 'force-dynamic';
@@ -35,19 +36,9 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-/** Brands featured in the Stories row — derived from articles' `company` field. */
-function topBrands(articles: NewsroomArticle[], limit = 6): string[] {
-  const counts = new Map<string, number>();
-  for (const a of articles) {
-    const c = (a.company || '').trim();
-    if (!c) continue;
-    counts.set(c, (counts.get(c) || 0) + 1);
-  }
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([c]) => c);
-}
+/** A brand chip on the Stories row — has a real slug so clicking opens
+ *  /newsroom/channel/[slug]. */
+type StoryBrand = { name: string; slug: string };
 
 function PlayIcon({ size = 16 }: { size?: number }) {
   return (
@@ -90,10 +81,9 @@ function PostCard({ a }: { a: NewsroomArticle }) {
   );
 }
 
-function StoriesRow({ brands }: { brands: string[] }) {
+function StoriesRow({ brands, inApp }: { brands: StoryBrand[]; inApp: boolean }) {
   if (brands.length === 0) return null;
-  // Initials inside the gradient ring — a tasteful placeholder until real
-  // brand avatars exist. The ring + Fraunces initials read as on-brand.
+  // Initials inside the gradient ring — placeholder until real brand avatars.
   function initials(name: string): string {
     const parts = name.split(/\s+/).filter(Boolean);
     if (parts.length === 0) return '·';
@@ -103,12 +93,17 @@ function StoriesRow({ brands }: { brands: string[] }) {
   return (
     <div className="wire-stories" aria-label="Brands on the network">
       {brands.map((b) => (
-        <div key={b} className="wire-story" title={b}>
+        <Link
+          key={b.slug}
+          href={`/newsroom/channel/${b.slug}${inApp ? '?from=app' : ''}`}
+          className="wire-story"
+          title={b.name}
+        >
           <div className="ring">
-            <div className="pic">{initials(b)}</div>
+            <div className="pic">{initials(b.name)}</div>
           </div>
-          <span className="lbl">{b}</span>
-        </div>
+          <span className="lbl">{b.name}</span>
+        </Link>
       ))}
     </div>
   );
@@ -116,17 +111,18 @@ function StoriesRow({ brands }: { brands: string[] }) {
 
 function WireBody({
   articles,
+  brands,
   failed,
   inApp
 }: {
   articles: NewsroomArticle[];
+  brands: StoryBrand[];
   failed: boolean;
   inApp: boolean;
 }) {
   const [featured, ...rest] = articles;
   const trending = rest.slice(0, 6);
   const briefs = rest.slice(6, 12);
-  const brands = topBrands(articles, 7);
   const otherDoorHref = inApp ? '/newsroom' : '/newsroom?from=app';
   const otherDoorLabel = inApp ? 'switch to the cream door →' : 'switch to the velvet door →';
 
@@ -172,8 +168,8 @@ function WireBody({
           <span className="live"><span className="d" /> Live</span>
         </div>
 
-        {/* Stories row */}
-        <StoriesRow brands={brands} />
+        {/* Stories row — chips link to /newsroom/channel/[slug] */}
+        <StoriesRow brands={brands} inApp={inApp} />
 
         {failed && (
           <div className="wire-post" style={{ padding: '1.5rem' }}>
@@ -292,12 +288,29 @@ export default async function NewsroomIndexPage({
   const inApp = hasClientSession || fromApp;
 
   let articles: NewsroomArticle[] = [];
+  let channels: { clientName: string; clientSlug: string; segmentCount: number }[] = [];
   let failed = false;
   try {
-    articles = await listPublishedArticles({ limit: 50 });
+    // Two queries run in parallel — articles for the body, channels for the
+    // Stories row (each chip links to /newsroom/channel/[slug]).
+    [articles, channels] = await Promise.all([
+      listPublishedArticles({ limit: 50 }),
+      listChannels().catch(() => [])
+    ]);
   } catch {
     failed = true;
   }
 
-  return <WireBody articles={articles} failed={failed} inApp={inApp} />;
+  // Dedupe + cap brand chips. Real channels first; fall back to companies
+  // from articles when no client row exists yet (legacy data).
+  const seen = new Set<string>();
+  const brands: StoryBrand[] = [];
+  for (const c of channels) {
+    if (!c.clientSlug || seen.has(c.clientSlug)) continue;
+    seen.add(c.clientSlug);
+    brands.push({ name: c.clientName, slug: c.clientSlug });
+    if (brands.length >= 7) break;
+  }
+
+  return <WireBody articles={articles} brands={brands} failed={failed} inApp={inApp} />;
 }
