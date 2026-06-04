@@ -3,7 +3,9 @@
    --rg-accent (royale Aurum / champagne) with a champagne fallback so it
    reads fine on cream too. Conductor: align these vars to the canonical
    design tokens in your CSS polish if you prefer one source. */
-.studio { max-width: 760px; margin: 0 auto; }
+.studio { max-width: 760px; margin: 0 auto; --studio-media: #0b0b0b; }
+/* media letterbox behind images/video; override per skin if a lighter
+   platform context is ever wanted. */
 
 .studio-tag {
   display: flex; align-items: center; gap: .4rem;

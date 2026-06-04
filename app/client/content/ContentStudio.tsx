@@ -36,6 +36,13 @@ export default function ContentStudio({
   const [toast, setToast] = useState('');
 
   const shown = useMemo(() => items.filter((i) => matches(i.provider, filter)), [items, filter]);
+  // Per-filter counts so the chips show the platform mix at a glance, and
+  // empty platforms are hidden (only "All" + platforms with posts render).
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const f of FILTERS) c[f] = items.filter((i) => matches(i.provider, f)).length;
+    return c;
+  }, [items]);
 
   async function onDecide(id: number, decision: 'approve' | 'reject', editedBody?: string) {
     if (preview) {
@@ -78,8 +85,8 @@ export default function ContentStudio({
 
       {items.length > 0 && (
         <div className="studio-filters">
-          {FILTERS.map((f) => (
-            <button key={f} className={`studio-chip ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>{f}</button>
+          {FILTERS.filter((f) => f === 'All' || counts[f] > 0).map((f) => (
+            <button key={f} className={`studio-chip ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>{f} ({counts[f]})</button>
           ))}
         </div>
       )}

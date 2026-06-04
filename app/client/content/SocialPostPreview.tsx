@@ -53,7 +53,7 @@ export default function SocialPostPreview({
   const isIG = pk === 'instagram';
 
   const Media = media ? (
-    <div style={{ position: 'relative', aspectRatio: isIG ? '1 / 1' : '1.91 / 1', background: '#0b0b0b' }}>
+    <div style={{ position: 'relative', aspectRatio: isIG ? '1 / 1' : '1.91 / 1', background: 'var(--studio-media, #0b0b0b)' }}>
       {isVideo ? (
         <video src={media} controls preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
@@ -77,7 +77,7 @@ export default function SocialPostPreview({
           <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg,#3DAB85,#0A4D3C)', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: '.85rem', flexShrink: 0 }}>{initial}</div>
           <div style={{ lineHeight: 1.15 }}>
             <div style={{ fontSize: '.82rem', fontWeight: 700, color: '#111' }}>{author}</div>
-            <small style={{ fontSize: '.66rem', color: '#777' }}>{isIG ? 'Original audio' : 'Sponsored'}</small>
+            <small style={{ fontSize: '.66rem', color: '#777' }}>Draft preview</small>
           </div>
           <span style={{ marginLeft: 'auto', fontSize: '.62rem', fontWeight: 700, color: '#fff', background: M.bg, padding: '.18rem .5rem', borderRadius: 5, minWidth: 22, textAlign: 'center' }}>{M.badge}</span>
         </div>
