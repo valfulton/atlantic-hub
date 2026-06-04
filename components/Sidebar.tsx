@@ -42,6 +42,7 @@ const AV_NAV = [
   { href: '/admin/av/intake', label: 'Client intake', section: 'sub' as const },
   { href: '/admin/av/brief', label: 'Creative brief', section: 'sub' as const },
   { href: '/admin/av/prompts', label: 'AI prompts', section: 'sub' as const },
+  { href: '/admin/av/popups', label: 'Onboarding popups', section: 'sub' as const },
   { href: '/admin/av/content', label: 'Content & blog', section: 'sub' as const },
   { href: '/admin/av/commercials', label: 'Commercials', section: 'sub' as const },
   { href: '/admin/social/calendar', label: 'Campaign timeline', section: 'sub' as const }

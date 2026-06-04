@@ -25,6 +25,7 @@ interface Slide {
   body: string;
   hrefLabel?: string;
   href?: string;
+  tiers?: Array<'audit_only' | 'sprint' | 'momentum' | 'scale'>;
 }
 
 export default function WelcomePopover({
@@ -32,14 +33,17 @@ export default function WelcomePopover({
   firstName,
   brandName,
   tier,
-  previewMode = false
+  previewMode = false,
+  /** (#408) Operator-editable slide override. When provided, replaces the
+   *  hardcoded defaults; tokens ({firstName}/{brandName}) substituted here. */
+  slides: slidesOverride
 }: {
   clientUserId: number | null;
   firstName: string;
   brandName: string;
   tier: 'audit_only' | 'sprint' | 'momentum' | 'scale';
-  /** When true, the popover never mounts (used on the operator preview mirror). */
   previewMode?: boolean;
+  slides?: Slide[];
 }) {
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState(0);
@@ -61,39 +65,43 @@ export default function WelcomePopover({
 
   if (!mounted || previewMode || !open) return null;
 
-  const showPress = tier !== 'audit_only';
+  // (#408) Operator overrides win when present, else fall back to baked-in
+  // defaults. Filter by tier: a slide with `tiers` set only renders for
+  // those tiers; omitted = render for everyone.
+  const safeFirst = firstName && firstName.trim() ? firstName.trim() : '';
+  const sub = (s: string) => s.replace(/\{firstName\}/g, safeFirst).replace(/\{brandName\}/g, brandName);
 
-  const slides: Slide[] = [
+  const baseSlides: Slide[] = slidesOverride && slidesOverride.length > 0 ? slidesOverride : [
     {
       eyebrow: 'Welcome',
-      // (#298) Defend against blank firstName so we never render "Hi ." on
-      // an edge-case client whose display_name didn't resolve. Fall back to
-      // the brand name, then a generic warm greeting.
-      title: firstName && firstName.trim() ? `Hi ${firstName.trim()}.` : (brandName ? `Hello, ${brandName}.` : 'Welcome aboard.'),
-      body: `This is ${brandName}'s home at Atlantic & Vine. Everything we move for you — leads, audits, press, content — lives here.`
+      title: safeFirst ? `Hi ${safeFirst}.` : (brandName ? `Hello, ${brandName}.` : 'Welcome aboard.'),
+      body: `This is ${brandName}'s home at Atlantic & Vine. Leads, audits, press, content — all in one place.`
     },
     {
       eyebrow: 'Your pipeline',
       title: 'Prospects, scored for fit.',
-      body: 'We find businesses that match your ideal customer profile, score each one against your brief, and rank them so the most promising are at the top of your list.',
+      body: 'Businesses that match your ideal customer profile, scored against your brief, ranked highest-fit first.',
       hrefLabel: 'See your leads →',
       href: '/client/leads'
     },
-    showPress
-      ? {
-          eyebrow: 'Your press queue',
-          title: 'Press opportunities in your voice.',
-          body: 'When a journalist asks for an expert on something you can speak to, a drafted pitch lands here in your voice. You approve before anything goes out.',
-          hrefLabel: 'See your press queue →',
-          href: '/client/pr'
-        }
-      : null,
+    {
+      eyebrow: 'Your press queue',
+      title: 'Press opportunities in your voice.',
+      body: 'When a journalist asks for an expert on something you cover, a drafted pitch lands here. You approve before anything goes out.',
+      hrefLabel: 'See your press queue →',
+      href: '/client/pr',
+      tiers: ['sprint', 'momentum', 'scale']
+    },
     {
       eyebrow: 'Your rhythm',
-      title: 'You\'ll hear from us each Friday.',
-      body: 'Once a week we send a short summary of what moved for you — new leads, hot fits, press matches. Open the hub any time between.'
+      title: "You'll hear from us each Friday.",
+      body: 'A short summary of what moved that week — new leads, hot fits, press matches. Open the hub any time between.'
     }
-  ].filter(Boolean) as Slide[];
+  ];
+
+  const slides: Slide[] = baseSlides
+    .filter((s) => !s.tiers || s.tiers.includes(tier))
+    .map((s) => ({ ...s, eyebrow: sub(s.eyebrow), title: sub(s.title), body: sub(s.body) }));
 
   function dismiss() {
     if (storageKey) {

@@ -19,6 +19,7 @@ import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import { loadDashboardV3 } from '@/lib/client/dashboard_v3_loader';
+import { getWelcomePopupSlides } from '@/lib/welcome/copy';
 import ClientDashboardV3 from './ClientDashboardV3';
 
 export const dynamic = 'force-dynamic';
@@ -64,6 +65,9 @@ export default async function ClientDashboardPage() {
     data
   });
 
+  // (#408) Pull editor-managed slide copy. Falls back to baked-in defaults.
+  const welcomeSlides = await getWelcomePopupSlides();
+
   return (
     <>
       <WelcomePopover
@@ -71,6 +75,7 @@ export default async function ClientDashboardPage() {
         firstName={data.firstName}
         brandName={user.display_name || data.firstName || 'your business'}
         tier={user.tier}
+        slides={welcomeSlides}
       />
       <ClientDashboardV3 {...v3} />
     </>
