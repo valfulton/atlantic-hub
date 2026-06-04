@@ -95,7 +95,7 @@ const PROVIDERS: Provider[] = [
 
 const FRICTION_STYLE: Record<Friction, string> = {
   easy: 'text-emerald-300 bg-emerald-500/10 border-emerald-400/30',
-  medium: 'text-amber-200 bg-amber-500/10 border-amber-400/30',
+  medium: 'text-[#EBCB6B]/95 bg-[#EBCB6B]/10 border-[#EBCB6B]/30',
   hard: 'text-rose-200 bg-rose-500/10 border-rose-400/30'
 };
 
@@ -413,7 +413,7 @@ export function SocialIntegrationsBoard() {
           style={{ borderColor: 'rgba(255,156,91,0.35)' }}
         >
           <div className="p-4 flex items-start gap-3">
-            <span className="text-amber-300" aria-hidden>✨</span>
+            <span className="text-[#EBCB6B]" aria-hidden>✨</span>
             <div className="flex-1">{toast}</div>
             <button
               type="button"

@@ -57,12 +57,12 @@ export const DEFAULTS: Record<string, string> = {
   // ---- client dashboard ----
   'dashboard.greeting': 'Good morning, {firstName}.',
   'dashboard.hero.eyebrow': "✦ This week's strongest signal",
-  'dashboard.sec.watchlist': 'Your watchlist',
-  'dashboard.sec.leads': 'Fresh leads',
+  'dashboard.sec.watchlist': 'Your *watchlist*',
+  'dashboard.sec.leads': 'Fresh *leads*',
   'dashboard.empty': 'No entries yet. As your public-records sources fire, the strongest signals will land here.',
   // ---- leads ----
   'leads.eyebrow': 'Your pipeline',
-  'leads.h1': 'Your leads, {firstName}.',
+  'leads.h1': 'Your pipeline, *{firstName}.*',
   'leads.sec.hot': 'Hot fits',
   'leads.sec.pipeline': 'In your pipeline',
   // ---- watchlist ---- (headlines use *accent* word; {firstName} interpolated)
@@ -75,7 +75,9 @@ export const DEFAULTS: Record<string, string> = {
   'pr.h1': 'Your press is *moving.*',
   'pr.lede': 'When a journalist needs an expert on what you cover, a drafted pitch lands here. You approve before anything goes out.',
   // ---- intake (framing only; field labels stay in intake_fields.ts) ----
-  'intake.intro': 'A few questions so we can build your brief. The more you share, the sharper your audit.',
+  'intake.eyebrow': 'Your details',
+  'intake.h1': 'Tell us about *your business.*',
+  'intake.lede': "Review and perfect what we've prefilled for you. Every save keeps a restore point.",
 };
 
 /* ------------------------------------------------------------------ */

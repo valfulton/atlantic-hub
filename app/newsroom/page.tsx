@@ -12,7 +12,6 @@
  *
  * Detection: ah_client_session cookie present OR ?from=app query param.
  */
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { listPublishedArticles, articleHref, type NewsroomArticle } from '@/lib/newsroom/published';
 import { listChannels } from '@/lib/newsroom/channel';
@@ -133,17 +132,17 @@ function WireBody({
   const [featured, ...rest] = articles;
   const trending = rest.slice(0, 6);
   const briefs = rest.slice(6, 12);
-  const otherDoorHref = inApp ? '/newsroom' : '/newsroom?from=app';
-  const otherDoorLabel = inApp ? 'switch to the cream door →' : 'switch to the velvet door →';
 
   return (
     <div className={'wire'} data-skin={inApp ? 'royale' : undefined}>
-      {/* Door bar (mirror of the mockup: lets you switch faces) */}
-      <div className="wire-doorbar">
-        {inApp ? <>Velvet door &nbsp;—&nbsp; <b>this face</b></> : <>Cream door &nbsp;—&nbsp; <b>this face</b></>}
-        &nbsp;·&nbsp;
-        <Link href={otherDoorHref}>{otherDoorLabel}</Link>
-      </div>
+      {/* Door bar only appears in the velvet demo (?door=velvet). The public
+          cream newsroom has no dev chrome — it just matches the marketing site. */}
+      {inApp && (
+        <div className="wire-doorbar">
+          Velvet door &nbsp;—&nbsp; <b>this face</b> &nbsp;·&nbsp;
+          <Link href="/newsroom">switch to the cream door →</Link>
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="wire-nav">
@@ -290,12 +289,13 @@ function WireBody({
 export default async function NewsroomIndexPage({
   searchParams
 }: {
-  searchParams?: { from?: string };
+  searchParams?: { from?: string; door?: string };
 }) {
-  const cookieStore = cookies();
-  const hasClientSession = !!cookieStore.get('ah_client_session');
-  const fromApp = searchParams?.from === 'app';
-  const inApp = hasClientSession || fromApp;
+  // The PUBLIC newsroom must always match the marketing site (cream + emerald),
+  // for everyone — including logged-in operators/clients. The velvet "after
+  // dark" skin is opt-in ONLY via ?door=velvet (kept for the design demo); it
+  // is never auto-triggered by a session. (val 2026-06-04.)
+  const inApp = searchParams?.door === 'velvet';
 
   // Editable chrome copy. Global scope for now; per-client newsroom override
   // (D3 acceptance for an in-app client_id) needs the ah_client_session →

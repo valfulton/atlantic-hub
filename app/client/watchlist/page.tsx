@@ -19,6 +19,8 @@ import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import ClientWatchlistV3 from '@/app/client/_components/ClientWatchlistV3';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
+import { getCopyMap } from '@/lib/copy/store';
+import { accent } from '@/lib/copy/accent';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -49,19 +51,17 @@ export default async function ClientWatchlistPage() {
   const firstName = user.display_name?.split(/[ ,]/)[0] || 'there';
   const isAuditOnly = user.tier === 'audit_only';
 
+  // Per-client editable framing copy (edit in /admin/av/copy, this client or global).
+  const copy = await getCopyMap(['watchlist.eyebrow', 'watchlist.h1', 'watchlist.lede'], { clientId: clientId ?? undefined });
+
   return (
     <main className="v3-wrap">
       <ClientV3TopNav />
 
       <section className="v3-greet">
-        <p className="v3-eyebrow">Your watchlist</p>
-        <h1 className="v3-h1">
-          Who&apos;s about to need you, <em>{firstName}.</em>
-        </h1>
-        <p className="v3-lede">
-          Businesses showing public signals of distress, ranked every morning. Open one to see who
-          they are and how to reach out.
-        </p>
+        <p className="v3-eyebrow">{copy['watchlist.eyebrow']}</p>
+        <h1 className="v3-h1">{accent(copy['watchlist.h1'], { firstName })}</h1>
+        <p className="v3-lede">{copy['watchlist.lede']}</p>
       </section>
 
       {isAuditOnly ? (

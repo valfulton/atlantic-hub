@@ -42,6 +42,12 @@ export default function CopyEditorPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Deep-link from the map page: /admin/av/copy?key=<key> prefills the search.
+  useEffect(() => {
+    const k = new URLSearchParams(window.location.search).get('key');
+    if (k) setQ(k);
+  }, []);
+
   const onEdit = (key: string, value: string) => {
     setKeys((ks) => ks.map((k) => (k.key === key ? { ...k, value } : k)));
     clearTimeout(timers.current[key]);

@@ -11,6 +11,7 @@ import { listBrandsForUser } from '@/lib/client/membership';
 import { watchlistForClient, type WatchlistRow } from '@/lib/public_intel/distress_engine';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { getAvDb } from '@/lib/db/av';
+import { getCopyMap } from '@/lib/copy/store';
 import type { RowDataPacket } from 'mysql2';
 import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode } from '@/app/client/dashboard/AdrianaDashboard';
 
@@ -209,6 +210,13 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     ? `${activeBrandInitials} · ${activeCampaignCount} active`
     : `${activeCampaignCount} active`;
 
+  // Per-client editable section copy (edit in /admin/av/copy). Covers the
+  // operator mirror too, since both call this loader.
+  const copy = await getCopyMap(
+    ['dashboard.sec.watchlist', 'dashboard.sec.leads', 'dashboard.empty'],
+    { clientId: activeClientId ?? undefined }
+  );
+
   return {
     brandName,
     brandPill,
@@ -216,6 +224,7 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     userInitial: firstName.trim().charAt(0).toUpperCase() || '·',
     greetingTime: greetingTime(),
     subhead,
+    copy,
     brands,
     hero,
     watchlist: {

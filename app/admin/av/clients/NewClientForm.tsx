@@ -22,7 +22,7 @@ export default function NewClientForm() {
   const [done, setDone] = useState<{ clientId: number | null; magicLink: string; emailSent: boolean; lineSeeded: boolean } | null>(null);
 
   const [f, setF] = useState({
-    email: '', name: '', company: '', industry: '',
+    email: '', name: '', company: '', industry: '', website_url: '',
     tier: 'scale' as Tier, trialDays: '30',
     // Creative-brief prefill (you fill as much as you can; the client approves/adds).
     key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
@@ -41,6 +41,13 @@ export default function NewClientForm() {
           email: f.email.trim(), name: f.name.trim() || null, company: f.company.trim() || null,
           industry: f.industry.trim() || null, tier: f.tier,
           trialDays: Number(f.trialDays) || null, sendInvite: send,
+          // (#416) Website MUST be in the body. Canonical intake key is
+          // `website_url` (per lib/client/intake_fields). Without this the API
+          // had no website field in INTAKE_KEYS to pick up, intake.website_url
+          // stayed blank on creation, the autofill in createClientFromOperator
+          // (#415) never fired, and the intake form showed up empty. This is
+          // the field that "I already entered this" referred to.
+          website_url: f.website_url.trim() || undefined,
           key_message: f.key_message.trim() || undefined, target_audience: f.target_audience.trim() || undefined,
           why_advertise: f.why_advertise.trim() || undefined, goals: f.goals.trim() || undefined,
           audience_insights: f.audience_insights.trim() || undefined, message_support: f.message_support.trim() || undefined,
@@ -66,7 +73,7 @@ export default function NewClientForm() {
   function reset() {
     setDone(null); setErr(null);
     setF({
-      email: '', name: '', company: '', industry: '', tier: 'scale', trialDays: '30',
+      email: '', name: '', company: '', industry: '', website_url: '', tier: 'scale', trialDays: '30',
       key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
       message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
       preferred_channels: '', timeline: ''
@@ -110,6 +117,19 @@ export default function NewClientForm() {
             <div><label className={labelCls}>Email *</label><input className={inputCls} type="email" value={f.email} onChange={(e) => set('email', e.target.value)} /></div>
             <div><label className={labelCls}>Contact name</label><input className={inputCls} value={f.name} onChange={(e) => set('name', e.target.value)} /></div>
             <div><label className={labelCls}>Company</label><input className={inputCls} value={f.company} onChange={(e) => set('company', e.target.value)} /></div>
+            <div>
+              <label className={labelCls}>Website</label>
+              <input
+                className={inputCls}
+                type="url"
+                placeholder="https://example.com"
+                value={f.website_url}
+                onChange={(e) => set('website_url', e.target.value)}
+              />
+              <div className="text-[10px] text-muted mt-1">
+                Paste it once — we pull the rest of their brief from the page on save.
+              </div>
+            </div>
             <div><label className={labelCls}>Industry</label><input className={inputCls} value={f.industry} onChange={(e) => set('industry', e.target.value)} /></div>
             <div>
               <label className={labelCls}>Tier</label>

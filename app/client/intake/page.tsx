@@ -16,6 +16,8 @@ import { activeBrandFor } from '@/lib/client/active-brand';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import ClientIntakeForm from './ClientIntakeForm';
+import { getCopyMap } from '@/lib/copy/store';
+import { accent } from '@/lib/copy/accent';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -48,15 +50,16 @@ export default async function ClientIntakePage() {
   }
 
   const brandName = user.display_name?.trim() || 'your business';
+  const copy = await getCopyMap(['intake.eyebrow', 'intake.h1', 'intake.lede'], { clientId: clientId ?? undefined });
 
   return (
     <main className="v3-wrap">
       <ClientV3TopNav />
       <section className="v3-greet">
-        <p className="v3-eyebrow">Your details</p>
-        <h1 className="v3-h1">Tell us about <em>your business.</em></h1>
+        <p className="v3-eyebrow">{copy['intake.eyebrow']}</p>
+        <h1 className="v3-h1">{accent(copy['intake.h1'], { brandName })}</h1>
         <p className="v3-lede" style={{ fontStyle: 'normal', fontSize: 16 }}>
-          Review and perfect what we&rsquo;ve prefilled for you. Every save keeps a restore point.
+          {copy['intake.lede']}
         </p>
       </section>
       <ClientIntakeForm initial={initial} brandName={brandName} />

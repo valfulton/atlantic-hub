@@ -24,6 +24,8 @@ import { getClientAccessState } from '@/lib/av/client_access';
 import { listBrandsForUser } from '@/lib/client/membership';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import LeadsView from './LeadsView';
+import { getCopyMap } from '@/lib/copy/store';
+import { accent } from '@/lib/copy/accent';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -86,6 +88,9 @@ export default async function ClientLeadsPage() {
   const hot = leads.filter((l) => l.band === 'hot').length;
   const userInitial = firstName.charAt(0).toUpperCase();
 
+  // Per-client editable greeting headline.
+  const copy = await getCopyMap(['leads.h1'], { clientId: clientId ?? undefined });
+
   return (
     <>
       {/* Top bar — identical to the dashboard's */}
@@ -104,9 +109,7 @@ export default async function ClientLeadsPage() {
       <div className="app-wrap">
         {/* Greeting */}
         <section className="app-hello">
-          <h1>
-            Your pipeline, <em>{firstName}.</em>
-          </h1>
+          <h1>{accent(copy['leads.h1'], { firstName })}</h1>
           <p>
             {locked
               ? 'Lead discovery finds and scores prospects for your business automatically. Unlocks on Sprint.'

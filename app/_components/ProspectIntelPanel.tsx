@@ -49,9 +49,9 @@ export function ProspectIntelPanel({ intel }: { intel: ProspectIntel | null }) {
   if (populated.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
+    <div className="rounded-2xl border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] p-4">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <div className="text-[10px] uppercase tracking-[0.14em] text-amber-300">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-[#EBCB6B]">
           About this prospect
         </div>
         <div className="text-[10px] text-muted">From their website</div>

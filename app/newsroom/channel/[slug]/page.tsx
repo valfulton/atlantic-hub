@@ -13,7 +13,6 @@
  * Two doors via the same logic as /newsroom — `?from=app` or session cookie
  * flips to `data-skin="royale"`.
  */
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -96,7 +95,7 @@ export default async function ChannelPage({
   searchParams
 }: {
   params: { slug: string };
-  searchParams?: { from?: string };
+  searchParams?: { from?: string; door?: string };
 }) {
   const channel = await getChannelBySlug(params.slug);
   if (!channel) notFound();
@@ -117,30 +116,25 @@ export default async function ChannelPage({
     (isCommercial ? commercials : briefs).push(a);
   }
 
-  const cookieStore = cookies();
-  const hasClientSession = !!cookieStore.get('ah_client_session');
-  const fromApp = searchParams?.from === 'app';
-  const inApp = hasClientSession || fromApp;
+  // Public channel page always matches the marketing site (cream). Velvet is
+  // opt-in only via ?door=velvet for the design demo. (val 2026-06-04.)
+  const inApp = searchParams?.door === 'velvet';
 
   // Cover / avatar — fall back to picsum seeded by the slug so the page
   // never reads as vacant (per val: "dummy content + photos can stay").
   const cover = channel.coverUrl || placeholderHero(channel.clientSlug, '1600/420');
   const avatar = channel.logoUrl || placeholderHero(`${channel.clientSlug}-avatar`, '256/256');
 
-  const otherDoorHref = inApp
-    ? `/newsroom/channel/${channel.clientSlug}`
-    : `/newsroom/channel/${channel.clientSlug}?from=app`;
-  const otherDoorLabel = inApp ? 'switch to the cream door →' : 'switch to the velvet door →';
-
   // "Their commercials" + "Market briefs on their campaigns" — names lifted
   // verbatim from the mockup.
   return (
     <div className="wire" data-skin={inApp ? 'royale' : undefined}>
-      <div className="wire-doorbar">
-        {inApp ? <>Velvet door &nbsp;—&nbsp; <b>this face</b></> : <>Cream door &nbsp;—&nbsp; <b>this face</b></>}
-        &nbsp;·&nbsp;
-        <Link href={otherDoorHref}>{otherDoorLabel}</Link>
-      </div>
+      {inApp && (
+        <div className="wire-doorbar">
+          Velvet door &nbsp;—&nbsp; <b>this face</b> &nbsp;·&nbsp;
+          <Link href={`/newsroom/channel/${channel.clientSlug}`}>switch to the cream door →</Link>
+        </div>
+      )}
 
       {/* Same nav as /newsroom */}
       <nav className="wire-nav">

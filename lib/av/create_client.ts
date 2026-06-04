@@ -18,6 +18,7 @@ import { setBrandMember } from '@/lib/client/membership';
 import { setClientAccess } from '@/lib/av/client_access';
 import { extractBriefSeedFromIntake } from '@/lib/client/intake_brief';
 import { saveBriefPayload } from '@/lib/client/brief_store';
+import { suggestIntakeFromUrl } from '@/lib/client/intake_web_filler';
 import { createLane } from '@/lib/campaigns/store';
 import { sendEmail } from '@/lib/email/smtp';
 import { buildMagicLinkEmail } from '@/lib/email/magic-link-template';
@@ -51,6 +52,9 @@ export interface CreateClientResult {
   created: boolean;
   /** How many of this person's prospect leads were marked 'converted'. */
   leadsConverted: number;
+  /** (#415) How many intake fields the from-web filler populated at create
+   *  time. 0 when no website was provided OR the fetch/LLM failed. */
+  webAutofilledFields?: number;
 }
 
 export async function createClientFromOperator(input: CreateClientInput): Promise<CreateClientResult> {
@@ -137,6 +141,46 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { /* non-fatal: lead can be marked converted manually */ }
   }
 
+  // (#415) AUTO-FILL FROM WEB. If the operator pasted a website on create,
+  // run the same LLM intake-filler the manual Quick Prep button uses, BEFORE
+  // saving the brief. Blanks-only merge — anything the operator typed wins.
+  // Without this, the brief saved with just whatever the operator typed (often
+  // 3-4 fields), the autopilot ran ICP sharpening on a near-empty brief, and
+  // the rest of the intake form stayed blank until val manually clicked the
+  // panel. Now: type the URL, get 30+ fields populated. Non-fatal — if fetch
+  // or LLM fails, creation still succeeds with the typed-only payload.
+  let webAutofilledFields = 0;
+  // Canonical intake key is `website_url` (lib/client/intake_fields.ts:181).
+  // Accept legacy `website` too in case any caller still sends the old key.
+  const websiteRaw = (typeof intakePayload.website_url === 'string' && (intakePayload.website_url as string).trim())
+    ? (intakePayload.website_url as string).trim()
+    : (typeof intakePayload.website === 'string' && (intakePayload.website as string).trim())
+      ? (intakePayload.website as string).trim()
+      : null;
+  const websiteForFill = websiteRaw;
+  if (clientId && websiteForFill) {
+    try {
+      const suggestion = await suggestIntakeFromUrl({
+        url: websiteForFill,
+        brandHint: typeof intakePayload.company === 'string' ? (intakePayload.company as string) : null,
+        clientId
+      });
+      // Blanks-only merge: operator-typed values always win.
+      const suggested = suggestion?.suggestions ?? {};
+      for (const [k, v] of Object.entries(suggested)) {
+        if (v == null || v === '') continue;
+        const existing = intakePayload[k];
+        if (existing == null || existing === '' || (Array.isArray(existing) && existing.length === 0)) {
+          intakePayload[k] = v;
+          webAutofilledFields++;
+        }
+      }
+    } catch (err) {
+      // Non-fatal — log and continue with the original intakePayload.
+      console.error('[create_client:webAutofill]', websiteForFill, (err as Error).message);
+    }
+  }
+
   // (#253 step 7) Materialize the CREATIVE BRIEF from the same intake payload
   // we just put on client_users. Without this, the brief stayed empty on every
   // operator-created client — the intake was on the user but the brief, the
@@ -145,10 +189,8 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
   // saveBriefPayload, so ICP sharpening + brand-kit extraction + audit
   // regen never fired either. One saveBriefPayload call unblocks all of it.
   //
-  // The intake_brief mapper handles the heavy lifting (translating canonical
-  // intake keys + intake_web_filler stash fields into the brief shape) and
-  // saveBriefPayload triggers the autopilot lifecycle via its dynamic-import
-  // hook — same pattern used by every other intake-write surface.
+  // (#415) Now runs AFTER the from-web autofill above, so the autopilot
+  // lifecycle hooks see a full brief on first save.
   let briefSeeded = false;
   if (clientId) {
     try {
@@ -193,5 +235,5 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
     } catch { emailSent = false; }
   }
 
-  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, briefSeeded, created, leadsConverted };
+  return { clientId, clientUserId: row.client_user_id, magicLink: link, emailSent, lineSeeded, briefSeeded, created, leadsConverted, webAutofilledFields };
 }

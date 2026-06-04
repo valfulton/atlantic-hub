@@ -23,6 +23,8 @@ import {
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import ClientPrView from './ClientPrView';
+import { getCopyMap } from '@/lib/copy/store';
+import { accent } from '@/lib/copy/accent';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -60,6 +62,9 @@ export default async function ClientPrPage() {
   const headline = user.display_name?.split(/[ ,]/)[0] || 'there';
   const locked = user.tier === 'audit_only' || user.tier === 'sprint';
 
+  // Per-client editable framing copy (the lede stays computed from live counts).
+  const prCopy = await getCopyMap(['pr.eyebrow', 'pr.h1'], { clientId: clientId ?? undefined });
+
   let opps: ClientFacingPrOpportunity[] = [];
   let stats: ClientPrSummary = { total: 0, awaitingMyApproval: 0, iApproved: 0, iSentForReview: 0, urgent: 0 };
   if (!locked && clientId) {
@@ -76,8 +81,8 @@ export default async function ClientPrPage() {
       <ClientV3TopNav />
 
       <section className="v3-greet">
-        <p className="v3-eyebrow">Your press queue</p>
-        <h1 className="v3-h1">Your press is <em>moving.</em></h1>
+        <p className="v3-eyebrow">{prCopy['pr.eyebrow']}</p>
+        <h1 className="v3-h1">{accent(prCopy['pr.h1'])}</h1>
         <p className="v3-lede" style={{ fontStyle: 'normal', fontSize: 16 }}>
           {locked
             ? 'Journalist requests and media matches for your business, with a pitch drafted in your voice for one-click approval. Unlocks on Momentum.'

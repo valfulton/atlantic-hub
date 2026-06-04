@@ -21,6 +21,7 @@
 import Link from 'next/link';
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { accent } from '@/lib/copy/accent';
 
 export interface BrandChip {
   id: number;
@@ -75,6 +76,7 @@ export interface AdrianaDashboardProps {
   userInitial: string;        // "A"
   greetingTime: 'morning' | 'afternoon' | 'evening';
   subhead: string;            // "3 new signals on your watchlist since yesterday..."
+  copy?: Record<string, string>; // editable section copy (dashboard.sec.*, dashboard.empty)
   brands: BrandChip[];
   hero: FeaturedSignal | null;
   watchlist: {
@@ -223,13 +225,13 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
 
         {/* Watchlist */}
         <div className="app-sh">
-          <h3>Your <em>watchlist</em></h3>
+          <h3>{accent(p.copy?.['dashboard.sec.watchlist'] ?? 'Your *watchlist*')}</h3>
           {p.watchlist.activeCountLabel && <span className="ct">{p.watchlist.activeCountLabel}</span>}
           <Link href={p.watchlist.moreHref} className="more">View all →</Link>
         </div>
         {p.watchlist.cards.length === 0 ? (
           <div className="app-empty">
-            <p>No entries yet. As your public-records sources fire, the strongest signals will land here.</p>
+            <p>{p.copy?.['dashboard.empty'] ?? 'No entries yet. As your public-records sources fire, the strongest signals will land here.'}</p>
           </div>
         ) : (
           <div className="app-cards">
@@ -239,7 +241,7 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
 
         {/* Fresh leads */}
         <div className="app-sh">
-          <h3>Fresh <em>leads</em></h3>
+          <h3>{accent(p.copy?.['dashboard.sec.leads'] ?? 'Fresh *leads*')}</h3>
           {p.freshLeads.sublabel && <span className="ct">{p.freshLeads.sublabel}</span>}
           <Link href={p.freshLeads.moreHref} className="more">View all →</Link>
         </div>

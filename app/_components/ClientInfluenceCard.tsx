@@ -97,17 +97,17 @@ export default async function ClientInfluenceCard({
 
   const wrapper =
     variant === 'inline'
-      ? 'rounded-xl border border-amber-400/15 bg-amber-400/[0.03] p-3'
+      ? 'rounded-xl border border-[#EBCB6B]/15 bg-[#EBCB6B]/[0.03] p-3'
       : 'rounded-2xl border border-border bg-surface p-4';
 
   if (!seed) {
     return (
       <div className={`${wrapper} ${className}`}>
-        <div className="text-[11px] uppercase tracking-[0.12em] text-amber-300/70 mb-1">
+        <div className="text-[11px] uppercase tracking-[0.12em] text-[#EBCB6B]/75 mb-1">
           {clientName} — influence
         </div>
         <div className="text-[12px] text-white/55 italic">
-          No brief on file yet. <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-amber-300/85 hover:underline">Add their brief</Link> so the content engine grounds in their voice.
+          No brief on file yet. <Link href={`/admin/av/brief?clientId=${clientId}`} className="text-[#EBCB6B]/85 hover:underline">Add their brief</Link> so the content engine grounds in their voice.
         </div>
       </div>
     );
@@ -117,7 +117,7 @@ export default async function ClientInfluenceCard({
     <div className={`${wrapper} ${className}`}>
       <div className="flex items-baseline justify-between gap-3 mb-2.5 flex-wrap">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.12em] text-amber-300/85">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-[#EBCB6B]/85">
             {clientName} — influence
           </div>
           <div className="text-[10.5px] text-white/45 mt-0.5">
@@ -126,7 +126,7 @@ export default async function ClientInfluenceCard({
         </div>
         <Link
           href={`/admin/av/brief?clientId=${clientId}`}
-          className="text-[10px] uppercase tracking-wider text-white/50 hover:text-amber-300 transition shrink-0"
+          className="text-[10px] uppercase tracking-wider text-white/50 hover:text-[#EBCB6B] transition shrink-0"
         >
           Edit brief →
         </Link>
@@ -146,7 +146,7 @@ export default async function ClientInfluenceCard({
           quietly appears the first time the BrandKitPanel or autopilot fires. */}
       {(seed.brandColors || brandAesthetic || brandTypography || logoUrl) && (
         <div className="mt-3 pt-3 border-t border-white/5">
-          <div className="text-[9.5px] uppercase tracking-[0.16em] text-amber-300/70 mb-2">
+          <div className="text-[9.5px] uppercase tracking-[0.16em] text-[#EBCB6B]/75 mb-2">
             Visual identity
           </div>
           <div className="grid sm:grid-cols-2 gap-x-4 gap-y-2.5 items-start">
