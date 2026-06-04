@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import RoyaleGateFrame from '@/app/client/_components/RoyaleGateFrame';
 
 const ERROR_MESSAGES: Record<string, string> = {
   link_invalid_or_expired:
@@ -112,6 +113,66 @@ function LoginForm() {
     }
   }
 
+  // Door B — Royale invitation aesthetic (matches the "By invitation."
+  // designer mockup). Reuses the shared RoyaleGateFrame so set-password,
+  // login, and intake-form/[token] all share one source of truth.
+  if (door === 'B') {
+    return (
+      <RoyaleGateFrame
+        eyebrow="A private growth practice"
+        headline={<>Welcome <em>back</em>.</>}
+        lede="Sign in with your email and password."
+        asideTop={
+          <>
+            New here?{' '}
+            <a href="https://atlanticandvine.netlify.app/inquire.html">
+              Tell us about your work →
+            </a>
+          </>
+        }
+      >
+        <form onSubmit={handleSubmit} aria-labelledby="login-heading">
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="email" className="rg-label">Email</label>
+            <input
+              id="email"
+              type="email"
+              name="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="rg-input rg-input--text"
+            />
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <label htmlFor="password" className="rg-label">Password</label>
+            <input
+              id="password"
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="rg-input rg-input--text"
+            />
+          </div>
+          {error && <div role="alert" className="rg-error">{error}</div>}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rg-cta rg-cta--block"
+            style={{ marginTop: 18 }}
+          >
+            {submitting ? 'Signing in…' : 'Enter'}
+          </button>
+        </form>
+      </RoyaleGateFrame>
+    );
+  }
+
+  // Door A — public/marketing cream + emerald (existing aesthetic).
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -121,7 +182,7 @@ function LoginForm() {
         rel="stylesheet"
       />
 
-      <div className="ig-page" data-skin={door === 'B' ? 'royale' : undefined}>
+      <div className="ig-page">
         <nav className="ig-nav">
           <div className="ig-nav-inner">
             <a href="https://atlanticandvine.netlify.app" className="ig-brand">

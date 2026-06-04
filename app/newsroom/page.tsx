@@ -1,135 +1,283 @@
 /**
- * /newsroom -- TWO DOORS (val 2026-06-03, revised)
+ * /newsroom — The Wire (val 2026-06-04, revised)
  *
- * Same body. Surface flips based on entry path — matches the two GATES:
- *   - Door A (PUBLIC / MARKETING) — default. Cream + emerald + Fraunces,
- *     same register as /inquire.html and the marketing site. Applied via
- *     `data-surface="client"` (the brand-tokens.css client-portal override).
- *   - Door B (IN-APP / INVITATION) — when the visitor is signed in OR the
- *     URL carries `?from=app`. Velvet Royale: obsidian + aurum + platinum.
- *     Applied via `data-skin="royale"`.
+ * Mirrors the two designer mockups in Atlantic_Hub_Playbook/:
+ *   Door A — newsroom_social_desktop.html  (cream + emerald, public/marketing)
+ *   Door B — newsroom_velvet_royale.html  (obsidian + aurum, in-app/invitation)
  *
- * Detection: `ah_client_session` cookie present OR `?from=app` query param.
+ * Both doors share the SAME body and the SAME stylesheet (the-wire.css).
+ * The skin flips via data-skin="royale" on the outer .wire div — that's the
+ * only thing that changes. Retune either face in the-wire.css; never bake
+ * hex literals into this file.
  *
- * IMPORTANT: this file does NOT bake hex literals. All color comes from
- * brand-tokens.css. To retune either door, edit those tokens — not here.
+ * Detection: ah_client_session cookie present OR ?from=app query param.
  */
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { listPublishedArticles, articleHref, type NewsroomArticle } from '@/lib/newsroom/published';
+import './the-wire.css';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const TYPE_LABEL: Record<string, string> = {
-  blog_article: 'Insight',
-  seo_article: 'Guide',
-  own_brand_post: 'Note',
-  press_release: 'Press release'
+/** Map our artifact_type taxonomy to the designer's kick-label vocabulary. */
+const KICK_LABEL: Record<string, string> = {
+  blog_article: 'Market Brief',
+  seo_article: 'Analysis',
+  own_brand_post: 'Feature',
+  press_release: 'PR Segment'
 };
 
 function formatDate(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function ArticleCard({ a, featured = false }: { a: NewsroomArticle; featured?: boolean }) {
+/** Brands featured in the Stories row — derived from articles' `company` field. */
+function topBrands(articles: NewsroomArticle[], limit = 6): string[] {
+  const counts = new Map<string, number>();
+  for (const a of articles) {
+    const c = (a.company || '').trim();
+    if (!c) continue;
+    counts.set(c, (counts.get(c) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([c]) => c);
+}
+
+function PlayIcon({ size = 16 }: { size?: number }) {
   return (
-    <Link
-      href={articleHref(a)}
-      className="group block no-underline rounded-2xl border border-border bg-surface hover:bg-surface-2 transition-colors overflow-hidden"
-    >
-      {a.heroUrl && (
-        <div
-          className={`w-full overflow-hidden ${featured ? 'aspect-[2/1]' : 'aspect-video'}`}
-          style={{ background: 'var(--surface-3)' }}
-        >
-          {a.heroType === 'video' ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
-            <video
-              src={a.heroUrl}
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={a.heroUrl} alt={a.title} className="w-full h-full object-cover" />
-          )}
-        </div>
-      )}
-      <div className={featured ? 'p-7 sm:p-9' : 'p-6'}>
-        <div className="flex items-center gap-3 mb-3 text-[10px] uppercase tracking-[0.18em]">
-          <span className="text-brand font-medium">{TYPE_LABEL[a.artifactType] ?? 'Insight'}</span>
-          {a.publishedAt && <span className="text-muted">{formatDate(a.publishedAt)}</span>}
-        </div>
-        <h2
-          className={`text-ink font-semibold leading-snug group-hover:text-brand transition-colors ${
-            featured ? 'text-2xl sm:text-3xl' : 'text-lg'
-          }`}
-          style={{ fontFamily: 'var(--font-serif)' }}
-        >
-          {a.title}
-        </h2>
-        {a.excerpt && (
-          <p className={`text-muted mt-3 leading-relaxed ${featured ? 'text-base' : 'text-sm'}`}>
-            {a.excerpt}
-          </p>
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+function PostCard({ a }: { a: NewsroomArticle }) {
+  const kick = KICK_LABEL[a.artifactType] ?? 'Insight';
+  const isVideo = a.heroType === 'video';
+  return (
+    <Link href={articleHref(a)} className="wire-post">
+      <div
+        className="media"
+        style={{ backgroundImage: a.heroUrl ? `url(${a.heroUrl})` : undefined }}
+      >
+        <div className="sc" />
+        <span className="kick">{kick}</span>
+        {isVideo && (
+          <span className="pl">
+            <PlayIcon size={14} />
+          </span>
         )}
-        {a.company && (
-          <p className="mt-4 text-xs text-muted">
-            On <span className="text-ink">{a.company}</span>
-          </p>
+        {a.publishedAt && (
+          <span className="dur">
+            <PlayIcon size={10} /> {formatDate(a.publishedAt)}
+          </span>
         )}
+      </div>
+      <div className="b">
+        <h4>{a.title}</h4>
+        {a.excerpt && <p>{a.excerpt}</p>}
+        <div className="eng">
+          {a.company && <span className="desk">{a.company}</span>}
+        </div>
       </div>
     </Link>
   );
 }
 
-function NewsroomBody({ articles, failed }: { articles: NewsroomArticle[]; failed: boolean }) {
-  const [featured, ...rest] = articles;
+function StoriesRow({ brands }: { brands: string[] }) {
+  if (brands.length === 0) return null;
+  // Initials inside the gradient ring — a tasteful placeholder until real
+  // brand avatars exist. The ring + Fraunces initials read as on-brand.
+  function initials(name: string): string {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '·';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
   return (
-    <main className="max-w-5xl mx-auto px-4 py-12 sm:py-16" style={{ background: 'var(--bg)', minHeight: '100vh' }}>
-      <section className="mb-12 sm:mb-16">
-        <p className="text-[11px] uppercase tracking-[0.22em] text-muted mb-3">Newsroom</p>
-        <h1
-          className="text-3xl sm:text-5xl font-semibold text-ink tracking-tight"
-          style={{ fontFamily: 'var(--font-serif)' }}
-        >
-          Newsroom
-        </h1>
-      </section>
+    <div className="wire-stories" aria-label="Brands on the network">
+      {brands.map((b) => (
+        <div key={b} className="wire-story" title={b}>
+          <div className="ring">
+            <div className="pic">{initials(b)}</div>
+          </div>
+          <span className="lbl">{b}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-      {failed ? (
-        <div className="rounded-2xl border border-border bg-surface p-8 text-muted">
-          The newsroom is taking a moment to load. Please refresh shortly.
+function WireBody({
+  articles,
+  failed,
+  inApp
+}: {
+  articles: NewsroomArticle[];
+  failed: boolean;
+  inApp: boolean;
+}) {
+  const [featured, ...rest] = articles;
+  const trending = rest.slice(0, 6);
+  const briefs = rest.slice(6, 12);
+  const brands = topBrands(articles, 7);
+  const otherDoorHref = inApp ? '/newsroom' : '/newsroom?from=app';
+  const otherDoorLabel = inApp ? 'switch to the cream door →' : 'switch to the velvet door →';
+
+  return (
+    <div className={'wire'} data-skin={inApp ? 'royale' : undefined}>
+      {/* Door bar (mirror of the mockup: lets you switch faces) */}
+      <div className="wire-doorbar">
+        {inApp ? <>Velvet door &nbsp;—&nbsp; <b>this face</b></> : <>Cream door &nbsp;—&nbsp; <b>this face</b></>}
+        &nbsp;·&nbsp;
+        <Link href={otherDoorHref}>{otherDoorLabel}</Link>
+      </div>
+
+      {/* Nav */}
+      <nav className="wire-nav">
+        <div className="wire-nav-inner">
+          <a className="wire-brand" href="https://atlanticandvine.netlify.app">
+            <img
+              className="wire-brand-logo"
+              src="https://atlanticandvine.netlify.app/av-logo.png"
+              alt="Atlantic &amp; Vine"
+            />
+            <span className="wire-brand-text">Atlantic &amp; Vine</span>
+          </a>
+          <ul className="wire-menu">
+            <li><a href="https://atlanticandvine.netlify.app/#client-surge">Client Surge</a></li>
+            <li><a href="https://atlanticandvine.netlify.app/custom-solutions.html">Custom Solutions</a></li>
+            <li><a href="https://atlanticandvine.netlify.app/audit-form.html">Free Audit</a></li>
+            <li><Link className="here" href="/newsroom">The Wire</Link></li>
+            <li className="wire-menu-cta">
+              <a className="wire-cta" href="https://atlanticandvine.netlify.app/pop-journey.html">
+                Apply Now
+              </a>
+            </li>
+          </ul>
         </div>
-      ) : articles.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-surface p-8">
-          <h2 className="text-ink font-medium text-lg" style={{ fontFamily: 'var(--font-serif)' }}>
-            Fresh stories are on the way.
-          </h2>
-          <p className="text-muted mt-2 text-sm leading-relaxed">
-            New pieces will appear here as they publish.
-          </p>
+      </nav>
+
+      <div className="wire-wrap">
+        {/* Wire head */}
+        <div className="wire-head">
+          <h1>The <em>Wire</em></h1>
+          <span className="sub">stories worth stopping for.</span>
+          <span className="live"><span className="d" /> Live</span>
         </div>
-      ) : (
-        <div className="space-y-6">
-          {featured && <ArticleCard a={featured} featured />}
-          {rest.length > 0 && (
-            <div className="grid sm:grid-cols-2 gap-6">
-              {rest.map((a) => (
-                <ArticleCard key={a.id} a={a} />
-              ))}
+
+        {/* Stories row */}
+        <StoriesRow brands={brands} />
+
+        {failed && (
+          <div className="wire-post" style={{ padding: '1.5rem' }}>
+            <p style={{ margin: 0 }}>The Wire is taking a moment to load. Please refresh shortly.</p>
+          </div>
+        )}
+
+        {!failed && articles.length === 0 && (
+          <div className="wire-post" style={{ padding: '1.5rem' }}>
+            <h4 style={{ fontFamily: 'Fraunces, serif', margin: '0 0 0.5rem' }}>Fresh stories are on the way.</h4>
+            <p style={{ margin: 0 }}>New pieces will appear here as they publish.</p>
+          </div>
+        )}
+
+        {/* Hero — the featured (most-recent) article */}
+        {featured && (
+          <Link href={articleHref(featured)} className="wire-hero">
+            <div
+              className="ph"
+              style={{ backgroundImage: featured.heroUrl ? `url(${featured.heroUrl})` : undefined }}
+            />
+            <div className="scrim" />
+            <div className="play"><PlayIcon size={30} /></div>
+            <div className="body">
+              <span className="pill">
+                <PlayIcon size={10} /> Featured · {KICK_LABEL[featured.artifactType] ?? 'Insight'}
+              </span>
+              <h2>{featured.title}</h2>
+              {featured.excerpt && <p>{featured.excerpt}</p>}
+              <div className="eng">
+                {featured.publishedAt && <span className="wire-ic">{formatDate(featured.publishedAt)}</span>}
+                {featured.company && <span className="desk">{featured.company}</span>}
+              </div>
             </div>
-          )}
+          </Link>
+        )}
+
+        {/* Trending now */}
+        {trending.length > 0 && (
+          <section className="wire-sec">
+            <div className="wire-sec-head">
+              <span className="ico">🔥</span>
+              <h3>Trending <em>now</em></h3>
+              <span className="more">See all →</span>
+            </div>
+            <div className="wire-feed">
+              {trending.map((a) => <PostCard key={a.id} a={a} />)}
+            </div>
+          </section>
+        )}
+
+        {/* Market Briefs */}
+        {briefs.length > 0 && (
+          <section className="wire-sec">
+            <div className="wire-sec-head">
+              <span className="ico">📈</span>
+              <h3>Market <em>Briefs</em></h3>
+              <span className="more">See all →</span>
+            </div>
+            <div className="wire-feed">
+              {briefs.map((a) => <PostCard key={a.id} a={a} />)}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* Footer */}
+      <footer className="wire-footer">
+        <div className="wire-footer-inner">
+          <div className="wire-footer-brand">
+            <h3>Atlantic &amp; Vine</h3>
+            <p>Strategic marketing for ambitious companies. Founded by Val Fulton — connecting institutional memory with real-world execution.</p>
+            <span className="tag">Deeply rooted. Visions of freedom.</span>
+          </div>
+          <div className="wire-footer-links">
+            <h5>Services</h5>
+            <ul>
+              <li><a href="https://atlanticandvine.netlify.app/#client-surge">Client Surge</a></li>
+              <li><a href="https://atlanticandvine.netlify.app/custom-solutions.html">Custom Solutions</a></li>
+              <li><a href="https://atlanticandvine.netlify.app/audit-form.html">Free Audit</a></li>
+              <li><a href="https://atlanticandvine.netlify.app/pop-journey.html">Apply Now</a></li>
+            </ul>
+          </div>
+          <div className="wire-footer-links">
+            <h5>Partners</h5>
+            <ul>
+              <li><a href="https://eventsbywater.com">Events by Water</a></li>
+              <li><a href="https://1ecs.com">1ecs Private Chefs</a></li>
+            </ul>
+          </div>
+          <div className="wire-footer-links">
+            <h5>Connect</h5>
+            <ul>
+              <li><a href="mailto:info@atlanticandvine.com">info@atlanticandvine.com</a></li>
+              <li><Link href="/client/login">Client Login</Link></li>
+            </ul>
+          </div>
         </div>
-      )}
-    </main>
+        <div className="wire-footer-bottom">
+          <span>© {new Date().getFullYear()} Atlantic &amp; Vine. All rights reserved.</span>
+          <span>Made with intention.</span>
+        </div>
+      </footer>
+    </div>
   );
 }
 
@@ -151,19 +299,5 @@ export default async function NewsroomIndexPage({
     failed = true;
   }
 
-  // Door B — IN-APP / INVITATION. Velvet Royale (obsidian + aurum).
-  if (inApp) {
-    return (
-      <div data-skin="royale">
-        <NewsroomBody articles={articles} failed={failed} />
-      </div>
-    );
-  }
-
-  // Door A — PUBLIC / MARKETING. Cream + emerald + Fraunces.
-  return (
-    <div data-surface="client">
-      <NewsroomBody articles={articles} failed={failed} />
-    </div>
-  );
+  return <WireBody articles={articles} failed={failed} inApp={inApp} />;
 }

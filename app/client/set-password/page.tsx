@@ -1,33 +1,19 @@
 'use client';
-import { useState } from 'react';
 
 /**
- * /client/set-password — V3. Inherits data-skin="social" (navy) from the
- * client layout; gate card register, Cormorant heading, gold-focus inputs,
- * ghost-gold submit (no solid block). Door A/B (cream vs Royale) flows from
- * the two-doors routing — see V3_spec_entry_doors.md.
+ * /client/set-password — first landing for a magic-link recipient who
+ * hasn't set a password yet (Adriana on her first click).
+ *
+ * Wears the Royale Gate aesthetic — obsidian + Aurum gold + Cormorant.
+ * Driven by RoyaleGateFrame + royale-gate.css; no hex literals here.
  */
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  fontSize: 16,
-  padding: '12px 14px',
-  background: 'rgba(255,255,255,.04)',
-  border: '1px solid var(--rule)',
-  borderRadius: 8,
-  color: 'var(--cream)',
-  outline: 'none',
-  marginBottom: 14
-};
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 11,
-  letterSpacing: '.14em',
-  textTransform: 'uppercase',
-  color: 'var(--amber-deep)',
-  marginBottom: 6
-};
+import { useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import RoyaleGateFrame from '@/app/client/_components/RoyaleGateFrame';
 
-export default function SetPasswordPage() {
+function SetPasswordBody() {
+  const params = useSearchParams();
+  const welcoming = params.get('welcome') === '1';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -64,48 +50,58 @@ export default function SetPasswordPage() {
     }
   }
 
+  const headline = welcoming ? <>Welcome <em>in</em>.</> : <>Set your <em>password</em>.</>;
+  const lede = welcoming
+    ? 'Choose a password to finish setting up your account. Ten characters or more.'
+    : 'Choose a password. Ten characters or more.';
+
   return (
-    <main className="v3-wrap" style={{ maxWidth: 440, minHeight: '80vh', display: 'grid', placeItems: 'center' }}>
-      <form onSubmit={handleSubmit} className="v3-card" style={{ width: '100%' }} aria-labelledby="set-pw-heading">
-        <h1 id="set-pw-heading" className="v3-card__h" style={{ fontSize: 26 }}>
-          Set your password.
-        </h1>
-        <p className="v3-card__p">Pick something memorable. Minimum 10 characters.</p>
-
-        <label htmlFor="password" style={labelStyle}>New password</label>
-        <input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={10}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
-        />
-
-        <label htmlFor="confirm" style={labelStyle}>Confirm password</label>
-        <input
-          id="confirm"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={10}
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          style={inputStyle}
-        />
-
-        {error && (
-          <div role="alert" style={{ margin: '0 0 14px', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(201,138,146,.4)', background: 'rgba(201,138,146,.08)', color: '#E3A7AD', fontSize: 14 }}>
-            {error}
-          </div>
-        )}
-
-        <button type="submit" disabled={submitting} className="v3-cta" style={{ width: '100%', textAlign: 'center' }}>
-          {submitting ? 'Saving…' : 'Save password and continue'}
+    <RoyaleGateFrame eyebrow="A private growth practice" headline={headline} lede={lede}>
+      <form onSubmit={handleSubmit} aria-labelledby="set-pw-heading">
+        <div style={{ marginBottom: 14 }}>
+          <label htmlFor="password" className="rg-label">New password</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={10}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rg-input rg-input--text"
+          />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label htmlFor="confirm" className="rg-label">Confirm password</label>
+          <input
+            id="confirm"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={10}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            className="rg-input rg-input--text"
+          />
+        </div>
+        {error && <div role="alert" className="rg-error">{error}</div>}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rg-cta rg-cta--block"
+          style={{ marginTop: 18 }}
+        >
+          {submitting ? 'Saving…' : 'Enter'}
         </button>
       </form>
-    </main>
+    </RoyaleGateFrame>
+  );
+}
+
+export default function SetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="rg" />}>
+      <SetPasswordBody />
+    </Suspense>
   );
 }

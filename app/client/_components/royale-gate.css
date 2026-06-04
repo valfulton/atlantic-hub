@@ -1,0 +1,233 @@
+/**
+ * Royale Gate aesthetic — single source of truth (val 2026-06-04).
+ *
+ * Mirrors demo_login_gate.html (val's uploaded designer mockup) exactly.
+ * Applied to every gate/invitation surface in the magic-link flow:
+ *   /client/set-password   (first magic-link landing)
+ *   /client/login Door B   (invitation login)
+ *   /client/intake-form/[token]
+ *
+ * To retune the gate system, edit this file. Do NOT bake hex literals
+ * into the React components.
+ */
+
+.rg {
+  --rg-navy:        #0B1B2D;
+  --rg-navy-soft:   #11263C;
+  --rg-cream:       #F5EFE3;
+  --rg-cream-muted: #94A4B8;
+  --rg-amber:       #EBCB6B;   /* logo gold */
+  --rg-amber-deep:  #C7A64E;
+  --rg-gold:        #E8B923;
+  --rg-rule:        rgba(216, 203, 174, 0.18);
+  --rg-serif:       "Cormorant Garamond", Georgia, serif;
+  --rg-sans:        "Inter", system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background:
+    radial-gradient(800px 480px at 50% -12%, rgba(229, 184, 121, 0.12), transparent 62%),
+    radial-gradient(700px 420px at 50% 120%, rgba(11, 27, 45, 0.6), transparent 60%),
+    var(--rg-navy);
+  color: var(--rg-cream);
+  font-family: var(--rg-sans);
+}
+
+.rg-stage {
+  width: 100%;
+  max-width: 440px;
+  text-align: center;
+}
+
+.rg-logo {
+  display: block;
+  width: 190px;
+  height: auto;
+  margin: 0 auto 26px;
+  user-select: none;
+}
+
+@media (max-width: 480px) {
+  .rg { padding: 24px; }
+  .rg-logo { width: 152px; margin-bottom: 22px; }
+}
+
+.rg-eyebrow {
+  font-family: var(--rg-sans);
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--rg-amber-deep);
+  margin: 0 0 14px;
+}
+
+.rg-h1 {
+  font-family: var(--rg-serif);
+  font-weight: 500;
+  font-size: 40px;
+  line-height: 1.05;
+  margin: 0;
+  color: var(--rg-cream);
+}
+.rg-h1 em {
+  font-style: italic;
+  color: var(--rg-amber);
+}
+
+@media (max-width: 480px) {
+  .rg-h1 { font-size: 32px; }
+}
+
+.rg-lede {
+  font-family: var(--rg-serif);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--rg-cream-muted);
+  margin: 14px auto 30px;
+  max-width: 330px;
+  line-height: 1.5;
+}
+
+/* ── form bits ───────────────────────────────────────────────────── */
+
+/* Single-row field: input + button side-by-side (the canonical pattern). */
+.rg-field {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 0 auto;
+  max-width: 360px;
+}
+
+/* Stacked form (set-password, multi-field login) — same look, vertical. */
+.rg-form {
+  margin: 0 auto;
+  max-width: 360px;
+  text-align: left;
+}
+
+.rg-label {
+  display: block;
+  font-family: var(--rg-sans);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--rg-amber-deep);
+  margin: 0 0 6px;
+}
+
+.rg-input {
+  width: 100%;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--rg-rule);
+  border-radius: 8px;
+  color: var(--rg-cream);
+  font-family: var(--rg-sans);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 13px 16px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+.rg-input::placeholder {
+  color: var(--rg-cream-muted);
+  letter-spacing: 0.14em;
+}
+.rg-input:focus {
+  border-color: var(--rg-amber);
+  box-shadow: 0 0 0 3px rgba(229, 184, 121, 0.18);
+}
+
+/* Lowercase variant for password / email / regular text inputs */
+.rg-input--text {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
+}
+.rg-input--text::placeholder {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.rg-cta {
+  background: transparent;
+  color: var(--rg-amber);
+  border: 1px solid var(--rg-amber);
+  border-radius: 8px;
+  font-family: var(--rg-sans);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 13px 22px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+.rg-cta:hover:not(:disabled) {
+  background: rgba(235, 203, 107, 0.10);
+}
+.rg-cta:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.rg-cta--block {
+  width: 100%;
+}
+
+.rg-error {
+  margin: 14px auto 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(220, 110, 110, 0.08);
+  border: 1px solid rgba(220, 110, 110, 0.30);
+  color: #E8B5B5;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 360px;
+  text-align: left;
+}
+
+.rg-success {
+  margin: 14px auto 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(150, 200, 150, 0.06);
+  border: 1px solid rgba(150, 200, 150, 0.30);
+  color: #BFE3BF;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 360px;
+  text-align: left;
+}
+
+/* ── secondary link below the form ──────────────────────────────── */
+
+.rg-aside {
+  margin: 22px 0 0;
+  font-family: var(--rg-sans);
+  font-size: 13px;
+  color: var(--rg-cream-muted);
+}
+.rg-aside a {
+  color: var(--rg-amber);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+
+/* ── footer mark ─────────────────────────────────────────────────── */
+
+.rg-foot {
+  margin-top: 46px;
+  font-family: var(--rg-sans);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(148, 164, 184, 0.7);
+}
