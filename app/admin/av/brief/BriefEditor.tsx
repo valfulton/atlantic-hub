@@ -178,7 +178,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
 
   const ta =
     'w-full rounded-md bg-black/20 border border-white/10 px-3 py-2 text-sm ' +
-    'text-white/90 placeholder-white/30 focus:outline-none focus:border-amber-400/50';
+    'text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
 
   return (
     <div className="space-y-6">
@@ -193,7 +193,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
               className={
                 'rounded-full px-3 py-1 text-xs border transition ' +
                 (on
-                  ? 'bg-amber-400/20 border-amber-400/60 text-amber-200'
+                  ? 'bg-[#EBCB6B]/20 border-[#EBCB6B]/60 text-[#EBCB6B]/95'
                   : 'bg-white/5 border-white/10 text-white/60 hover:text-white/90')
               }
             >
@@ -208,7 +208,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
       <div className="flex items-center justify-between">
         <div className="text-sm text-white/70">
           Editing brief for <span className="font-semibold text-white/90">{brandName}</span>
-          {active?.kind === 'brand' && <span className="ml-2 text-amber-300/70">(your house brand)</span>}
+          {active?.kind === 'brand' && <span className="ml-2 text-[#EBCB6B]/75">(your house brand)</span>}
         </div>
         <span
           className={
@@ -231,7 +231,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
             {QUESTIONS.map((qq) => (
               <label key={qq.key} className="block">
                 <span className="text-xs uppercase tracking-wide text-white/50">
-                  <span className="text-amber-300/70">{qq.q}</span> · {qq.label}
+                  <span className="text-[#EBCB6B]/75">{qq.q}</span> · {qq.label}
                 </span>
                 <textarea
                   className={ta + ' mt-1'}
@@ -261,7 +261,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
 
           {/* How this brand uses PR — drives matching + default pitch voice. */}
           <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
-            <div className="text-xs uppercase tracking-wide text-amber-300/70">How this brand uses PR / news intel</div>
+            <div className="text-xs uppercase tracking-wide text-[#EBCB6B]/75">How this brand uses PR / news intel</div>
             <p className="text-[11px] text-white/45">
               Sets the default for matched opportunities. You can change it any time, and still
               override the voice on an individual pitch.
@@ -303,7 +303,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
                 'rounded-md px-4 py-2 text-sm font-medium transition ' +
                 (saving || !dirty
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
               }
             >
               {saving ? 'Saving…' : dirty ? 'Save brief' : 'Saved'}

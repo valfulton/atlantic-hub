@@ -7,6 +7,7 @@
  * so AI-drafted posts read like a real article without pulling in a parser.
  */
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getPublishedArticle } from '@/lib/newsroom/published';
@@ -101,7 +102,13 @@ function toBlocks(body: string): Block[] {
   return blocks;
 }
 
-export default async function NewsroomArticlePage({ params }: { params: { slug: string } }) {
+export default async function NewsroomArticlePage({
+  params,
+  searchParams
+}: {
+  params: { slug: string };
+  searchParams?: { from?: string };
+}) {
   let article = null;
   try {
     article = await getPublishedArticle(params.slug);
@@ -112,32 +119,53 @@ export default async function NewsroomArticlePage({ params }: { params: { slug: 
 
   const blocks = toBlocks(article.bodyText);
 
+  // Two-doors detection — same logic as /newsroom index:
+  //   - PUBLIC / MARKETING (Door A) — cream + emerald via data-surface="client"
+  //   - IN-APP / INVITATION (Door B) — obsidian + aurum via data-skin="royale"
+  const cookieStore = cookies();
+  const hasClientSession = !!cookieStore.get('ah_client_session');
+  const fromApp = searchParams?.from === 'app';
+  const inApp = hasClientSession || fromApp;
+  const wrapperAttrs: Record<string, string> = inApp
+    ? { 'data-skin': 'royale' }
+    : { 'data-surface': 'client' };
+
   return (
-    <main className="max-w-2xl mx-auto px-4 py-12 sm:py-16">
-      <Link href="/newsroom" className="text-sm text-muted hover:text-ink transition-colors no-underline">
-        &lt;- Newsroom
-      </Link>
+    <div {...wrapperAttrs} style={{ background: 'var(--bg)', minHeight: '100vh' }}>
+      <main className="max-w-2xl mx-auto px-4 py-12 sm:py-16">
+        <Link
+          href={`/newsroom${inApp ? '?from=app' : ''}`}
+          className="text-sm text-muted hover:text-ink transition-colors no-underline"
+        >
+          &lt;- Newsroom
+        </Link>
 
-      <article className="mt-6">
-        <div className="flex items-center gap-3 mb-4 text-[10px] uppercase tracking-[0.16em]">
-          <span className="text-brand">{TYPE_LABEL[article.artifactType] ?? 'Insight'}</span>
-          {article.publishedAt && <span className="text-muted">{formatDate(article.publishedAt)}</span>}
-        </div>
-
-        <h1 className="text-3xl sm:text-4xl font-semibold text-ink tracking-tight leading-tight">
-          {article.title}
-        </h1>
-
-        {article.heroUrl && (
-          <div className="mt-6 rounded-2xl overflow-hidden border border-border" style={{ background: '#000' }}>
-            {article.heroType === 'video' ? (
-              <video src={article.heroUrl} controls playsInline preload="metadata" className="w-full" />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={article.heroUrl} alt={article.title} className="w-full" />
-            )}
+        <article className="mt-6">
+          <div className="flex items-center gap-3 mb-4 text-[10px] uppercase tracking-[0.18em]">
+            <span className="text-brand font-medium">{TYPE_LABEL[article.artifactType] ?? 'Insight'}</span>
+            {article.publishedAt && <span className="text-muted">{formatDate(article.publishedAt)}</span>}
           </div>
-        )}
+
+          <h1
+            className="text-3xl sm:text-4xl font-semibold text-ink tracking-tight leading-tight"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
+            {article.title}
+          </h1>
+
+          {article.heroUrl && (
+            <div
+              className="mt-6 rounded-2xl overflow-hidden border border-border"
+              style={{ background: 'var(--surface-3)' }}
+            >
+              {article.heroType === 'video' ? (
+                <video src={article.heroUrl} controls playsInline preload="metadata" className="w-full" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={article.heroUrl} alt={article.title} className="w-full" />
+              )}
+            </div>
+          )}
 
         {article.company && (
           <p className="mt-3 text-sm text-muted">
@@ -197,17 +225,18 @@ export default async function NewsroomArticlePage({ params }: { params: { slug: 
         />
       </article>
 
-      <div className="mt-12 rounded-2xl border border-border bg-surface p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="text-sm text-muted">Want results like this for your business?</div>
-        <a
-          href="https://atlanticandvine.netlify.app/#client-intake"
-          target="_blank"
-          rel="noopener"
-          className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-brand text-brand-fg text-sm font-medium hover:opacity-90 no-underline"
-        >
-          Work with us
-        </a>
-      </div>
-    </main>
+        <div className="mt-12 rounded-2xl border border-border bg-surface p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="text-sm text-muted">Want results like this for your business?</div>
+          <a
+            href="https://atlanticandvine.netlify.app/inquire.html"
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center justify-center px-4 py-2 rounded-md border border-brand text-brand text-sm font-medium hover:bg-brand/10 no-underline"
+          >
+            Work with us
+          </a>
+        </div>
+      </main>
+    </div>
   );
 }

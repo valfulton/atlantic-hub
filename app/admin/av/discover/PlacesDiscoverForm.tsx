@@ -241,7 +241,7 @@ function PlacesResultPanel({ result }: { result: BatchResponse }) {
 }
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: 'green' | 'amber' }) {
-  const color = tone === 'green' ? 'text-green-400' : tone === 'amber' ? 'text-amber-400' : 'text-ink';
+  const color = tone === 'green' ? 'text-green-400' : tone === 'amber' ? 'text-[#EBCB6B]' : 'text-ink';
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
@@ -253,7 +253,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: 'gr
 function OutcomePill({ outcome }: { outcome: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     inserted: { label: 'INSERTED', cls: 'bg-green-500/15 text-green-300 border-green-500/30' },
-    duplicate_existing: { label: 'DUPLICATE', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+    duplicate_existing: { label: 'DUPLICATE', cls: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/30' },
     duplicate_target_upgraded: { label: 'DUP → AV+EBW', cls: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
     no_phone_or_website: { label: 'NO CONTACT', cls: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
     insert_failed: { label: 'FAILED', cls: 'bg-red-500/15 text-red-300 border-red-500/30' }

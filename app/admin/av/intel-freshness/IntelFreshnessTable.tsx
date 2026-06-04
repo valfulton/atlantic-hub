@@ -41,7 +41,7 @@ function AgeBadge({ iso }: { iso: string | null }) {
   let cls = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
   let label = `${Math.round(days)}d`;
   if (days < 1) label = '<1d';
-  if (days >= 7 && days < 14) cls = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+  if (days >= 7 && days < 14) cls = 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/30';
   if (days >= 14) cls = 'bg-rose-500/15 text-rose-300 border-rose-500/30';
   return (
     <span
@@ -59,7 +59,7 @@ function ScoreBadge({ score, band }: { score: number | null; band: string | null
     band === 'hot'
       ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
       : band === 'warm'
-      ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+      ? 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/30'
       : 'bg-sky-500/15 text-sky-300 border-sky-500/30';
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider border ${cls}`}>
@@ -329,11 +329,11 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
   }
 
   const input =
-    'rounded-md bg-black/30 border border-white/10 px-2.5 py-1.5 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-amber-400/50';
+    'rounded-md bg-black/30 border border-white/10 px-2.5 py-1.5 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
 
   function sortIcon(k: SortKey) {
     if (sortKey !== k) return <span className="text-white/20">·</span>;
-    return <span className="text-amber-300">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+    return <span className="text-[#EBCB6B]">{sortDir === 'asc' ? '↑' : '↓'}</span>;
   }
 
   return (
@@ -342,24 +342,24 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
       <div className="mb-3">
         <button
           type="button"
-          className="text-[11px] text-amber-300/70 hover:text-amber-300 transition"
+          className="text-[11px] text-[#EBCB6B]/75 hover:text-[#EBCB6B] transition"
           onClick={() => setShowHelp((v) => !v)}
         >
           {showHelp ? '▾ what each artifact does' : '▸ what each artifact does'}
         </button>
         {showHelp && (
-          <div className="mt-2 rounded-md border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 text-[11.5px] text-white/70 leading-relaxed space-y-1">
-            <div><strong className="text-amber-300">Audit</strong> = the AI score (0–100) AND the audit content (call brief or marketing audit, depending on lens). One OpenAI call regenerates both. This is what the &quot;Re-score&quot; button on the lead page does.</div>
-            <div><strong className="text-amber-300">Call script</strong> = the &quot;WHAT TO SAY ON THE CALL&quot; pain profile (conversation starters, do-not-say list). Separate OpenAI call. Runs in a daily sweep otherwise.</div>
-            <div><strong className="text-amber-300">Outreach</strong> = drafted cold-email subject + body, per campaign. On-demand only — only generated when you click &quot;Generate draft&quot; on a campaign. Refreshing here DELETES unsent drafts (already-sent emails are never touched).</div>
+          <div className="mt-2 rounded-md border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] px-3 py-2 text-[11.5px] text-white/70 leading-relaxed space-y-1">
+            <div><strong className="text-[#EBCB6B]">Audit</strong> = the AI score (0–100) AND the audit content (call brief or marketing audit, depending on lens). One OpenAI call regenerates both. This is what the &quot;Re-score&quot; button on the lead page does.</div>
+            <div><strong className="text-[#EBCB6B]">Call script</strong> = the &quot;WHAT TO SAY ON THE CALL&quot; pain profile (conversation starters, do-not-say list). Separate OpenAI call. Runs in a daily sweep otherwise.</div>
+            <div><strong className="text-[#EBCB6B]">Outreach</strong> = drafted cold-email subject + body, per campaign. On-demand only — only generated when you click &quot;Generate draft&quot; on a campaign. Refreshing here DELETES unsent drafts (already-sent emails are never touched).</div>
           </div>
         )}
       </div>
 
       {/* Action toolbar — what to refresh + selection actions. Sticky at top. */}
-      <div className="mb-3 rounded-md border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2">
+      <div className="mb-3 rounded-md border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] px-3 py-2">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] text-white/80">
-          <span className="text-[10px] uppercase tracking-[0.12em] text-amber-300/80">Refresh action</span>
+          <span className="text-[10px] uppercase tracking-[0.12em] text-[#EBCB6B]/80">Refresh action</span>
           <label className="inline-flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={refreshAudits} onChange={(e) => setRefreshAudits(e.target.checked)} />
             Audits
@@ -381,7 +381,7 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
                 'rounded-md px-3 py-1.5 text-[12px] font-medium transition ' +
                 (selected.size === 0 || bulkBusy
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
               }
             >
               {bulkBusy
@@ -453,7 +453,7 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
           )}
           {refreshOutreach && <div>· Outreach drafts deleted: {lastResult.outreach.deleted}</div>}
           {lastResult.stoppedEarly && (
-            <div className="text-amber-200">Hit the 55s soft deadline mid-batch. Click again to drain the rest — the columns are already nulled.</div>
+            <div className="text-[#EBCB6B]/95">Hit the 55s soft deadline mid-batch. Click again to drain the rest — the columns are already nulled.</div>
           )}
         </div>
       )}
@@ -486,17 +486,17 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
               const busy = rowBusy.has(l.auditId);
               const checked = selected.has(l.auditId);
               return (
-                <tr key={l.id} className={'border-t border-white/5 ' + (checked ? 'bg-amber-400/[0.04]' : 'hover:bg-white/[0.02]')}>
+                <tr key={l.id} className={'border-t border-white/5 ' + (checked ? 'bg-[#EBCB6B]/[0.03]' : 'hover:bg-white/[0.02]')}>
                   <td className="px-2 py-2 align-top">
                     <input type="checkbox" checked={checked} onChange={() => toggleOne(l.auditId)} />
                   </td>
                   <td className="px-2 py-2 text-white/90">
-                    <Link className="hover:text-amber-300 transition" href={`/admin/av/${l.auditId}`}>{l.company}</Link>
+                    <Link className="hover:text-[#EBCB6B] transition" href={`/admin/av/${l.auditId}`}>{l.company}</Link>
                     {l.contactName && <div className="text-[10.5px] text-white/40">{l.contactName}</div>}
                   </td>
                   <td className="px-2 py-2 text-white/70">
                     {l.clientName ? (
-                      <Link className="hover:text-amber-300 transition" href={`/admin/av/clients/${l.clientId}`}>{l.clientName}</Link>
+                      <Link className="hover:text-[#EBCB6B] transition" href={`/admin/av/clients/${l.clientId}`}>{l.clientName}</Link>
                     ) : (
                       <span className="text-white/30">— house —</span>
                     )}
@@ -513,7 +513,7 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
                         'rounded-md px-2 py-1 text-[10.5px] font-medium uppercase tracking-wider transition border ' +
                         (busy || bulkBusy
                           ? 'border-white/10 text-white/30 cursor-not-allowed'
-                          : 'border-amber-400/40 text-amber-300 hover:bg-amber-400/10')
+                          : 'border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
                       }
                     >
                       {busy ? '…' : 'refresh'}
@@ -533,7 +533,7 @@ export function IntelFreshnessTable({ leads }: { leads: LeadIntelFreshness[] }) 
       </div>
 
       <div className="mt-3 text-[10.5px] text-white/40 leading-relaxed">
-        <strong>Age badges:</strong> <span className="text-emerald-300">green</span> under 7 days · <span className="text-amber-300">amber</span> 7–14 days · <span className="text-rose-300">rose</span> over 14 days or never generated. Hover any badge for the exact timestamp. Click a column header to sort. Refresh action uses the checkboxes at the top — set them once, then per-row or bulk select.
+        <strong>Age badges:</strong> <span className="text-emerald-300">green</span> under 7 days · <span className="text-[#EBCB6B]">amber</span> 7–14 days · <span className="text-rose-300">rose</span> over 14 days or never generated. Hover any badge for the exact timestamp. Click a column header to sort. Refresh action uses the checkboxes at the top — set them once, then per-row or bulk select.
       </div>
     </div>
   );

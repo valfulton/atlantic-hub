@@ -188,7 +188,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
               )}
 
               {hasPitch ? (
-                <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.04] p-3">
+                <div className="mt-4 rounded-xl border border-[#EBCB6B]/25 bg-[#EBCB6B]/[0.03] p-3">
                   <div className="text-[10px] uppercase tracking-[0.14em] text-brand mb-1.5">Drafted pitch in your voice</div>
                   <p className="text-sm text-ink/90 leading-relaxed whitespace-pre-wrap">{o.pitchBody}</p>
                 </div>
@@ -214,7 +214,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
                     type="button"
                     onClick={() => setCard(key, { noteOpen: 'review_requested', noteDraft: '' })}
                     disabled={readonly || state.busy}
-                    className="rounded-md border border-amber-400/40 bg-amber-400/10 text-amber-200 px-3 py-1.5 text-[12px] font-medium hover:bg-amber-400/20 transition disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-md border border-[#EBCB6B]/35 bg-[#EBCB6B]/10 text-[#EBCB6B]/95 px-3 py-1.5 text-[12px] font-medium hover:bg-[#EBCB6B]/20 transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Show me first
                   </button>
@@ -227,7 +227,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
                     Pass
                   </button>
                   {readonly && (
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-amber-300/70 ml-1">
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-[#EBCB6B]/75 ml-1">
                       preview — read-only
                     </span>
                   )}
@@ -245,7 +245,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
                     onChange={(e) => setCard(key, { noteDraft: e.target.value })}
                     rows={3}
                     placeholder={state.noteOpen === 'declined' ? 'Not a fit, wrong angle, etc.' : 'Tone, angle, something specific to add…'}
-                    className="w-full rounded-md bg-black/40 border border-border px-2.5 py-1.5 text-[12px] text-ink/90 placeholder-muted/60 focus:outline-none focus:border-amber-400/50"
+                    className="w-full rounded-md bg-black/40 border border-border px-2.5 py-1.5 text-[12px] text-ink/90 placeholder-muted/60 focus:outline-none focus:border-[#EBCB6B]/50"
                   />
                   <div className="flex items-center gap-2 mt-2">
                     <button

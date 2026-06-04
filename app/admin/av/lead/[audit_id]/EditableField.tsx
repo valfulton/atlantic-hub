@@ -40,7 +40,7 @@ const PROVENANCE_LABEL: Record<NonNullable<Provenance>, string> = {
 };
 
 const PROVENANCE_CLASS: Record<NonNullable<Provenance>, string> = {
-  smart: 'text-amber-300 bg-amber-400/10 border-amber-400/40',
+  smart: 'text-[#EBCB6B] bg-[#EBCB6B]/10 border-[#EBCB6B]/35',
   places: 'text-emerald-300 bg-emerald-400/10 border-emerald-400/40',
   instagram: 'text-pink-300 bg-pink-400/10 border-pink-400/40',
   whois: 'text-violet-300 bg-violet-400/10 border-violet-400/40',

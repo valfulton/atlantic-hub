@@ -61,7 +61,7 @@ export default async function MyApplicationPage() {
         <summary className="cursor-pointer select-none px-5 py-4 text-sm font-medium text-ink">
           Your onboarding &amp; paperwork
           {onboardingIncomplete && (
-            <span className="ml-2 text-[11px] uppercase tracking-[0.12em] text-amber-300">Action needed</span>
+            <span className="ml-2 text-[11px] uppercase tracking-[0.12em] text-[#EBCB6B]">Action needed</span>
           )}
         </summary>
         <div className="px-5 pb-5 pt-1">

@@ -115,10 +115,10 @@ export default function AttachLoginPanel({
   }
 
   return (
-    <div className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.05] p-4">
+    <div className="rounded-2xl border border-[#EBCB6B]/30 bg-[#EBCB6B]/[0.04] p-4">
       <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.14em] text-amber-300">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-[#EBCB6B]">
             Attach login to {clientName}
           </div>
           <div className="text-sm text-ink mt-0.5">

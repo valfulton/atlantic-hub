@@ -199,7 +199,7 @@ export default function ConductorPage() {
         </ul>
       </section>
 
-      <section className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.04] px-5 py-4">
+      <section className="rounded-2xl border border-[#EBCB6B]/25 bg-[#EBCB6B]/[0.03] px-5 py-4">
         <div className="text-[10px] uppercase tracking-[0.18em] text-brand mb-1">
           Wake-up rule
         </div>

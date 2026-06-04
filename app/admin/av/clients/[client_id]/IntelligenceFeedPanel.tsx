@@ -27,7 +27,7 @@ interface FeedEvent {
 const SOURCE_COLOR: Record<string, string> = {
   ca_sos: 'text-emerald-300 border-emerald-400/30',
   courtlistener: 'text-blue-300 border-blue-400/30',
-  ucc_ca: 'text-amber-300 border-amber-400/30',
+  ucc_ca: 'text-[#EBCB6B] border-[#EBCB6B]/30',
   pacer_docket: 'text-rose-300 border-rose-400/30',
   hmda: 'text-cyan-300 border-cyan-400/30',
   cfpb: 'text-orange-300 border-orange-400/30',

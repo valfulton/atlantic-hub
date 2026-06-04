@@ -436,7 +436,7 @@ function AddContactForm() {
               ) : (
                 shown.map((c) => (
                   <label key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-sm text-ink cursor-pointer hover:bg-surface-2">
-                    <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="accent-amber-500" />
+                    <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="accent-[#EBCB6B]" />
                     <span>{c.company}</span>
                   </label>
                 ))
@@ -514,7 +514,7 @@ function ImportResultPanel({ result }: { result: ImportResponse }) {
 function Stat({ label, value, tone }: { label: string; value: number; tone?: 'green' | 'amber' | 'red' | 'muted' }) {
   const color =
     tone === 'green' ? 'text-green-400'
-    : tone === 'amber' ? 'text-amber-400'
+    : tone === 'amber' ? 'text-[#EBCB6B]'
     : tone === 'red' ? 'text-red-400'
     : tone === 'muted' ? 'text-muted'
     : 'text-ink';
@@ -529,7 +529,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: 'gr
 function OutcomePill({ outcome }: { outcome: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     inserted: { label: 'INSERTED', cls: 'bg-green-500/15 text-green-300 border-green-500/30' },
-    duplicate_existing: { label: 'DUPLICATE', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+    duplicate_existing: { label: 'DUPLICATE', cls: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/30' },
     duplicate_target_upgraded: { label: 'DUP → AV+EBW', cls: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
     invalid: { label: 'INVALID', cls: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
     error: { label: 'ERROR', cls: 'bg-red-500/15 text-red-300 border-red-500/30' }

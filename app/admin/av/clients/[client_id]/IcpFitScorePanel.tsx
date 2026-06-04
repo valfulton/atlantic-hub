@@ -80,7 +80,7 @@ export default function IcpFitScorePanel({
             'rounded-md px-3 py-1.5 text-[11.5px] font-medium transition ' +
             (busy !== 'idle'
               ? 'bg-white/10 text-white/40 cursor-not-allowed'
-              : 'bg-amber-400/90 text-black hover:bg-amber-300')
+              : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
           }
         >
           {busy === 'unscored' ? 'Scoring…' : 'Score unscored leads'}

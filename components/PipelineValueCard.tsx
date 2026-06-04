@@ -90,8 +90,8 @@ export function PipelineValueCard() {
   }
   if (!data) {
     return (
-      <div className="rounded-xl border border-border bg-gradient-to-br from-amber-500/8 to-transparent p-5 mb-6">
-        <div className="text-[10px] uppercase tracking-[0.14em] text-amber-300 font-medium mb-2">
+      <div className="rounded-xl border border-border bg-gradient-to-br from-[#EBCB6B]/8 to-transparent p-5 mb-6">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-[#EBCB6B] font-medium mb-2">
           Live pipeline value
         </div>
         <div className="text-3xl font-bold tabular-nums text-muted">$--</div>
@@ -102,11 +102,11 @@ export function PipelineValueCard() {
   return (
     <section
       aria-label="Live pipeline value"
-      className="rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/12 via-rose-500/5 to-transparent p-5 mb-6"
+      className="rounded-xl border border-[#EBCB6B]/30 bg-gradient-to-br from-[#EBCB6B]/12 via-rose-500/5 to-transparent p-5 mb-6"
     >
       <div className="flex items-baseline justify-between gap-4 flex-wrap mb-3">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.14em] text-amber-300 font-medium mb-1">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[#EBCB6B] font-medium mb-1">
             Live pipeline value
           </div>
           <div className="text-3xl md:text-4xl font-bold tabular-nums text-ink">
@@ -127,7 +127,7 @@ export function PipelineValueCard() {
             </span>
           )}
           {data.warmLeadCount > 0 && (
-            <span className="text-amber-300 tabular-nums">
+            <span className="text-[#EBCB6B] tabular-nums">
               <span className="text-[10px] uppercase tracking-wider opacity-80">warm</span>{' '}
               {usd(data.warmValueCents)}
               <span className="text-xs opacity-70 ml-1">({data.warmLeadCount})</span>

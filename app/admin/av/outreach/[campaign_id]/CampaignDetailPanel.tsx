@@ -163,7 +163,7 @@ export function CampaignDetailPanel({ campaignId }: { campaignId: number }) {
               <button
                 onClick={() => changeStatus('paused')}
                 disabled={busy}
-                className="px-3 py-1.5 text-sm rounded-md bg-amber-500 text-ink hover:bg-amber-400 disabled:opacity-50"
+                className="px-3 py-1.5 text-sm rounded-md bg-[#EBCB6B] text-ink hover:bg-[#EBCB6B] disabled:opacity-50"
               >
                 Pause
               </button>
@@ -198,7 +198,7 @@ export function CampaignDetailPanel({ campaignId }: { campaignId: number }) {
                 <div className="text-xs text-muted mb-2">
                   To {p.company} ({p.email})
                   {p.ai_score_band && <span className="ml-2">· {p.ai_score_band} {p.ai_score ?? ''}</span>}
-                  {p.ai_grounded_on_audit ? <span className="ml-2 text-amber-300">· audit-grounded</span> : null}
+                  {p.ai_grounded_on_audit ? <span className="ml-2 text-[#EBCB6B]">· audit-grounded</span> : null}
                 </div>
                 <pre className="whitespace-pre-wrap text-sm text-ink/90 leading-relaxed font-sans mb-3">
                   {p.body}

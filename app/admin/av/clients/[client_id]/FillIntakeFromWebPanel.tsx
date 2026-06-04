@@ -155,7 +155,7 @@ export default function FillIntakeFromWebPanel({
 
   const inputCls =
     'w-full rounded-md bg-black/30 border border-white/10 px-2.5 py-1.5 text-[12px] text-white/90 ' +
-    'placeholder-white/30 focus:outline-none focus:border-amber-400/50';
+    'placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
 
   const previewKeyCount = preview ? Object.keys(preview.suggestions).length : 0;
   const pickedCount = Object.values(picked).filter(Boolean).length;
@@ -172,7 +172,7 @@ export default function FillIntakeFromWebPanel({
       </div>
 
       {/* URL + preview button */}
-      <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.04] p-2.5 mb-3 space-y-1.5">
+      <div className="rounded-md border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] p-2.5 mb-3 space-y-1.5">
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-stretch">
           <input
             className={inputCls}
@@ -188,7 +188,7 @@ export default function FillIntakeFromWebPanel({
               'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
               (busy !== 'idle' || !url.trim()
                 ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
             }
           >
             {busy === 'previewing' ? 'Reading…' : preview ? 'Re-read' : 'Read & suggest'}
@@ -201,7 +201,7 @@ export default function FillIntakeFromWebPanel({
       {preview && !applied && (
         <div className="space-y-3">
           <div className="rounded-md border border-white/10 bg-black/15 p-3">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-amber-300/75 mb-1">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-[#EBCB6B]/75 mb-1">
               What this page is about
             </div>
             <div className="text-[12px] text-white/85 leading-relaxed">
@@ -264,7 +264,7 @@ export default function FillIntakeFromWebPanel({
                       </span>
                     )}
                     {edits[k] !== original && (
-                      <span className="text-[9.5px] uppercase tracking-wider font-medium text-amber-300/85">
+                      <span className="text-[9.5px] uppercase tracking-wider font-medium text-[#EBCB6B]/85">
                         edited
                       </span>
                     )}
@@ -278,7 +278,7 @@ export default function FillIntakeFromWebPanel({
                       <div className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.14em] text-rose-200/80 mb-1 font-medium">
                         <span>Currently</span>
                         <span className="text-rose-200/50">→</span>
-                        <span className="text-amber-300/85">replaced with the value below</span>
+                        <span className="text-[#EBCB6B]/85">replaced with the value below</span>
                       </div>
                       {currentValue ? (
                         <div className="text-[11.5px] text-rose-100/85 leading-snug whitespace-pre-wrap break-words line-through decoration-rose-300/60">
@@ -295,7 +295,7 @@ export default function FillIntakeFromWebPanel({
                     value={edits[k] ?? ''}
                     onChange={(e) => setEdits((p) => ({ ...p, [k]: e.target.value }))}
                     rows={Math.min(4, Math.max(1, Math.ceil((edits[k] || '').length / 70)))}
-                    className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-amber-400/40"
+                    className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/35"
                   />
                 </li>
               );
@@ -310,7 +310,7 @@ export default function FillIntakeFromWebPanel({
                 'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
                 (busy !== 'idle' || pickedCount === 0
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
               }
             >
               {busy === 'applying' ? 'Saving…' : `Apply ${pickedCount} field${pickedCount === 1 ? '' : 's'}`}
@@ -341,7 +341,7 @@ export default function FillIntakeFromWebPanel({
             </div>
           )}
           {applied.skippedNonBlank.length > 0 && (
-            <div className="text-[11px] text-amber-300/80 leading-relaxed">
+            <div className="text-[11px] text-[#EBCB6B]/80 leading-relaxed">
               Skipped {applied.skippedNonBlank.length} that already had values (uncheck &ldquo;blanks only&rdquo; above to overwrite).
             </div>
           )}

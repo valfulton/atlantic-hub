@@ -157,7 +157,7 @@ export default function SharpenIcpPanel({
 
   const inputCls =
     'w-full rounded-md bg-black/30 border border-white/10 px-2.5 py-1.5 text-[12px] text-white/90 ' +
-    'placeholder-white/30 focus:outline-none focus:border-amber-400/50';
+    'placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
@@ -179,7 +179,7 @@ export default function SharpenIcpPanel({
               'rounded-md px-3 py-1.5 text-[11.5px] font-medium transition ' +
               (busy !== 'idle'
                 ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
             }
           >
             {busy === 'previewing' ? 'Reading their brief…' : 'Sharpen from intake'}
@@ -195,7 +195,7 @@ export default function SharpenIcpPanel({
         <div className="space-y-3">
           {preview.reasoning && (
             <div className="rounded-md border border-white/10 bg-black/15 p-3 text-[12px] text-white/80 leading-relaxed italic">
-              <span className="not-italic text-amber-300/85 text-[10px] uppercase tracking-wider mr-1.5">
+              <span className="not-italic text-[#EBCB6B]/85 text-[10px] uppercase tracking-wider mr-1.5">
                 How I read it
               </span>
               {preview.reasoning}
@@ -311,7 +311,7 @@ export default function SharpenIcpPanel({
                 'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
                 (busy !== 'idle'
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
               }
             >
               {busy === 'applying' ? 'Saving…' : 'Apply to their ICP'}

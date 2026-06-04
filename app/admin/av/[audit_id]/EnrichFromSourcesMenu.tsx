@@ -219,7 +219,7 @@ export function EnrichFromSourcesMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Pull data from external sources — Google Places, Instagram, WHOIS — to fill any blank fields on this lead."
-        className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border border-amber-400/40 text-amber-100 hover:border-amber-400/70 bg-amber-400/10 transition"
+        className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border border-[#EBCB6B]/35 text-[#EBCB6B] hover:border-[#EBCB6B]/70 bg-[#EBCB6B]/10 transition"
       >
         ✨ Enrich from sources <span style={{ fontSize: 9 }}>{open ? '▲' : '▼'}</span>
       </button>

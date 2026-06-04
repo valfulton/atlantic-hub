@@ -168,7 +168,7 @@ export function OpportunityFlagsMenu({ flags }: { flags: OpportunityFlag[] }) {
           className="absolute right-0 mt-2 w-[360px] rounded-xl border border-border shadow-2xl z-50 overflow-hidden"
           style={{ backgroundColor: '#0e1420' }}
         >
-          <div className="px-4 py-3 border-b border-border bg-gradient-to-b from-amber-400/[0.06] to-transparent flex items-baseline justify-between gap-2">
+          <div className="px-4 py-3 border-b border-border bg-gradient-to-b from-[#EBCB6B]/[0.06] to-transparent flex items-baseline justify-between gap-2">
             <div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-brand">Hot inbox</div>
               <div className="text-sm text-ink mt-0.5 font-medium">
@@ -226,7 +226,7 @@ function FlagRow({
   const sig = SIGNAL_COPY[flag.signal as FlagSignal];
   const href = flag.auditId ? `/admin/av/${flag.auditId}` : '/admin/av';
   return (
-    <li className="group hover:bg-amber-400/[0.05] transition">
+    <li className="group hover:bg-[#EBCB6B]/[0.04] transition">
       <div className="flex items-start gap-2.5 px-4 py-2.5">
         <span className="text-base leading-none mt-0.5 shrink-0" aria-hidden="true">
           {sig.emoji}
@@ -235,7 +235,7 @@ function FlagRow({
           <Link
             href={href}
             onClick={onNavigate}
-            className="text-[13px] text-ink font-medium leading-snug hover:text-amber-200 transition block truncate"
+            className="text-[13px] text-ink font-medium leading-snug hover:text-[#EBCB6B]/95 transition block truncate"
           >
             {flag.company}
           </Link>

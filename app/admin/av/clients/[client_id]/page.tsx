@@ -638,12 +638,12 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           calm amber chip telling her how many lead audits were grounded in
           the older positioning. Acts as a nudge to click RefreshIntelPanel. */}
       {staleAuditCount > 0 && (
-        <div className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.05] p-3 text-[12.5px] text-amber-200/90 flex items-start gap-2">
+        <div className="rounded-2xl border border-[#EBCB6B]/30 bg-[#EBCB6B]/[0.04] p-3 text-[12.5px] text-[#EBCB6B]/95/90 flex items-start gap-2">
           <span aria-hidden="true">&#9203;</span>
           <span>
-            <span className="font-medium text-amber-200">{staleAuditCount} audit{staleAuditCount === 1 ? '' : 's'} catching up</span> —
+            <span className="font-medium text-[#EBCB6B]/95">{staleAuditCount} audit{staleAuditCount === 1 ? '' : 's'} catching up</span> —
             the brief was edited after these leads were audited.{' '}
-            <span className="text-amber-100/70">
+            <span className="text-[#EBCB6B]/70">
               Use &ldquo;Refresh AI intel&rdquo; below (audits + call scripts) to re-ground them in the current brief.
             </span>
           </span>

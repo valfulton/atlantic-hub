@@ -155,7 +155,7 @@ export default function LeadQuickActions({
 
   const inputCls =
     'w-full rounded-md bg-black/30 border border-white/10 px-2.5 py-1.5 text-[12px] text-white/90 ' +
-    'placeholder-white/30 focus:outline-none focus:border-amber-400/50';
+    'placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
 
   return (
     <div className="mt-3 pt-3 border-t border-border space-y-2">
@@ -172,7 +172,7 @@ export default function LeadQuickActions({
             className={
               'text-[10.5px] uppercase tracking-wider px-2 py-1 rounded-md border transition ' +
               (logKind === k
-                ? 'border-amber-400/60 bg-amber-400/15 text-amber-200'
+                ? 'border-[#EBCB6B]/55 bg-[#EBCB6B]/10 text-[#EBCB6B]'
                 : 'border-white/10 text-white/55 hover:text-white/85 hover:border-white/25')
             }
           >
@@ -186,7 +186,7 @@ export default function LeadQuickActions({
             'text-[10.5px] uppercase tracking-wider px-2 py-1 rounded-md border transition ml-auto ' +
             (drafting
               ? 'border-white/10 text-white/30 cursor-not-allowed'
-              : 'border-amber-400/40 text-amber-300 hover:bg-amber-400/10')
+              : 'border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
           }
         >
           {drafting ? 'Drafting…' : 'Draft email'}
@@ -203,8 +203,8 @@ export default function LeadQuickActions({
 
       {/* Log form (expands when a kind is selected) */}
       {logKind && (
-        <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.04] p-2 space-y-1.5">
-          <div className="text-[10px] uppercase tracking-wider text-amber-300/70">
+        <div className="rounded-md border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] p-2 space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-[#EBCB6B]/75">
             Logging {logKind} for {company} · {new Date().toLocaleString()}
           </div>
           <textarea
@@ -229,7 +229,7 @@ export default function LeadQuickActions({
                 'rounded-md px-3 py-1 text-[11px] font-medium transition ' +
                 (logging || !logText.trim()
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
               }
             >
               {logging ? 'Saving…' : 'Save log'}
@@ -251,12 +251,12 @@ export default function LeadQuickActions({
 
       {/* Draft block (expands when drafted) */}
       {(draft || draftError) && (
-        <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.04] p-2.5 space-y-1.5">
+        <div className="rounded-md border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] p-2.5 space-y-1.5">
           {draftError ? (
             <div className="text-[11.5px] text-rose-300">{draftError}</div>
           ) : draft ? (
             <>
-              <div className="text-[10px] uppercase tracking-wider text-amber-300/70 flex items-center justify-between gap-2">
+              <div className="text-[10px] uppercase tracking-wider text-[#EBCB6B]/75 flex items-center justify-between gap-2">
                 <span>Draft email · {draft.groundedOnAudit ? 'grounded in audit' : 'industry-grounded'}</span>
                 <button
                   onClick={() => setDraft(null)}
@@ -270,14 +270,14 @@ export default function LeadQuickActions({
               <div className="flex items-center gap-2 pt-1">
                 <button
                   onClick={copyDraft}
-                  className="rounded-md px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-wider border border-amber-400/40 text-amber-300 hover:bg-amber-400/10 transition"
+                  className="rounded-md px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-wider border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10 transition"
                 >
                   {copied ? 'Copied ✓' : 'Copy subject + body'}
                 </button>
                 {contactEmail && (
                   <a
                     href={`mailto:${contactEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`}
-                    className="rounded-md px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-wider border border-amber-400/40 text-amber-300 hover:bg-amber-400/10 transition"
+                    className="rounded-md px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-wider border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10 transition"
                   >
                     Open in mail client
                   </a>

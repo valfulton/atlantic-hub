@@ -136,7 +136,7 @@ export default function BrandKitPanel({
 
   const inputCls =
     'w-full rounded-md bg-black/30 border border-white/10 px-2.5 py-1.5 text-[12px] text-white/90 ' +
-    'placeholder-white/30 focus:outline-none focus:border-amber-400/50';
+    'placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
 
   // Parse the colors string back into a swatch preview.
   const swatches = editColors.split(',').map((c) => c.trim()).filter((c) => /^#[0-9a-fA-F]{6}$/.test(c));
@@ -152,7 +152,7 @@ export default function BrandKitPanel({
         color picking.
       </div>
 
-      <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.04] p-2.5 mb-3 space-y-1.5">
+      <div className="rounded-md border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] p-2.5 mb-3 space-y-1.5">
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-stretch">
           <input
             className={inputCls}
@@ -168,7 +168,7 @@ export default function BrandKitPanel({
               'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
               (busy !== 'idle' || !url.trim()
                 ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
             }
           >
             {busy === 'previewing' ? 'Reading…' : preview ? 'Re-read' : 'Extract brand kit'}
@@ -181,7 +181,7 @@ export default function BrandKitPanel({
         <div className="space-y-3">
           {preview.reasoning && (
             <div className="rounded-md border border-white/10 bg-black/15 p-3 text-[12px] text-white/80 leading-relaxed italic">
-              <span className="not-italic text-amber-300/85 text-[10px] uppercase tracking-wider mr-1.5">
+              <span className="not-italic text-[#EBCB6B]/85 text-[10px] uppercase tracking-wider mr-1.5">
                 How I read it
               </span>
               {preview.reasoning}
@@ -239,7 +239,7 @@ export default function BrandKitPanel({
                       className={
                         'text-[10px] px-2 py-0.5 rounded border transition ' +
                         (editLogoUrl === u
-                          ? 'border-amber-400/55 bg-amber-400/15 text-amber-100'
+                          ? 'border-[#EBCB6B]/55 bg-[#EBCB6B]/10 text-[#EBCB6B]'
                           : 'border-white/15 bg-black/20 text-white/65 hover:text-white hover:border-white/30')
                       }
                     >
@@ -304,7 +304,7 @@ export default function BrandKitPanel({
                 'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
                 (busy !== 'idle'
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
               }
             >
               {busy === 'applying' ? 'Saving…' : 'Apply brand kit'}
@@ -336,7 +336,7 @@ export default function BrandKitPanel({
             </div>
           )}
           {applied.skippedNonBlank.length > 0 && (
-            <div className="text-[11px] text-amber-300/80 leading-relaxed">
+            <div className="text-[11px] text-[#EBCB6B]/80 leading-relaxed">
               Skipped {applied.skippedNonBlank.length} key{applied.skippedNonBlank.length === 1 ? '' : 's'} that already had values (uncheck &ldquo;blanks only&rdquo; to overwrite).
             </div>
           )}

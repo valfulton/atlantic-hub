@@ -225,14 +225,14 @@ export default async function AvPage({
               Modes copy directive prompts to clipboard. */}
           <Link
             href="/admin/av/conductor"
-            className="text-[12px] text-white/50 hover:text-amber-300 transition"
+            className="text-[12px] text-white/50 hover:text-[#EBCB6B] transition"
             title="Mode buttons: ship-only, design-first, parallel-agents, campaign-bundle, memory-pack"
           >
             🎼 Conductor →
           </Link>
           <Link
             href="/admin/av/intel-freshness"
-            className="text-[12px] text-white/50 hover:text-amber-300 transition"
+            className="text-[12px] text-white/50 hover:text-[#EBCB6B] transition"
           >
             Intel freshness →
           </Link>
@@ -240,7 +240,7 @@ export default async function AvPage({
               intelligence layer + investor pitch artifact. */}
           <Link
             href="/admin/av/intelligence"
-            className="text-[12px] text-white/50 hover:text-amber-300 transition"
+            className="text-[12px] text-white/50 hover:text-[#EBCB6B] transition"
           >
             Intelligence chain →
           </Link>

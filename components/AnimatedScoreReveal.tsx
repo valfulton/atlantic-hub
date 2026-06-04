@@ -40,8 +40,8 @@ const BAND_STYLES: Record<ScoreBand, { wrap: string; ring: string; pulse: string
     pulse: 'shadow-[0_0_24px_rgba(244,63,94,0.55)]'
   },
   warm: {
-    wrap: 'bg-amber-500/15 text-amber-200 border-amber-500/40',
-    ring: 'ring-amber-500/40',
+    wrap: 'bg-[#EBCB6B]/12 text-[#EBCB6B]/95 border-[#EBCB6B]/40',
+    ring: 'ring-[#EBCB6B]/40',
     pulse: 'shadow-[0_0_24px_rgba(245,158,11,0.55)]'
   },
   cool: {

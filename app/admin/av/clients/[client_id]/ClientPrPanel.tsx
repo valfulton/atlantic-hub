@@ -21,7 +21,7 @@ function StatusBadge({ status, pitchStatus }: { status: string; pitchStatus: str
     : status;
   const map: Record<string, string> = {
     new: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-    drafted: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    drafted: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/30',
     submitted: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
     won: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
     passed: 'bg-white/10 text-white/50 border-white/15'
@@ -45,7 +45,7 @@ function DecayPill({ days }: { days: number | null }) {
   }
   let cls = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
   if (days <= 3) cls = 'bg-rose-500/15 text-rose-300 border-rose-500/30';
-  else if (days <= 7) cls = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+  else if (days <= 7) cls = 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/30';
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider border ${cls}`}>
       {days === 0 ? 'today' : `${days}d left`}
@@ -102,7 +102,7 @@ export async function ClientPrPanel({ clientId, clientName }: { clientId: number
         </div>
         <Link
           href="/admin/pr"
-          className="text-[11px] text-white/50 hover:text-amber-300 transition shrink-0"
+          className="text-[11px] text-white/50 hover:text-[#EBCB6B] transition shrink-0"
         >
           Global PR inbox →
         </Link>
@@ -145,7 +145,7 @@ export async function ClientPrPanel({ clientId, clientName }: { clientId: number
                   </div>
                   <Link
                     href={`/admin/pr?opp=${opp.id}`}
-                    className="text-[13px] text-white font-medium hover:text-amber-300 transition"
+                    className="text-[13px] text-white font-medium hover:text-[#EBCB6B] transition"
                   >
                     {titleFor(opp)}
                   </Link>
@@ -153,7 +153,7 @@ export async function ClientPrPanel({ clientId, clientName }: { clientId: number
                     <div className="text-[11.5px] text-white/55 mt-1 line-clamp-2">{opp.queryText}</div>
                   )}
                   {opp.whyItMatters && (
-                    <div className="text-[11px] text-amber-300/65 mt-1 italic line-clamp-2">
+                    <div className="text-[11px] text-[#EBCB6B]/65 mt-1 italic line-clamp-2">
                       Why it matters: {opp.whyItMatters}
                     </div>
                   )}
@@ -163,8 +163,8 @@ export async function ClientPrPanel({ clientId, clientName }: { clientId: number
                     </div>
                   )}
                   {opp.pitchPreview && (
-                    <div className="mt-2 rounded-md border border-amber-400/15 bg-amber-400/[0.03] px-2 py-1.5 text-[11px] text-white/65 line-clamp-3">
-                      <span className="text-amber-300/70 uppercase tracking-wider text-[9.5px] mr-1.5">Draft</span>
+                    <div className="mt-2 rounded-md border border-[#EBCB6B]/15 bg-[#EBCB6B]/[0.03] px-2 py-1.5 text-[11px] text-white/65 line-clamp-3">
+                      <span className="text-[#EBCB6B]/70 uppercase tracking-wider text-[9.5px] mr-1.5">Draft</span>
                       {opp.pitchPreview}…
                     </div>
                   )}

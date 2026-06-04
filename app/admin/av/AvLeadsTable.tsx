@@ -141,7 +141,7 @@ function ArchiveButton({ auditId, company }: { auditId: string; company: string 
 
 function CompletenessBadge({ lead }: { lead: AvLead }) {
   const score = lead.completeness;
-  const color = score === 4 ? 'text-green-400' : score >= 2 ? 'text-amber-400' : 'text-muted';
+  const color = score === 4 ? 'text-green-400' : score >= 2 ? 'text-[#EBCB6B]' : 'text-muted';
   const indicators = [
     { label: 'name', ok: lead.hasContactName },
     { label: 'email', ok: lead.hasRealEmail },
@@ -184,7 +184,7 @@ function EnrichmentCell({ lead }: { lead: AvLead }) {
   if (s === 'enriched') {
     return (
       <span className="inline-flex items-center gap-1 text-xs">
-        <span className="text-amber-400">✨</span>
+        <span className="text-[#EBCB6B]">✨</span>
         <span className="text-muted">{formatRelative(lead.enrichedAt)}</span>
       </span>
     );
@@ -196,7 +196,7 @@ function EnrichmentCell({ lead }: { lead: AvLead }) {
     return <span className="text-[10px] uppercase tracking-wider text-muted">no results</span>;
   }
   if (s === 'in_progress') {
-    return <span className="text-[10px] uppercase tracking-wider text-amber-300">in progress</span>;
+    return <span className="text-[10px] uppercase tracking-wider text-[#EBCB6B]">in progress</span>;
   }
   if (s === 'failed_permanent') {
     return <span className="text-[10px] uppercase tracking-wider text-red-400">stopped</span>;
@@ -403,7 +403,7 @@ export function AvLeadsTable({
             if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
           }}
           onChange={toggleAllVisible}
-          className="cursor-pointer w-4 h-4 accent-amber-400"
+          className="cursor-pointer w-4 h-4 accent-[#EBCB6B]"
           title={allVisibleSelected ? 'Unselect all visible' : 'Select all visible'}
           aria-label="Select all visible leads"
         />
@@ -414,12 +414,12 @@ export function AvLeadsTable({
             type="checkbox"
             checked={selected.has(r.auditId)}
             onChange={() => toggleOne(r.auditId)}
-            className="cursor-pointer w-4 h-4 accent-amber-400"
+            className="cursor-pointer w-4 h-4 accent-[#EBCB6B]"
             aria-label={`Select ${r.company}`}
           />
           {justEnriched.has(r.auditId) && (
             <span
-              className="text-amber-400 text-sm"
+              className="text-[#EBCB6B] text-sm"
               title="Enriched in this session (Smart + Places + IG + WHOIS)"
               aria-label="just enriched"
             >
@@ -566,7 +566,7 @@ export function AvLeadsTable({
       emptyMessage="No leads match the current filter. Leads arrive via the atlanticandvine.com audit form."
       // (#285) Tint rows that were enriched in this browser session so val
       // can scan the table and instantly see which leads she's already hit.
-      rowClassName={(row) => (justEnriched.has(row.auditId) ? 'bg-amber-400/[0.04]' : '')}
+      rowClassName={(row) => (justEnriched.has(row.auditId) ? 'bg-[#EBCB6B]/[0.03]' : '')}
     />
   );
 }

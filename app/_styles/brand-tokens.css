@@ -37,11 +37,13 @@
      Dark navy + amber. The existing register, kept intact.
      ───────────────────────────────────────────────────────────────── */
 
-  /* Brand accent (the amber CTA color) */
-  --brand: #f59e0b;
+  /* Brand accent — logo gold #EBCB6B (NOT Tailwind amber-* which is orange).
+     Used sparingly per house rule: ghost outlines, eyebrows, sparkle accents.
+     Never as a solid block button. */
+  --brand: #EBCB6B;
   --brand-fg: #0a0f1a;
-  --brand-hover: #fbbf24;
-  --brand-glow: rgba(245, 158, 11, 0.25);
+  --brand-hover: #F5D87A;
+  --brand-glow: rgba(235, 203, 107, 0.22);
 
   /* Surfaces — dark navy with glassy stacking */
   --bg: #0b1220;

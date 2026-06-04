@@ -44,7 +44,7 @@ const TONE_KICKER: Record<NonNullable<SectionHeadProps['tone']>, string> = {
   sky: 'text-sky-300',
   coral: 'text-rose-300',
   sea: 'text-emerald-300',
-  amber: 'text-amber-300'
+  amber: 'text-[#EBCB6B]'
 };
 
 export default function SectionHead({

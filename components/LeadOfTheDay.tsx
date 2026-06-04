@@ -37,7 +37,7 @@ type CopyVariant = 'today' | 'this_week' | 'top_overall';
 
 function bandStyles(band: string | null) {
   if (band === 'hot') return 'from-rose-500/20 to-rose-500/5 border-rose-500/40';
-  if (band === 'warm') return 'from-amber-500/20 to-amber-500/5 border-amber-500/40';
+  if (band === 'warm') return 'from-[#EBCB6B]/16 to-[#EBCB6B]/5 border-[#EBCB6B]/40';
   return 'from-sky-500/20 to-sky-500/5 border-sky-500/40';
 }
 

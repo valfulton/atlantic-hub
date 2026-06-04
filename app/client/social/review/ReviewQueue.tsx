@@ -151,7 +151,7 @@ function ReviewCard({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               rows={Math.max(3, Math.min(8, caption.split('\n').length + 1))}
-              className="w-full text-sm rounded-lg border border-border bg-black/30 px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-amber-400/50 transition"
+              className="w-full text-sm rounded-lg border border-border bg-black/30 px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-[#EBCB6B]/50 transition"
               placeholder={item.bodyText ?? 'Write the caption…'}
               disabled={busy}
             />
@@ -171,7 +171,7 @@ function ReviewCard({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              className="w-full text-sm rounded-lg border border-border bg-black/30 px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-amber-400/50 transition"
+              className="w-full text-sm rounded-lg border border-border bg-black/30 px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-[#EBCB6B]/50 transition"
               placeholder="Any thoughts? E.g. 'punch up the open line' or 'love it, schedule after 6/1'"
               disabled={busy}
             />

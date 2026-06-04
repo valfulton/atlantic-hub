@@ -61,7 +61,7 @@ export function LineBackfillButton() {
           'text-[11px] px-2.5 py-1 rounded-md border transition ' +
           (running
             ? 'border-white/10 text-white/30 cursor-not-allowed'
-            : 'border-amber-400/30 text-amber-200 hover:border-amber-400/60 bg-amber-400/5')
+            : 'border-[#EBCB6B]/30 text-[#EBCB6B]/95 hover:border-[#EBCB6B]/60 bg-[#EBCB6B]/5')
         }
       >
         {running ? '✨ threading…' : '✨ Backfill un-threaded leads'}

@@ -151,12 +151,12 @@ export function PromptEditor() {
               className={
                 'rounded-full px-3 py-1 text-xs border transition ' +
                 (on
-                  ? 'bg-amber-400/20 border-amber-400/60 text-amber-200'
+                  ? 'bg-[#EBCB6B]/20 border-[#EBCB6B]/60 text-[#EBCB6B]/95'
                   : 'bg-white/5 border-white/10 text-white/60 hover:text-white/90')
               }
             >
               {p.label}
-              {p.isOverridden && <span className="ml-1 text-amber-300/80" title="customized">●</span>}
+              {p.isOverridden && <span className="ml-1 text-[#EBCB6B]/80" title="customized">●</span>}
             </button>
           );
         })}
@@ -178,14 +178,14 @@ export function PromptEditor() {
                   'text-[11px] rounded-full px-2 py-0.5 border ' +
                   (onDefault
                     ? 'border-white/15 text-white/40'
-                    : 'border-amber-400/40 text-amber-300 bg-amber-400/10')
+                    : 'border-[#EBCB6B]/35 text-[#EBCB6B] bg-[#EBCB6B]/10')
                 }
               >
                 {onDefault ? 'on default' : 'customized'}
               </span>
             </div>
             <textarea
-              className="w-full rounded-md bg-black/30 border border-white/10 px-3 py-2 text-[13px] leading-relaxed text-white/90 placeholder-white/30 focus:outline-none focus:border-amber-400/50 font-mono"
+              className="w-full rounded-md bg-black/30 border border-white/10 px-3 py-2 text-[13px] leading-relaxed text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50 font-mono"
               rows={18}
               value={text}
               onChange={(e) => { setText(e.target.value); setDirty(true); setMsg(null); }}
@@ -200,7 +200,7 @@ export function PromptEditor() {
                 'rounded-md px-4 py-2 text-sm font-medium transition ' +
                 (saving || !dirty
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-amber-400/90 text-black hover:bg-amber-300')
+                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
               }
             >
               {saving ? 'Saving…' : 'Save prompt'}

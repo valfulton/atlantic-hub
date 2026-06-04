@@ -305,7 +305,7 @@ export function OutreachOverview() {
                           </span>
                         )}
                         {m.ai_grounded_on_audit ? (
-                          <span className="ml-2 text-amber-300">· audit-grounded</span>
+                          <span className="ml-2 text-[#EBCB6B]">· audit-grounded</span>
                         ) : (
                           <span className="ml-2 text-muted">· generic hook</span>
                         )}
@@ -396,7 +396,7 @@ function CampaignStatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
     draft: 'bg-gray-500/15 text-gray-300 border-gray-500/40',
     active: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-    paused: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+    paused: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/40',
     archived: 'bg-gray-500/15 text-gray-400 border-gray-500/40'
   };
   return (
@@ -411,7 +411,7 @@ function CampaignStatusPill({ status }: { status: string }) {
 function ScoreBadge({ band, score }: { band: string; score: number | null }) {
   const colors: Record<string, string> = {
     hot: 'text-rose-300',
-    warm: 'text-amber-300',
+    warm: 'text-[#EBCB6B]',
     cool: 'text-blue-300'
   };
   const c = colors[band] || 'text-muted';

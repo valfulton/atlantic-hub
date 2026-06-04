@@ -159,7 +159,7 @@ export function BatchEnrichAllButton({
         <button
           onClick={run}
           disabled={running}
-          className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border bg-amber-400/10 text-amber-100 border-amber-400/40 hover:border-amber-400/70 disabled:opacity-50 transition"
+          className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border bg-[#EBCB6B]/10 text-[#EBCB6B] border-[#EBCB6B]/35 hover:border-[#EBCB6B]/70 disabled:opacity-50 transition"
           title={
             usingSelection
               ? `Run Smart enrich + Places + Instagram + WHOIS on the ${Math.min(selectedIds.length, limit)} lead${Math.min(selectedIds.length, limit) === 1 ? '' : 's'} you checked. Hunter is NOT included — use the Hunter button separately.`
@@ -170,7 +170,7 @@ export function BatchEnrichAllButton({
         >
           {running ? (
             <>
-              <span className="inline-block w-3 h-3 border-2 border-amber-200 border-t-transparent rounded-full animate-spin" />
+              <span className="inline-block w-3 h-3 border-2 border-[#EBCB6B]/40 border-t-transparent rounded-full animate-spin" />
               Enriching {usingSelection ? Math.min(selectedIds.length, limit) : limit}…
             </>
           ) : usingSelection ? (
@@ -221,7 +221,7 @@ function ResultPanel({ summary, onClose }: { summary: BatchSummary; onClose: () 
           {summary.leadsProcessed} of {summary.leadsRequested} {summary.leadsRequested === 1 ? 'lead' : 'leads'} processed across {summary.sourcesRun.length} sources in {Math.round(summary.elapsedMs / 100) / 10}s.
         </p>
         {summary.stoppedEarlyReason && (
-          <p className="text-sm mb-5 px-3 py-2 rounded-md border border-amber-400/40 bg-amber-400/10 text-amber-100">
+          <p className="text-sm mb-5 px-3 py-2 rounded-md border border-[#EBCB6B]/35 bg-[#EBCB6B]/10 text-[#EBCB6B]">
             {summary.stoppedEarlyReason}
           </p>
         )}

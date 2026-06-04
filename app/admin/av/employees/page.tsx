@@ -51,12 +51,12 @@ export default async function EmployeesPage() {
               <li key={e.user_id}>
                 <Link
                   href={`/admin/av/employees/${e.user_id}`}
-                  className="group py-2.5 px-2 -mx-2 rounded-lg flex items-center justify-between gap-3 hover:bg-amber-400/[0.05] transition-colors"
+                  className="group py-2.5 px-2 -mx-2 rounded-lg flex items-center justify-between gap-3 hover:bg-[#EBCB6B]/[0.04] transition-colors"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm text-ink group-hover:text-amber-200 transition-colors flex items-center gap-1.5">
+                    <div className="text-sm text-ink group-hover:text-[#EBCB6B]/95 transition-colors flex items-center gap-1.5">
                       {e.display_name || e.email}
-                      <span aria-hidden="true" className="text-muted/60 group-hover:text-amber-300 transition-colors">
+                      <span aria-hidden="true" className="text-muted/60 group-hover:text-[#EBCB6B] transition-colors">
                         →
                       </span>
                     </div>

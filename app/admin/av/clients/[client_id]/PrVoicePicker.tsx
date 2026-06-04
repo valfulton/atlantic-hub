@@ -84,7 +84,7 @@ export default function PrVoicePicker({
     return (
       'inline-flex items-center px-2.5 py-1 rounded-md text-[11.5px] font-medium border transition ' +
       (active
-        ? 'bg-amber-400/15 text-amber-200 border-amber-400/40'
+        ? 'bg-[#EBCB6B]/12 text-[#EBCB6B]/95 border-[#EBCB6B]/35'
         : 'bg-black/20 text-white/65 border-white/10 hover:text-white/90 hover:border-white/20')
     );
   }
@@ -162,7 +162,7 @@ export default function PrVoicePicker({
       </div>
 
       <div className="mt-3 flex items-center gap-3 text-[10.5px]">
-        {busy && <span className="text-amber-300/70">Saving…</span>}
+        {busy && <span className="text-[#EBCB6B]/70">Saving…</span>}
         {!busy && savedAt && <span className="text-emerald-300/70">Saved.</span>}
         {err && <span className="text-rose-300">Couldn&apos;t save: {err}</span>}
       </div>

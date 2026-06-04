@@ -145,7 +145,7 @@ export default function CascadePanel({ clientId, clientName }: { clientId: numbe
                           {r.status === 'live' ? (
                             <span className="text-[10px] uppercase tracking-[0.12em] text-emerald-300 border border-emerald-400/30 rounded px-1.5 py-0.5">Live</span>
                           ) : (
-                            <span className="text-[10px] uppercase tracking-[0.12em] text-amber-300 border border-amber-400/30 rounded px-1.5 py-0.5">
+                            <span className="text-[10px] uppercase tracking-[0.12em] text-[#EBCB6B] border border-[#EBCB6B]/30 rounded px-1.5 py-0.5">
                               Pending: {r.requires.filter((req) => !['hmda', 'cfpb', 'census_acs', 'ca_sos', 'courtlistener'].includes(req)).join(' + ') || 'adapter'}
                             </span>
                           )}

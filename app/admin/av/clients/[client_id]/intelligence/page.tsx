@@ -50,7 +50,7 @@ function ConsumerChips({ consumers, unused }: { consumers: string[]; unused: boo
   return (
     <span className="flex flex-wrap gap-1.5">
       {consumers.map((c) => (
-        <span key={c} className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-200 border border-amber-500/30 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]">
+        <span key={c} className="inline-flex items-center rounded-full bg-[#EBCB6B]/10 text-[#EBCB6B]/95 border border-[#EBCB6B]/30 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]">
           {c}
         </span>
       ))}
@@ -183,17 +183,17 @@ export default async function ClientIntelligencePage({ params }: { params: { cli
         ) : (
           <ul className="space-y-3">
             {inv.prDiscoveryObjects.map((o) => (
-              <li key={o.id} className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
+              <li key={o.id} className="rounded-2xl border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.04] p-4">
                 <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.22em] text-amber-300">{o.object_type}</div>
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-[#EBCB6B]">{o.object_type}</div>
                     <div className="text-[11px] text-muted mt-0.5">
                       Source: <span className="text-ink/80">{o.source}</span>
                       {o.confidence !== null && <> · Confidence: <span className="text-ink/80">{o.confidence}</span></>}
                       {' '}· Updated: <span className="text-ink/80">{o.updated_at.slice(0, 16).replace('T', ' ')}</span>
                     </div>
                   </div>
-                  <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-200 border border-amber-500/30 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]">
+                  <span className="inline-flex items-center rounded-full bg-[#EBCB6B]/12 text-[#EBCB6B]/95 border border-[#EBCB6B]/30 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]">
                     PR engine
                   </span>
                 </div>

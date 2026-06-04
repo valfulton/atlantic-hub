@@ -56,7 +56,7 @@ const SIGNAL_LABEL: Record<string, string> = {
 
 function scoreColor(score: number): string {
   if (score >= 100) return 'text-red-300';
-  if (score >= 50) return 'text-amber-300';
+  if (score >= 50) return 'text-[#EBCB6B]';
   if (score >= 20) return 'text-yellow-200';
   return 'text-emerald-300';
 }
@@ -339,9 +339,9 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
       {open && (
         <div className="px-4 py-4 border-t border-red-400/20">
           <p className="text-[11px] text-muted mb-3 leading-snug">
-            Weighted signals from this client&apos;s public intelligence records (CA SOS suspensions, CourtListener
-            filings, HMDA, CFPB, etc.). Each signal carries a per-client weight you can tune. Re-running is free —
-            cached records do most of the work.
+            Weighted signals from this client&apos;s public-records sources (CA SOS suspensions, CourtListener
+            filings, HMDA, CFPB, and others). Each signal carries a per-client weight you can tune. Re-running is
+            free — cached records carry most of the work.
           </p>
           <div className="flex items-center gap-2 flex-wrap mb-3">
             {/* (#385) Operator-only controls: rescore + seed-defaults.
@@ -384,9 +384,9 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
           {!rows && <div className="text-[11px] text-muted">Loading…</div>}
           {empty && (
             <div className="text-[12px] text-muted leading-snug">
-              No watchlist entries yet. Click <strong className="text-ink">Rescore now</strong> to run the engine
-              against this client&apos;s public intelligence records. If no Public Intelligence sources are configured
-              yet, set one up in the Public intelligence panel above first.
+              No entries yet. Click <strong className="text-ink">Rescore now</strong> to score the public records
+              on file for this client. If no Public Intelligence sources are configured yet, set one up in the
+              Public intelligence panel above first.
             </div>
           )}
           {rows && rows.length > 0 && (
@@ -453,7 +453,7 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                         {row.contributingSignals.slice(0, 4).map((s, j) => (
                           <span
                             key={j}
-                            className="rounded bg-amber-400/10 border border-amber-400/25 text-amber-200 px-1 py-0.5"
+                            className="rounded bg-[#EBCB6B]/10 border border-[#EBCB6B]/25 text-[#EBCB6B]/95 px-1 py-0.5"
                             title={s.source}
                           >
                             {SIGNAL_LABEL[s.signalKind] ?? s.signalKind}

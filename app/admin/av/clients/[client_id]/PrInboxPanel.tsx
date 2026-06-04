@@ -82,12 +82,12 @@ export default function PrInboxPanel({
       </div>
 
       {email ? (
-        <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 mb-3">
+        <div className="rounded-lg border border-[#EBCB6B]/30 bg-[#EBCB6B]/[0.05] px-3 py-2 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <code className="text-[13px] text-amber-200 font-mono break-all">{email}</code>
+            <code className="text-[13px] text-[#EBCB6B]/95 font-mono break-all">{email}</code>
             <button
               onClick={copy}
-              className="ml-auto rounded-md px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-wider border border-amber-400/40 text-amber-300 hover:bg-amber-400/10 transition"
+              className="ml-auto rounded-md px-2.5 py-1 text-[10.5px] font-medium uppercase tracking-wider border border-[#EBCB6B]/35 text-[#EBCB6B] hover:bg-[#EBCB6B]/10 transition"
             >
               {copied ? 'Copied ✓' : 'Copy'}
             </button>
@@ -115,7 +115,7 @@ export default function PrInboxPanel({
               ? 'bg-white/10 text-white/40 cursor-not-allowed'
               : slug
               ? 'border border-white/20 text-white/70 hover:border-white/40 hover:text-white'
-              : 'bg-amber-400/90 text-black hover:bg-amber-300')
+              : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
           }
         >
           {busy

@@ -19,7 +19,7 @@ import { fetchClientThisWeek } from '@/lib/client/this_week';
 const TONE_STYLE: Record<'good' | 'info' | 'urgent', { dot: string; text: string }> = {
   good:   { dot: '#6ee7b7', text: 'text-emerald-200' },
   info:   { dot: '#a8cbff', text: 'text-sky-200' },
-  urgent: { dot: '#fcd34d', text: 'text-amber-200' }
+  urgent: { dot: '#fcd34d', text: 'text-[#EBCB6B]/95' }
 };
 
 export default async function ThisWeekFeed({

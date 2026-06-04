@@ -211,7 +211,7 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
               'text-[11px] px-2.5 py-1 rounded-md border transition ' +
               (suggesting || lines.every((l) => l.role != null)
                 ? 'border-white/10 text-white/30 cursor-not-allowed'
-                : 'border-amber-400/30 text-amber-200 hover:border-amber-400/60 bg-amber-400/5')
+                : 'border-[#EBCB6B]/30 text-[#EBCB6B]/95 hover:border-[#EBCB6B]/60 bg-[#EBCB6B]/5')
             }
           >
             {suggesting ? '✨ thinking…' : '✨ Suggest best'}
@@ -300,7 +300,7 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
                           'text-[11px] px-2 py-1 rounded-md border transition ' +
                           (busy
                             ? 'border-white/10 text-white/30 cursor-not-allowed'
-                            : 'border-border text-ink hover:border-amber-400/40 bg-black/20')
+                            : 'border-border text-ink hover:border-[#EBCB6B]/35 bg-black/20')
                         }
                       >
                         {busy ? '…' : `Link · ${role}`}
@@ -319,7 +319,7 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
                             'text-[11px] px-2 py-1 rounded-md border transition ' +
                             (busy
                               ? 'border-white/10 text-white/30 cursor-not-allowed'
-                              : 'border-border text-ink hover:border-amber-400/40 bg-black/20')
+                              : 'border-border text-ink hover:border-[#EBCB6B]/35 bg-black/20')
                           }
                         >
                           → {role}

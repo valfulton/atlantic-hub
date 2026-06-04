@@ -31,7 +31,7 @@ export default async function IntelFreshnessPage() {
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-white">
-            Intel <span className="text-amber-300 italic">freshness</span>
+            Intel <span className="text-[#EBCB6B] italic">freshness</span>
           </h1>
           <p className="text-sm text-white/60 mt-1 max-w-2xl">
             Every lead, with the last time each piece of AI-generated intel was refreshed.
@@ -62,7 +62,7 @@ export default async function IntelFreshnessPage() {
 function Stat({ label, value, tone }: { label: string; value: number; tone?: 'ok' | 'warn' }) {
   const ring =
     tone === 'warn'
-      ? 'border-amber-400/40 bg-amber-400/5'
+      ? 'border-[#EBCB6B]/35 bg-[#EBCB6B]/5'
       : 'border-white/10 bg-black/20';
   return (
     <div className={`rounded-xl border ${ring} px-4 py-3`}>

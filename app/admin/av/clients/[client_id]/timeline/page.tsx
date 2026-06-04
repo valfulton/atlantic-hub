@@ -34,7 +34,7 @@ const KIND_LABEL: Record<TimelineKind, string> = {
 
 // Tailwind colors per kind — small, calm palette.
 const KIND_STYLE: Record<TimelineKind, { dot: string; chip: string }> = {
-  ai_call:   { dot: 'bg-amber-400',  chip: 'border-amber-400/40  text-amber-200  bg-amber-400/10' },
+  ai_call:   { dot: 'bg-[#EBCB6B]',  chip: 'border-[#EBCB6B]/40 text-[#EBCB6B] bg-[#EBCB6B]/10' },
   discovery: { dot: 'bg-sky-400',    chip: 'border-sky-400/40    text-sky-200    bg-sky-400/10' },
   content:   { dot: 'bg-violet-400', chip: 'border-violet-400/40 text-violet-200 bg-violet-400/10' },
   intel:     { dot: 'bg-emerald-400',chip: 'border-emerald-400/40 text-emerald-200 bg-emerald-400/10' },
@@ -46,7 +46,7 @@ const KIND_STYLE: Record<TimelineKind, { dot: string; chip: string }> = {
 const STATUS_STYLE: Record<TimelineItem['status'], string> = {
   success: 'text-emerald-300/90',
   failure: 'text-rose-300/90',
-  partial: 'text-amber-300/90',
+  partial: 'text-[#EBCB6B]/90',
   pending: 'text-sky-300/90',
   info:    'text-muted'
 };

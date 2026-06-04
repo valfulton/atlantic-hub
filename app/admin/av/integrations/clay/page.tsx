@@ -55,7 +55,7 @@ const OUTCOME_LABEL: Record<Outcome, string> = {
 
 const OUTCOME_TONE: Record<Outcome, string> = {
   inserted: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-  updated: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+  updated: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/40',
   duplicate: 'bg-blue-500/15 text-blue-300 border-blue-500/40',
   invalid: 'bg-rose-500/15 text-rose-300 border-rose-500/40',
   error: 'bg-red-500/20 text-red-300 border-red-500/50'
@@ -152,8 +152,8 @@ export default async function ClayIntegrationStatusPage() {
       </header>
 
       {/* --- Setup card --- */}
-      <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
-        <h2 className="text-sm font-semibold text-amber-300 mb-3 uppercase tracking-wide">Setup</h2>
+      <section className="rounded-xl border border-[#EBCB6B]/30 bg-[#EBCB6B]/5 p-5">
+        <h2 className="text-sm font-semibold text-[#EBCB6B] mb-3 uppercase tracking-wide">Setup</h2>
         <div className="space-y-4 text-sm">
           <div>
             <div className="text-xs text-muted mb-1">Webhook URL (paste into Clay -&gt; Table -&gt; Webhook)</div>
@@ -261,7 +261,7 @@ export default async function ClayIntegrationStatusPage() {
                       {r.lead_id !== null ? (
                         <a
                           href={`/admin/av/${r.lead_id}`}
-                          className="text-amber-300 hover:underline focus-visible:outline-2 focus-visible:outline-amber-400"
+                          className="text-[#EBCB6B] hover:underline focus-visible:outline-2 focus-visible:outline-[#EBCB6B]"
                         >
                           #{r.lead_id}
                         </a>

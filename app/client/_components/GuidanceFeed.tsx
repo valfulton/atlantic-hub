@@ -24,8 +24,8 @@ interface KindMeta {
 const KIND_META: Record<GuidanceKind, KindMeta> = {
   deadline_window: {
     label: 'Time-sensitive',
-    chip: 'text-amber-300 border-amber-500/40 bg-amber-500/10',
-    dot: 'bg-amber-400'
+    chip: 'text-[#EBCB6B] border-[#EBCB6B]/40 bg-[#EBCB6B]/10',
+    dot: 'bg-[#EBCB6B]'
   },
   momentum: {
     label: 'Momentum',
@@ -88,7 +88,7 @@ function GuidanceCard({ item }: { item: GuidanceItem }) {
               {meta.label}
             </span>
             {typeof item.decayDays === 'number' && (
-              <span className="text-[10px] uppercase tracking-[0.12em] text-amber-300">
+              <span className="text-[10px] uppercase tracking-[0.12em] text-[#EBCB6B]">
                 {item.decayDays <= 0
                   ? 'Closes today'
                   : item.decayDays === 1

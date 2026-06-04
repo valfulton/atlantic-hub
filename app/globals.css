@@ -31,15 +31,14 @@
 
 :root {
   /* ──── Brand ────
-     (#336 reverted 2026-06-02) Reverted to Tailwind amber-500. The
-     champagne (#C99858) read as brown-orange to val just as much as
-     amber-500 did — the real fix is per-surface, not a global swap.
-     Operator side keeps amber; client-facing surfaces self-style
-     against the inquire-gate emerald+cream aesthetic. */
-  --brand: #f59e0b;
+     Logo gold #EBCB6B. NOT Tailwind amber-* (#f59e0b is orange, not gold).
+     Used SPARINGLY: ghost outlines, eyebrow caps, hairline accents.
+     Never solid block buttons. White-on-brand is FORBIDDEN — bg-brand
+     always pairs with text-black. */
+  --brand: #EBCB6B;
   --brand-fg: #0a0f1a;
-  --brand-hover: #fbbf24;
-  --brand-glow: rgba(245, 158, 11, 0.25);
+  --brand-hover: #F5D87A;
+  --brand-glow: rgba(235, 203, 107, 0.22);
 
   /* ──── Surfaces (dark, glassy) ──── */
   --surface: rgba(255, 255, 255, 0.04);
@@ -68,8 +67,9 @@
   --tenant-glow: rgba(245, 158, 11, 0.22);
 }
 [data-tenant="av"] {
-  --tenant-accent: #c084fc;
-  --tenant-glow: rgba(192, 132, 252, 0.22);
+  /* AV tenant chip — was purple #c084fc; val dislikes purple. Logo gold. */
+  --tenant-accent: #EBCB6B;
+  --tenant-glow: rgba(235, 203, 107, 0.22);
 }
 [data-tenant="ebw"] {
   --tenant-accent: #22d3ee;

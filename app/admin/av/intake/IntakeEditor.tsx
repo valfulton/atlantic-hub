@@ -80,7 +80,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
   };
 
   const filled = INTAKE_KEYS.filter((k) => (payload[k] || '').trim()).length;
-  const ta = 'w-full rounded-md bg-black/20 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder-white/30 focus:outline-none focus:border-amber-400/50';
+  const ta = 'w-full rounded-md bg-black/20 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
 
   return (
     <div className="space-y-6">
@@ -91,7 +91,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
             <button
               key={s.key}
               onClick={() => setActiveKey(s.key)}
-              className={'rounded-full px-3 py-1 text-xs border transition ' + (on ? 'bg-amber-400/20 border-amber-400/60 text-amber-200' : 'bg-white/5 border-white/10 text-white/60 hover:text-white/90')}
+              className={'rounded-full px-3 py-1 text-xs border transition ' + (on ? 'bg-[#EBCB6B]/20 border-[#EBCB6B]/60 text-[#EBCB6B]/95' : 'bg-white/5 border-white/10 text-white/60 hover:text-white/90')}
             >
               {s.kind === 'brand' ? '★ ' : ''}{s.label}
             </button>
@@ -110,7 +110,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
         <>
           {INTAKE_GROUPS.map((grp) => (
             <div key={grp.group} className="rounded-md border border-white/10 bg-black/20 p-4">
-              <div className="text-xs uppercase tracking-wide text-amber-300/70 mb-3">{grp.group}</div>
+              <div className="text-xs uppercase tracking-wide text-[#EBCB6B]/75 mb-3">{grp.group}</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {grp.fields.map((f) => (
                   <label key={f.key} className={f.area ? 'block sm:col-span-2' : 'block'}>
@@ -133,7 +133,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
                       />
                     )}
                     {f.why && (
-                      <span className="block text-[10.5px] text-amber-300/55 mt-1 italic">
+                      <span className="block text-[10.5px] text-[#EBCB6B]/55 mt-1 italic">
                         Used for: {f.why}
                       </span>
                     )}
@@ -147,7 +147,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
             <button
               onClick={save}
               disabled={saving || !dirty}
-              className={'rounded-md px-5 py-2.5 text-sm font-medium transition ' + (saving || !dirty ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-amber-400/90 text-black hover:bg-amber-300')}
+              className={'rounded-md px-5 py-2.5 text-sm font-medium transition ' + (saving || !dirty ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')}
             >
               {saving ? 'Saving…' : dirty ? 'Save intake' : 'Saved'}
             </button>

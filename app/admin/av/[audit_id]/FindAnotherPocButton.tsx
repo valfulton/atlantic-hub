@@ -84,7 +84,7 @@ export function FindAnotherPocButton({
           'text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 transition ' +
           (running || !hasApolloOrg
             ? 'bg-white/10 text-white/40 cursor-not-allowed'
-            : 'border border-border text-ink hover:border-amber-400/40 bg-black/20')
+            : 'border border-border text-ink hover:border-[#EBCB6B]/35 bg-black/20')
         }
       >
         {running ? (

@@ -104,7 +104,7 @@ export default async function NewLeadPage({
             <span className="capitalize">{lead.leadStatus.replace(/_/g, ' ')}</span>
           )}
           {lead.archivedAt && (
-            <span className="text-amber-300">Archived</span>
+            <span className="text-[#EBCB6B]">Archived</span>
           )}
         </div>
       </header>
