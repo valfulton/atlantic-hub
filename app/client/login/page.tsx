@@ -2,6 +2,20 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import RoyaleGateFrame from '@/app/client/_components/RoyaleGateFrame';
+import { useGateCopy } from '@/app/client/_components/useGateCopy';
+import { accent } from '@/lib/copy/accent';
+
+/** Approved Door-B (velvet login) copy. Renders immediately; operator
+ *  overrides from /admin/av/copy overlay via useGateCopy. Keys mirror
+ *  lib/copy/store.ts DEFAULTS (gate.client_login.*). */
+const LOGIN_GATE_DEFAULTS: Record<string, string> = {
+  'gate.client_login.eyebrow': 'A private growth practice',
+  'gate.client_login.h1': 'Welcome *back.*',
+  'gate.client_login.lede': 'Sign in with your email and password.',
+  'gate.client_login.label_email': 'Email',
+  'gate.client_login.label_password': 'Password',
+  'gate.client_login.cta': 'Enter',
+};
 
 const ERROR_MESSAGES: Record<string, string> = {
   link_invalid_or_expired:
@@ -74,6 +88,7 @@ function LoginForm() {
   const initialError = params.get('error');
   const next = params.get('next') || '/client/dashboard';
   const door = useDoor();
+  const c = useGateCopy(LOGIN_GATE_DEFAULTS); // editable Door-B copy
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -119,9 +134,9 @@ function LoginForm() {
   if (door === 'B') {
     return (
       <RoyaleGateFrame
-        eyebrow="A private growth practice"
-        headline={<>Welcome <em>back</em>.</>}
-        lede="Sign in with your email and password."
+        eyebrow={c['gate.client_login.eyebrow']}
+        headline={accent(c['gate.client_login.h1'])}
+        lede={c['gate.client_login.lede']}
         asideTop={
           <>
             New here?{' '}
@@ -133,7 +148,7 @@ function LoginForm() {
       >
         <form onSubmit={handleSubmit} aria-labelledby="login-heading">
           <div style={{ marginBottom: 14 }}>
-            <label htmlFor="email" className="rg-label">Email</label>
+            <label htmlFor="email" className="rg-label">{c['gate.client_login.label_email']}</label>
             <input
               id="email"
               type="email"
@@ -146,7 +161,7 @@ function LoginForm() {
             />
           </div>
           <div style={{ marginBottom: 8 }}>
-            <label htmlFor="password" className="rg-label">Password</label>
+            <label htmlFor="password" className="rg-label">{c['gate.client_login.label_password']}</label>
             <input
               id="password"
               type="password"
@@ -165,7 +180,7 @@ function LoginForm() {
             className="rg-cta rg-cta--block"
             style={{ marginTop: 18 }}
           >
-            {submitting ? 'Signing in…' : 'Enter'}
+            {submitting ? 'Signing in…' : c['gate.client_login.cta']}
           </button>
         </form>
       </RoyaleGateFrame>

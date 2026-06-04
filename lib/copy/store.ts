@@ -78,6 +78,36 @@ export const DEFAULTS: Record<string, string> = {
   'intake.eyebrow': 'Your details',
   'intake.h1': 'Tell us about *your business.*',
   'intake.lede': "Review and perfect what we've prefilled for you. Every save keeps a restore point.",
+  // ---- Velvet Royale invitation gates ----
+  // All three surfaces share the RoyaleGateFrame layout (eyebrow / headline /
+  // lede / button). Wrap accent words in *asterisks* — the accent() helper
+  // renders them as italic gold. {firstName} not interpolated on gates.
+  //
+  // /client/set-password — first-landing for a magic-link recipient
+  'gate.set_password.eyebrow':         'A private growth practice',
+  'gate.set_password.h1_welcoming':    'Welcome *in.*',
+  'gate.set_password.h1_returning':    'Set your *password.*',
+  'gate.set_password.lede_welcoming':  'Choose a password to finish setting up your account. Ten characters or more.',
+  'gate.set_password.lede_returning':  'Choose a password. Ten characters or more.',
+  'gate.set_password.label_new':       'New password',
+  'gate.set_password.label_confirm':   'Confirm password',
+  'gate.set_password.cta':             'Enter',
+  // /client/login Door B — invitation arrival OR ?invite=true
+  'gate.client_login.eyebrow':         'A private growth practice',
+  'gate.client_login.h1':              'Welcome *back.*',
+  'gate.client_login.lede':            'Sign in with your email and password.',
+  'gate.client_login.label_email':     'Email',
+  'gate.client_login.label_password':  'Password',
+  'gate.client_login.cta':             'Enter',
+  // /login — operator sign-in (shares RG aesthetic; lock down editing if needed)
+  'gate.operator_login.eyebrow':       'Atlantic Hub · operator',
+  'gate.operator_login.h1':            'Sign *in.*',
+  'gate.operator_login.lede':          'Operator credentials. Client access is at /client/login.',
+  'gate.operator_login.label_email':   'Email',
+  'gate.operator_login.label_password':'Password',
+  'gate.operator_login.cta':           'Enter',
+  // Shared footer mark (rg-foot)
+  'gate.foot':                         'Quiet · Legible · Verifiable',
 };
 
 /* ------------------------------------------------------------------ */

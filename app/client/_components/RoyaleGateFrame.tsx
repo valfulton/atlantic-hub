@@ -27,9 +27,12 @@ interface Props {
   lede?: React.ReactNode;
   children: React.ReactNode;
   asideTop?: React.ReactNode;    // optional small link below the form
+  /** (#418) Footer mark, editable via copy key `gate.foot`. Optional;
+   *  defaults to the original "Quiet · Legible · Verifiable" when omitted. */
+  foot?: React.ReactNode;
 }
 
-export default function RoyaleGateFrame({ eyebrow, headline, lede, children, asideTop }: Props) {
+export default function RoyaleGateFrame({ eyebrow, headline, lede, children, asideTop, foot }: Props) {
   return (
     <div className="rg" data-skin="royale">
       <main className="rg-stage">
@@ -45,7 +48,7 @@ export default function RoyaleGateFrame({ eyebrow, headline, lede, children, asi
         {children}
         {asideTop && <div className="rg-aside">{asideTop}</div>}
       </main>
-      <p className="rg-foot">Quiet · Legible · Verifiable</p>
+      <p className="rg-foot">{foot ?? 'Quiet · Legible · Verifiable'}</p>
     </div>
   );
 }
