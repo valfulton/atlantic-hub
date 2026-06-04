@@ -29,6 +29,7 @@ import { getAvDb } from '@/lib/db/av';
 import { getLane } from '@/lib/campaigns/store';
 import { linkAssetToLine } from '@/lib/campaigns/line_links';
 import { logEvent } from '@/lib/events/log';
+import { ensureAssetPersisted } from '@/lib/storage/provenance';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -127,6 +128,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
       { status: 409 }
     );
   }
+
+  // (#413) Belt-and-suspenders persist before queuing. The discoverer now
+  // persists immediately on success; this catch is for assets that pre-date
+  // that fix OR if the immediate save failed (transient network).
+  // Non-fatal: if persist fails (e.g. Grok URL already expired), we still
+  // queue with the original storage_url — at least nothing breaks today.
+  // Full publish-time fallback is tracked separately so we read bytes from
+  // hot storage at upload, not the ephemeral URL.
+  try { await ensureAssetPersisted(asset.id); }
+  catch (e) { console.error('[queue-social:persist]', asset.id, (e as Error).message); }
 
   const mediaType: 'video' | 'image' = asset.asset_type === 'video' ? 'video' : 'image';
   const caption = buildDraftCaption(line.name, line.thesis);

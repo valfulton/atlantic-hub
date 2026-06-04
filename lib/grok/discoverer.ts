@@ -38,7 +38,22 @@ import {
   type VisualBriefRecord
 } from '@/lib/ai/visual_brief';
 import { buildNarrativeContext } from '@/lib/campaigns/store';
+import { ensureAssetPersisted } from '@/lib/storage/provenance';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
+
+/**
+ * Save bytes to durable hot storage the instant Grok hands us a URL.
+ * Why: Grok signed URLs expire (~24h). The lazy "persist on first view"
+ * pattern (#413, newsroom audit) lost bytes when no one viewed before
+ * expiry. Call this immediately on every successful generation.
+ * Non-fatal: if persistence fails (network blip), the caller is unaffected;
+ * the next view will retry via getAssetBytes().
+ */
+async function persistImmediately(assetId: number | null): Promise<void> {
+  if (assetId == null) return;
+  try { await ensureAssetPersisted(assetId); }
+  catch (e) { console.error('[discoverer:persistImmediately]', assetId, (e as Error).message); }
+}
 
 export type AssetType = 'image' | 'video';
 export type GenerationStatus = 'queued' | 'running' | 'succeeded' | 'failed';
@@ -439,6 +454,8 @@ export async function generateLineCommercial(
       });
       await logGrokCall({ endpoint: '/v1/images/generations', leadId: null, assetId, model: result.model, costUsd: result.costUsd, latencyMs: Date.now() - startMs, outcome: 'success', errorMessage: null, actorUserId });
       await tryLogEvent({ eventType: 'commercial.generated', leadId: null, userId: actorUserId, status: 'success', payload: { asset_id: assetId, asset_type: 'image', narrative_line_id: lineId, model: result.model, cost_usd: result.costUsd } });
+      // (#413) Persist bytes immediately — Grok URL expires.
+      await persistImmediately(assetId);
       return { assetId, leadId: null, assetType: 'image', model: result.model, storageUrl: result.imageUrl, costUsd: result.costUsd, prompt, generationStatus: 'succeeded', providerRequestId: null, durationSeconds: null, resolutionTier: resolution, aspectRatio, errorMessage: null };
     } catch (err) {
       const msg = (err as Error).message;
@@ -475,6 +492,8 @@ export async function generateLineCommercial(
     const completed = await provider.awaitVideo(providerRequestId, { pollTimeoutMs: 50_000, pollIntervalMs: 3000 });
     await patchAssetWithResult({ assetId, storageUrl: completed.videoUrl, durationSeconds: completed.durationSeconds || duration, costUsd: completed.costUsd });
     await tryLogEvent({ eventType: 'commercial.generated', leadId: null, userId: actorUserId, status: 'success', payload: { asset_id: assetId, asset_type: 'video', narrative_line_id: lineId, cost_usd: completed.costUsd } });
+    // (#413) Persist bytes immediately — Grok video URL expires (~24h).
+    await persistImmediately(assetId);
     return { assetId, leadId: null, assetType: 'video', model: completed.model, storageUrl: completed.videoUrl, costUsd: completed.costUsd, prompt, generationStatus: 'succeeded', providerRequestId, durationSeconds: completed.durationSeconds || duration, resolutionTier: resolution, aspectRatio, errorMessage: null };
   } catch (err) {
     const msg = (err as Error).message;
@@ -767,6 +786,9 @@ async function generateImageCommercial(args: {
       })
     ]);
 
+    // (#413) Persist bytes immediately — lead-side image, Grok URL expires.
+    await persistImmediately(assetId);
+
     return {
       assetId,
       leadId: lead.id,
@@ -948,6 +970,9 @@ async function generateVideoCommercial(args: {
       durationSeconds: completed.durationSeconds || duration,
       costUsd: completed.costUsd
     });
+
+    // (#413) Persist bytes immediately — lead-side video, sync completion.
+    await persistImmediately(assetId);
 
     const latency = Date.now() - startMs;
     await Promise.all([
@@ -1144,6 +1169,8 @@ export async function resumeRunningVideoAsset(assetId: number): Promise<Generate
         durationSeconds: finalDuration,
         costUsd: finalCost
       });
+      // (#413) Persist bytes immediately — resumed async video completion.
+      await persistImmediately(assetId);
       await logGrokCall({
         endpoint: '/v1/videos/{request_id}',
         leadId: asset.lead_id,
