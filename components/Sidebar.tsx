@@ -1,9 +1,12 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import BrandSeal from './BrandSeal';
 import PresentationModeToggle from '@/app/_components/PresentationModeToggle';
 import DailySpendChip from '@/app/_components/DailySpendChip';
+
+const COLLAPSE_KEY = 'av_sidebar_collapsed_v1';
 
 const HH_NAV = [
   { href: '/admin', label: 'Home', section: 'top' as const },
@@ -56,15 +59,63 @@ const EBW_NAV = [
 
 export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean; showEbw?: boolean }) {
   const pathname = usePathname();
+  // #406 — Collapsible sidebar so operator preview pages can use the full
+  // viewport. Persists across reloads via localStorage. When collapsed, the
+  // sidebar is replaced by a small floating "Open" chip in the top-left.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
+    } catch { /* swallow */ }
+  }, []);
+  function toggle() {
+    setCollapsed((c) => {
+      const next = !c;
+      try { window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0'); } catch { /* swallow */ }
+      return next;
+    });
+  }
+
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     window.location.href = '/login';
   }
+
+  // Collapsed state: render only a small floating chevron that brings it back.
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label="Open sidebar"
+        title="Open sidebar"
+        className="fixed top-4 left-4 z-50 h-9 w-9 rounded-md border border-border bg-[rgba(10,15,26,0.85)] backdrop-blur-xl text-muted hover:text-ink hover:border-brand transition-colors flex items-center justify-center"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 12h18M3 6h18M3 18h18" />
+        </svg>
+      </button>
+    );
+  }
+
   return (
     <aside className="w-64 min-h-screen flex flex-col bg-[rgba(10,15,26,0.55)] backdrop-blur-xl border-r border-border">
       {/* Brand header — V3 polish (#392). Grid replaces the magic ml-[52px]
           indents so logo + label + meta share one visual column. */}
-      <div className="px-5 py-5 border-b border-border">
+      <div className="px-5 py-5 border-b border-border relative">
+        {/* Collapse chevron — top-right of the brand header */}
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+          className="absolute top-3 right-3 h-7 w-7 rounded-md text-muted hover:text-ink hover:bg-[var(--surface)] transition-colors flex items-center justify-center"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
         <div className="grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-1 items-center">
           <BrandSeal size="md" className="row-span-2" />
           <div className="text-[15px] font-semibold tracking-tight text-ink leading-tight">Atlantic Hub</div>

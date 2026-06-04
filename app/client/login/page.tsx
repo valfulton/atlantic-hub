@@ -28,10 +28,51 @@ const ERROR_MESSAGES: Record<string, string> = {
  * classes from the hub's global token set — they would re-introduce the
  * orange we just took out.
  */
+/**
+ * Door detection (#406, val 2026-06-03) — Two-door entry routing per
+ * V3_spec_entry_doors.md:
+ *   - Door A (cream + emerald + Fraunces) — arrived from the public site
+ *   - Door B (Velvet Royale obsidian + Aurum gold) — arrived via invitation
+ *
+ * Detection (in priority order):
+ *   1. `?invite=true` query param on URL
+ *   2. `av_door=royale` cookie (persists across redirects within /client/*)
+ *   3. Default = Door A (cream)
+ *
+ * When Door B fires we also drop the cookie so subsequent /client/set-password
+ * + /client/intake-form/[token] hits in the same session stay in royale.
+ * The data-skin="royale" wrapper lets the BRAND_TOKENS aliases inside the
+ * page CSS flip emerald→Aurum gold + cream→obsidian automatically.
+ */
+function useDoor(): 'A' | 'B' {
+  const params = useSearchParams();
+  const inviteParam = params.get('invite');
+  const [door, setDoor] = useState<'A' | 'B'>('A');
+
+  useEffect(() => {
+    // Check cookie first (set by a previous visit / set by ?invite=true).
+    const cookieMatch = typeof document !== 'undefined'
+      ? document.cookie.split(';').some((c) => c.trim().startsWith('av_door=royale'))
+      : false;
+    if (inviteParam === 'true' || inviteParam === '1' || cookieMatch) {
+      setDoor('B');
+      if (typeof document !== 'undefined') {
+        // 1-hour persist so the gate sequence stays Royale across refreshes
+        document.cookie = 'av_door=royale; path=/client; max-age=3600; SameSite=Lax';
+      }
+    } else {
+      setDoor('A');
+    }
+  }, [inviteParam]);
+
+  return door;
+}
+
 function LoginForm() {
   const params = useSearchParams();
   const initialError = params.get('error');
   const next = params.get('next') || '/client/dashboard';
+  const door = useDoor();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -80,7 +121,7 @@ function LoginForm() {
         rel="stylesheet"
       />
 
-      <div className="ig-page">
+      <div className="ig-page" data-skin={door === 'B' ? 'royale' : undefined}>
         <nav className="ig-nav">
           <div className="ig-nav-inner">
             <a href="https://atlanticandvine.netlify.app" className="ig-brand">
