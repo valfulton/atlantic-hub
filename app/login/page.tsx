@@ -1,7 +1,21 @@
 'use client';
-import { useState } from 'react';
 
-export default function LoginPage() {
+/**
+ * /login — operator sign-in.
+ *
+ * Wears the Velvet Royale gate aesthetic (navy + amber Cormorant + ghost
+ * gold) for parity with /client/login Door B. The operator entrance and
+ * the invitation gate are both "private command" surfaces, so they share
+ * RoyaleGateFrame + royale-gate.css. No hex literals here.
+ */
+import { useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import RoyaleGateFrame from '@/app/client/_components/RoyaleGateFrame';
+
+function LoginBody() {
+  const params = useSearchParams();
+  const nextHref = params.get('next') || '/admin';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -19,62 +33,68 @@ export default function LoginPage() {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j.error || 'Login failed');
+        setError(j.error || 'Could not sign in. Please try again.');
         setSubmitting(false);
         return;
       }
-      // Read ?next= or default to /admin.
-      const params = new URLSearchParams(window.location.search);
-      window.location.href = params.get('next') || '/admin';
+      window.location.href = nextHref;
     } catch {
-      setError('Network error');
+      setError('Network error. Please try again.');
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-surface border border-border rounded-2xl p-8 shadow-sm"
-      >
-        <h1 className="text-2xl font-semibold mb-1">Atlantic Hub</h1>
-        <p className="text-sm text-muted mb-6">Operator sign in</p>
-
-        <label className="block text-sm font-medium mb-1">Email</label>
-        <input
-          type="email"
-          autoComplete="username"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full mb-4 px-3 py-2 border border-border rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-brand"
-        />
-
-        <label className="block text-sm font-medium mb-1">Password</label>
-        <input
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-6 px-3 py-2 border border-border rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-brand"
-        />
-
-        {error && (
-          <div className="text-sm text-danger mb-4" role="alert">
-            {error}
-          </div>
-        )}
-
+    <RoyaleGateFrame
+      eyebrow="Atlantic Hub · operator"
+      headline={<>Sign <em>in</em>.</>}
+      lede="Operator credentials. Client access is at /client/login."
+    >
+      <form onSubmit={handleSubmit} aria-labelledby="operator-login-heading">
+        <div style={{ marginBottom: 14 }}>
+          <label htmlFor="op-email" className="rg-label">Email</label>
+          <input
+            id="op-email"
+            type="email"
+            name="email"
+            autoComplete="username"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rg-input rg-input--text"
+          />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label htmlFor="op-password" className="rg-label">Password</label>
+          <input
+            id="op-password"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rg-input rg-input--text"
+          />
+        </div>
+        {error && <div role="alert" className="rg-error">{error}</div>}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-2 rounded-md bg-brand text-brand-fg font-medium disabled:opacity-60"
+          className="rg-cta rg-cta--block"
+          style={{ marginTop: 18 }}
         >
-          {submitting ? 'Signing in…' : 'Sign in'}
+          {submitting ? 'Signing in…' : 'Enter'}
         </button>
       </form>
-    </main>
+    </RoyaleGateFrame>
+  );
+}
+
+export default function OperatorLoginPage() {
+  return (
+    <Suspense fallback={<div className="rg" />}>
+      <LoginBody />
+    </Suspense>
   );
 }
