@@ -154,12 +154,8 @@ export default async function NewsroomIndexPage({
         <main className="v3-wrap" style={{ maxWidth: 980 }}>
           <ClientV3TopNav />
           <section className="v3-greet">
-            <p className="v3-eyebrow">The A&amp;V Wire</p>
-            <h1 className="v3-h1">Stories, in <em>your voice.</em></h1>
-            <p className="v3-lede">
-              Insights, announcements, and field notes from the work we&apos;re doing with real
-              businesses. Read live on the Wire — yours and others — and reference any of it on a call.
-            </p>
+            <p className="v3-eyebrow">Newsroom</p>
+            <h1 className="v3-h1">Newsroom.</h1>
           </section>
 
           {failed ? (
