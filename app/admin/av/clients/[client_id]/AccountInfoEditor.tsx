@@ -23,18 +23,22 @@ const btnPrimary: React.CSSProperties = {
 export default function AccountInfoEditor({
   clientId,
   initialClientName,
+  initialShortName,
   initialIndustry,
   contactEmail,
   initialContactName
 }: {
   clientId: number;
   initialClientName: string;
+  /** (#406) Operator-set nickname (CBB, CLDA…). Empty string when unset. */
+  initialShortName?: string;
   initialIndustry: string;
   contactEmail: string | null;
   initialContactName: string;
 }) {
   const router = useRouter();
   const [clientName, setClientName] = useState(initialClientName);
+  const [shortName, setShortName] = useState(initialShortName ?? '');
   const [industry, setIndustry] = useState(initialIndustry);
   const [contactName, setContactName] = useState(initialContactName);
   const [open, setOpen] = useState(false);
@@ -50,6 +54,7 @@ export default function AccountInfoEditor({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           clientName: clientName.trim(),
+          shortName: shortName.trim(), // empty string is valid (clears the nickname)
           industry: industry.trim(),
           contactName: contactName.trim(),
           memberEmail: contactEmail ?? undefined
@@ -90,6 +95,22 @@ export default function AccountInfoEditor({
         <label className="block">
           <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Account name (shown everywhere)</span>
           <input style={input} value={clientName} onChange={(e) => setClientName(e.target.value)} disabled={busy} placeholder="e.g. Skip Krause" />
+        </label>
+        <label className="block">
+          <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            Short name (nickname, max 20 chars)
+          </span>
+          <input
+            style={input}
+            value={shortName}
+            onChange={(e) => setShortName(e.target.value)}
+            disabled={busy}
+            maxLength={20}
+            placeholder="e.g. CBB, CLDA, EBW — leave blank to compute initials"
+          />
+          <span style={{ display: 'block', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+            Renders in brand chips, watchlist label, dashboard pill. Fall back to first-two-letters when blank.
+          </span>
         </label>
         <label className="block">
           <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Industry</span>

@@ -450,6 +450,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       <AccountInfoEditor
         clientId={clientId}
         initialClientName={d.name}
+        initialShortName={d.shortName ?? ''}
         initialIndustry={d.industry ?? ''}
         contactEmail={d.members[0]?.email ?? null}
         initialContactName={d.members[0]?.displayName ?? ''}

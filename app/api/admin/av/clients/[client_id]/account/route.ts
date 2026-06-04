@@ -12,7 +12,12 @@
  * after the email handle (e.g. "skipk79") instead of the person ("Skip Krause"),
  * and there was no in-app way to fix it. Owner + staff only.
  *
- * Body (any subset): { clientName?, industry?, contactName?, memberEmail? }
+ * Body (any subset): { clientName?, shortName?, industry?, contactName?, memberEmail? }
+ *
+ * shortName: operator-set nickname (CBB, CLDA, EBW). Empty string clears it.
+ * Schema column added by schema/073_clients_short_name.sql; if the migration
+ * hasn't been applied yet the UPDATE quietly fails and the rest of the save
+ * still succeeds (#406).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
@@ -44,9 +49,13 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   }
 
   const clientName = clean(body.clientName, 255);
-  // industry can be intentionally cleared, so distinguish "" (clear) from absent.
+  // industry + shortName can be intentionally cleared, so distinguish ""
+  // (clear) from absent. shortName: 20 chars, no spaces forced — val may want
+  // "C-B-B" or "CBB" or "Central." — let her decide.
   const industryProvided = typeof body.industry === 'string';
   const industry = clean(body.industry, 255);
+  const shortNameProvided = typeof body.shortName === 'string';
+  const shortName = clean(body.shortName, 20);
   const contactName = clean(body.contactName, 255);
   const memberEmail = clean(body.memberEmail, 320)?.toLowerCase() ?? null;
 
@@ -59,6 +68,16 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     if (industryProvided) {
       await db.execute<ResultSetHeader>(`UPDATE clients SET industry = ? WHERE client_id = ?`, [industry, clientId]);
     }
+    // (#406) short_name save is best-effort: if schema 073 hasn't been applied
+    // yet, the column is missing and we swallow the error instead of failing
+    // the whole save. Other updates (name/industry/contact) still land.
+    if (shortNameProvided) {
+      try {
+        await db.execute<ResultSetHeader>(`UPDATE clients SET short_name = ? WHERE client_id = ?`, [shortName, clientId]);
+      } catch (err) {
+        console.error('[account:shortName]', clientId, (err as Error).message);
+      }
+    }
     if (contactName && memberEmail) {
       await db.execute<ResultSetHeader>(
         `UPDATE client_users SET display_name = ? WHERE client_id = ? AND email = ?`,
@@ -66,7 +85,13 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       );
     }
 
-    return NextResponse.json({ ok: true, clientName, industry: industryProvided ? industry : undefined, contactName });
+    return NextResponse.json({
+      ok: true,
+      clientName,
+      industry: industryProvided ? industry : undefined,
+      shortName: shortNameProvided ? shortName : undefined,
+      contactName
+    });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
   }

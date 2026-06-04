@@ -136,6 +136,23 @@ async function clientNameOf(clientId: number): Promise<string | null> {
   }
 }
 
+/** (#406) Operator-set nickname for a client. Best-effort: returns null if
+ *  schema 073 hasn't been applied yet OR if val hasn't set one. Callers fall
+ *  back to initialsOf(clientName) when this returns null. */
+async function clientShortNameOf(clientId: number): Promise<string | null> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { short_name: string | null })[]>(
+      `SELECT short_name FROM clients WHERE client_id = ? LIMIT 1`,
+      [clientId]
+    );
+    const s = rows[0]?.short_name;
+    return typeof s === 'string' && s.trim() ? s.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDashboardProps> {
   const { clientUserId, activeClientId, firstName, brandName, brandPill } = args;
 
@@ -157,11 +174,13 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   // Watchlist for the active brand → hero + 4 cards.
   let watchlistRows: WatchlistRow[] = [];
   let activeClientName: string | null = null;
+  let activeClientShortName: string | null = null;
   let activeCampaignCount = 0;
   if (activeClientId) {
-    [watchlistRows, activeClientName, activeCampaignCount] = await Promise.all([
+    [watchlistRows, activeClientName, activeClientShortName, activeCampaignCount] = await Promise.all([
       watchlistForClient(activeClientId, 8).catch(() => []),
       clientNameOf(activeClientId),
+      clientShortNameOf(activeClientId),
       countActiveCampaigns(activeClientId)
     ]);
   }
@@ -178,7 +197,8 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
       eyebrow: '✦ This week’s strongest signal',
       headline: `${top.entityLabel || top.entityKey} just surfaced.`,
       headlineAccent: 'They don’t know we know.',
-      who: `${top.entityLabel || top.entityKey} · flagged on your ${activeClientName ? activeClientName.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() : 'channel'} watchlist`,
+      // (#406) Prefer val's nickname (short_name); fall back to computed initials.
+      who: `${top.entityLabel || top.entityKey} · flagged on your ${activeClientShortName || (activeClientName ? activeClientName.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() : 'channel')} watchlist`,
       trail: trailHero,
       ctaLabel: 'Open the signal →',
       ctaHref: `/client/watchlist#${encodeURIComponent(top.entityKey)}`
@@ -205,9 +225,11 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
       ? `${newCount} new ${newCount === 1 ? 'signal' : 'signals'} on your watchlist since yesterday. Here’s what’s worth a move.`
       : 'Quiet on the wire. New signals will appear here as they’re scored.';
 
-  const activeBrandInitials = activeClientName ? initialsOf(activeClientName) : '';
-  const activeCountLabel = activeBrandInitials
-    ? `${activeBrandInitials} · ${activeCampaignCount} active`
+  // (#406) Short_name wins, else computed initials. The label still gets a
+  // period for visual symmetry with "Atlantic & Vine." across the chrome.
+  const activeBrandShort = activeClientShortName || (activeClientName ? initialsOf(activeClientName) : '');
+  const activeCountLabel = activeBrandShort
+    ? `${activeBrandShort} · ${activeCampaignCount} active`
     : `${activeCampaignCount} active`;
 
   // Per-client editable section copy (edit in /admin/av/copy). Covers the

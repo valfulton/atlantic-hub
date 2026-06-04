@@ -44,6 +44,10 @@ export interface ClientAccountMember {
 export interface ClientAccountDetail {
   clientId: number;
   name: string;
+  /** (#406) Operator-set nickname (CBB, CLDA…). null until val sets one OR
+   *  if schema 073 hasn't been applied yet. Loaders should fall back to
+   *  initials computed from `name` when null. */
+  shortName: string | null;
   slug: string;
   industry: string | null;
   enabled: boolean;
@@ -117,6 +121,20 @@ export async function getClientAccountDetail(clientId: number): Promise<ClientAc
   const c = crows[0];
   if (!c) return null;
 
+  // (#406) short_name is in its own SELECT so a missing column (schema 073 not
+  // applied yet) degrades gracefully to null instead of breaking the whole
+  // detail load. Once the migration lands, this returns val's nickname.
+  let shortName: string | null = null;
+  try {
+    const [srows] = await db.execute<(RowDataPacket & { short_name: string | null })[]>(
+      `SELECT short_name FROM clients WHERE client_id = ? LIMIT 1`,
+      [clientId]
+    );
+    shortName = srows[0]?.short_name ?? null;
+  } catch (err) {
+    console.error('[clients_overview:shortName]', clientId, (err as Error).message);
+  }
+
   const [members] = await db.execute<(RowDataPacket & {
     email: string; display_name: string | null; tier: string; last_login_at: Date | string | null;
   })[]>(
@@ -166,6 +184,7 @@ export async function getClientAccountDetail(clientId: number): Promise<ClientAc
   return {
     clientId: c.client_id,
     name: c.client_name,
+    shortName,
     slug: c.client_slug,
     industry: c.industry,
     enabled: c.enabled === 1 || c.enabled === true || c.enabled === '1',
