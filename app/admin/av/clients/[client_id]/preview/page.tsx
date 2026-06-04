@@ -17,14 +17,10 @@ import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
-import { loadDashboardV3 } from '@/lib/client/dashboard_v3_loader';
-import ClientDashboardV3 from '@/app/client/dashboard/ClientDashboardV3';
+import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
+import AdrianaDashboard from '@/app/client/dashboard/AdrianaDashboard';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
-// The V3 skin CSS is scoped to [data-skin="social"]. The live client portal
-// gets it from app/client/layout.tsx; the operator route does not, so import
-// it here too or the mirror renders unstyled.
-import '@/app/client/skin.social.css';
-import '@/app/client/client-social.css';
+// AdrianaDashboard self-imports adriana-dashboard.css; no skin CSS needed here.
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -73,11 +69,13 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
     displayName: member?.display_name ?? clientName
   });
 
-  // Shared loader — same function the live /client/dashboard page calls.
-  const v3 = await loadDashboardV3({
-    clientId,
+  // Same loader the live /client/dashboard calls — mirror cannot drift.
+  const props = await loadAdrianaDashboard({
     clientUserId: member?.client_user_id ?? 0,
-    data
+    activeClientId: clientId,
+    firstName: data.firstName || clientName.split(/\s+/)[0] || 'there',
+    brandName: 'Atlantic & Vine',
+    brandPill: 'Client'
   });
 
   return (
@@ -98,12 +96,9 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
         }
       />
 
-      {/* The V3 dashboard body — exact same component the client sees.
-          Wrapped in data-skin="social" so the navy V3 tokens + classes apply
-          on the operator route (the skin CSS is scoped to that attribute). */}
-      <div data-skin="social">
-        <ClientDashboardV3 {...v3} />
-      </div>
+      {/* Exact same component the client sees — adriana-dashboard.css scopes
+          all styling inside `.adr` so it doesn't fight the operator chrome. */}
+      <AdrianaDashboard {...props} />
     </div>
   );
 }

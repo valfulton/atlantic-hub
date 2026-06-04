@@ -1,12 +1,13 @@
 /**
- * /client/dashboard  (#397, val 2026-06-03)
+ * /client/dashboard
  *
- * V3 — luxury Cormorant register from demo_client_portal_v3.html.
+ * Mobile-app dashboard mirroring client_view_social_mock.html exactly:
+ * sticky cream top bar, Fraunces greeting, brand switcher Stories,
+ * Featured Signal hero (cascade-attributed), watchlist + fresh-leads
+ * SignalCard grids, bottom tab bar (from layout).
  *
- * This page is now THIN: it handles auth + the access gate, calls the
- * shared `loadDashboardV3` loader, and renders <ClientDashboardV3>. The
- * preview-as-client mirror at /admin/av/clients/[id]/preview calls the
- * SAME loader and renders the SAME body — they cannot drift.
+ * Auth + access gate kept from prior page. Body component is
+ * AdrianaDashboard (this page is thin — orchestration only).
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -18,9 +19,9 @@ import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import { loadDashboardV3 } from '@/lib/client/dashboard_v3_loader';
+import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
 import { getWelcomePopupSlides } from '@/lib/welcome/copy';
-import ClientDashboardV3 from './ClientDashboardV3';
+import AdrianaDashboard from './AdrianaDashboard';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -58,11 +59,12 @@ export default async function ClientDashboardPage() {
     displayName: user.display_name
   });
 
-  // Shared loader — preview/page.tsx calls this same function.
-  const v3 = await loadDashboardV3({
-    clientId,
+  const props = await loadAdrianaDashboard({
     clientUserId: actor.clientUserId,
-    data
+    activeClientId: clientId,
+    firstName: data.firstName || 'there',
+    brandName: 'Atlantic & Vine',
+    brandPill: 'Client'
   });
 
   // (#408) Pull editor-managed slide copy. Falls back to baked-in defaults.
@@ -77,7 +79,7 @@ export default async function ClientDashboardPage() {
         tier={user.tier}
         slides={welcomeSlides}
       />
-      <ClientDashboardV3 {...v3} />
+      <AdrianaDashboard {...props} />
     </>
   );
 }
