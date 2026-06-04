@@ -23,9 +23,9 @@
 
   /* Distress + status accents (work on navy ground) */
   --amber-sig:#EBCB6B;          /* distress signal accent (logo-gold, not orange) */
-  --emerald-glow:#7CC4A1;       /* wins / done */
-  --rose-glow:#FF9AA8;          /* hot / urgent */
-  --sky-glow:#7BC1F0;           /* live / info */
+  --emerald-glow:#8FC2AB;       /* wins / done — softened, sparing use only */
+  --rose-glow:#C98A92;          /* danger — muted, off-brand jewel retired */
+  --sky-glow:#9AB0C8;           /* info — muted toward the navy/cream register */
 
   /* === REMAP legacy Tailwind tokens so existing components render correctly === */
   --bg:var(--navy);

@@ -283,12 +283,12 @@ export default function ClientIntakeForm({
           <button
             type="button"
             onClick={() => jumpToNextBlank()}
-            className="text-[11.5px] font-medium text-amber-300/90 hover:text-amber-200"
+            className="text-[11.5px] font-medium text-[#EBCB6B] hover:text-[#F2D88A]"
           >
             Jump to next blank ↑
           </button>
         )}
-        {msg && <span className={'text-sm ' + (msg.ok ? 'text-emerald-300' : 'text-rose-300')}>{msg.text}</span>}
+        {msg && <span className={'text-sm ' + (msg.ok ? 'text-emerald-300' : 'text-muted italic')}>{msg.text}</span>}
       </div>
     </div>
   );

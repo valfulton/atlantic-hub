@@ -289,7 +289,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
           )}
           {lead.callScript.avoid.length > 0 && (
             <div className="text-[11px] text-muted">
-              <span className="text-rose-300/80">Avoid:</span> {lead.callScript.avoid.join('; ')}
+              <span className="text-muted uppercase tracking-[0.12em] text-[10.5px] mr-1.5">Avoid</span> {lead.callScript.avoid.join('; ')}
             </div>
           )}
         </div>

@@ -27,31 +27,14 @@ interface Props {
 }
 
 function DecayPill({ days }: { days: number | null }) {
-  if (days == null) return <span className="text-[11px] text-muted/70">no deadline</span>;
-  if (days < 0) {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.14em] font-medium" style={{ background: 'rgba(255,90,110,0.16)', color: '#FF9AA8' }}>
-        expired {-days}d ago
-      </span>
-    );
-  }
-  if (days <= 3) {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.14em] font-medium" style={{ background: 'rgba(255,90,110,0.16)', color: '#FF9AA8' }}>
-        {days === 0 ? 'today' : `${days}d left`}
-      </span>
-    );
-  }
-  if (days <= 7) {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.14em] font-medium" style={{ background: 'rgba(245,158,11,0.16)', color: '#fcd34d' }}>
-        {days}d left
-      </span>
-    );
-  }
+  // Quiet, on-brand timing label — no alarm colors, no countdown-pressure fills
+  // (ethics line: no FOMO). Muted text; gold only when it's genuinely today/closing.
+  if (days == null) return <span style={{ fontSize: 11, color: 'var(--cream-muted)' }}>no deadline</span>;
+  const label = days < 0 ? `closed ${-days}d ago` : days === 0 ? 'today' : `${days}d left`;
+  const soon = days >= 0 && days <= 3;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.14em] font-medium" style={{ background: 'rgba(91,168,255,0.16)', color: '#a8cbff' }}>
-      {days}d left
+    <span style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: soon ? 'var(--amber)' : 'var(--cream-muted)' }}>
+      {label}
     </span>
   );
 }
@@ -72,11 +55,13 @@ function ClientApprovalChip({ approval }: { approval: 'approved' | 'declined' | 
 }
 
 function StatItem({ label, value, tone }: { label: string; value: number; tone?: 'urgent' | 'good' | 'neutral' }) {
+  // V3: urgent gets a gold-outline ring (no orange/rose); good stays calm
+  // emerald; default = quiet rule. No fills on tone rings.
   const ring =
     tone === 'urgent' && value > 0
-      ? 'border-rose-400/40 bg-rose-400/5'
+      ? 'border-[#EBCB6B]/40 bg-transparent'
       : tone === 'good' && value > 0
-      ? 'border-emerald-400/40 bg-emerald-400/5'
+      ? 'border-emerald-400/30 bg-transparent'
       : 'border-border bg-surface';
   return (
     <div className={`rounded-xl border ${ring} px-4 py-3`}>
@@ -283,7 +268,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
               )}
 
               {state.err && (
-                <div className="mt-2 text-[11px] text-rose-300">Couldn&apos;t save: {state.err}</div>
+                <div className="mt-2 text-[11px] text-muted italic">Couldn&apos;t save: {state.err}</div>
               )}
 
               {/* Already-acted summary, with the client's prior note if any. */}

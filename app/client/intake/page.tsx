@@ -1,10 +1,11 @@
 /**
- * /client/intake — the logged-in client reviews + perfects the details Atlantic &
- * Vine prefilled for them (the brief, in client-friendly language). Loads the
- * effective brief payload for their client_id and renders an editable, prefilled
- * form. Saving snapshots a restore point (see /api/client/intake-update).
+ * /client/intake — V3 (Velvet Royale chat, 2026-06-03)
  *
- * Protected by middleware (matcher '/client/intake').
+ * The logged-in client reviews + perfects the details A&V prefilled (the brief
+ * in client-friendly language). V3 shell (ClientV3TopNav + Cormorant); the
+ * ClientIntakeForm inherits the navy register via the skin's token remap.
+ * No PortalHeader. Door A/B treatment (cream vs Royale) flows from the
+ * two-doors routing — see V3_spec_entry_doors.md.
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -13,7 +14,7 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getBriefPayload } from '@/lib/client/brief_store';
-import PortalHeader from '@/app/client/_components/PortalHeader';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import ClientIntakeForm from './ClientIntakeForm';
 
 export const dynamic = 'force-dynamic';
@@ -30,27 +31,38 @@ export default async function ClientIntakePage() {
     try {
       const cid = await ensureClientHub(user);
       if (cid) user.client_id = cid;
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
   }
 
-  // Multi-brand (#101): edit the brief of the brand currently being viewed.
   const clientId = await activeBrandFor(actor.clientUserId, user.client_id ?? null);
 
   let initial: Record<string, unknown> = {};
   if (clientId) {
     try {
       initial = (await getBriefPayload('av', clientId)) ?? {};
-    } catch { initial = {}; }
+    } catch {
+      initial = {};
+    }
   }
 
   const brandName = user.display_name?.trim() || 'your business';
 
   return (
-    <>
-      <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="details" />
-      <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
-        <ClientIntakeForm initial={initial} brandName={brandName} />
-      </main>
-    </>
+    <main className="v3-wrap">
+      <ClientV3TopNav />
+      <section className="v3-greet">
+        <p className="v3-eyebrow">Your details</p>
+        <h1 className="v3-h1">Tell us about <em>your business.</em></h1>
+        <p className="v3-lede" style={{ fontStyle: 'normal', fontSize: 16 }}>
+          Review and perfect what we&rsquo;ve prefilled for you. Every save keeps a restore point.
+        </p>
+      </section>
+      <ClientIntakeForm initial={initial} brandName={brandName} />
+      <p className="v3-foot" style={{ textAlign: 'left', marginTop: 28 }}>
+        Signed in as {user.email}
+      </p>
+    </main>
   );
 }

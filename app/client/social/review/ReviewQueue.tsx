@@ -199,7 +199,7 @@ function ReviewCard({
                 'text-sm px-3 py-1.5 rounded-md border transition ' +
                 (busy
                   ? 'border-white/10 text-white/30 cursor-not-allowed'
-                  : 'border-rose-400/40 text-rose-200 hover:border-rose-400/70 bg-rose-400/10')
+                  : 'border-border text-muted hover:text-cream hover:border-[#C7A64E]/50')
               }
               title={
                 note && note.trim()

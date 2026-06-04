@@ -1,16 +1,9 @@
 /**
- * /client/social/review   (#61 Inc 3)
+ * /client/social/review  — V3 (Velvet Royale chat, 2026-06-03)
  *
- * The client's approval queue for line-born social drafts the operator has
- * queued for them. Each row shows: branded video preview, caption, target
- * platform, the narrative line it advances — plus Approve / Reject buttons.
- *
- * Approval lifecycle (lib/client/social_review.ts):
- *   draft (queued)  ── approve ──>  scheduled (publisher picks up)
- *                   ── reject  ──>  canceled (kept as audit/learning signal)
- *
- * Scoped strictly to the client's active brand (multi-brand owners use the
- * brand switcher to see CBB-vs-CLDA review queues separately).
+ * Client approval queue for queued social/commercial drafts. V3 shell
+ * (ClientV3TopNav + Cormorant); ReviewQueue inherits the navy skin via the
+ * token remap. No PortalHeader.
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -20,8 +13,8 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { listClientReviewQueue } from '@/lib/client/social_review';
-import PortalHeader from '@/app/client/_components/PortalHeader';
 import AccessPaused from '@/app/client/_components/AccessPaused';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import { ReviewQueue } from './ReviewQueue';
 
 export const dynamic = 'force-dynamic';
@@ -49,10 +42,10 @@ export default async function ClientSocialReviewPage() {
     const access = await getClientAccessState(clientId);
     if (!access.active) {
       return (
-        <>
-          <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="review" />
+        <main className="v3-wrap">
+          <ClientV3TopNav />
           <AccessPaused expired={access.expired} />
-        </>
+        </main>
       );
     }
   }
@@ -60,18 +53,17 @@ export default async function ClientSocialReviewPage() {
   const items = clientId ? await listClientReviewQueue(clientId) : [];
 
   return (
-    <>
-      <PortalHeader displayName={user.display_name} email={user.email} tier={user.tier} active="review" />
-      <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-ink">To Review</h1>
-          <p className="text-sm text-muted mt-1 max-w-2xl">
-            Commercials and social posts queued for your approval. Approve to
-            schedule for publish; reject to keep this angle off the feed.
-          </p>
-        </header>
-        <ReviewQueue initialItems={items} />
-      </main>
-    </>
+    <main className="v3-wrap" style={{ maxWidth: 760 }}>
+      <ClientV3TopNav />
+      <section className="v3-greet">
+        <p className="v3-eyebrow">Awaiting your approval</p>
+        <h1 className="v3-h1">Ready for your <em>eyes.</em></h1>
+        <p className="v3-lede" style={{ fontStyle: 'normal', fontSize: 16 }}>
+          Commercials and posts queued for your approval. Approve to schedule for publish; pass to keep an angle off the feed.
+        </p>
+      </section>
+      <ReviewQueue initialItems={items} />
+      <p className="v3-foot" style={{ textAlign: 'left', marginTop: 28 }}>QUIET · LEGIBLE · VERIFIABLE</p>
+    </main>
   );
 }
