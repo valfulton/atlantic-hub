@@ -365,7 +365,8 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           <Link href={p.freshLeads.moreHref} className="more">View all →</Link>
         </div>
         {p.freshLeads.cards.length === 0 ? (
-          <div className="app-empty">
+          <div className="app-wire">
+            <span className="eb">— On the hunt —</span>
             <p>Your enrichment queue is quiet right now. New leads will surface here as they're scored.</p>
           </div>
         ) : (
