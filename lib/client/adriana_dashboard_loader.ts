@@ -10,10 +10,11 @@
 import { listBrandsForUser } from '@/lib/client/membership';
 import { watchlistForClient, type WatchlistRow } from '@/lib/public_intel/distress_engine';
 import { listClientLeads, type ClientLead } from '@/lib/client/leads';
+import { listEmployeesForClient } from '@/lib/client/employees_on_account';
 import { getAvDb } from '@/lib/db/av';
 import { getCopyMap } from '@/lib/copy/store';
 import type { RowDataPacket } from 'mysql2';
-import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode } from '@/app/client/dashboard/AdrianaDashboard';
+import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember } from '@/app/client/dashboard/AdrianaDashboard';
 
 interface LoaderArgs {
   clientUserId: number;
@@ -198,12 +199,16 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   let activeClientName: string | null = null;
   let activeClientShortName: string | null = null;
   let activeCampaignCount = 0;
+  // (#377) AV employees on this client — Adriana sees Rebecca; Tim sees nothing.
+  // Lib already returns [] on error, so this never breaks the dashboard.
+  let team: TeamMember[] = [];
   if (activeClientId) {
-    [watchlistRows, activeClientName, activeClientShortName, activeCampaignCount] = await Promise.all([
+    [watchlistRows, activeClientName, activeClientShortName, activeCampaignCount, team] = await Promise.all([
       watchlistForClient(activeClientId, 8).catch(() => []),
       clientNameOf(activeClientId),
       clientShortNameOf(activeClientId),
-      countActiveCampaigns(activeClientId)
+      countActiveCampaigns(activeClientId),
+      listEmployeesForClient(activeClientId).catch(() => [] as TeamMember[])
     ]);
   }
 
@@ -270,6 +275,7 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     subhead,
     copy,
     brands,
+    team,
     hero,
     watchlist: {
       activeCountLabel,
