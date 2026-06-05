@@ -121,6 +121,8 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkSummary, setBulkSummary] = useState<string | null>(null);
+  // (val 2026-06-05) Bulk-move-to-brand picker open state.
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   // (#386) Cross-brand move state: which row's picker is open, what's busy.
   const [moveOpenFor, setMoveOpenFor] = useState<string | null>(null);
   const [moveBusy, setMoveBusy] = useState<Record<string, boolean>>({});
@@ -327,6 +329,54 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
     }
   }
 
+  // (val 2026-06-05) Bulk-move selected rows to another brand the owner has
+  // (e.g. CLDA → CBB). Loops the existing single-row move endpoint per entity
+  // — simple, idempotent, and the volumes are small enough (handful at a time)
+  // that a dedicated batch endpoint isn't worth it yet.
+  async function moveSelectedToBrand(toClientId: number, toName: string) {
+    const keys = Array.from(selected);
+    if (keys.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    setBulkSummary(null);
+    setBulkMoveOpen(false);
+    let moved = 0;
+    const failures: string[] = [];
+    try {
+      const url = mode === 'operator'
+        ? `/api/admin/av/clients/${clientId}/distress/move-brand`
+        : `/api/client/distress/move-brand`;
+      for (const entityKey of keys) {
+        const body = mode === 'operator'
+          ? { toClientId, entityKey }
+          : { fromClientId: clientId, toClientId, entityKey };
+        try {
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          const j = await r.json();
+          if (r.ok && j.ok) {
+            moved += 1;
+            // Optimistic remove from this brand's list as each succeeds.
+            setRows((prev) => (prev ? prev.filter((x) => x.entityKey !== entityKey) : prev));
+          } else {
+            failures.push(entityKey);
+          }
+        } catch {
+          failures.push(entityKey);
+        }
+      }
+      setSelected(new Set());
+      setBulkSummary(
+        `${moved} moved to ${toName}` +
+          (failures.length > 0 ? ` · ${failures.length} failed` : '')
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   function toggleRow(entityKey: string) {
     setSelected((s) => {
       const next = new Set(s);
@@ -463,6 +513,45 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                   >
                     {bulkBusy ? `Adding ${selected.size}…` : `✚ Add ${selected.size || ''} to pipeline`.trim()}
                   </button>
+                  {/* (val 2026-06-05) Bulk-move selected rows to one of the owner's
+                      other brands. Only shows when this owner has other brands
+                      (moveTargets passed in by the parent) AND at least one row
+                      is selected. Dropdown reuses the same per-row picker pattern. */}
+                  {moveTargets && moveTargets.length > 0 && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setBulkMoveOpen((o) => !o)}
+                        disabled={bulkBusy || selected.size === 0}
+                        className="rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_15%,transparent)] text-[var(--gold-bright)] text-[11.5px] px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {bulkBusy
+                          ? 'Moving…'
+                          : `⇄ Move ${selected.size || ''} to…`.trim()}
+                      </button>
+                      {bulkMoveOpen && selected.size > 0 && !bulkBusy && (
+                        <div className="absolute right-0 mt-1 z-10 min-w-[12rem] rounded-md border border-border bg-bg/95 backdrop-blur-sm shadow-lg overflow-hidden">
+                          {moveTargets.map((t) => (
+                            <button
+                              key={t.clientId}
+                              type="button"
+                              onClick={() => moveSelectedToBrand(t.clientId, t.clientName)}
+                              className="w-full text-left text-[12px] px-3 py-2 text-ink hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]"
+                            >
+                              {t.clientName}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setBulkMoveOpen(false)}
+                            className="w-full text-left text-[11px] px-3 py-1.5 text-muted hover:text-ink border-t border-border"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <ol className="grid gap-1.5">
