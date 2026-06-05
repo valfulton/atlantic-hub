@@ -53,11 +53,13 @@ function outcomeLabel(v: string): string {
 }
 
 // (#300) Same Mixed-signal demotion as the list view — see /client/leads/page.tsx.
+// Dashboard vocabulary on cream: hot = amber attention, warm = emerald,
+// cool/mixed = quiet muted. No navy-era pastels.
 const BAND_TONE: Record<'hot' | 'warm' | 'cool' | 'mixed', { bg: string; fg: string; label: string }> = {
-  hot: { bg: 'rgba(255,90,110,0.16)', fg: '#FF9AA8', label: 'Hot' },
-  warm: { bg: 'rgba(245,158,11,0.16)', fg: '#fcd34d', label: 'Warm' },
-  cool: { bg: 'rgba(91,168,255,0.16)', fg: '#a8cbff', label: 'Cool' },
-  mixed: { bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1', label: 'Mixed signal' }
+  hot: { bg: 'rgba(181,116,43,0.14)', fg: '#8A5316', label: 'Hot' },
+  warm: { bg: 'var(--emerald-mist, #E8F2EE)', fg: '#0A4D3C', label: 'Warm' },
+  cool: { bg: 'rgba(10,77,60,0.06)', fg: '#4A4A4A', label: 'Cool' },
+  mixed: { bg: 'rgba(10,77,60,0.06)', fg: '#6B6862', label: 'Mixed signal' }
 };
 
 function fmtDate(iso: string | null): string | null {
@@ -72,7 +74,7 @@ function Field({ label, value, href }: { label: string; value: string | null; hr
     <div>
       <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-0.5">{label}</div>
       {href ? (
-        <a href={href} target="_blank" rel="noopener" className="text-sm text-brand hover:underline break-words">{value}</a>
+        <a href={href} target="_blank" rel="noopener" className="text-sm text-[#0A4D3C] hover:underline break-words">{value}</a>
       ) : (
         <div className="text-sm text-ink break-words">{value}</div>
       )}
@@ -82,7 +84,7 @@ function Field({ label, value, href }: { label: string; value: string | null; hr
 
 function ScoreCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-black/20 px-4 py-3">
+    <div className="rounded-xl border border-border bg-white px-4 py-3">
       <div className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</div>
       <div className="text-2xl font-semibold tabular-nums text-ink mt-1 leading-none">{value}</div>
     </div>
@@ -98,8 +100,8 @@ function Bar({ label, value }: { label: string; value: number | null }) {
         <span className="text-muted uppercase tracking-[0.12em]">{label}</span>
         <span className="text-ink tabular-nums">{pct}</span>
       </div>
-      <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#FF9C5B,#FFC73D)' }} />
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(10,77,60,0.10)' }}>
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--emerald, #0A4D3C)' }} />
       </div>
     </div>
   );
@@ -248,7 +250,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
         <button
           onClick={() => setActive('Calls')}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-          style={{ background: 'linear-gradient(120deg,#FF9C5B,#FFC73D)', color: '#1a1207', border: 'none' }}
+          style={{ background: 'var(--emerald, #0A4D3C)', color: 'var(--cream-pure, #F5EFE3)', border: 'none' }}
         >
           &#x1F4DE; Log a call
         </button>
@@ -275,8 +277,8 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
 
       {/* "What to say on the call" — the highest-value thing, kept up top */}
       {lead.callScript && (lead.callScript.openers.length > 0 || lead.callScript.primaryPain) && (
-        <div className="mt-4 rounded-2xl border border-border bg-black/20 p-4">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-brand mb-1.5">What to say on the call</div>
+        <div className="mt-4 rounded-2xl border border-border bg-white p-4">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-1.5">What to say on the call</div>
           {lead.callScript.primaryPain && (
             <p className="text-sm text-muted mb-2 leading-relaxed">{lead.callScript.primaryPain}</p>
           )}
@@ -347,7 +349,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
       {active === 'Audit' &&
         (lead.auditContent ? (
           <div>
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono bg-surface border border-border rounded-lg p-5 max-h-[60vh] overflow-y-auto">
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono bg-white border border-border rounded-lg p-5 max-h-[60vh] overflow-y-auto">
               {lead.auditContent}
             </pre>
             {fmtDate(lead.auditGenerated) && (
@@ -360,8 +362,8 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
 
       {active === 'Calls' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-border bg-surface p-5">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-brand mb-3">Log a call</div>
+          <div className="rounded-2xl border border-border bg-white p-5">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-3">Log a call</div>
             <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
               <label className="block sm:w-56">
                 <span className="block text-[11px] text-muted mb-1">How did it go?</span>
@@ -369,7 +371,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value)}
                   disabled={savingCall}
-                  className="w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm text-ink"
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
                 >
                   {CALL_OUTCOMES.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -383,14 +385,14 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                   onChange={(e) => setCallNotes(e.target.value)}
                   disabled={savingCall}
                   placeholder="What was said, next step, who to ask for…"
-                  className="w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm text-ink"
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
                 />
               </label>
               <button
                 onClick={logCall}
                 disabled={savingCall}
                 className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                style={{ background: 'linear-gradient(120deg,#FF9C5B,#FFC73D)', color: '#1a1207', border: 'none' }}
+                style={{ background: 'var(--emerald, #0A4D3C)', color: 'var(--cream-pure, #F5EFE3)', border: 'none' }}
               >
                 {savingCall ? 'Saving…' : 'Save call'}
               </button>
@@ -407,7 +409,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
             ) : (
               <ul className="space-y-2">
                 {calls.map((c) => (
-                  <li key={c.callLogId} className="rounded-xl border border-border bg-surface p-3">
+                  <li key={c.callLogId} className="rounded-xl border border-border bg-white p-3">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm text-ink font-medium">{outcomeLabel(c.outcome)}</span>
                       <span className="text-[11px] text-muted">{fmtDateTime(c.calledAt)}</span>
@@ -423,15 +425,15 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
 
       {active === 'Notes' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-border bg-surface p-5">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-brand mb-3">Add a note</div>
+          <div className="rounded-2xl border border-border bg-white p-5">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-3">Add a note</div>
             <textarea
               value={noteBody}
               onChange={(e) => setNoteBody(e.target.value)}
               disabled={savingNote}
               rows={3}
               placeholder="Anything worth remembering about this lead…"
-              className="w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm text-ink"
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
             />
             <div className="flex items-center justify-end gap-3 mt-2">
               {noteError && <span className="text-[11px] text-rose-400">Could not save: {noteError}</span>}
@@ -439,7 +441,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                 onClick={addNote}
                 disabled={savingNote || !noteBody.trim()}
                 className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                style={{ background: 'linear-gradient(120deg,#FF9C5B,#FFC73D)', color: '#1a1207', border: 'none' }}
+                style={{ background: 'var(--emerald, #0A4D3C)', color: 'var(--cream-pure, #F5EFE3)', border: 'none' }}
               >
                 {savingNote ? 'Saving…' : 'Save note'}
               </button>
@@ -455,7 +457,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
             ) : (
               <ul className="space-y-2">
                 {notes.map((n) => (
-                  <li key={n.noteId} className="rounded-xl border border-border bg-surface p-3">
+                  <li key={n.noteId} className="rounded-xl border border-border bg-white p-3">
                     <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">{n.body}</p>
                     <div className="text-[11px] text-muted mt-1">{fmtDateTime(n.createdAt)}</div>
                   </li>
@@ -476,7 +478,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
           ) : (
             <ul className="space-y-2">
               {lead.outreach.map((m) => (
-                <li key={m.id} className="rounded-xl border border-border bg-surface p-3">
+                <li key={m.id} className="rounded-xl border border-border bg-white p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm text-ink font-medium truncate">{m.subject || '(no subject)'}</span>
                     {m.status && (
@@ -485,7 +487,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                   </div>
                   <div className="text-[11px] text-muted mt-1 flex flex-wrap gap-x-4">
                     {m.sentAt && <span>Sent {fmtDateTime(m.sentAt)}</span>}
-                    {m.repliedAt && <span className="text-emerald-300/80">Replied {fmtDateTime(m.repliedAt)}</span>}
+                    {m.repliedAt && <span style={{ color: '#0A4D3C' }}>Replied {fmtDateTime(m.repliedAt)}</span>}
                   </div>
                 </li>
               ))}
@@ -503,7 +505,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
               {lead.engagementScore != null && <ScoreCard label="Engagement" value={String(Math.round(lead.engagementScore))} />}
             </div>
             {lead.breakdown && (
-              <div className="rounded-xl border border-border bg-surface p-5 space-y-3">
+              <div className="rounded-xl border border-border bg-white p-5 space-y-3">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted">How this lead scores</div>
                 <Bar label="Fit" value={lead.breakdown.fit} />
                 <Bar label="Intent" value={lead.breakdown.intent} />
@@ -512,7 +514,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
               </div>
             )}
             {lead.scoreReason && (
-              <div className="rounded-xl border border-border bg-surface p-4">
+              <div className="rounded-xl border border-border bg-white p-4">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-1.5">Why this score</div>
                 <p className="text-sm text-ink leading-relaxed">{lead.scoreReason}</p>
               </div>
@@ -523,7 +525,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
         ))}
 
       {active === 'Commercials' && (
-        <div className="rounded-2xl border border-dashed border-border bg-surface/60 p-8 text-center">
+        <div className="rounded-2xl border border-dashed border-border bg-white/60 p-8 text-center">
           <div className="text-2xl mb-2" aria-hidden="true">&#x1F3AC;</div>
           <h2 className="text-base font-semibold text-ink">Commercials are coming soon</h2>
           <p className="text-sm text-muted mt-2 max-w-md mx-auto leading-relaxed">
