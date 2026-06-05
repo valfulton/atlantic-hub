@@ -35,7 +35,10 @@ export type PublicIntelKind =
   | 'ucc_ca'             // California UCC financing statements
   | 'gbp'                // Google Business Profile rolling snapshots (rating + reviews)
   | 'ca_sos_v2'          // CA SOS filing history + officers + agent changes
-  | 'pacer_docket';      // Federal docket fetcher for bankruptcy creditor schedules
+  | 'pacer_docket'       // Federal docket fetcher for bankruptcy creditor schedules
+  // (#423) Multi-state RE foreclosure rollout. MD comes first because it's the
+  // only state with a fully statewide free recorder portal (mdlandrec.net).
+  | 'md_land_rec';       // Maryland Land Records — every MD jurisdiction, one login
 
 export interface PublicIntelSource {
   sourceId: number;

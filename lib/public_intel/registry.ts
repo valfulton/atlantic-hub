@@ -19,6 +19,7 @@ import { uccCaAdapter } from './adapters/ucc_ca';
 import { pacerDocketAdapter } from './adapters/pacer_docket';
 import { gbpAdapter } from './adapters/gbp';
 import { dataSfAdapter } from './adapters/datasf';
+import { mdLandRecAdapter } from './adapters/md_land_rec';
 
 export interface AdapterEntry {
   adapter: PublicIntelAdapter;
@@ -108,7 +109,9 @@ const IMPLEMENTED: PublicIntelAdapter[] = [
   uccCaAdapter,
   pacerDocketAdapter,
   gbpAdapter,
-  dataSfAdapter
+  dataSfAdapter,
+  // (#423) First adapter in the multi-state RE foreclosure rollout.
+  mdLandRecAdapter
 ];
 
 const REGISTRY: Map<PublicIntelKind, AdapterEntry> = new Map();

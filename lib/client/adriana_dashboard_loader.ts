@@ -40,10 +40,23 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/** Human-readable label for a ClassifiedSignal cascade node. Prefer the
+ *  free-form `source` trace (most operator context) and fall back to the
+ *  signal kind prettified ("bankruptcy_filed" → "Bankruptcy Filed"). The
+ *  shape of ClassifiedSignal no longer has a `label` field directly; this
+ *  derives one. */
+function cascadeNodeLabel(s: { source?: string | null; signalKind: string }): string {
+  const src = (s.source ?? '').trim();
+  if (src) return src.length > 60 ? src.slice(0, 57) + '…' : src;
+  return s.signalKind
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /** Map a distress WatchlistRow into the cascade trail + chip our card expects. */
 function watchlistRowToCard(row: WatchlistRow): SignalCard {
   const trail = (row.contributingSignals || []).slice(0, 3).map((s, i, arr) => ({
-    label: s.label,
+    label: cascadeNodeLabel(s),
     payoff: i === arr.length - 1
   } as CascadeNode));
   // "Freshness" chip — newest signal first.
