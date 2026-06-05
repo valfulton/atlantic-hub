@@ -21,6 +21,8 @@ import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import { resolveGreetingName } from '@/lib/client/display_name';
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
+import ClientCalendar from './ClientCalendar';
+import './calendar.css';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -105,15 +107,6 @@ async function loadCalendar(clientId: number | null): Promise<CalendarItem[]> {
   return items;
 }
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  } catch {
-    return '—';
-  }
-}
-
 export default async function ClientCalendarPage() {
   const actor = readClientActorFromHeaders(headers() as unknown as Headers);
   if (!actor) redirect('/client/login');
@@ -163,15 +156,7 @@ export default async function ClientCalendarPage() {
           </p>
         </article>
       ) : (
-        <section className="v3-grid">
-          {items.map((it) => (
-            <article key={it.id} className="v3-card">
-              <p className="v3-eyebrow">{fmtDate(it.whenISO)} · {it.kind === 'draft' ? 'DRAFT' : (it.channel ?? 'QUEUED').toUpperCase()}</p>
-              <h3 className="v3-card__h">{it.title}</h3>
-              {it.detail && <p className="v3-card__p">{it.detail}</p>}
-            </article>
-          ))}
-        </section>
+        <ClientCalendar items={items} />
       )}
 
       <p className="v3-foot">QUIET · LEGIBLE · VERIFIABLE</p>
