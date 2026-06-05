@@ -100,9 +100,15 @@ interface DistressPanelProps {
   initialRows?: WatchlistRow[];
   /** (#389) Open the panel on mount when initialRows is provided. */
   startOpen?: boolean;
+  /**
+   * (#386) Other brands the current user can move signals INTO. Pass [] or
+   * omit for single-brand users — the Move button doesn't render. Owners with
+   * multiple brands (e.g. Adriana with CBB + CLDA) get a per-row Move picker.
+   */
+  moveTargets?: { clientId: number; clientName: string }[];
 }
 
-export default function DistressWatchlistPanel({ clientId, clientName, mode = 'operator', initialRows, startOpen }: DistressPanelProps) {
+export default function DistressWatchlistPanel({ clientId, clientName, mode = 'operator', initialRows, startOpen, moveTargets }: DistressPanelProps) {
   const [open, setOpen] = useState(!!startOpen);
   const [rows, setRows] = useState<WatchlistRow[] | null>(initialRows ?? null);
   const [busy, setBusy] = useState(false);
@@ -115,6 +121,9 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkSummary, setBulkSummary] = useState<string | null>(null);
+  // (#386) Cross-brand move state: which row's picker is open, what's busy.
+  const [moveOpenFor, setMoveOpenFor] = useState<string | null>(null);
+  const [moveBusy, setMoveBusy] = useState<Record<string, boolean>>({});
 
   // (#385) API path base derived from mode. Operator surface = scoped under
   // /admin/av/clients/[id]; client surface = unscoped /client/* (server reads
@@ -246,6 +255,42 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
       }
     } catch {
       setPromoteState((s) => ({ ...s, [row.entityKey]: 'error' }));
+    }
+  }
+
+  // (#386) Move a watchlist entity to one of the user's other brands.
+  // Uses the operator route under /admin/av/* in operator mode and the
+  // owner-scoped /api/client/distress/move-brand in client mode. On success
+  // we optimistically drop the row from this brand's local list — it will
+  // resurface in the target brand's watchlist on next load.
+  async function moveTo(row: WatchlistRow, toClientId: number) {
+    if (moveBusy[row.entityKey]) return;
+    setMoveBusy((s) => ({ ...s, [row.entityKey]: true }));
+    setMoveOpenFor(null);
+    try {
+      const url = mode === 'operator'
+        ? `/api/admin/av/clients/${clientId}/distress/move-brand`
+        : `/api/client/distress/move-brand`;
+      const body = mode === 'operator'
+        ? { toClientId, entityKey: row.entityKey }
+        : { fromClientId: clientId, toClientId, entityKey: row.entityKey };
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        setError(j.reason || j.error || 'Move failed.');
+        return;
+      }
+      // Optimistic remove from this brand's list.
+      setRows((prev) => (prev ? prev.filter((x) => x.entityKey !== row.entityKey) : prev));
+      setError(null);
+    } catch {
+      setError('Move failed.');
+    } finally {
+      setMoveBusy((s) => ({ ...s, [row.entityKey]: false }));
     }
   }
 
@@ -505,6 +550,46 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                           ? '! Retry'
                           : '✚ Add'}
                       </button>
+                      {/* (#386) Cross-brand move — only shown when caller has other brands
+                          to move INTO. The picker is a tiny inline popover. */}
+                      {moveTargets && moveTargets.length > 0 && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMoveOpenFor((cur) => (cur === row.entityKey ? null : row.entityKey))
+                            }
+                            disabled={moveBusy[row.entityKey]}
+                            className="rounded-md border border-[#EBCB6B]/40 bg-[#EBCB6B]/10 hover:bg-[#EBCB6B]/20 text-[#EBCB6B] text-[11px] px-2 py-1"
+                            title="Move this signal to another brand you own"
+                            aria-haspopup="menu"
+                            aria-expanded={moveOpenFor === row.entityKey}
+                          >
+                            {moveBusy[row.entityKey] ? '…' : '⇄ Move'}
+                          </button>
+                          {moveOpenFor === row.entityKey && (
+                            <div
+                              role="menu"
+                              className="absolute right-0 mt-1 z-20 min-w-[180px] rounded-md border border-border bg-surface shadow-xl overflow-hidden"
+                            >
+                              <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] text-muted border-b border-border">
+                                Move to…
+                              </div>
+                              {moveTargets.map((t) => (
+                                <button
+                                  key={t.clientId}
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => moveTo(row, t.clientId)}
+                                  className="block w-full text-left px-2.5 py-1.5 text-[12px] text-ink hover:bg-[#EBCB6B]/10"
+                                >
+                                  {t.clientName}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </li>
                 ))}

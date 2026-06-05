@@ -410,7 +410,17 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           your service this week." Sits below Public intel because the
           engine reads what those adapters write. */}
       <div id="distress-watchlist" className="mb-5">
-        <DistressWatchlistPanel clientId={clientId} clientName={d.name} />
+        {/* (#386) moveTargets — every OTHER client in the operator's tenant. Val
+            can move a watchlist entity from this brand to any other brand. For
+            client_user owners (Adriana) the picker is rendered separately by
+            the client surface and is scoped to brands they own. */}
+        <DistressWatchlistPanel
+          clientId={clientId}
+          clientName={d.name}
+          moveTargets={clientAccounts
+            .filter((c) => c.clientId !== clientId)
+            .map((c) => ({ clientId: c.clientId, clientName: c.name }))}
+        />
       </div>
 
       {/* (#374) Cascade Pipeline — chain reactions that fire automatically when
