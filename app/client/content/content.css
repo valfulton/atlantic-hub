@@ -20,7 +20,9 @@
 .studio-chip {
   flex: 0 0 auto; font-size: .74rem; font-weight: 600; padding: .42rem .85rem;
   border-radius: 999px; border: 1px solid rgba(150,160,180,.3); background: transparent;
-  color: inherit; cursor: pointer; opacity: .72; min-height: 36px;
+  color: inherit; cursor: pointer; opacity: .72;
+  /* (mobile) 44px min thumb target — chips were 36px, below the tap floor. */
+  min-height: 44px; display: inline-flex; align-items: center;
 }
 .studio-chip.on { background: var(--brand, #EBCB6B); color: #0A0E18; border-color: transparent; opacity: 1; }
 
@@ -35,7 +37,8 @@
 .studio-actions button:disabled { opacity: .5; cursor: default; }
 
 .studio-toast {
-  position: fixed; left: 50%; bottom: 5rem; transform: translateX(-50%);
+  /* sit above the fixed tab bar AND the iPhone home indicator. */
+  position: fixed; left: 50%; bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   background: #0A0E18; color: #fff; padding: .7rem 1.2rem; border-radius: 999px;
   font-size: .85rem; z-index: 60; box-shadow: 0 12px 30px -10px rgba(0,0,0,.5);
 }
