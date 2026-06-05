@@ -150,9 +150,9 @@ export default function WelcomePopover({
           maxWidth: 460,
           width: '100%',
           borderRadius: 24,
-          border: '1px solid rgba(255, 199, 61, 0.25)',
+          border: '1px solid color-mix(in srgb, var(--gold-bright) 25%, transparent)',
           background:
-            'radial-gradient(140% 160% at 0% 0%, rgba(245, 158, 11, 0.10), transparent 55%), linear-gradient(180deg, #0e1525 0%, #0a1120 100%)',
+            'radial-gradient(140% 160% at 0% 0%, color-mix(in srgb, var(--gold-bright) 12%, transparent), transparent 55%), linear-gradient(180deg, #0e1525 0%, #0a1120 100%)',
           padding: '28px 28px 22px',
           boxShadow: '0 30px 60px rgba(0, 0, 0, 0.45)',
           color: '#e2e8f0'
@@ -163,7 +163,7 @@ export default function WelcomePopover({
             fontSize: 10,
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
-            color: '#FFC73D',
+            color: 'var(--gold-bright)',
             marginBottom: 8
           }}
         >
@@ -192,7 +192,7 @@ export default function WelcomePopover({
               display: 'inline-block',
               marginTop: 14,
               fontSize: 13,
-              color: '#FFC73D',
+              color: 'var(--gold-bright)',
               textDecoration: 'none',
               fontWeight: 500
             }}
@@ -211,7 +211,7 @@ export default function WelcomePopover({
                 width: i === step ? 18 : 6,
                 height: 6,
                 borderRadius: 3,
-                background: i === step ? '#FFC73D' : 'rgba(255, 255, 255, 0.18)',
+                background: i === step ? 'var(--gold-bright)' : 'rgba(255, 255, 255, 0.18)',
                 transition: 'width 0.2s ease'
               }}
             />
@@ -266,7 +266,7 @@ export default function WelcomePopover({
               type="button"
               onClick={next}
               style={{
-                background: '#FFC73D',
+                background: 'var(--gold-bright)',
                 border: 0,
                 color: '#0a1120',
                 fontSize: 13,

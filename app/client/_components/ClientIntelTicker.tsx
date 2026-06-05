@@ -48,12 +48,12 @@ export default function ClientIntelTicker() {
   return (
     <div
       className="flex items-center gap-3 px-4 py-2 text-sm border-b"
-      style={{ borderColor: 'rgba(255,156,91,0.3)', background: 'linear-gradient(90deg, rgba(255,199,61,0.10), rgba(255,156,91,0.05))' }}
+      style={{ borderColor: 'var(--line)', background: 'linear-gradient(90deg, var(--emerald-mist), color-mix(in srgb, var(--emerald-mist) 40%, transparent))' }}
       role="status"
       aria-live="polite"
     >
       <span className="live-dot shrink-0" aria-hidden="true" />
-      <span className="shrink-0 text-[10px] uppercase tracking-[0.16em]" style={{ color: '#FFC73D' }}>For you</span>
+      <span className="shrink-0 text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--emerald-deep)' }}>For you</span>
       <span className="min-w-0 flex-1 truncate text-ink">
         <span className="font-medium">{headline(cur)}</span>
         <span className="text-muted"> — a fresh opportunity we&apos;re lining up for you.</span>

@@ -24,8 +24,8 @@
      Single source: AV_POP_PALETTE_spec.md. Legacy token names retained for
      backwards-compat; the VALUES now point at the pop palette. */
   --navy:#FAF8F4;            /* page ground (warm cream) */
-  --navy-soft:#FFFFFF;       /* CARD — crisp white lifts off cream (was tan #EFE6D2 = the morgue) */
-  --navy-elev:#FFFFFF;       /* elevated card — also white */
+  --navy-soft:#FFFDF8;       /* CARD — warm ivory (val: white was provisional); lift from shadow+warmth, not clinical white */
+  --navy-elev:#FFFDF8;       /* elevated card — warm ivory */
   --cream:#14201B;           /* primary text (emerald-black, ~14:1) */
   --cream-muted:#5C6862;     /* muted text (AA 5.2) */
   --amber:#C49A3C;           /* gold — BORDERS + black-text chips only (never text on cream) */
@@ -38,7 +38,9 @@
   --sans:"Inter",system-ui,sans-serif;
 
   /* pop accents (new names) */
-  --paper:#FFFFFF;
+  --paper:#FFFDF8;              /* warm ivory card */
+  --card-shadow:rgba(10,77,60,.40);  /* emerald-toned card lift (newsroom wires geometry) */
+  --card-edge:#E8C25A;          /* gold-leaf hairline / jewelry edge */
   --emerald:#0C6049;            /* jewel fill — solid buttons/chips */
   --emerald-mist:#DCEDE5;       /* quiet chip bg (deeper than old #E8F2EE so it reads) */
   --gold:#C49A3C; --gold-leaf:#E8C25A;
@@ -55,7 +57,7 @@
 
   /* === REMAP legacy Tailwind tokens for the pop register === */
   --bg:#FAF8F4;                 /* cream ground */
-  --surface:#FFFFFF;            /* WHITE card */
+  --surface:#FFFDF8;            /* warm ivory card */
   --surface-2:#FAF8F4;
   --border:rgba(10,77,60,.14);
   --ink:#14201B;                /* emerald-black text */

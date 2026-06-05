@@ -283,7 +283,7 @@ export default function ClientIntakeForm({
           <button
             type="button"
             onClick={() => jumpToNextBlank()}
-            className="text-[11.5px] font-medium text-[var(--gold-bright)] hover:text-[#F2D88A]"
+            className="text-[11.5px] font-medium text-[color:var(--gold-bright)] hover:text-[color:var(--gold-leaf)]"
           >
             Jump to next blank ↑
           </button>

@@ -30,7 +30,7 @@ export default function Collapsible({
         aria-expanded={open}
         className="w-full flex items-center gap-3 px-5 sm:px-6 py-4 text-left hover:bg-white/[0.02] transition-colors"
       >
-        <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#FF9C5B' }} aria-hidden="true" />
+        <span className="inline-block w-2 h-2 rounded-full" style={{ background: 'var(--signal)' }} aria-hidden="true" />
         <span className="text-base sm:text-lg font-semibold text-ink">{title}</span>
         {meta && <span className="text-xs text-muted">{meta}</span>}
         <span className="ml-auto text-muted text-xl leading-none select-none" aria-hidden="true">{open ? '−' : '+'}</span>

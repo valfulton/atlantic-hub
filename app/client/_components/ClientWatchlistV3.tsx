@@ -211,7 +211,7 @@ export default function ClientWatchlistV3(p: ClientWatchlistV3Props) {
       {loading && rows.length > 0 && (
         <p style={{
           marginTop: '12px', fontSize: '11px', letterSpacing: '.16em', textTransform: 'uppercase',
-          color: 'var(--cream-muted, #94A4B8)', opacity: 0.6
+          color: 'var(--cream-muted)', opacity: 0.6
         }}>
           Refreshing…
         </p>

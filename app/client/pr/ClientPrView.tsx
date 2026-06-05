@@ -41,10 +41,12 @@ function DecayPill({ days }: { days: number | null }) {
 
 function ClientApprovalChip({ approval }: { approval: 'approved' | 'declined' | 'review_requested' | null }) {
   if (!approval) return null;
+  // Status chips read from semantic tokens (--ok / --danger / --warn) so a
+  // future palette retune in brand-tokens.css flows through automatically.
   const map = {
-    approved: { bg: 'rgba(15,110,86,0.14)', fg: '#0F6E56', label: 'You approved' },
-    declined: { bg: 'rgba(122,58,64,0.14)', fg: '#7A3A40', label: 'You declined' },
-    review_requested: { bg: 'rgba(138,83,22,0.14)', fg: '#7E4E16', label: 'Sent for review' }
+    approved: { bg: 'var(--ok-bg)', fg: 'var(--ok)', label: 'You approved' },
+    declined: { bg: 'var(--danger-bg)', fg: 'var(--danger)', label: 'You declined' },
+    review_requested: { bg: 'var(--warn-bg)', fg: 'var(--warn)', label: 'Sent for review' }
   } as const;
   const m = map[approval];
   return (
@@ -59,10 +61,10 @@ function StatItem({ label, value, tone }: { label: string; value: number; tone?:
   // emerald; default = quiet rule. No fills on tone rings.
   const ring =
     tone === 'urgent' && value > 0
-      ? 'border-[#C9A961]/60 bg-transparent'
+      ? 'border-[color:color-mix(in_srgb,var(--gold)_60%,transparent)] bg-transparent'
       : tone === 'good' && value > 0
-      ? 'border-[#0A4D3C]/35 bg-transparent'
-      : 'border-[#0A4D3C]/12 bg-white';
+      ? 'border-[color:color-mix(in_srgb,var(--emerald-deep)_35%,transparent)] bg-transparent'
+      : 'border-[color:color-mix(in_srgb,var(--emerald-deep)_12%,transparent)] bg-white';
   return (
     <div className={`rounded-xl border ${ring} px-4 py-3`}>
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted">{label}</div>
@@ -117,8 +119,8 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
 
   if (opps.length === 0) {
     return (
-      <section className="rounded-2xl border border-[#0A4D3C]/12 bg-white p-8 text-center">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-[#0A4D3C] mb-2">Your PR pipeline</div>
+      <section className="rounded-2xl border border-[color:color-mix(in_srgb,var(--emerald-deep)_12%,transparent)] bg-white p-8 text-center">
+        <div className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--emerald-deep)] mb-2">Your PR pipeline</div>
         <p className="text-ink font-medium text-base">Nothing in the press queue yet, {headline}.</p>
         <p className="text-sm text-muted mt-2 max-w-md mx-auto leading-relaxed">
           When a journalist puts out a request that fits your story, you&apos;ll see it here with a drafted pitch
@@ -147,14 +149,14 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
           const operatorSent = o.pitchStatus === 'sent';
 
           return (
-            <li key={key} className="rounded-2xl border border-[#0A4D3C]/12 bg-white p-5">
+            <li key={key} className="rounded-2xl border border-[color:color-mix(in_srgb,var(--emerald-deep)_12%,transparent)] bg-white p-5">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <DecayPill days={o.decayDays} />
                     <ClientApprovalChip approval={o.clientApproval} />
                     {operatorSent && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.14em] font-medium" style={{ background: 'rgba(44,87,119,0.14)', color: '#2C5777' }}>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.14em] font-medium" style={{ background: 'var(--info-bg)', color: 'var(--harbor)' }}>
                         Submitted
                       </span>
                     )}
@@ -175,8 +177,8 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
               )}
 
               {o.queryText && (
-                <div className="mt-3 rounded-xl border border-[#0A4D3C]/12 bg-[#0A4D3C]/[0.05] p-3">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-1.5">What the journalist asked</div>
+                <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--emerald-deep)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--emerald-deep)_5%,transparent)] p-3">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)] mb-1.5">What the journalist asked</div>
                   <p className="text-sm text-ink/85 leading-relaxed whitespace-pre-wrap">{o.queryText}</p>
                 </div>
               )}
@@ -188,12 +190,12 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
               )}
 
               {hasPitch ? (
-                <div className="mt-4 rounded-xl border border-[#C9A961]/45 bg-[#C9A961]/[0.07] p-3">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-1.5">Drafted pitch in your voice</div>
+                <div className="mt-4 rounded-xl border border-[color:color-mix(in_srgb,var(--gold)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--gold)_7%,transparent)] p-3">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)] mb-1.5">Drafted pitch in your voice</div>
                   <p className="text-sm text-ink/90 leading-relaxed whitespace-pre-wrap">{o.pitchBody}</p>
                 </div>
               ) : (
-                <div className="mt-4 rounded-xl border border-dashed border-[#0A4D3C]/20 bg-[#0A4D3C]/[0.04] p-3 text-[12px] text-muted italic">
+                <div className="mt-4 rounded-xl border border-dashed border-[color:color-mix(in_srgb,var(--emerald-deep)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--emerald-deep)_4%,transparent)] p-3 text-[12px] text-muted italic">
                   Pitch in progress — we&apos;ll draft this for you and you&apos;ll see it here before it goes out.
                 </div>
               )}
@@ -206,7 +208,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
                     onClick={() => act(o, 'approved')}
                     disabled={readonly || state.busy}
                     className="rounded-md px-3 py-1.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{ background: '#0A4D3C', color: '#F5EFE3' }}
+                    style={{ background: 'var(--emerald-deep)', color: 'var(--cream-pure)' }}
                   >
                     {state.busy ? 'Saving…' : 'Approve & send'}
                   </button>
@@ -214,7 +216,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
                     type="button"
                     onClick={() => setCard(key, { noteOpen: 'review_requested', noteDraft: '' })}
                     disabled={readonly || state.busy}
-                    className="rounded-md border border-[#0A4D3C]/40 bg-transparent text-[#0A4D3C] px-3 py-1.5 text-[12px] font-medium hover:bg-[#0A4D3C]/[0.06] transition disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-md border border-[color:color-mix(in_srgb,var(--emerald-deep)_40%,transparent)] bg-transparent text-[color:var(--emerald-deep)] px-3 py-1.5 text-[12px] font-medium hover:bg-[color:color-mix(in_srgb,var(--emerald-deep)_6%,transparent)] transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Show me first
                   </button>
@@ -222,12 +224,12 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
                     type="button"
                     onClick={() => setCard(key, { noteOpen: 'declined', noteDraft: '' })}
                     disabled={readonly || state.busy}
-                    className="rounded-md border border-[#0A4D3C]/15 bg-transparent text-muted hover:text-ink hover:border-[#0A4D3C]/30 px-3 py-1.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-md border border-[color:color-mix(in_srgb,var(--emerald-deep)_15%,transparent)] bg-transparent text-muted hover:text-ink hover:border-[color:color-mix(in_srgb,var(--emerald-deep)_30%,transparent)] px-3 py-1.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Pass
                   </button>
                   {readonly && (
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-[#0A4D3C]/70 ml-1">
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-[color:color-mix(in_srgb,var(--emerald-deep)_70%,transparent)] ml-1">
                       preview — read-only
                     </span>
                   )}
@@ -236,7 +238,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
 
               {/* Note capture for decline / review_requested */}
               {state.noteOpen && (
-                <div className="mt-3 rounded-xl border border-[#0A4D3C]/12 bg-[#0A4D3C]/[0.04] p-3">
+                <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--emerald-deep)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--emerald-deep)_4%,transparent)] p-3">
                   <label className="text-[10px] uppercase tracking-[0.14em] text-muted block mb-1">
                     {state.noteOpen === 'declined' ? 'Why pass? (optional)' : 'What should we look at? (optional)'}
                   </label>
@@ -245,7 +247,7 @@ export default function ClientPrView({ opps, stats, headline, mode }: Props) {
                     onChange={(e) => setCard(key, { noteDraft: e.target.value })}
                     rows={3}
                     placeholder={state.noteOpen === 'declined' ? 'Not a fit, wrong angle, etc.' : 'Tone, angle, something specific to add…'}
-                    className="w-full rounded-md bg-white border border-[#0A4D3C]/15 px-2.5 py-1.5 text-[12px] text-ink/90 placeholder-muted/60 focus:outline-none focus:border-[#0A4D3C]/50"
+                    className="w-full rounded-md bg-white border border-[color:color-mix(in_srgb,var(--emerald-deep)_15%,transparent)] px-2.5 py-1.5 text-[12px] text-ink/90 placeholder-muted/60 focus:outline-none focus:border-[color:color-mix(in_srgb,var(--emerald-deep)_50%,transparent)]"
                   />
                   <div className="flex items-center gap-2 mt-2">
                     <button

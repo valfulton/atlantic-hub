@@ -56,7 +56,7 @@ export default function ClientHero({
                 Potential pipeline <span className="text-muted/70 normal-case tracking-normal">(forecast)</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-semibold leading-none" style={{ color: '#FFC73D' }}>
+                <span className="text-2xl sm:text-3xl font-semibold leading-none" style={{ color: 'var(--emerald-deep)' }}>
                   {formatUsd(monthlyPipelineCents)}
                 </span>
                 <span className="text-sm text-muted">/mo</span>

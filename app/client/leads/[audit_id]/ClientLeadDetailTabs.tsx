@@ -56,10 +56,11 @@ function outcomeLabel(v: string): string {
 // Dashboard vocabulary on cream: hot = amber attention, warm = emerald,
 // cool/mixed = quiet muted. No navy-era pastels.
 const BAND_TONE: Record<'hot' | 'warm' | 'cool' | 'mixed', { bg: string; fg: string; label: string }> = {
-  hot: { bg: 'rgba(181,116,43,0.14)', fg: '#8A5316', label: 'Hot' },
-  warm: { bg: 'var(--emerald-mist, #E8F2EE)', fg: '#0A4D3C', label: 'Warm' },
-  cool: { bg: 'rgba(10,77,60,0.06)', fg: '#4A4A4A', label: 'Cool' },
-  mixed: { bg: 'rgba(10,77,60,0.06)', fg: '#6B6862', label: 'Mixed signal' }
+  // Tone chips read off semantic tokens — palette retunes flow through here.
+  hot:   { bg: 'var(--signal-bg)',    fg: 'var(--amber-sig)',    label: 'Hot' },
+  warm:  { bg: 'var(--emerald-mist)', fg: 'var(--emerald-deep)', label: 'Warm' },
+  cool:  { bg: 'var(--ok-bg)',        fg: 'var(--ink-soft)',     label: 'Cool' },
+  mixed: { bg: 'var(--ok-bg)',        fg: 'var(--muted)',        label: 'Mixed signal' }
 };
 
 function fmtDate(iso: string | null): string | null {
@@ -74,7 +75,7 @@ function Field({ label, value, href }: { label: string; value: string | null; hr
     <div>
       <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-0.5">{label}</div>
       {href ? (
-        <a href={href} target="_blank" rel="noopener" className="text-sm text-[#0A4D3C] hover:underline break-words">{value}</a>
+        <a href={href} target="_blank" rel="noopener" className="text-sm text-[color:var(--emerald-deep)] hover:underline break-words">{value}</a>
       ) : (
         <div className="text-sm text-ink break-words">{value}</div>
       )}
@@ -101,7 +102,7 @@ function Bar({ label, value }: { label: string; value: number | null }) {
         <span className="text-ink tabular-nums">{pct}</span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(10,77,60,0.10)' }}>
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--emerald, #0A4D3C)' }} />
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--emerald)' }} />
       </div>
     </div>
   );
@@ -250,7 +251,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
         <button
           onClick={() => setActive('Calls')}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-          style={{ background: 'var(--emerald, #0A4D3C)', color: 'var(--cream-pure, #F5EFE3)', border: 'none' }}
+          style={{ background: 'var(--emerald)', color: 'var(--cream-pure)', border: 'none' }}
         >
           &#x1F4DE; Log a call
         </button>
@@ -278,7 +279,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
       {/* "What to say on the call" — the highest-value thing, kept up top */}
       {lead.callScript && (lead.callScript.openers.length > 0 || lead.callScript.primaryPain) && (
         <div className="mt-4 rounded-2xl border border-border bg-white p-4">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-1.5">What to say on the call</div>
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)] mb-1.5">What to say on the call</div>
           {lead.callScript.primaryPain && (
             <p className="text-sm text-muted mb-2 leading-relaxed">{lead.callScript.primaryPain}</p>
           )}
@@ -363,7 +364,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
       {active === 'Calls' && (
         <div className="space-y-5">
           <div className="rounded-2xl border border-border bg-white p-5">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-3">Log a call</div>
+            <div className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)] mb-3">Log a call</div>
             <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
               <label className="block sm:w-56">
                 <span className="block text-[11px] text-muted mb-1">How did it go?</span>
@@ -392,7 +393,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                 onClick={logCall}
                 disabled={savingCall}
                 className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                style={{ background: 'var(--emerald, #0A4D3C)', color: 'var(--cream-pure, #F5EFE3)', border: 'none' }}
+                style={{ background: 'var(--emerald)', color: 'var(--cream-pure)', border: 'none' }}
               >
                 {savingCall ? 'Saving…' : 'Save call'}
               </button>
@@ -426,7 +427,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
       {active === 'Notes' && (
         <div className="space-y-5">
           <div className="rounded-2xl border border-border bg-white p-5">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-[#0A4D3C] mb-3">Add a note</div>
+            <div className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)] mb-3">Add a note</div>
             <textarea
               value={noteBody}
               onChange={(e) => setNoteBody(e.target.value)}
@@ -441,7 +442,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                 onClick={addNote}
                 disabled={savingNote || !noteBody.trim()}
                 className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                style={{ background: 'var(--emerald, #0A4D3C)', color: 'var(--cream-pure, #F5EFE3)', border: 'none' }}
+                style={{ background: 'var(--emerald)', color: 'var(--cream-pure)', border: 'none' }}
               >
                 {savingNote ? 'Saving…' : 'Save note'}
               </button>
@@ -487,7 +488,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                   </div>
                   <div className="text-[11px] text-muted mt-1 flex flex-wrap gap-x-4">
                     {m.sentAt && <span>Sent {fmtDateTime(m.sentAt)}</span>}
-                    {m.repliedAt && <span style={{ color: '#0A4D3C' }}>Replied {fmtDateTime(m.repliedAt)}</span>}
+                    {m.repliedAt && <span style={{ color: 'var(--emerald-deep)' }}>Replied {fmtDateTime(m.repliedAt)}</span>}
                   </div>
                 </li>
               ))}
