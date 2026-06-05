@@ -42,8 +42,8 @@ export default function PricingPage() {
             This page is the future self-serve platform license — when AV opens up direct access for in-house teams
             and partner agencies who want to run the engine themselves.
           </p>
-          <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-[#EBCB6B]/35 bg-[#EBCB6B]/10 px-3 py-1.5 text-[12px] text-[#EBCB6B]/95">
-            <span className="text-[#EBCB6B]">●</span> Not yet available for purchase — internal reference for pricing decisions.
+          <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-3 py-1.5 text-[12px] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
+            <span className="text-[var(--gold-bright)]">●</span> Not yet available for purchase — internal reference for pricing decisions.
           </div>
         </header>
 

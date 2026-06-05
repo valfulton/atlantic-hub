@@ -45,7 +45,7 @@ export default function ClientHero({
           {pipeline.total > 0 && (
             <div className="flex items-center gap-4 text-sm">
               {pipeline.hot > 0 && <span className="text-rose-300"><span className="font-semibold">{pipeline.hot}</span> hot</span>}
-              {pipeline.warm > 0 && <span className="text-[#EBCB6B]"><span className="font-semibold">{pipeline.warm}</span> warm</span>}
+              {pipeline.warm > 0 && <span className="text-[var(--gold-bright)]"><span className="font-semibold">{pipeline.warm}</span> warm</span>}
               {pipeline.cool > 0 && <span className="text-sky-300"><span className="font-semibold">{pipeline.cool}</span> cool</span>}
             </div>
           )}

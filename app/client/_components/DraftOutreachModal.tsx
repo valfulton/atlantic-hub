@@ -279,8 +279,8 @@ function FieldBlock(p: {
           type="button"
           onClick={p.onCopy}
           style={{
-            background: 'transparent', border: '1px solid var(--amber, #EBCB6B)',
-            color: 'var(--amber, #EBCB6B)',
+            background: 'transparent', border: '1px solid var(--amber, var(--gold-bright))',
+            color: 'var(--amber, var(--gold-bright))',
             fontSize: '10.5px', letterSpacing: '.12em', textTransform: 'uppercase',
             padding: '4px 10px', borderRadius: '6px', cursor: 'pointer',
             fontWeight: 500

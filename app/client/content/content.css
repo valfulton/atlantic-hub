@@ -10,7 +10,7 @@
 .studio-tag {
   display: flex; align-items: center; gap: .4rem;
   font-size: .66rem; font-weight: 600; letter-spacing: .04em;
-  margin: 1rem .2rem .4rem; color: var(--brand, #EBCB6B);
+  margin: 1rem .2rem .4rem; color: var(--brand, var(--gold-bright));
 }
 .studio-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .studio-tag b { color: inherit; }
@@ -24,7 +24,7 @@
   /* (mobile) 44px min thumb target — chips were 36px, below the tap floor. */
   min-height: 44px; display: inline-flex; align-items: center;
 }
-.studio-chip.on { background: var(--brand, #EBCB6B); color: #0A0E18; border-color: transparent; opacity: 1; }
+.studio-chip.on { background: var(--brand, var(--gold-bright)); color: #0A0E18; border-color: transparent; opacity: 1; }
 
 .studio-feed { display: flex; flex-direction: column; gap: 1.1rem; padding-bottom: 2rem; }
 
@@ -33,7 +33,7 @@
   flex: 1; font-size: .74rem; font-weight: 600; padding: .62rem; border-radius: 9px;
   border: 1px solid rgba(150,160,180,.3); background: transparent; color: inherit; cursor: pointer; min-height: 44px;
 }
-.studio-pri { background: var(--brand, #EBCB6B) !important; color: #0A0E18 !important; border-color: transparent !important; }
+.studio-pri { background: var(--brand, var(--gold-bright)) !important; color: #0A0E18 !important; border-color: transparent !important; }
 .studio-actions button:disabled { opacity: .5; cursor: default; }
 
 .studio-toast {

@@ -11,7 +11,7 @@ import type { CreativeBrief as Brief } from '@/lib/client/brief';
 
 const BAND_PILL: Record<string, string> = {
   hot: 'bg-rose-500/15 text-rose-300',
-  warm: 'bg-[#EBCB6B]/12 text-[#EBCB6B]',
+  warm: 'bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[var(--gold-bright)]',
   cool: 'bg-sky-500/15 text-sky-300'
 };
 
@@ -68,7 +68,7 @@ export default function CreativeBrief({
                   <li key={c.id} className="text-sm text-muted truncate">{c.typeLabel}: {c.title}</li>
                 ))}
               </ul>
-              <a href="#campaigns-h" className="inline-block mt-3 text-sm text-[#EBCB6B] hover:underline">Review &amp; approve →</a>
+              <a href="#campaigns-h" className="inline-block mt-3 text-sm text-[var(--gold-bright)] hover:underline">Review &amp; approve →</a>
             </>
           )}
         </div>
@@ -78,7 +78,7 @@ export default function CreativeBrief({
       <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs uppercase tracking-wide text-muted">Your next leads</div>
-          <Link href={leadsHref} className="text-sm text-[#EBCB6B] hover:underline">See all leads →</Link>
+          <Link href={leadsHref} className="text-sm text-[var(--gold-bright)] hover:underline">See all leads →</Link>
         </div>
         {nextLeads.length === 0 ? (
           <p className="text-sm text-muted">No leads yet — find your next customers from the Leads page.</p>

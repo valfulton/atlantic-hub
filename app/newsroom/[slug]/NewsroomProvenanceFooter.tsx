@@ -181,7 +181,7 @@ export default function NewsroomProvenanceFooter({
         }
         .av-provenance-row dd {
           margin: 0;
-          font-family: var(--cs-serif, "Cormorant Garamond", Georgia, serif);
+          font-family: var(--cs-serif, var(--serif));
           font-size: 14px;
           font-style: italic;
           letter-spacing: .005em;
