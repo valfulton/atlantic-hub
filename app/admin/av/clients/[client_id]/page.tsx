@@ -6,6 +6,8 @@ import { getClientAccessState } from '@/lib/av/client_access';
 import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
+import AccountTeamPanel from './AccountTeamPanel';
+import { listAccountEmployees, listAssignableEmployees } from '@/lib/av/account_employees';
 import ExtractIntelButton from './ExtractIntelButton';
 import MagicLinkButton from './MagicLinkButton';
 import PortalAccessToggle from './PortalAccessToggle';
@@ -88,6 +90,12 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   const clientAccounts = await listClientAccounts().catch(() => []);
 
   const access = await getClientAccessState(clientId);
+  // (#377) Pre-load the account team so the panel renders immediately on first
+  // paint. Both reads degrade to [] on error.
+  const [teamAssigned, teamAssignable] = await Promise.all([
+    listAccountEmployees(clientId),
+    listAssignableEmployees(clientId)
+  ]);
   const { icp, provenance: icpProvenance } = await getClientIcpWithProvenance(clientId);
   const currentTier = (d.members[0]?.tier as ClientTier) || 'sprint';
 
@@ -471,6 +479,15 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* Access & tier controls */}
       <AccessControls clientId={clientId} initialState={access} currentTier={currentTier} />
+
+      {/* (#377) Account team — assign AV employees to this client. The client
+          dashboard surfaces whoever's assigned here in the "Your A&V team" widget. */}
+      <AccountTeamPanel
+        clientId={clientId}
+        clientName={d.name}
+        initialAssigned={teamAssigned}
+        initialAssignable={teamAssignable}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
