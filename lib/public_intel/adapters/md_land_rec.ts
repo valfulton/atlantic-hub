@@ -294,14 +294,21 @@ export const mdLandRecAdapter: PublicIntelAdapter = {
       return { ok: false, written: 0, fromCache: 0, detail: 'MDLANDREC_USERNAME/MDLANDREC_PASSWORD not set' };
     }
 
+    // (#429 follow-up, 2026-06-05) mdlandrec.net redesigned Fall 2025:
+    //   - mdlandrec.net/main/login.cfm → landrec.msa.maryland.gov/Pages/Login.aspx
+    //   - migrated ColdFusion → ASP.NET (ViewState + EventValidation required)
+    //   - now requires email MFA on every login
+    // The plain-fetch login() below will always fail against the new site.
+    // Reporting the real cause so the smoke test stops misleading the operator
+    // with "check credentials" when credentials are not the issue.
     const cookie = await login(username, password);
     if (!cookie) {
-      await noteRun({
-        sourceId: ctx.source.sourceId,
-        status: 'error',
-        detail: 'login failed — check credentials'
-      });
-      return { ok: false, written: 0, fromCache: 0, detail: 'login failed — check credentials' };
+      const detail =
+        'upstream redesigned — landrec.msa.maryland.gov is ASP.NET + email MFA. ' +
+        'Plain-fetch adapter cannot authenticate. Needs Puppeteer (task #422) + MFA pipeline, ' +
+        'OR per-county Circuit Court adapter (task #431, recommended for Anne Arundel waterfront).';
+      await noteRun({ sourceId: ctx.source.sourceId, status: 'error', detail });
+      return { ok: false, written: 0, fromCache: 0, detail };
     }
 
     const sinceDays = ctx.sinceDays ?? config.sinceDays ?? 30;
