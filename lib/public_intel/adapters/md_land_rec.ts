@@ -38,7 +38,7 @@
  * 'md_land_rec' will activate automatically once this adapter is registered.
  */
 import type { PublicIntelAdapter, RunContext, RunResult } from '../types';
-import { storeRecord } from '../store';
+import { storeRecord, noteRun } from '../store';
 
 const LOGIN_URL = 'https://mdlandrec.net/main/login.cfm';
 const SEARCH_URL = 'https://mdlandrec.net/searchindex.cfm';
@@ -280,16 +280,27 @@ export const mdLandRecAdapter: PublicIntelAdapter = {
   async run(ctx: RunContext): Promise<RunResult> {
     const config = ctx.source.config as MdLandRecConfig | null;
     if (!config || !isCfg(config)) {
+      await noteRun({ sourceId: ctx.source.sourceId, status: 'error', detail: 'no config' });
       return { ok: false, written: 0, fromCache: 0, detail: 'no config' };
     }
     const username = process.env.MDLANDREC_USERNAME;
     const password = process.env.MDLANDREC_PASSWORD;
     if (!username || !password) {
+      await noteRun({
+        sourceId: ctx.source.sourceId,
+        status: 'error',
+        detail: 'MDLANDREC_USERNAME/MDLANDREC_PASSWORD not set'
+      });
       return { ok: false, written: 0, fromCache: 0, detail: 'MDLANDREC_USERNAME/MDLANDREC_PASSWORD not set' };
     }
 
     const cookie = await login(username, password);
     if (!cookie) {
+      await noteRun({
+        sourceId: ctx.source.sourceId,
+        status: 'error',
+        detail: 'login failed — check credentials'
+      });
       return { ok: false, written: 0, fromCache: 0, detail: 'login failed — check credentials' };
     }
 
@@ -323,11 +334,17 @@ export const mdLandRecAdapter: PublicIntelAdapter = {
       }
     }
 
+    const detail = `MD: ${config.counties.length} counties · ${docTypes.length} doc types · ${totalSeen} hits · ${written} new`;
+    await noteRun({
+      sourceId: ctx.source.sourceId,
+      status: totalSeen === 0 ? 'skipped' : 'ok',
+      detail
+    });
     return {
       ok: true,
       written,
       fromCache: Math.max(0, totalSeen - written),
-      detail: `MD: ${config.counties.length} counties · ${docTypes.length} doc types · ${totalSeen} hits · ${written} new`
+      detail
     };
   }
 };

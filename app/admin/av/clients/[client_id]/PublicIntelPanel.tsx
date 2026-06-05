@@ -183,6 +183,32 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
           docTypes: ['Tax Sale Certificate', 'Tax Sale Deed'],
           sinceDays: 90
         }
+      },
+      {
+        label: 'Annapolis / Anne Arundel · all distress · 60d',
+        config: {
+          counties: ['Anne Arundel'],
+          sinceDays: 60
+        }
+      },
+      {
+        // Waterfront Anne Arundel — surfaces filings whose legal description
+        // mentions known shoreline neighborhoods around Annapolis + the
+        // Severn / South River corridors. Post-filter at the adapter level
+        // once that flag is wired; for now the operator gets a labelled
+        // search hint via `legalDescriptionContains`.
+        label: 'Waterfront Anne Arundel · distress · 60d',
+        config: {
+          counties: ['Anne Arundel'],
+          sinceDays: 60,
+          docTypes: ['Notice of Sale', 'Lis Pendens', 'Substitute Trustee', 'Trustee Deed'],
+          legalDescriptionContains: [
+            'Eastport', 'Murray Hill', 'Bay Ridge', 'Annapolis Roads',
+            'Hillsmere', 'Wardour', 'Sherwood Forest', 'Severna Park',
+            'Arnold', 'Cape St. Claire', 'Riva', 'Edgewater',
+            'Mayo', 'Galesville', 'Shady Side', 'Deale'
+          ]
+        }
       }
     ]
   }
@@ -200,6 +226,35 @@ function relTime(iso: string | null): string {
   return `${d}d ago`;
 }
 
+// (#429) Smoke-test result row. Status colors match the lastRunStatus chip
+// scheme used in the adapter cards just below.
+interface SmokeResult {
+  kind: string;
+  displayName: string;
+  status: 'ok' | 'error' | 'skipped' | 'timeout' | 'not_configured' | 'disabled' | 'not_available';
+  written: number;
+  fromCache: number;
+  detail: string;
+  elapsedMs: number;
+}
+
+interface SmokeReport {
+  ranAt: string;
+  totalElapsedMs: number;
+  summary: Partial<Record<SmokeResult['status'], number>>;
+  results: SmokeResult[];
+}
+
+const SMOKE_STATUS_COPY: Record<SmokeResult['status'], { label: string; cls: string }> = {
+  ok:              { label: 'Worked',         cls: 'text-emerald-300 border-emerald-400/30 bg-emerald-400/10' },
+  skipped:         { label: 'No new data',    cls: 'text-amber-200 border-amber-400/30 bg-amber-400/10' },
+  error:           { label: 'Errored',        cls: 'text-danger border-red-400/30 bg-red-400/10' },
+  timeout:         { label: 'Timed out',      cls: 'text-danger border-red-400/30 bg-red-400/10' },
+  not_configured:  { label: 'Not configured', cls: 'text-muted border-border bg-bg/40' },
+  disabled:        { label: 'Disabled',       cls: 'text-muted border-border bg-bg/40' },
+  not_available:   { label: 'Not built yet',  cls: 'text-muted border-border bg-bg/30' }
+};
+
 export default function PublicIntelPanel({ clientId, clientName }: { clientId: number; clientName: string }) {
   const [open, setOpen] = useState(false);
   const [adapters, setAdapters] = useState<AdapterEntry[] | null>(null);
@@ -207,6 +262,8 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [recordsByKind, setRecordsByKind] = useState<Record<string, IntelRecord[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [smokeBusy, setSmokeBusy] = useState(false);
+  const [smokeReport, setSmokeReport] = useState<SmokeReport | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -290,6 +347,38 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
     }
   }
 
+  // (#429) Smoke-test every adapter at once. Hits the new endpoint
+  // /public-intel/smoke-test which runs each enabled adapter sequentially
+  // with a 10s per-adapter cap and reports per-adapter status.
+  async function smokeTestAll() {
+    setSmokeBusy(true);
+    setSmokeReport(null);
+    setError(null);
+    try {
+      const r = await fetch(`/api/admin/av/clients/${clientId}/public-intel/smoke-test`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' }
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        setError(j.error || 'Smoke test failed.');
+        return;
+      }
+      setSmokeReport({
+        ranAt: j.ranAt,
+        totalElapsedMs: j.totalElapsedMs,
+        summary: j.summary,
+        results: j.results
+      });
+      // Refresh adapter cards too so their last-run timestamps update.
+      await load();
+    } catch {
+      setError('Smoke test failed.');
+    } finally {
+      setSmokeBusy(false);
+    }
+  }
+
   async function loadRecords(kind: string) {
     try {
       const r = await fetch(
@@ -334,10 +423,77 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
       </button>
       {open && (
         <div className="px-4 py-4 border-t border-brand/20">
-          <p className="text-[11px] text-muted mb-3 leading-snug">
-            Pull free public records for {clientName}. Each adapter caches results (no double-charge re-runs).
-            Results land in the records viewer below.
-          </p>
+          <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
+            <p className="text-[11px] text-muted leading-snug max-w-[60ch]">
+              Pull free public records for {clientName}. Each adapter caches results (no double-charge re-runs).
+              Results land in the records viewer below.
+            </p>
+            {/* (#429) One-click "are these actually working?" sweep.
+                Runs every enabled adapter for this client, reports per-adapter status. */}
+            <button
+              type="button"
+              onClick={smokeTestAll}
+              disabled={smokeBusy}
+              className={
+                'shrink-0 rounded-md border text-[11.5px] font-medium px-3 py-1.5 transition-colors ' +
+                (smokeBusy
+                  ? 'border-border bg-bg/40 text-muted cursor-wait'
+                  : 'border-brand/40 bg-brand/[0.10] hover:bg-brand/[0.18] text-brand')
+              }
+              title="Run every configured adapter for this client and report per-adapter status"
+            >
+              {smokeBusy ? 'Testing…' : '⚙ Test all adapters'}
+            </button>
+          </div>
+          {smokeReport && (
+            <div className="mb-4 rounded-xl border border-brand/30 bg-brand/[0.06] p-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                <div className="text-[11px] uppercase tracking-[0.14em] text-brand">
+                  Smoke test · {new Date(smokeReport.ranAt).toLocaleTimeString()} · {(smokeReport.totalElapsedMs/1000).toFixed(1)}s
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(['ok','skipped','error','timeout','not_configured','disabled','not_available'] as SmokeResult['status'][])
+                    .filter((s) => (smokeReport.summary[s] ?? 0) > 0)
+                    .map((s) => (
+                      <span
+                        key={s}
+                        className={`text-[10.5px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border ${SMOKE_STATUS_COPY[s].cls}`}
+                      >
+                        {smokeReport.summary[s]} {SMOKE_STATUS_COPY[s].label.toLowerCase()}
+                      </span>
+                    ))}
+                </div>
+              </div>
+              <ul className="grid gap-1.5">
+                {smokeReport.results.map((r) => (
+                  <li
+                    key={r.kind}
+                    className="flex items-start justify-between gap-3 text-[11.5px] rounded-md border border-border bg-bg/30 px-2.5 py-1.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-ink/95 font-medium">{r.displayName}</span>
+                        <span className={`text-[10px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border ${SMOKE_STATUS_COPY[r.status].cls}`}>
+                          {SMOKE_STATUS_COPY[r.status].label}
+                        </span>
+                        {(r.written > 0 || r.fromCache > 0) && (
+                          <span className="text-[10.5px] text-muted">
+                            {r.written} new · {r.fromCache} cached
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted mt-0.5 break-words">{r.detail}</div>
+                    </div>
+                    {r.elapsedMs > 0 && (
+                      <span className="shrink-0 text-[10.5px] text-muted tabular-nums">
+                        {r.elapsedMs}ms
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {error && (
             <div className="mb-3 text-[11px] text-danger rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2">
               {error}
