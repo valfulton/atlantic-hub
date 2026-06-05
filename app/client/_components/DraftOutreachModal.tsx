@@ -147,7 +147,7 @@ export default function DraftOutreachModal(p: DraftOutreachModalProps) {
               Drafted outreach
             </div>
             <div style={{
-              fontFamily: 'var(--serif, "Cormorant Garamond", Georgia, serif)',
+              fontFamily: 'var(--serif, "Fraunces", Georgia, serif)',
               fontWeight: 500, fontSize: '20px', marginTop: '2px',
               color: 'var(--cream, #F5EFE3)',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
@@ -179,7 +179,7 @@ export default function DraftOutreachModal(p: DraftOutreachModalProps) {
               color: 'var(--cream-muted, #94A4B8)',
               fontSize: '13px',
               fontStyle: 'italic',
-              fontFamily: 'var(--serif, "Cormorant Garamond", Georgia, serif)'
+              fontFamily: 'var(--serif, "Fraunces", Georgia, serif)'
             }}>
               Drafting from the signal chain and your offer…
             </div>

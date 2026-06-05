@@ -40,13 +40,17 @@
   --black: #0A0A0A;
   --charcoal: #1A1A1A;
   --gray-warm: #4A4A4A;
-  --gray-soft: #8A8A8A;
+  /* (WCAG-AA) #8A8A8A was 3.25:1 on cream — failed. #6B6862 = 5.24:1.
+     Used for secondary labels/links; must clear 4.5:1 as text. */
+  --gray-soft: #6B6862;
   --cream: #FAF8F4;
   --paper: #FFFFFF;
   --gold: #C9A961;
   --gold-bright: #E2C886;
   --rule: rgba(10, 77, 60, 0.12);
-  --amber-sig: #B5742B;
+  /* (WCAG-AA) #B5742B was 3.82:1 on white / 3.22:1 on its own tint — failed
+     as chip text. #8A5316 = 6.31:1 / 5.32:1, same warm signal register. */
+  --amber-sig: #8A5316;
 
   --serif: 'Fraunces', Georgia, serif;
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -265,7 +269,9 @@
   align-items: center;
   gap: 0.45rem;
   background: var(--gold);
-  color: var(--emerald-deep);
+  /* (WCAG-AA) emerald-on-gold was 4.36:1 — just under. Black on gold = 8.8:1,
+     and matches the house law: bg-gold always pairs with text-black. */
+  color: var(--black);
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -306,7 +312,7 @@
 }
 .app-feat .sig.pay {
   background: var(--gold);
-  color: var(--emerald-deep);
+  color: var(--black); /* (WCAG-AA) bg-gold → text-black, 8.8:1 */
   border-color: var(--gold);
 }
 .app-feat .arw { color: rgba(250, 248, 244, 0.6); font-size: 0.8rem; }

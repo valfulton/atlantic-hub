@@ -20,7 +20,7 @@
   --rg-amber-deep:  #C7A64E;
   --rg-gold:        #E8B923;
   --rg-rule:        rgba(216, 203, 174, 0.18);
-  --rg-serif:       "Cormorant Garamond", Georgia, serif;
+  --rg-serif:       "Fraunces", Georgia, serif; /* val 2026-06-05: Fraunces everywhere (gate = first thing prospects see) */
   --rg-sans:        "Inter", system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
   min-height: 100vh;

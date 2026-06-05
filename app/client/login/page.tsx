@@ -327,7 +327,7 @@ function LoginForm() {
           }
           .ig-logo { height: 64px; width: auto; }
           .ig-brand-text {
-            font-family: 'Fraunces', serif;
+            font-family: var(--serif, 'Fraunces', serif);
             font-weight: 600;
             font-size: 1.25rem;
             color: var(--black);
@@ -379,7 +379,7 @@ function LoginForm() {
             margin: 0 0 0.85rem;
           }
           .ig-headline {
-            font-family: 'Fraunces', serif;
+            font-family: var(--serif, 'Fraunces', serif);
             font-size: 1.9rem;
             font-weight: 500;
             line-height: 1.2;

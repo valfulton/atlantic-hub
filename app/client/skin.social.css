@@ -18,7 +18,7 @@
   --cream:#F5EFE3; --cream-muted:#A7B4C6;
   --amber:#EBCB6B; --amber-deep:#C7A64E; --amber-bright:#F2D88A;
   --rule:rgba(216,203,174,.16); --rule-soft:rgba(216,203,174,.09);
-  --serif:"Cormorant Garamond",Georgia,serif;
+  --serif:"Fraunces",Georgia,serif; /* val 2026-06-05: Fraunces = the marketing-site headline face prospects see first; one register everywhere */
   --sans:"Inter",system-ui,sans-serif;
 
   /* Distress + status accents (work on navy ground) */
@@ -70,7 +70,7 @@
 [data-skin="social"] .pcta:hover{background:rgba(235,203,107,.10);transform:translateY(-1px)}
 [data-skin="social"] .pcta:focus-visible{outline:2px solid var(--cream);outline-offset:2px}
 
-/* Headings inside the skin lean Cormorant for the luxury register. */
+/* Headings lean Fraunces — matches the marketing site (what prospects see first). */
 [data-skin="social"] h1,
 [data-skin="social"] h2,
 [data-skin="social"] h3{font-family:var(--serif);font-weight:500}
