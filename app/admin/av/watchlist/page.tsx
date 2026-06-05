@@ -270,11 +270,16 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                         Tune signal weights
                       </Link>
                       <span className="text-muted">·</span>
+                      {/* (val 2026-06-05) Was labelled "Promote → lead" but
+                          only navigated — confusing. Relabel + send to the
+                          per-client distress panel where the REAL bulk-promote
+                          button lives. */}
                       <Link
-                        href={`/admin/av/clients/${r.clientId}/preview/leads`}
+                        href={`/admin/av/clients/${r.clientId}#distress`}
                         className="text-muted hover:text-ink"
+                        title="The real promote action lives on the per-client distress panel"
                       >
-                        Promote → lead
+                        Promote on client page →
                       </Link>
                     </div>
                   </div>
