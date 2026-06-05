@@ -85,8 +85,9 @@ function watchlistRowToCard(row: WatchlistRow): SignalCard {
 function oneLinerForSignals(row: WatchlistRow): string {
   const top = row.contributingSignals[0];
   if (!top) return 'A new signal landed on this entity.';
-  // Use the signal's natural-language label as the one-liner anchor.
-  return `${top.label}. They don't know we know yet.`;
+  // ClassifiedSignal no longer carries a `.label` field — derive one from
+  // `.source` (preferred — operator trace) falling back to `.signalKind`.
+  return `${cascadeNodeLabel(top)}. They don't know we know yet.`;
 }
 
 /** Map a client lead row into a fresh-lead SignalCard. */
@@ -203,7 +204,7 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   if (watchlistRows.length > 0) {
     const top = watchlistRows[0];
     const trailHero = (top.contributingSignals || []).slice(0, 3).map((s, i, arr) => ({
-      label: s.label,
+      label: cascadeNodeLabel(s),
       payoff: i === arr.length - 1
     }));
     hero = {
