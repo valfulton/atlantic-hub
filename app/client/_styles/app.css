@@ -414,22 +414,12 @@
   flex-direction: column;
   /* warm ivory lifts off the cream ground via an emerald-toned shadow —
      the pop comes from elevation + warmth, not stark white (val) */
-  /* val 2026-06-05 "cream-on-cream morgue" fix: cards need real lift off the
-     ground or they blur into it. Boosted ambient shadow + tighter close-cast
-     so each card reads as a stand-alone object on the gallery floor (the
-     Tiffany-catalog feel — every piece sits in its own light). */
-  box-shadow:
-    0 1px 2px rgba(10, 77, 60, 0.05),
-    0 4px 12px -6px rgba(10, 77, 60, 0.10),
-    0 28px 56px -28px rgba(10, 77, 60, 0.45);
+  box-shadow: 0 1px 2px rgba(10, 77, 60, 0.04), 0 16px 34px -24px var(--card-shadow);
   transition: transform 0.25s, box-shadow 0.25s;
 }
 .app-card:hover {
   transform: translateY(-4px);
-  box-shadow:
-    0 1px 2px rgba(10, 77, 60, 0.06),
-    0 6px 16px -6px rgba(10, 77, 60, 0.14),
-    0 36px 68px -28px rgba(10, 77, 60, 0.55);
+  box-shadow: 0 20px 44px -26px rgba(10, 77, 60, 0.4);
 }
 .app-card .hd {
   display: flex;
@@ -573,47 +563,16 @@
 }
 
 /* ── EMPTY STATE ───────────────────────────────────────────────── */
-/* val 2026-06-05: empty states were cream-on-cream blur (the "morgue").
-   Reframed as the signature dark "Tiffany box" — emerald-deep card with
-   a gold-leaf top hairline + cream copy. Every page now has at least one
-   confident dark moment, so the page never reads as monochrome cream
-   when the data is quiet. This is the empty-state version of .app-feat. */
+
 .app-empty {
-  position: relative;
-  background:
-    radial-gradient(120% 80% at 0% 0%, rgba(232, 194, 90, 0.10), transparent 55%),
-    linear-gradient(180deg, var(--emerald-deep) 0%, var(--forest-deep, #062A1F) 100%);
-  border: 1px solid rgba(232, 194, 90, 0.18);
-  border-top: 2px solid var(--card-edge);
-  border-radius: 16px;
-  padding: 2.4rem 2rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  padding: 1.8rem;
   text-align: center;
-  color: var(--cream-pure);
-  box-shadow: 0 24px 60px -32px rgba(10, 77, 60, 0.6);
-  font-family: var(--serif);
-  font-size: 1.05rem;
-  line-height: 1.5;
-  letter-spacing: 0.01em;
-  overflow: hidden;
+  color: var(--gray-warm);
 }
-.app-empty::before {
-  /* Eyebrow rule above the copy — adds the "page in a luxury catalog" feel */
-  content: '— QUIET ON THE WIRE —';
-  display: block;
-  font-family: var(--sans, 'Inter', sans-serif);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.32em;
-  color: var(--gold-leaf, #E8C25A);
-  margin-bottom: 0.9rem;
-  text-transform: uppercase;
-}
-.app-empty p {
-  margin: 0;
-  color: rgba(245, 239, 227, 0.88);
-  max-width: 36ch;
-  margin-inline: auto;
-}
+.app-empty p { margin: 0; }
 
 /* ── GHOST GOLD BUTTONS (canonical CTA shape) ──────────────────── */
 /* Use .app-cta everywhere a button used to be a solid block. Never

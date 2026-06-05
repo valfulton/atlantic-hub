@@ -117,23 +117,8 @@
 
 /* In motion section */
 [data-skin="social"] .v3-sec{font-family:var(--sans);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber-deep);margin:34px 0 14px}
-/* val 2026-06-05 "Tiffany lift": v3-card needs real shadow to pop off cream
-   ground, not just a hairline border. Multi-stop shadow (close + far) so each
-   card sits in its own light — the luxury-catalog feel. */
-[data-skin="social"] .v3-card{
-  border:1px solid var(--rule);
-  border-radius:12px;
-  padding:20px 22px;
-  margin-bottom:14px;
-  background:var(--navy-soft);
-  box-shadow:0 1px 2px rgba(10,77,60,.05),0 4px 12px -6px rgba(10,77,60,.10),0 24px 48px -28px rgba(10,77,60,.40);
-  transition:border-color .25s,transform .25s,box-shadow .25s
-}
-[data-skin="social"] .v3-card:hover{
-  border-color:rgba(235,203,107,.25);
-  transform:translateY(-2px);
-  box-shadow:0 1px 2px rgba(10,77,60,.06),0 6px 16px -6px rgba(10,77,60,.14),0 32px 60px -28px rgba(10,77,60,.50)
-}
+[data-skin="social"] .v3-card{border:1px solid var(--rule);border-radius:12px;padding:20px 22px;margin-bottom:14px;background:var(--navy-soft);transition:border-color .25s,transform .25s}
+[data-skin="social"] .v3-card:hover{border-color:rgba(235,203,107,.25);transform:translateY(-1px)}
 [data-skin="social"] .v3-card__h{font-family:var(--serif);font-weight:500;font-size:20px;margin:0 0 4px;color:var(--cream)}
 [data-skin="social"] .v3-card__p{font-family:var(--sans);color:var(--cream);opacity:.86;font-size:15px;line-height:1.6;margin:0 0 14px}
 [data-skin="social"] .v3-card__row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
