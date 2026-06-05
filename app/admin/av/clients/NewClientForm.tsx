@@ -6,10 +6,16 @@
  * magic link to copy/send and a link straight into the new client's detail.
  * Posts to /api/admin/av/clients/create.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Tier = 'audit_only' | 'sprint' | 'momentum' | 'scale';
+
+interface PackOption {
+  id: string;
+  displayName: string;
+  shortPositioning: string;
+}
 
 const inputCls = 'w-full rounded-lg border border-border bg-black/30 px-3 py-2 text-sm text-ink';
 const labelCls = 'block text-[11px] uppercase tracking-[0.1em] text-muted mb-1';
@@ -24,12 +30,26 @@ export default function NewClientForm() {
   const [f, setF] = useState({
     email: '', name: '', company: '', industry: '', website_url: '',
     tier: 'scale' as Tier, trialDays: '30',
+    // (#428) Vertical pack applied right after creation — no second step
+    // required. Blank = no pack (legacy marketing-only clients).
+    verticalPack: '',
     // Creative-brief prefill (you fill as much as you can; the client approves/adds).
     key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
     message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
     preferred_channels: '', timeline: ''
   });
   const set = (k: keyof typeof f, v: unknown) => setF((s) => ({ ...s, [k]: v }));
+
+  // (#428) Load the vertical pack catalog once. Falls back to no-pack option on error.
+  const [packs, setPacks] = useState<PackOption[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/admin/av/vertical-packs')
+      .then((r) => (r.ok ? r.json() : { packs: [] }))
+      .then((j: { packs?: PackOption[] }) => { if (alive) setPacks(j.packs ?? []); })
+      .catch(() => { if (alive) setPacks([]); });
+    return () => { alive = false; };
+  }, []);
 
   async function submit(send: boolean) {
     if (!f.email.trim()) { setErr('Email is required.'); return; }
@@ -58,6 +78,20 @@ export default function NewClientForm() {
       });
       const j = await res.json();
       if (res.ok && j.ok) {
+        // (#428) If a vertical pack was selected, fire the apply call right
+        // after creation so the new client lands with the pack already on —
+        // signal weights, cascade recipes, ICP seed all in place. Best-effort:
+        // if this fails the client still exists; operator can apply the pack
+        // manually from the VerticalPackPanel on the client detail page.
+        if (j.clientId && f.verticalPack) {
+          try {
+            await fetch(`/api/admin/av/clients/${j.clientId}/vertical-pack`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ packId: f.verticalPack })
+            });
+          } catch { /* non-fatal — client exists, pack can be applied later */ }
+        }
         setDone({ clientId: j.clientId ?? null, magicLink: j.magicLink, emailSent: j.emailSent, lineSeeded: j.lineSeeded });
         router.refresh();
       } else {
@@ -74,6 +108,7 @@ export default function NewClientForm() {
     setDone(null); setErr(null);
     setF({
       email: '', name: '', company: '', industry: '', website_url: '', tier: 'scale', trialDays: '30',
+      verticalPack: '',
       key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
       message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
       preferred_channels: '', timeline: ''
@@ -138,6 +173,18 @@ export default function NewClientForm() {
               </select>
             </div>
             <div><label className={labelCls}>Trial days (blank = permanent)</label><input className={inputCls} inputMode="numeric" value={f.trialDays} onChange={(e) => set('trialDays', e.target.value)} /></div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Vertical pack (applies signal weights + cascade recipes)</label>
+              <select className={inputCls} value={f.verticalPack} onChange={(e) => set('verticalPack', e.target.value)}>
+                <option value="">— No pack (marketing-only client) —</option>
+                {packs.map((p) => (
+                  <option key={p.id} value={p.id}>{p.displayName} — {p.shortPositioning}</option>
+                ))}
+              </select>
+              <div className="text-[10px] text-muted mt-1">
+                Picks the engine's signal weights + cascade recipes for this client&apos;s vertical. Auto-applies after creation.
+              </div>
+            </div>
           </div>
           <div className="mt-4 text-[11px] uppercase tracking-[0.1em] text-muted">Creative brief — prefill as much as you can (they approve / add the rest)</div>
           <div className="mt-2 grid sm:grid-cols-2 gap-3">

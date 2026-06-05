@@ -26,6 +26,7 @@ import AccessPaused from '@/app/client/_components/AccessPaused';
 import LeadsView from './LeadsView';
 import { getCopyMap } from '@/lib/copy/store';
 import { accent } from '@/lib/copy/accent';
+import { resolveGreetingName } from '@/lib/client/display_name';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -60,7 +61,8 @@ export default async function ClientLeadsPage() {
     }
   }
 
-  const firstName = user.display_name?.split(/[ ,]/)[0] || 'there';
+  // (#420) Brand-aware greeting — never address the human by their company name.
+  const firstName = await resolveGreetingName(user.display_name, clientId, 'there');
   const locked = user.tier === 'audit_only';
 
   let leads: ClientLead[] = [];

@@ -21,6 +21,7 @@ import ClientWatchlistV3 from '@/app/client/_components/ClientWatchlistV3';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import { getCopyMap } from '@/lib/copy/store';
 import { accent } from '@/lib/copy/accent';
+import { resolveGreetingName } from '@/lib/client/display_name';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -48,7 +49,8 @@ export default async function ClientWatchlistPage() {
     }
   }
 
-  const firstName = user.display_name?.split(/[ ,]/)[0] || 'there';
+  // (#420) Brand-aware greeting — never address the human by their company name.
+  const firstName = await resolveGreetingName(user.display_name, clientId, 'there');
   const isAuditOnly = user.tier === 'audit_only';
 
   // Per-client editable framing copy (edit in /admin/av/copy, this client or global).

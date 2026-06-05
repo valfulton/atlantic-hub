@@ -59,7 +59,12 @@ export interface CreateClientResult {
 
 export async function createClientFromOperator(input: CreateClientInput): Promise<CreateClientResult> {
   const email = input.email.toLowerCase().trim();
-  const displayName = (input.name && input.name.trim()) || (input.company && input.company.trim()) || null;
+  // (#420) NEVER fall back to company name here. If the operator didn't type
+  // a contact name, leave display_name NULL. Stuffing the company name into
+  // a person field caused every client surface to greet the human by their
+  // brand ("Good morning, Central.") for every account created without a
+  // contact. Better the safe fallback "there" than the wrong name.
+  const displayName = input.name && input.name.trim() ? input.name.trim() : null;
 
   // Fold the basic fields into the intake payload so the brief/audit/line bridge
   // (extractBriefSeedFromIntake) and downstream surfaces see them.

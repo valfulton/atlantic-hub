@@ -55,3 +55,10 @@ auth.*
 *.secrets
 .ssh/
 /docs/
+
+# Parked: unapproved /demo build (2026-06-04). Keep files locally; do not commit
+# until val explicitly approves a campaign that uses them.
+app/demo/
+app/api/demo/
+lib/demo/
+schema/075_demo_requests.sql

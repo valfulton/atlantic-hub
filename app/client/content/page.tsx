@@ -21,6 +21,7 @@ import { listClientReviewQueue } from '@/lib/client/social_review';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import ContentStudio from './ContentStudio';
+import { resolveGreetingName } from '@/lib/client/display_name';
 import './content.css';
 
 export const dynamic = 'force-dynamic';
@@ -54,7 +55,8 @@ export default async function ClientContentPage() {
     }
   }
 
-  const firstName = user.display_name?.split(/[ ,]/)[0] || '';
+  // (#420) Brand-aware greeting — never address the human by their company name.
+  const firstName = await resolveGreetingName(user.display_name, clientId, '');
   const items = clientId ? await listClientReviewQueue(clientId) : [];
 
   return (

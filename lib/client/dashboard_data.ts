@@ -20,6 +20,7 @@ import { listClientCampaignContent, listClientCampaigns, type CampaignContentIte
 import { getClientCreativeBrief, type CreativeBrief as CreativeBriefData } from '@/lib/client/brief';
 import { clientMonthlyPipelineCents } from '@/lib/sales/deal_model';
 import { listClientTeam, type TeamRep } from '@/lib/client/team';
+import { greetingName } from '@/lib/client/display_name';
 import type { RowDataPacket } from 'mysql2';
 
 export interface ClientOwnAuditRow {
@@ -115,8 +116,21 @@ export async function getClientDashboardData(client: DashboardClient): Promise<C
   const monthlyPipelineCents = await clientMonthlyPipelineCents(client.clientId).catch(() => null);
   const team = await listClientTeam(client.clientId).catch(() => []);
 
+  // (#420) Brand name lookup so the greeting never calls the human by their
+  // company. See lib/client/display_name.ts for the rule.
+  let brandName: string | null = null;
+  if (client.clientId) {
+    try {
+      const [bRows] = await db.execute<(RowDataPacket & { client_name: string | null })[]>(
+        `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
+        [client.clientId]
+      );
+      brandName = bRows[0]?.client_name ?? null;
+    } catch { /* non-fatal — fallback wins */ }
+  }
+
   return {
-    firstName: client.displayName?.split(/[ ,]/)[0] || 'there',
+    firstName: greetingName(client.displayName, brandName, 'there'),
     tier: client.tier,
     audit,
     leadCount,
