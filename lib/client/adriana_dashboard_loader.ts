@@ -41,14 +41,23 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Human-readable label for a ClassifiedSignal cascade node. Prefer the
- *  free-form `source` trace (most operator context) and fall back to the
- *  signal kind prettified ("bankruptcy_filed" → "Bankruptcy Filed"). The
- *  shape of ClassifiedSignal no longer has a `label` field directly; this
- *  derives one. */
+/** Human-readable label for a ClassifiedSignal cascade node on the CLIENT side.
+ *
+ *  val 2026-06-05 (HARD RULE): the client must NEVER see source provider names
+ *  (CourtListener / CFPB / UCC / CA SOS / HMDA / PACER / MD Land Rec / etc).
+ *  Those identify the data vendor we use, and exposing them makes Atlantic Hub
+ *  read as a data reseller instead of a predictive-intelligence engine.
+ *  Operator-side surfaces can still see `s.source`; this client-side helper
+ *  is locked to the prettified `signalKind` ONLY.
+ *
+ *  Examples (brand-safe):
+ *    bankruptcy_filed → "Bankruptcy Filed"
+ *    suspended_entity → "Suspended Entity"
+ *    ucc_filing       → "UCC Filing"
+ *
+ *  Memory: [[feedback_ai_verbiage]] — same instinct, applied to data sources. */
 function cascadeNodeLabel(s: { source?: string | null; signalKind: string }): string {
-  const src = (s.source ?? '').trim();
-  if (src) return src.length > 60 ? src.slice(0, 57) + '…' : src;
+  // Deliberately ignore s.source. Operator views can branch on it; client cannot.
   return s.signalKind
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());

@@ -18,14 +18,18 @@
 import type { ClassifiedSignal } from './distress_engine';
 import type { SignalTrailNode } from '@/app/client/_components/SignalCard';
 
+// val 2026-06-05 (HARD RULE): client-facing labels must NEVER name the data
+// vendor or government agency (CourtListener, CFPB, CA SOS, HMDA, PACER, MD
+// Land Rec, etc). The value is the intelligence engine, not the upstream feed.
+// Replaced "CA SOS suspension" / "CFPB complaints rising" with neutral phrasing.
 const SIGNAL_LABEL: Record<string, string> = {
   new_llc: 'New LLC',
-  suspended_entity: 'CA SOS suspension',
+  suspended_entity: 'Entity suspended',
   dissolved_entity: 'Dissolved',
   leadership_change: 'Leadership change',
   high_denial_rate: 'High denial rate',
   high_refinance_volume: 'High refi volume',
-  complaint_velocity_high: 'CFPB complaints rising',
+  complaint_velocity_high: 'Complaint volume rising',
   lender_under_fire: 'Lender under fire',
   lawsuit_filed: 'Federal filing',
   bankruptcy_filed: 'Bankruptcy filed',
