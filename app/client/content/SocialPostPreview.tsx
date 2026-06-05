@@ -10,11 +10,14 @@ import { useState } from 'react';
 import type { ClientReviewItem } from '@/lib/client/social_review';
 
 type PK = 'linkedin' | 'instagram' | 'x' | 'facebook';
+// Platform badge colors route through `--pf-*` tokens — these are platform
+// identity (not brand palette), so they live in brand-tokens.css at :root and
+// never retune with the brand. Keeps the "no inline hex in components" rule.
 const META: Record<PK, { label: string; badge: string; bg: string }> = {
-  linkedin:  { label: 'LinkedIn',  badge: 'in', bg: '#0a66c2' },
-  instagram: { label: 'Instagram', badge: '◎',  bg: 'linear-gradient(45deg,#f09433,#dc2743,#bc1888)' },
-  x:         { label: 'X',         badge: '𝕏',  bg: '#000' },
-  facebook:  { label: 'Facebook',  badge: 'f',  bg: '#1877f2' },
+  linkedin:  { label: 'LinkedIn',  badge: 'in', bg: 'var(--pf-linkedin)' },
+  instagram: { label: 'Instagram', badge: '◎',  bg: 'linear-gradient(45deg,var(--pf-ig-from),var(--pf-ig-mid),var(--pf-ig-to))' },
+  x:         { label: 'X',         badge: '𝕏',  bg: 'var(--pf-x)' },
+  facebook:  { label: 'Facebook',  badge: 'f',  bg: 'var(--pf-facebook)' },
 };
 function platformKey(p: string): PK {
   const s = (p || '').toLowerCase();
@@ -74,7 +77,12 @@ export default function SocialPostPreview({
       <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 8px 24px -14px rgba(0,0,0,.35)' }}>
         {/* platform header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '.55rem', padding: '.7rem .8rem' }}>
-          <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg,#3DAB85,#0A4D3C)', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: '.85rem', flexShrink: 0 }}>{initial}</div>
+          {/* Avatar circle is OUR brand (emerald gradient) inside the platform-mimic
+              card; uses brand tokens so a palette retune flows through here too.
+              The other literals on this card (#fff card bg, #111 author ink,
+              #777 timestamp, #1a1a1a caption) deliberately mimic the live platform
+              UI — they don't retune with brand. */}
+          <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg,var(--emerald-bright),var(--emerald-deep))', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: '.85rem', flexShrink: 0 }}>{initial}</div>
           <div style={{ lineHeight: 1.15 }}>
             <div style={{ fontSize: '.82rem', fontWeight: 700, color: '#111' }}>{author}</div>
             <small style={{ fontSize: '.66rem', color: '#777' }}>Draft preview</small>

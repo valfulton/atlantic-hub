@@ -189,7 +189,7 @@
   --serif: var(--font-serif);
   /* Platform colors — accurate to each network, centralized (not brand) */
   --pf-linkedin: #0A66C2; --pf-x: #0F1419; --pf-facebook: #1877F2;
-  --pf-ig-from: #F09433; --pf-ig-to: #BC1888;
+  --pf-ig-from: #F09433; --pf-ig-mid: #DC2743; --pf-ig-to: #BC1888;
 }
 
 /* Unified CLIENT register — POP palette, one definition for all three client
@@ -198,7 +198,8 @@
 [data-surface="client"],
 [data-skin="social"],
 .app {
-  --ground: #FAF8F4; --paper: #FFFFFF; --panel-warm: #FFFFFF;
+  --ground: #FAF8F4; --paper: #FFFDF8; --panel-warm: #FFFDF8;  /* warm ivory cards (val: white provisional); lift = shadow+warmth */
+  --card-shadow: rgba(10,77,60,.40); --card-edge: #E8C25A;     /* emerald lift + gold-leaf jewelry edge (newsroom wires geometry) */
   --forest: #0A3D2E; --forest-deep: #062A1F;
   --ink: #14201B; --ink-soft: #3C4A43; --muted: #5C6862;
   --line: rgba(10,77,60,.14); --line-strong: rgba(10,77,60,.22);
