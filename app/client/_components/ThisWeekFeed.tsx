@@ -16,10 +16,12 @@
 import Link from 'next/link';
 import { fetchClientThisWeek } from '@/lib/client/this_week';
 
+// Dashboard vocabulary on cream: good = emerald, info = neutral ink, urgent =
+// deep amber. AA-safe as text/dots — no navy-era pastels.
 const TONE_STYLE: Record<'good' | 'info' | 'urgent', { dot: string; text: string }> = {
-  good:   { dot: '#6ee7b7', text: 'text-emerald-200' },
-  info:   { dot: '#a8cbff', text: 'text-sky-200' },
-  urgent: { dot: '#fcd34d', text: 'text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]' }
+  good:   { dot: 'var(--emerald)',   text: 'text-[color:var(--emerald-deep)]' },
+  info:   { dot: 'var(--ink-soft)',  text: 'text-[color:var(--ink-soft)]' },
+  urgent: { dot: 'var(--amber-sig)', text: 'text-[color:var(--amber-sig)]' }
 };
 
 export default async function ThisWeekFeed({
