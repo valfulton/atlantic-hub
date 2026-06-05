@@ -27,6 +27,20 @@ interface Query {
   q?: string;
 }
 
+// (val 2026-06-05) Forced chevron on the filter <select>s so they read as
+// dropdowns, not blank text boxes, on the dark operator theme. Inline SVG
+// chevron in muted gray; appearance:none kills the invisible native arrow.
+const dropdownStyle: React.CSSProperties = {
+  appearance: 'none',
+  WebkitAppearance: 'none',
+  MozAppearance: 'none',
+  backgroundImage:
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20' fill='%2394a3b8'><path d='M5.5 7.5 10 12l4.5-4.5z'/></svg>\")",
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 0.6rem center',
+  backgroundSize: '0.8rem'
+};
+
 function fmtRel(d: Date): string {
   const ms = Date.now() - d.getTime();
   const hours = Math.floor(ms / 3600000);
@@ -77,12 +91,18 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
         className="rounded-2xl border border-border bg-surface p-4 mb-6"
         style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.7rem' }}
       >
+        {/* val 2026-06-05: dark-theme native <select> chevron was invisible →
+            filter read as empty text boxes. Forcing an explicit chevron SVG via
+            inline style + appearance:none so each dropdown OBVIOUSLY pulls down.
+            Inputs (number / search) keep the plain look so they read distinct
+            from the selects. */}
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">Client</span>
           <select
             name="client"
             defaultValue={clientId ?? ''}
-            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+            className="w-full bg-bg/40 border border-border rounded-md pl-2 pr-8 py-1.5 text-[13px] text-ink cursor-pointer"
+            style={dropdownStyle}
           >
             <option value="">All clients</option>
             {clientChoices.map((c) => (
@@ -95,7 +115,8 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
           <select
             name="kind"
             defaultValue={kind ?? ''}
-            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+            className="w-full bg-bg/40 border border-border rounded-md pl-2 pr-8 py-1.5 text-[13px] text-ink cursor-pointer"
+            style={dropdownStyle}
           >
             <option value="">All kinds</option>
             {kindChoices.map((k) => <option key={k} value={k}>{k}</option>)}
@@ -118,7 +139,8 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
           <select
             name="days"
             defaultValue={days ?? ''}
-            className="w-full bg-bg/40 border border-border rounded-md px-2 py-1.5 text-[13px] text-ink"
+            className="w-full bg-bg/40 border border-border rounded-md pl-2 pr-8 py-1.5 text-[13px] text-ink cursor-pointer"
+            style={dropdownStyle}
           >
             <option value="">Any time</option>
             <option value="1">Last 24h</option>
