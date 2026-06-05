@@ -114,6 +114,14 @@ function leadToCard(l: ClientLead): SignalCard {
     primaryAction: {
       label: l.phone ? '📞 Call now' : l.email ? '✎ Review & send' : '✚ Add to pipeline',
       href: l.auditId ? `/client/leads/${l.auditId}` : '/client/leads'
+    },
+    // Carry the contact facts onto the card — phone + address must always show
+    // when present (val 2026-06-05; the cream card layout had been dropping them).
+    contact: {
+      phone: l.phone,
+      email: l.email,
+      website: l.website,
+      address: [l.addressStreet, l.addressCity, l.addressState, l.addressPostal].filter(Boolean).join(', ') || null
     }
   };
 }

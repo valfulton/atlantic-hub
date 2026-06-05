@@ -616,3 +616,27 @@
   box-shadow: 0 0 0 3px rgba(10, 77, 60, 0.08);
 }
 .app-input::placeholder { color: var(--gray-soft); }
+
+/* ── CARD CONTACT FACTS (phone / address / web — client-critical) ──────
+   Restores the contact lines that the cream card layout had dropped.
+   Phone + address must always show when present (val 2026-06-05). */
+.app-card .meta {
+  padding: 0.2rem 1.1rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.84rem;
+}
+.app-card .meta .row { display: flex; gap: 0.55rem; align-items: baseline; }
+.app-card .meta .k {
+  flex: 0 0 auto;
+  min-width: 54px;
+  color: var(--gray-warm);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.app-card .meta .v { color: var(--charcoal); word-break: break-word; }
+.app-card .meta a.v { color: var(--emerald-deep); } /* AA 9.25 on cream */
+.app-card .meta a.v:hover { text-decoration: underline; }

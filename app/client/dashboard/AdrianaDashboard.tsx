@@ -67,6 +67,15 @@ export interface SignalCard {
     /** href OR onClick (via clientAction). href wins if both supplied. */
     href?: string;
   };
+  /** Contact facts from the lead/intake record. Phone + address are
+   *  client-critical and must show when present (val 2026-06-05). Optional:
+   *  watchlist/distress cards leave it undefined. */
+  contact?: {
+    phone?: string | null;
+    email?: string | null;
+    website?: string | null;
+    address?: string | null;
+  };
 }
 
 export interface AdrianaDashboardProps {
@@ -109,6 +118,31 @@ function Trail({ nodes, dark }: { nodes: CascadeNode[]; dark?: boolean }) {
   );
 }
 
+/** Contact facts block — phone (tap-to-call) + address + website. Shows only
+ *  what's present; renders nothing when the card carries no contact (watchlist). */
+function CardMeta({ contact }: { contact?: SignalCard['contact'] }) {
+  if (!contact) return null;
+  const { phone, email, website, address } = contact;
+  if (!phone && !email && !website && !address) return null;
+  const tel = phone ? phone.replace(/[^\d+]/g, '') : '';
+  return (
+    <div className="meta">
+      {phone && (
+        <div className="row"><span className="k">Phone</span><a className="v" href={`tel:${tel}`}>{phone}</a></div>
+      )}
+      {address && (
+        <div className="row"><span className="k">Address</span><span className="v">{address}</span></div>
+      )}
+      {email && (
+        <div className="row"><span className="k">Email</span><a className="v" href={`mailto:${email}`}>{email}</a></div>
+      )}
+      {website && (
+        <div className="row"><span className="k">Web</span><a className="v" href={website} target="_blank" rel="noopener">{website.replace(/^https?:\/\//, '')}</a></div>
+      )}
+    </div>
+  );
+}
+
 function Card({ card }: { card: SignalCard }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -137,6 +171,7 @@ function Card({ card }: { card: SignalCard }) {
       </div>
       <p className="ln">{card.oneLiner}</p>
       <Trail nodes={card.trail} />
+      <CardMeta contact={card.contact} />
       <div className="foot">
         <button
           type="button"

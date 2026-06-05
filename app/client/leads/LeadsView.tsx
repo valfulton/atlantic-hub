@@ -62,6 +62,30 @@ function ctaLabelOf(l: ClientLead): string {
   return '✚ Add to pipeline';
 }
 
+/** Contact facts — phone (tap-to-call) + full address + website. Always shown
+ *  when present; these are client-critical and must not be hidden (val 2026-06-05). */
+function LeadMeta({ lead: l }: { lead: ClientLead }) {
+  const address = [l.addressStreet, l.addressCity, l.addressState, l.addressPostal].filter(Boolean).join(', ');
+  if (!l.phone && !address && !l.email && !l.website) return null;
+  const tel = l.phone ? l.phone.replace(/[^\d+]/g, '') : '';
+  return (
+    <div className="meta">
+      {l.phone && (
+        <div className="row"><span className="k">Phone</span><a className="v" href={`tel:${tel}`}>{l.phone}</a></div>
+      )}
+      {address && (
+        <div className="row"><span className="k">Address</span><span className="v">{address}</span></div>
+      )}
+      {l.email && (
+        <div className="row"><span className="k">Email</span><a className="v" href={`mailto:${l.email}`}>{l.email}</a></div>
+      )}
+      {l.website && (
+        <div className="row"><span className="k">Web</span><a className="v" href={l.website} target="_blank" rel="noopener">{l.website.replace(/^https?:\/\//, '')}</a></div>
+      )}
+    </div>
+  );
+}
+
 function LeadCard({ lead }: { lead: ClientLead }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -86,6 +110,7 @@ function LeadCard({ lead }: { lead: ClientLead }) {
         <button type="button" className="more" aria-label="More actions">⋯</button>
       </div>
       <p className="ln">{oneLinerOf(lead)}</p>
+      <LeadMeta lead={lead} />
       <div className="trail">
         {trail.map((n, i) => (
           <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
