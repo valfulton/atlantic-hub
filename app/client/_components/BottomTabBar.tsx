@@ -18,6 +18,7 @@ const TABS = [
   // (#419) Content Studio — generated posts ready to approve, true-to-platform preview.
   { href: '/client/content',   label: 'Content',   icon: 'M5 4h11l3 3v13H5z M14 4v4h4 M8 12h8 M8 16h6' },
   { href: '/client/pr',        label: 'Press',     icon: 'M4 4h16v12H7l-3 3V4z' },
+  { href: '/newsroom',         label: 'Newsroom',  icon: 'M4 5h16v14H4z M4 9h16 M8 5v14' },
   { href: '/client/intake',    label: 'You',       icon: 'M8 8a4 4 0 1 0 8 0 4 4 0 0 0-8 0 M4 21c0-4 4-6 8-6s8 2 8 6' }
 ];
 

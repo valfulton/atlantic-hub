@@ -24,6 +24,9 @@ const NAV = [
   // (#419) Content Studio — generated posts ready to approve, true-to-platform preview.
   { href: '/client/content', label: 'Content' },
   { href: '/client/pr', label: 'Press' },
+  // Newsroom — the public Wire surfacing published work. Same URL for client and
+  // operator (public route), so the mirror discipline is satisfied by the URL itself.
+  { href: '/newsroom', label: 'Newsroom' },
   { href: '/client/intake', label: 'You' }
 ];
 

@@ -27,7 +27,10 @@ const TABS = [
   { id: 'content', label: 'Content', path: '/content' },
   { id: 'audit', label: 'Audit', path: '/audit' },
   { id: 'intake', label: 'Intake / brief', path: '/intake' },
-  { id: 'pr', label: 'Press queue', path: '/pr' }
+  { id: 'pr', label: 'Press queue', path: '/pr' },
+  // Newsroom — public route. `absolute: true` flag tells the renderer below
+  // to use the path directly instead of nesting under /preview/<path>.
+  { id: 'newsroom', label: 'Newsroom', path: '/newsroom', absolute: true }
 ] as const;
 
 export type PreviewTab = (typeof TABS)[number]['id'];
@@ -97,7 +100,10 @@ export default function OperatorPreviewChrome({
           See what {clientName} sees:
         </span>
         {TABS.map((t) => {
-          const href = `/admin/av/clients/${clientId}/preview${t.path}`;
+          // Tabs flagged absolute (e.g. Newsroom → public /newsroom) use the
+          // path directly; everything else nests under the per-client preview.
+          const isAbsolute = 'absolute' in t && t.absolute === true;
+          const href = isAbsolute ? t.path : `/admin/av/clients/${clientId}/preview${t.path}`;
           const on = t.id === active;
           const baseStyle: React.CSSProperties = {
             display: 'inline-flex',
