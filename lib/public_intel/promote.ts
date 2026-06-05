@@ -57,7 +57,16 @@ interface LeadRow extends RowDataPacket {
 
 export async function promoteEntityToLead(input: PromoteEntityInput): Promise<PromoteEntityResult> {
   const db = getAvDb();
-  const company = (input.entityLabel ?? input.entityKey).slice(0, 200);
+  // (val 2026-06-05) Coerce undefined → null on every value that becomes a `?`
+  // parameter. mysql2 throws "Incorrect arguments to mysqld_stmt_execute" if it
+  // ever sees an `undefined` in the param array, which torched every row of a
+  // 21-entity bulk-promote when WatchlistRow.regionCode / .score / .entityLabel
+  // came back undefined from a partial source_payload.
+  const label = input.entityLabel ?? input.entityKey ?? '(unknown entity)';
+  const company = String(label).slice(0, 200);
+  const regionCode = input.regionCode ?? null;
+  const rawScore = typeof input.score === 'number' && Number.isFinite(input.score) ? input.score : 0;
+  const signalKinds = Array.isArray(input.signalKinds) ? input.signalKinds : [];
 
   // 1. Dedup: same client + same company name = already-a-lead, return it.
   const [existing] = await db.execute<LeadRow[]>(
@@ -83,25 +92,25 @@ export async function promoteEntityToLead(input: PromoteEntityInput): Promise<Pr
   const attribution = await entityAttribution(input.clientId, input.entityKey);
   const attributionLine = attribution?.humanLine ?? null;
   const auditContent = attribution
-    ? `Surfaced by the Atlantic Hub Revenue Distress Intelligence Engine.\n\n${attribution.humanLine}\n\nTrigger: ${attribution.trail[0]?.triggerSummary ?? input.entityKey}.\n\nThis prospect appeared on the distress watchlist with a score of ${input.score} (${input.signalKinds.join(', ')}). Consider the public-records signal when sequencing outreach — they may not yet know we know.`
-    : `Surfaced by the Atlantic Hub Revenue Distress Intelligence Engine. Distress score ${input.score} from signals: ${input.signalKinds.join(', ')}.`;
+    ? `Surfaced by the Atlantic Hub Revenue Distress Intelligence Engine.\n\n${attribution.humanLine}\n\nTrigger: ${attribution.trail[0]?.triggerSummary ?? input.entityKey}.\n\nThis prospect appeared on the distress watchlist with a score of ${rawScore} (${signalKinds.join(', ')}). Consider the public-records signal when sequencing outreach — they may not yet know we know.`
+    : `Surfaced by the Atlantic Hub Revenue Distress Intelligence Engine. Distress score ${rawScore} from signals: ${signalKinds.join(', ')}.`;
 
   const sourcePayload = {
     promoted_at: new Date().toISOString(),
     promoted_by_kind: input.actorKind,
     promoted_by_id: input.actorId,
     entity_key: input.entityKey,
-    entity_label: input.entityLabel,
-    region_code: input.regionCode,
-    distress_score: input.score,
-    signal_kinds: input.signalKinds,
+    entity_label: input.entityLabel ?? null,
+    region_code: regionCode,
+    distress_score: rawScore,
+    signal_kinds: signalKinds,
     attribution_human_line: attributionLine,
     attribution_trail: attribution?.trail ?? []
   };
 
   const auditId = randomUUID();
 
-  // 3. Insert the lead.
+  // 3. Insert the lead. All params pre-coerced to safe non-undefined values.
   const [insertResult] = await db.execute<ResultSetHeader>(
     `INSERT INTO leads (
        audit_id, client_id, company, industry,
@@ -119,10 +128,10 @@ export async function promoteEntityToLead(input: PromoteEntityInput): Promise<Pr
       auditId,
       input.clientId,
       company,
-      input.regionCode,
-      input.regionCode && input.regionCode.length === 2 ? 'US' : null,
+      regionCode,
+      regionCode && regionCode.length === 2 ? 'US' : null,
       auditContent,
-      Math.max(0, Math.min(100, Math.round(input.score / 2))), // distress 0-200 → ai_score 0-100
+      Math.max(0, Math.min(100, Math.round(rawScore / 2))), // distress 0-200 → ai_score 0-100
       JSON.stringify(sourcePayload)
     ]
   );
