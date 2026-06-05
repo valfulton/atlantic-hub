@@ -140,7 +140,7 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="rounded-lg border border-[#EBCB6B] text-[#EBCB6B] hover:bg-[#EBCB6B]/10 text-[12.5px] px-4 py-1.5 font-medium"
+            className="rounded-lg border border-[var(--gold-bright)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] text-[12.5px] px-4 py-1.5 font-medium"
           >
             Apply
           </button>
@@ -187,11 +187,11 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
             return (
               <li
                 key={`${r.clientId}-${r.entityKey}`}
-                className="rounded-2xl border border-border bg-surface p-4 hover:border-[#EBCB6B]/40 transition-colors"
+                className="rounded-2xl border border-border bg-surface p-4 hover:border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] transition-colors"
               >
                 <div className="flex items-start gap-4 flex-wrap">
-                  <div className="shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-[#EBCB6B]/20 to-[#EBCB6B]/5 border border-[#EBCB6B]/30 grid place-items-center">
-                    <span className="text-[#EBCB6B] font-semibold text-lg">{Math.round(r.score)}</span>
+                  <div className="shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-[color-mix(in_srgb,var(--gold-bright)_20%,transparent)] to-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] grid place-items-center">
+                    <span className="text-[var(--gold-bright)] font-semibold text-lg">{Math.round(r.score)}</span>
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -203,7 +203,7 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                         <span className="text-[10px] uppercase tracking-wider text-muted">{r.regionCode}</span>
                       )}
                       {r.lastAction && (
-                        <span className="text-[10px] uppercase tracking-wider text-[#EBCB6B]/80 border border-[#EBCB6B]/30 rounded-full px-2 py-0.5">
+                        <span className="text-[10px] uppercase tracking-wider text-[color-mix(in_srgb,var(--gold-bright)_80%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] rounded-full px-2 py-0.5">
                           {r.lastAction}
                         </span>
                       )}
@@ -213,7 +213,7 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                       Flagged for{' '}
                       <Link
                         href={`/admin/av/clients/${r.clientId}`}
-                        className="text-[#EBCB6B] hover:underline"
+                        className="text-[var(--gold-bright)] hover:underline"
                       >
                         {r.clientName}
                       </Link>{' '}
@@ -225,7 +225,7 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                         <span key={i} className="inline-flex items-center gap-1">
                           <span className={
                             i === trail.length - 1
-                              ? 'text-[11px] text-[#EBCB6B] border border-[#EBCB6B]/40 bg-[#EBCB6B]/10 rounded-md px-2 py-0.5'
+                              ? 'text-[11px] text-[var(--gold-bright)] border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] rounded-md px-2 py-0.5'
                               : 'text-[11px] text-muted border border-border rounded-md px-2 py-0.5'
                           }>{s.label}</span>
                           {i < trail.length - 1 && <span className="text-muted text-[11px]">→</span>}
@@ -236,7 +236,7 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                     <div className="flex flex-wrap gap-2 text-[11.5px]">
                       <Link
                         href={`/admin/av/clients/${r.clientId}/preview/watchlist#${entityRef}`}
-                        className="text-[#EBCB6B] hover:underline"
+                        className="text-[var(--gold-bright)] hover:underline"
                       >
                         Open in client view →
                       </Link>

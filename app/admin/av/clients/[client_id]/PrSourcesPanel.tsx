@@ -127,7 +127,7 @@ export default function PrSourcesPanel({
 
   const inputCls =
     'w-full rounded-md bg-black/30 border border-white/10 px-2.5 py-1.5 text-[12px] text-white/90 ' +
-    'placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
+    'placeholder-white/30 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)]';
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
@@ -142,7 +142,7 @@ export default function PrSourcesPanel({
       </div>
 
       {/* Add form */}
-      <div className="rounded-md border border-[#EBCB6B]/20 bg-[#EBCB6B]/[0.03] p-2.5 mb-3 space-y-1.5">
+      <div className="rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_20%,transparent)] bg-[var(--gold-bright)]/[0.03] p-2.5 mb-3 space-y-1.5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <input
             className={inputCls + ' sm:col-span-2'}
@@ -167,7 +167,7 @@ export default function PrSourcesPanel({
               'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
               (adding || !url.trim()
                 ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
+                : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
             }
           >
             {adding ? 'Adding…' : 'Add RSS source'}

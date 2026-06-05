@@ -4,7 +4,7 @@
  * Single source of truth for the operator preview banner + sibling tab
  * strip wrapped around every /admin/av/clients/[id]/preview/* page.
  *
- * Tones: logo gold #EBCB6B (with #C7A64E deep) — NEVER Tailwind amber
+ * Tones: logo gold var(--gold-bright) (with #C7A64E deep) — NEVER Tailwind amber
  * (which renders orange-yellow). val standing rule: no orange anywhere.
  *
  * Props:

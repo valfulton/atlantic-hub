@@ -60,7 +60,7 @@ export function IntelligenceExport({ trifecta }: { trifecta: IntelligenceTrifect
     <button
       type="button"
       onClick={download}
-      className="text-[12px] rounded-md border border-border bg-surface px-3 py-1.5 text-ink hover:border-[#EBCB6B]/35 hover:text-[#EBCB6B] transition"
+      className="text-[12px] rounded-md border border-border bg-surface px-3 py-1.5 text-ink hover:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] hover:text-[var(--gold-bright)] transition"
     >
       ↓ Export CSV
     </button>

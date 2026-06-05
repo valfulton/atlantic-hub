@@ -351,10 +351,10 @@ function ResultModal({
         {/* (#292) Discoverability: tell val WHY these specific contacts were
             picked + where to change the lever. Without this she'd have no idea
             the ICP titles drive the contact picker. */}
-        <div className="rounded-md border border-[#EBCB6B]/25 bg-[#EBCB6B]/5 px-3 py-2 mb-4 text-[11px] text-[#EBCB6B]/95/90 leading-relaxed">
-          <span className="font-medium text-[#EBCB6B]/95">How these were picked:</span>{' '}
-          Hunter follows each client&apos;s <span className="text-[#EBCB6B]">Preferred</span> and{' '}
-          <span className="text-[#EBCB6B]">Excluded Contact Titles</span> (from their ICP). When a
+        <div className="rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] px-3 py-2 mb-4 text-[11px] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]/90 leading-relaxed">
+          <span className="font-medium text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">How these were picked:</span>{' '}
+          Hunter follows each client&apos;s <span className="text-[var(--gold-bright)]">Preferred</span> and{' '}
+          <span className="text-[var(--gold-bright)]">Excluded Contact Titles</span> (from their ICP). When a
           lead already has a name on file, we use Hunter&apos;s Email Finder to target THAT person
           directly instead of pulling the whole domain roster. To change the titles, open the
           client&apos;s page and edit the ICP — leads with no client attached fall back to
@@ -362,24 +362,24 @@ function ResultModal({
         </div>
 
         {summary.suggestedNextAction === 'send_outreach_email_series' && enrichedRows.length > 0 && (
-          <div className="bg-[#EBCB6B]/8 border border-[#EBCB6B]/40 rounded-md px-3 py-3 mb-4 text-xs text-[#EBCB6B]/90">
+          <div className="bg-[color-mix(in_srgb,var(--gold-bright)_8%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] rounded-md px-3 py-3 mb-4 text-xs text-[color-mix(in_srgb,var(--gold-bright)_90%,transparent)]">
             <div className="font-medium mb-1">📨 Send outreach to these {enrichedRows.length} leads?</div>
             <div>
               Cold-email orchestration is the next feature on the roadmap. For now this is a stub —
               clicking "Yes" below tells the system you want this functionality, and the next build
               session will wire the actual email-sending logic against the templates in{' '}
-              <code className="bg-[#EBCB6B]/15 px-1 rounded">templates.md</code>.
+              <code className="bg-[color-mix(in_srgb,var(--gold-bright)_15%,transparent)] px-1 rounded">templates.md</code>.
             </div>
             <div className="mt-2 flex gap-2">
               <button
                 onClick={() => alert('Noted! Email outreach orchestration is queued for the next build session.')}
-                className="text-xs px-3 py-1.5 border border-[#EBCB6B]/45 text-[#EBCB6B] rounded-md hover:opacity-90"
+                className="text-xs px-3 py-1.5 border border-[color-mix(in_srgb,var(--gold-bright)_45%,transparent)] text-[var(--gold-bright)] rounded-md hover:opacity-90"
               >
                 Yes, queue outreach
               </button>
               <button
                 onClick={onClose}
-                className="text-xs px-3 py-1.5 border border-[#EBCB6B]/40 text-[#EBCB6B]/90 rounded-md hover:bg-[#EBCB6B]/15"
+                className="text-xs px-3 py-1.5 border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_90%,transparent)] rounded-md hover:bg-[color-mix(in_srgb,var(--gold-bright)_15%,transparent)]"
               >
                 Not now
               </button>

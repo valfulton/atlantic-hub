@@ -42,7 +42,7 @@ export function CopyButton({ value, label = 'Copy' }: Props) {
     <button
       type="button"
       onClick={copy}
-      className="px-3 py-2 rounded-lg bg-[#EBCB6B]/12 text-[#EBCB6B] border border-[#EBCB6B]/40 text-xs font-medium hover:bg-[#EBCB6B]/20 focus-visible:outline-2 focus-visible:outline-[#EBCB6B] focus-visible:outline-offset-2"
+      className="px-3 py-2 rounded-lg bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[var(--gold-bright)] border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-xs font-medium hover:bg-[color-mix(in_srgb,var(--gold-bright)_20%,transparent)] focus-visible:outline-2 focus-visible:outline-[var(--gold-bright)] focus-visible:outline-offset-2"
       aria-live="polite"
     >
       {state === 'copied' ? 'Copied' : state === 'error' ? 'Copy failed' : label}

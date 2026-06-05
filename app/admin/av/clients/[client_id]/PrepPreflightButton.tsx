@@ -101,20 +101,20 @@ export default function PrepPreflightButton({ clientId }: { clientId: number }) 
         <div className="mt-3 grid gap-2 text-xs">
           <div className="flex items-center gap-4 text-[11px] text-muted flex-wrap">
             <span><span className="text-emerald-300">{willRun}</span> step{willRun === 1 ? '' : 's'} ready</span>
-            <span><span className="text-[#EBCB6B]">{willSkip}</span> would skip</span>
+            <span><span className="text-[var(--gold-bright)]">{willSkip}</span> would skip</span>
             {report.url ? (
               <span>website {report.url} → {report.web?.reached
                 ? <span className="text-emerald-300">HTTP {report.web.httpStatus} · {report.web.wordCount} words</span>
                 : <span className="text-danger">{report.web?.failureReason ?? 'unreachable'}</span>}</span>
             ) : <span className="text-muted">no website on brief</span>}
-            <span>brief: <span className={report.brief.enoughForLlm ? 'text-emerald-300' : 'text-[#EBCB6B]'}>{report.brief.filledCount} field{report.brief.filledCount === 1 ? '' : 's'} filled</span></span>
+            <span>brief: <span className={report.brief.enoughForLlm ? 'text-emerald-300' : 'text-[var(--gold-bright)]'}>{report.brief.filledCount} field{report.brief.filledCount === 1 ? '' : 's'} filled</span></span>
           </div>
           <ul className="grid gap-1 mt-1">
             {Object.entries(report.steps).map(([key, s]) => (
               <li key={key} className="flex items-start gap-2">
-                <span aria-hidden className={`inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${s.ok ? 'bg-emerald-400' : 'bg-[#EBCB6B]'}`} />
+                <span aria-hidden className={`inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${s.ok ? 'bg-emerald-400' : 'bg-[var(--gold-bright)]'}`} />
                 <span className="text-ink/90 shrink-0">{STEP_LABEL[key] ?? key}</span>
-                <span className={s.ok ? 'text-emerald-300' : 'text-[#EBCB6B]/95/85'}>
+                <span className={s.ok ? 'text-emerald-300' : 'text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]/85'}>
                   {s.ok ? '— ready' : `— would skip: ${s.reason ?? 'not ready'}`}
                 </span>
               </li>

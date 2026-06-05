@@ -54,10 +54,10 @@ const ROLES: LinkRole[] = ['advances', 'reinforces', 'tests'];
 function roleColor(role: LinkRole): { bg: string; border: string; text: string } {
   // Same palette as the cockpit role chips so the two surfaces feel like one
   // language. Greens for advance (forward motion), amber for reinforce
-  // (proven, doubling down), violet for tests (experiment).
+  // (proven, doubling down), harbor blue for tests (experiment).
   if (role === 'advances') return { bg: 'rgba(134,239,172,0.10)', border: 'rgba(134,239,172,0.40)', text: '#86efac' };
   if (role === 'reinforces') return { bg: 'rgba(253,230,138,0.10)', border: 'rgba(253,230,138,0.40)', text: '#fde68a' };
-  return { bg: 'rgba(196,181,253,0.10)', border: 'rgba(196,181,253,0.40)', text: '#c4b5fd' };
+  return { bg: 'rgba(125,211,252,0.10)', border: 'rgba(125,211,252,0.40)', text: '#7dd3fc' };
 }
 
 export function LeadNarrativeLines({ auditId }: { auditId: string }) {
@@ -211,7 +211,7 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
               'text-[11px] px-2.5 py-1 rounded-md border transition ' +
               (suggesting || lines.every((l) => l.role != null)
                 ? 'border-white/10 text-white/30 cursor-not-allowed'
-                : 'border-[#EBCB6B]/30 text-[#EBCB6B]/95 hover:border-[#EBCB6B]/60 bg-[#EBCB6B]/5')
+                : 'border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] hover:border-[color-mix(in_srgb,var(--gold-bright)_60%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)]')
             }
           >
             {suggesting ? '✨ thinking…' : '✨ Suggest best'}
@@ -300,7 +300,7 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
                           'text-[11px] px-2 py-1 rounded-md border transition ' +
                           (busy
                             ? 'border-white/10 text-white/30 cursor-not-allowed'
-                            : 'border-border text-ink hover:border-[#EBCB6B]/35 bg-black/20')
+                            : 'border-border text-ink hover:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] bg-black/20')
                         }
                       >
                         {busy ? '…' : `Link · ${role}`}
@@ -319,7 +319,7 @@ export function LeadNarrativeLines({ auditId }: { auditId: string }) {
                             'text-[11px] px-2 py-1 rounded-md border transition ' +
                             (busy
                               ? 'border-white/10 text-white/30 cursor-not-allowed'
-                              : 'border-border text-ink hover:border-[#EBCB6B]/35 bg-black/20')
+                              : 'border-border text-ink hover:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] bg-black/20')
                           }
                         >
                           → {role}

@@ -55,7 +55,7 @@ const OUTCOME_LABEL: Record<Outcome, string> = {
 
 const OUTCOME_TONE: Record<Outcome, string> = {
   inserted: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-  updated: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/40',
+  updated: 'bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[var(--gold-bright)] border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)]',
   duplicate: 'bg-blue-500/15 text-blue-300 border-blue-500/40',
   invalid: 'bg-rose-500/15 text-rose-300 border-rose-500/40',
   error: 'bg-red-500/20 text-red-300 border-red-500/50'
@@ -152,8 +152,8 @@ export default async function ClayIntegrationStatusPage() {
       </header>
 
       {/* --- Setup card --- */}
-      <section className="rounded-xl border border-[#EBCB6B]/30 bg-[#EBCB6B]/5 p-5">
-        <h2 className="text-sm font-semibold text-[#EBCB6B] mb-3 uppercase tracking-wide">Setup</h2>
+      <section className="rounded-xl border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] p-5">
+        <h2 className="text-sm font-semibold text-[var(--gold-bright)] mb-3 uppercase tracking-wide">Setup</h2>
         <div className="space-y-4 text-sm">
           <div>
             <div className="text-xs text-muted mb-1">Webhook URL (paste into Clay -&gt; Table -&gt; Webhook)</div>
@@ -261,7 +261,7 @@ export default async function ClayIntegrationStatusPage() {
                       {r.lead_id !== null ? (
                         <a
                           href={`/admin/av/${r.lead_id}`}
-                          className="text-[#EBCB6B] hover:underline focus-visible:outline-2 focus-visible:outline-[#EBCB6B]"
+                          className="text-[var(--gold-bright)] hover:underline focus-visible:outline-2 focus-visible:outline-[var(--gold-bright)]"
                         >
                           #{r.lead_id}
                         </a>

@@ -804,7 +804,7 @@ export function PrDesk() {
             Idea{o.relevanceScore != null ? ` ${o.relevanceScore}` : ''}
           </span>
         )}
-        {o.deadline && <span className="text-[11px] text-[#EBCB6B]">Deadline: {formatDate(o.deadline)}</span>}
+        {o.deadline && <span className="text-[11px] text-[var(--gold-bright)]">Deadline: {formatDate(o.deadline)}</span>}
         {o.matchedCompany && (
           <span className="text-[11px] text-muted">
             Matched: <span className="text-emerald-300">{o.matchedCompany}</span>

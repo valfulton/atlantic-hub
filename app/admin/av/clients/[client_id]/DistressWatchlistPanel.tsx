@@ -56,7 +56,7 @@ const SIGNAL_LABEL: Record<string, string> = {
 
 function scoreColor(score: number): string {
   if (score >= 100) return 'text-red-300';
-  if (score >= 50) return 'text-[#EBCB6B]';
+  if (score >= 50) return 'text-[var(--gold-bright)]';
   if (score >= 20) return 'text-yellow-200';
   return 'text-emerald-300';
 }
@@ -498,7 +498,7 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                         {row.contributingSignals.slice(0, 4).map((s, j) => (
                           <span
                             key={j}
-                            className="rounded bg-[#EBCB6B]/10 border border-[#EBCB6B]/25 text-[#EBCB6B]/95 px-1 py-0.5"
+                            className="rounded bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] px-1 py-0.5"
                             title={s.source}
                           >
                             {SIGNAL_LABEL[s.signalKind] ?? s.signalKind}
@@ -560,7 +560,7 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                               setMoveOpenFor((cur) => (cur === row.entityKey ? null : row.entityKey))
                             }
                             disabled={moveBusy[row.entityKey]}
-                            className="rounded-md border border-[#EBCB6B]/40 bg-[#EBCB6B]/10 hover:bg-[#EBCB6B]/20 text-[#EBCB6B] text-[11px] px-2 py-1"
+                            className="rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_20%,transparent)] text-[var(--gold-bright)] text-[11px] px-2 py-1"
                             title="Move this signal to another brand you own"
                             aria-haspopup="menu"
                             aria-expanded={moveOpenFor === row.entityKey}
@@ -581,7 +581,7 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                                   type="button"
                                   role="menuitem"
                                   onClick={() => moveTo(row, t.clientId)}
-                                  className="block w-full text-left px-2.5 py-1.5 text-[12px] text-ink hover:bg-[#EBCB6B]/10"
+                                  className="block w-full text-left px-2.5 py-1.5 text-[12px] text-ink hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]"
                                 >
                                   {t.clientName}
                                 </button>

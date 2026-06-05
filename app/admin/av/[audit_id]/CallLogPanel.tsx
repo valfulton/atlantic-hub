@@ -41,11 +41,11 @@ const OUTCOMES: Array<{ value: string; label: string }> = [
 
 const OUTCOME_STYLES: Record<string, string> = {
   connected: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-  voicemail: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/40',
+  voicemail: 'bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[var(--gold-bright)] border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)]',
   no_answer: 'bg-gray-500/15 text-gray-300 border-gray-500/40',
   wrong_number: 'bg-rose-500/15 text-rose-300 border-rose-500/40',
   not_interested: 'bg-rose-500/15 text-rose-300 border-rose-500/40',
-  follow_up: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/40',
+  follow_up: 'bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[var(--gold-bright)] border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)]',
   meeting_booked: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
   converted: 'bg-emerald-500/15 text-emerald-200 border-emerald-500/40',
   other: 'bg-gray-500/15 text-gray-300 border-gray-500/40'

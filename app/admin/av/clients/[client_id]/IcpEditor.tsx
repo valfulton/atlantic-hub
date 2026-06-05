@@ -39,12 +39,12 @@ const toNum = (s: string): number | null => {
 // Tailwind purge.
 //   amber  = operator (val)
 //   teal   = client
-//   violet = ai_intake (#239 — sharpener from brief)
+//   blue   = ai_intake (#239 — sharpener from brief)
 //   muted  = new/unsaved
 const CHIP_STYLE: Record<'operator' | 'client' | 'ai_intake' | 'new', CSSProperties> = {
   operator: { borderColor: 'rgba(255,199,61,0.45)', color: '#FFC73D', background: 'rgba(255,199,61,0.10)' },
   client: { borderColor: 'rgba(94,234,212,0.45)', color: '#5eead4', background: 'rgba(94,234,212,0.10)' },
-  ai_intake: { borderColor: 'rgba(167,139,250,0.45)', color: '#c4b5fd', background: 'rgba(167,139,250,0.10)' },
+  ai_intake: { borderColor: 'rgba(147,197,253,0.45)', color: '#93c5fd', background: 'rgba(147,197,253,0.10)' },
   new: { borderColor: 'var(--border, rgba(255,255,255,0.15))', color: 'var(--muted, #9aa)', background: 'transparent' }
 };
 

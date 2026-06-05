@@ -80,7 +80,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
   };
 
   const filled = INTAKE_KEYS.filter((k) => (payload[k] || '').trim()).length;
-  const ta = 'w-full rounded-md bg-black/20 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/50';
+  const ta = 'w-full rounded-md bg-black/20 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder-white/30 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)]';
 
   return (
     <div className="space-y-6">
@@ -91,7 +91,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
             <button
               key={s.key}
               onClick={() => setActiveKey(s.key)}
-              className={'rounded-full px-3 py-1 text-xs border transition ' + (on ? 'bg-[#EBCB6B]/20 border-[#EBCB6B]/60 text-[#EBCB6B]/95' : 'bg-white/5 border-white/10 text-white/60 hover:text-white/90')}
+              className={'rounded-full px-3 py-1 text-xs border transition ' + (on ? 'bg-[color-mix(in_srgb,var(--gold-bright)_20%,transparent)] border-[color-mix(in_srgb,var(--gold-bright)_60%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]' : 'bg-white/5 border-white/10 text-white/60 hover:text-white/90')}
             >
               {s.kind === 'brand' ? '★ ' : ''}{s.label}
             </button>
@@ -110,7 +110,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
         <>
           {INTAKE_GROUPS.map((grp) => (
             <div key={grp.group} className="rounded-md border border-white/10 bg-black/20 p-4">
-              <div className="text-xs uppercase tracking-wide text-[#EBCB6B]/75 mb-3">{grp.group}</div>
+              <div className="text-xs uppercase tracking-wide text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)] mb-3">{grp.group}</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {grp.fields.map((f) => (
                   <label key={f.key} className={f.area ? 'block sm:col-span-2' : 'block'}>
@@ -133,7 +133,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
                       />
                     )}
                     {f.why && (
-                      <span className="block text-[10.5px] text-[#EBCB6B]/55 mt-1 italic">
+                      <span className="block text-[10.5px] text-[color-mix(in_srgb,var(--gold-bright)_55%,transparent)] mt-1 italic">
                         Used for: {f.why}
                       </span>
                     )}
@@ -147,7 +147,7 @@ export function IntakeEditor({ customers, initialKey }: { customers: Customer[];
             <button
               onClick={save}
               disabled={saving || !dirty}
-              className={'rounded-md px-5 py-2.5 text-sm font-medium transition ' + (saving || !dirty ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')}
+              className={'rounded-md px-5 py-2.5 text-sm font-medium transition ' + (saving || !dirty ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')}
             >
               {saving ? 'Saving…' : dirty ? 'Save intake' : 'Saved'}
             </button>

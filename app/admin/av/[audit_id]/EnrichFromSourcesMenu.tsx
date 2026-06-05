@@ -97,9 +97,9 @@ const SOURCE_META: Record<SourceKey, { icon: string; label: string; hint: string
     icon: '🌐',
     label: 'WHOIS / Domain registration',
     hint: 'RDAP lookup. Registrant name + email (when not privacy-redacted), registration date, registrar, nameservers.',
-    color: '#a78bfa',                 // purple — the "system/registry" channel
-    bg: 'rgba(167,139,250,0.10)',
-    border: 'rgba(167,139,250,0.40)'
+    color: '#7dd3fc',                 // harbor blue — the "system/registry" channel
+    bg: 'rgba(125,211,252,0.10)',
+    border: 'rgba(125,211,252,0.40)'
   }
 };
 
@@ -219,7 +219,7 @@ export function EnrichFromSourcesMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Pull data from external sources — Google Places, Instagram, WHOIS — to fill any blank fields on this lead."
-        className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border border-[#EBCB6B]/35 text-[#EBCB6B] hover:border-[#EBCB6B]/70 bg-[#EBCB6B]/10 transition"
+        className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] text-[var(--gold-bright)] hover:border-[color-mix(in_srgb,var(--gold-bright)_70%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] transition"
       >
         ✨ Enrich from sources <span style={{ fontSize: 9 }}>{open ? '▲' : '▼'}</span>
       </button>

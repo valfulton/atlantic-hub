@@ -122,7 +122,7 @@ function statusGlow(s: GenerationStatus): string {
       return 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
     case 'running':
     case 'queued':
-      return 'bg-[#EBCB6B]/16 text-[#EBCB6B]/95 border-[#EBCB6B]/30 animate-pulse';
+      return 'bg-[color-mix(in_srgb,var(--gold-bright)_16%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] animate-pulse';
     case 'failed':
       return 'bg-red-500/20 text-red-300 border-red-400/30';
   }
@@ -705,7 +705,7 @@ export function CommercialPanel({
           <div className="text-[11px] text-muted mt-1 flex items-center justify-between">
             <span>{customPrompt.length} / 4000</span>
             {customPrompt.length === 0 && (
-              <span className="text-[#EBCB6B]">
+              <span className="text-[var(--gold-bright)]">
                 Empty prompt -- a default will be auto-built at generation time.
               </span>
             )}
@@ -745,7 +745,7 @@ export function CommercialPanel({
                   {generateError.message}
                 </div>
                 {generateError.hint && (
-                  <div className="mt-3 text-xs text-[#EBCB6B] bg-[#EBCB6B]/10 border border-[#EBCB6B]/30 rounded-lg p-2.5">
+                  <div className="mt-3 text-xs text-[var(--gold-bright)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] rounded-lg p-2.5">
                     <strong>Try this:</strong> {generateError.hint}
                   </div>
                 )}
@@ -919,7 +919,7 @@ function AssetCard({
           )
         ) : isRunning ? (
           <div className="text-center px-4">
-            <div className="inline-block text-[#EBCB6B] text-3xl animate-pulse">◐</div>
+            <div className="inline-block text-[var(--gold-bright)] text-3xl animate-pulse">◐</div>
             <p className="text-xs text-muted mt-3 max-w-xs">
               {asset.assetType === 'video'
                 ? 'Rendering -- 30s to a few minutes.'

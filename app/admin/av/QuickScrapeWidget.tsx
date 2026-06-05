@@ -86,7 +86,7 @@ export function QuickScrapeWidget() {
           type="button"
           onClick={() => setOpen(true)}
           title="Paste a website URL and the smart scraper will pull email/phone/socials and insert a new lead — same engine as Find new leads."
-          className="text-[12px] px-3 py-1.5 rounded-md border border-[#EBCB6B]/30 text-[#EBCB6B]/95 hover:border-[#EBCB6B]/60 bg-[#EBCB6B]/5 transition"
+          className="text-[12px] px-3 py-1.5 rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] hover:border-[color-mix(in_srgb,var(--gold-bright)_60%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] transition"
         >
           ✨ Quick add from a website
         </button>
@@ -101,7 +101,7 @@ export function QuickScrapeWidget() {
   }
 
   return (
-    <div className="mb-4 rounded-xl border border-[#EBCB6B]/30 bg-[#EBCB6B]/5 p-4">
+    <div className="mb-4 rounded-xl border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] p-4">
       <div className="flex items-baseline justify-between gap-3 mb-2">
         <div>
           <h2 className="text-sm font-semibold text-ink">✨ Quick add from a website</h2>
@@ -135,7 +135,7 @@ export function QuickScrapeWidget() {
             placeholder="https://ndvip.com/"
             required
             disabled={busy}
-            className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[#EBCB6B]/50 transition"
+            className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
           />
         </div>
         <div className="w-44">
@@ -148,7 +148,7 @@ export function QuickScrapeWidget() {
             onChange={(e) => setIndustry(e.target.value)}
             placeholder="e.g. restaurant, hotel"
             disabled={busy}
-            className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[#EBCB6B]/50 transition"
+            className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
           />
         </div>
         <button
@@ -158,7 +158,7 @@ export function QuickScrapeWidget() {
             'text-sm px-3 py-1.5 rounded-md border transition ' +
             (busy || !url.trim()
               ? 'border-white/10 text-white/30 cursor-not-allowed'
-              : 'border-[#EBCB6B]/50 text-[#EBCB6B] hover:border-[#EBCB6B]/80 bg-[#EBCB6B]/12')
+              : 'border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] text-[var(--gold-bright)] hover:border-[color-mix(in_srgb,var(--gold-bright)_80%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)]')
           }
         >
           {busy ? 'Scraping…' : 'Scrape & insert'}
@@ -185,7 +185,7 @@ export function QuickScrapeWidget() {
         </div>
       )}
       {result && result.ok && !result.inserted && result.duplicate && (
-        <div className="mt-3 text-[12px] rounded-md border border-[#EBCB6B]/30 bg-[#EBCB6B]/5 px-3 py-2 text-[#EBCB6B]/95">
+        <div className="mt-3 text-[12px] rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] px-3 py-2 text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
           Already in pipeline{result.company ? ` — ${result.company}` : ''}
           {result.auditId && (
             <>
@@ -202,7 +202,7 @@ export function QuickScrapeWidget() {
       )}
       {result && !result.ok && result.reason && (
         <div
-          className="mt-3 text-[12px] rounded-md border border-[#EBCB6B]/30 bg-[#EBCB6B]/5 px-3 py-2"
+          className="mt-3 text-[12px] rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] px-3 py-2"
           style={{ color: '#fde68a' }}
         >
           {result.reason}

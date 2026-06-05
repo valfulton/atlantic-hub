@@ -72,7 +72,7 @@ export default async function ClientIntelligencePreview({ params }: { params: { 
         bannerExtra={
           <Link
             href={`/admin/av/intelligence?client=${clientId}`}
-            style={{ color: '#EBCB6B', textDecoration: 'none' }}
+            style={{ color: 'var(--gold-bright)', textDecoration: 'none' }}
             className="hover:underline"
           >
             Operator chain →

@@ -34,7 +34,7 @@ const SOURCE_META: SourceMeta[] = [
   { key: 'smart',     label: 'Smart enrich',  color: '#fbbf24' },
   { key: 'places',    label: 'Google Places', color: '#4ade80' },
   { key: 'instagram', label: 'Instagram',     color: '#f472b6' },
-  { key: 'whois',     label: 'WHOIS',         color: '#a78bfa' }
+  { key: 'whois',     label: 'WHOIS',         color: '#7dd3fc' }
 ];
 
 interface PerLeadOutcome {
@@ -159,7 +159,7 @@ export function BatchEnrichAllButton({
         <button
           onClick={run}
           disabled={running}
-          className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border bg-[#EBCB6B]/10 text-[#EBCB6B] border-[#EBCB6B]/35 hover:border-[#EBCB6B]/70 disabled:opacity-50 transition"
+          className="text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 border bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] text-[var(--gold-bright)] border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] hover:border-[color-mix(in_srgb,var(--gold-bright)_70%,transparent)] disabled:opacity-50 transition"
           title={
             usingSelection
               ? `Run Smart enrich + Places + Instagram + WHOIS on the ${Math.min(selectedIds.length, limit)} lead${Math.min(selectedIds.length, limit) === 1 ? '' : 's'} you checked. Hunter is NOT included — use the Hunter button separately.`
@@ -170,7 +170,7 @@ export function BatchEnrichAllButton({
         >
           {running ? (
             <>
-              <span className="inline-block w-3 h-3 border-2 border-[#EBCB6B]/40 border-t-transparent rounded-full animate-spin" />
+              <span className="inline-block w-3 h-3 border-2 border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] border-t-transparent rounded-full animate-spin" />
               Enriching {usingSelection ? Math.min(selectedIds.length, limit) : limit}…
             </>
           ) : usingSelection ? (
@@ -221,7 +221,7 @@ function ResultPanel({ summary, onClose }: { summary: BatchSummary; onClose: () 
           {summary.leadsProcessed} of {summary.leadsRequested} {summary.leadsRequested === 1 ? 'lead' : 'leads'} processed across {summary.sourcesRun.length} sources in {Math.round(summary.elapsedMs / 100) / 10}s.
         </p>
         {summary.stoppedEarlyReason && (
-          <p className="text-sm mb-5 px-3 py-2 rounded-md border border-[#EBCB6B]/35 bg-[#EBCB6B]/10 text-[#EBCB6B]">
+          <p className="text-sm mb-5 px-3 py-2 rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] text-[var(--gold-bright)]">
             {summary.stoppedEarlyReason}
           </p>
         )}

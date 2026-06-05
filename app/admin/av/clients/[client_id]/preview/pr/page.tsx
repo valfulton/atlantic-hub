@@ -94,7 +94,7 @@ export default async function ClientPrPreview({ params }: { params: { client_id:
         bannerExtra={
           <Link
             href="/admin/pr"
-            style={{ color: '#EBCB6B', textDecoration: 'none' }}
+            style={{ color: 'var(--gold-bright)', textDecoration: 'none' }}
             className="hover:underline"
           >
             Operator PR desk →

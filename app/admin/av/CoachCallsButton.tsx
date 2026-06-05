@@ -130,7 +130,7 @@ function ResultModal({
         </div>
 
         {summary.stoppedEarly && (
-          <div className="bg-[#EBCB6B]/10 border border-[#EBCB6B]/40 rounded-md px-3 py-2 mb-4 text-xs text-[#EBCB6B]/95">
+          <div className="bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] rounded-md px-3 py-2 mb-4 text-xs text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
             Run stopped early to avoid timeout. Click again to coach the rest.
           </div>
         )}

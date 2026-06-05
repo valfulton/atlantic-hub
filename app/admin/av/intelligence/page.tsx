@@ -68,8 +68,8 @@ function Sparkline({ series, pick, stroke }: {
 
 function chipCls(active: boolean): string {
   return active
-    ? 'inline-flex items-center rounded-md border border-[#EBCB6B]/35 bg-[#EBCB6B]/10 px-2.5 py-1 text-[#EBCB6B]'
-    : 'inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-[#EBCB6B]/35 hover:text-[#EBCB6B]';
+    ? 'inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-2.5 py-1 text-[var(--gold-bright)]'
+    : 'inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-1 text-ink hover:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] hover:text-[var(--gold-bright)]';
 }
 
 export default async function IntelligencePage({
@@ -127,7 +127,7 @@ export default async function IntelligencePage({
       <div className="flex items-baseline justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-white">
-            Intelligence <span className="text-[#EBCB6B] italic">chain</span>
+            Intelligence <span className="text-[var(--gold-bright)] italic">chain</span>
           </h1>
           <p className="text-sm text-white/60 mt-1 max-w-2xl">
             What the system discovered, how much of it reached a channel, and the revenue motion it&apos;s tied to.
@@ -220,7 +220,7 @@ export default async function IntelligencePage({
           <div className="mt-4 border-t border-border pt-3">
             <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-2">
               Attribution — top narrative lines by activated assets
-              <span className="ml-2 normal-case tracking-normal text-[#EBCB6B]/75">lineage graph pending (#322)</span>
+              <span className="ml-2 normal-case tracking-normal text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)]">lineage graph pending (#322)</span>
             </div>
             {revenue.attribution.length === 0 ? (
               <div className="text-[12px] text-muted/70">No linked assets in this window yet.</div>
@@ -228,7 +228,7 @@ export default async function IntelligencePage({
               <ul className="space-y-1">
                 {revenue.attribution.map((a) => (
                   <li key={a.narrativeLineId} className="flex items-center justify-between text-[12.5px]">
-                    <Link href={`/admin/av/narrative`} className="text-ink hover:text-[#EBCB6B] truncate pr-3">{a.narrativeLine}</Link>
+                    <Link href={`/admin/av/narrative`} className="text-ink hover:text-[var(--gold-bright)] truncate pr-3">{a.narrativeLine}</Link>
                     <span className="text-muted shrink-0">{a.activatedAssets} asset{a.activatedAssets === 1 ? '' : 's'}</span>
                   </li>
                 ))}
@@ -278,7 +278,7 @@ function ChainCard({
       <div className="grid md:grid-cols-[1.1fr_1fr] gap-0">
         <div className="p-6">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] tabular-nums text-[#EBCB6B]/60">{step}</span>
+            <span className="text-[11px] tabular-nums text-[color-mix(in_srgb,var(--gold-bright)_60%,transparent)]">{step}</span>
             <h2 className="text-lg font-semibold text-white">{title}</h2>
           </div>
           <p className="text-[12.5px] text-muted leading-relaxed max-w-md">{blurb}</p>

@@ -292,7 +292,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       <div className="-mt-3 mb-5 flex flex-wrap items-center gap-3 text-[12px]">
         <Link
           href={`/admin/av/watchlist?client=${clientId}`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-[#EBCB6B]/35 text-[#EBCB6B] hover:bg-[#EBCB6B]/10 px-3 py-1.5 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-3 py-1.5 transition-colors"
         >
           🔭 Open this client&apos;s watchlist on the unified board →
         </Link>
@@ -667,12 +667,12 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           calm amber chip telling her how many lead audits were grounded in
           the older positioning. Acts as a nudge to click RefreshIntelPanel. */}
       {staleAuditCount > 0 && (
-        <div className="rounded-2xl border border-[#EBCB6B]/30 bg-[#EBCB6B]/[0.04] p-3 text-[12.5px] text-[#EBCB6B]/95/90 flex items-start gap-2">
+        <div className="rounded-2xl border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] bg-[var(--gold-bright)]/[0.04] p-3 text-[12.5px] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]/90 flex items-start gap-2">
           <span aria-hidden="true">&#9203;</span>
           <span>
-            <span className="font-medium text-[#EBCB6B]/95">{staleAuditCount} audit{staleAuditCount === 1 ? '' : 's'} catching up</span> —
+            <span className="font-medium text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">{staleAuditCount} audit{staleAuditCount === 1 ? '' : 's'} catching up</span> —
             the brief was edited after these leads were audited.{' '}
-            <span className="text-[#EBCB6B]/70">
+            <span className="text-[color-mix(in_srgb,var(--gold-bright)_70%,transparent)]">
               Use &ldquo;Refresh AI intel&rdquo; below (audits + call scripts) to re-ground them in the current brief.
             </span>
           </span>

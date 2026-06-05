@@ -103,8 +103,8 @@ export default function PopupCopyEditor({
               className={
                 'inline-flex items-center px-3 py-1.5 rounded-md border text-xs ' +
                 (i === activeIdx
-                  ? 'border-[#EBCB6B]/40 bg-[#EBCB6B]/10 text-[#EBCB6B] font-medium'
-                  : 'border-border bg-surface text-muted hover:text-ink hover:border-[#EBCB6B]/30')
+                  ? 'border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] text-[var(--gold-bright)] font-medium'
+                  : 'border-border bg-surface text-muted hover:text-ink hover:border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)]')
               }
             >
               Step {i + 1}{s.eyebrow ? ` · ${s.eyebrow}` : ''}
@@ -167,7 +167,7 @@ export default function PopupCopyEditor({
                     className={
                       'inline-flex items-center px-2.5 py-1 rounded-md border text-[11px] uppercase tracking-[0.12em] ' +
                       (on
-                        ? 'border-[#EBCB6B]/40 text-[#EBCB6B] bg-[#EBCB6B]/8'
+                        ? 'border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] bg-[color-mix(in_srgb,var(--gold-bright)_8%,transparent)]'
                         : 'border-border text-muted')
                     }
                   >
@@ -203,7 +203,7 @@ export default function PopupCopyEditor({
               type="button"
               onClick={save}
               disabled={saving}
-              className="px-5 py-2 rounded-md border border-[#EBCB6B] text-[#EBCB6B] hover:bg-[#EBCB6B]/10 text-sm font-medium disabled:opacity-60"
+              className="px-5 py-2 rounded-md border border-[var(--gold-bright)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] text-sm font-medium disabled:opacity-60"
             >
               {saving ? 'Saving…' : 'Save all slides'}
             </button>
@@ -236,7 +236,7 @@ export default function PopupCopyEditor({
             color: '#e2e8f0'
           }}
         >
-          <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#EBCB6B', marginBottom: 8 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--gold-bright)', marginBottom: 8 }}>
             {slide.eyebrow}
           </div>
           <h2 style={{ margin: '0 0 10px', fontSize: 22, lineHeight: 1.25, color: '#f8fafc', fontWeight: 600 }}>
@@ -244,7 +244,7 @@ export default function PopupCopyEditor({
           </h2>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#cbd5e1' }}>{previewBody}</p>
           {slide.href && slide.hrefLabel && (
-            <span style={{ display: 'inline-block', marginTop: 14, fontSize: 13, color: '#EBCB6B', fontWeight: 500 }}>
+            <span style={{ display: 'inline-block', marginTop: 14, fontSize: 13, color: 'var(--gold-bright)', fontWeight: 500 }}>
               {slide.hrefLabel}
             </span>
           )}
@@ -257,7 +257,7 @@ export default function PopupCopyEditor({
                   width: i === activeIdx ? 18 : 6,
                   height: 6,
                   borderRadius: 3,
-                  background: i === activeIdx ? '#EBCB6B' : 'rgba(255,255,255,0.18)'
+                  background: i === activeIdx ? 'var(--gold-bright)' : 'rgba(255,255,255,0.18)'
                 }}
               />
             ))}
@@ -293,7 +293,7 @@ function Field({
           onChange={(e) => onChange(e.target.value)}
           rows={4}
           placeholder={placeholder}
-          className="w-full bg-bg/40 border border-border rounded-md px-3 py-2 text-[14px] text-ink focus:border-[#EBCB6B]/50 focus:outline-none"
+          className="w-full bg-bg/40 border border-border rounded-md px-3 py-2 text-[14px] text-ink focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] focus:outline-none"
         />
       ) : (
         <input
@@ -301,7 +301,7 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full bg-bg/40 border border-border rounded-md px-3 py-2 text-[14px] text-ink focus:border-[#EBCB6B]/50 focus:outline-none"
+          className="w-full bg-bg/40 border border-border rounded-md px-3 py-2 text-[14px] text-ink focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] focus:outline-none"
         />
       )}
     </label>

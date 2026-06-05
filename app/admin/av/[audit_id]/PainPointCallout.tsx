@@ -29,7 +29,7 @@ interface Props {
 
 function urgencyStyle(s: string): string {
   if (s === 'high') return 'bg-rose-500/15 text-rose-200 border-rose-500/40';
-  if (s === 'medium') return 'bg-[#EBCB6B]/12 text-[#EBCB6B]/95 border-[#EBCB6B]/40';
+  if (s === 'medium') return 'bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)]';
   if (s === 'low') return 'bg-sky-500/15 text-sky-200 border-sky-500/40';
   return 'bg-surface text-muted border-border';
 }
@@ -60,11 +60,11 @@ export function PainPointCallout({ profile, extractedAt }: Props) {
   return (
     <section
       aria-label="What to say on the call"
-      className="rounded-xl border border-[#EBCB6B]/30 p-5 mb-6 bg-gradient-to-br from-[#EBCB6B]/10 to-rose-500/5"
+      className="rounded-xl border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] p-5 mb-6 bg-gradient-to-br from-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] to-rose-500/5"
     >
       <header className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <span className="text-[10px] uppercase tracking-[0.14em] text-[#EBCB6B] font-medium">
+          <span className="text-[10px] uppercase tracking-[0.14em] text-[var(--gold-bright)] font-medium">
             What to say on the call
           </span>
           <span

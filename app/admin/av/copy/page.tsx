@@ -92,7 +92,7 @@ export default function CopyEditorPage() {
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'rgba(11,27,45,.96)', backdropFilter: 'blur(8px)', borderBottom: '1px solid rgba(255,255,255,.1)', padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Site copy</h1>
-          <span style={{ fontSize: 12, color: '#9FB0C7' }}>editing: <b style={{ color: '#EBCB6B' }}>{ctxLabel}</b>{stage ? ` · stage: ${stage}` : ''}</span>
+          <span style={{ fontSize: 12, color: '#9FB0C7' }}>editing: <b style={{ color: 'var(--gold-bright)' }}>{ctxLabel}</b>{stage ? ` · stage: ${stage}` : ''}</span>
           <span style={{ marginLeft: 'auto', fontSize: 12, color: '#7ED3A1', minHeight: 16 }}>{status}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
@@ -120,7 +120,7 @@ export default function CopyEditorPage() {
       <div style={{ padding: '8px 16px 96px', maxWidth: 760, margin: '0 auto' }}>
         {filtered.map(([group, rows]) => (
           <section key={group} style={{ marginTop: 18 }}>
-            <h2 style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: '#EBCB6B', borderBottom: '1px solid rgba(255,255,255,.12)', paddingBottom: 6, marginBottom: 10 }}>{group}</h2>
+            <h2 style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--gold-bright)', borderBottom: '1px solid rgba(255,255,255,.12)', paddingBottom: 6, marginBottom: 10 }}>{group}</h2>
             {rows.map((k) => {
               const overridden = !!k.value;
               const long = (k.value || k.def).length > 44;
@@ -149,5 +149,5 @@ export default function CopyEditorPage() {
 
 const field: React.CSSProperties = { background: '#0E2236', color: '#E7ECF3', border: '1px solid rgba(255,255,255,.16)', borderRadius: 8, padding: '11px 12px', fontSize: 15, fontFamily: 'inherit', minHeight: 44 };
 const sel: React.CSSProperties = { ...field, minWidth: 150 };
-const btn: React.CSSProperties = { background: '#EBCB6B', color: '#0B1B2D', border: 0, borderRadius: 8, padding: '0 16px', fontWeight: 700, fontSize: 13, minHeight: 44, cursor: 'pointer' };
+const btn: React.CSSProperties = { background: 'var(--gold-bright)', color: '#0B1B2D', border: 0, borderRadius: 8, padding: '0 16px', fontWeight: 700, fontSize: 13, minHeight: 44, cursor: 'pointer' };
 const resetBtn: React.CSSProperties = { marginLeft: 'auto', background: 'transparent', border: '1px solid rgba(255,255,255,.2)', color: '#9FB0C7', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer' };

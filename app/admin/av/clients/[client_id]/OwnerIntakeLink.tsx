@@ -43,7 +43,7 @@ export default function OwnerIntakeLink({
       <p className="text-xs text-muted mb-2 leading-relaxed">
         Opens to a single intake page with a tab per brand. {ownerName} can fill {brandCount} brands&apos; intakes from
         this one link without juggling separate URLs.
-        <span className="block mt-1 text-[#EBCB6B]/85">
+        <span className="block mt-1 text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">
           ⚠ Send to {ownerName} only. Anyone with the URL can fill all {brandCount} brand intakes.
         </span>
       </p>

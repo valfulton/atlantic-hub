@@ -231,7 +231,7 @@ export function ScrapeDiscoverForm({
               <Stat label="Checked" value={bulkResult.checked} />
               <Stat label="Filled" value={bulkResult.filled} tone="green" />
               {bulkResult.dryRun && (
-                <span className="text-xs uppercase tracking-wider text-[#EBCB6B] self-center">DRY RUN — no DB changes</span>
+                <span className="text-xs uppercase tracking-wider text-[var(--gold-bright)] self-center">DRY RUN — no DB changes</span>
               )}
             </div>
             {bulkResult.message && <div className="text-sm text-muted">{bulkResult.message}</div>}
@@ -356,7 +356,7 @@ function ScrapeResultPanel({ result }: { result: ScrapeResponse }) {
             ✓ Inserted lead {result.company ? <span className="text-ink">— {result.company}</span> : null}
           </div>
         ) : result.duplicate ? (
-          <div className="text-[#EBCB6B] text-sm font-medium">
+          <div className="text-[var(--gold-bright)] text-sm font-medium">
             ⚠ Duplicate — matched existing lead #{result.leadId}
             {result.mergedTarget && (
               <span className="text-purple-300 ml-2">(target merged to {result.mergedTarget})</span>
@@ -410,7 +410,7 @@ function ScrapeResultPanel({ result }: { result: ScrapeResponse }) {
 }
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: 'green' | 'amber' }) {
-  const color = tone === 'green' ? 'text-green-400' : tone === 'amber' ? 'text-[#EBCB6B]' : 'text-ink';
+  const color = tone === 'green' ? 'text-green-400' : tone === 'amber' ? 'text-[var(--gold-bright)]' : 'text-ink';
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>

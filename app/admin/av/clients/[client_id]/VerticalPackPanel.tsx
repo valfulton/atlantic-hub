@@ -85,29 +85,29 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
         aria-expanded={open}
         className={
           'w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors ' +
-          (open ? 'bg-[#EBCB6B]/[0.06] hover:bg-[#EBCB6B]/[0.10]' : 'bg-[#EBCB6B]/[0.03] hover:bg-[#EBCB6B]/[0.06]')
+          (open ? 'bg-[var(--gold-bright)]/[0.06] hover:bg-[var(--gold-bright)]/[0.10]' : 'bg-[var(--gold-bright)]/[0.03] hover:bg-[var(--gold-bright)]/[0.06]')
         }
       >
         <div className="flex items-center gap-3 min-w-0">
           <span
             aria-hidden
-            className="shrink-0 w-7 h-7 rounded-md bg-[#EBCB6B]/12 border border-[#EBCB6B]/30 flex items-center justify-center text-[#EBCB6B] text-sm"
+            className="shrink-0 w-7 h-7 rounded-md bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] flex items-center justify-center text-[var(--gold-bright)] text-sm"
           >
             ☷
           </span>
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-[#EBCB6B]">Vertical pack</div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--gold-bright)]">Vertical pack</div>
             <div className="text-sm text-ink/95 mt-0.5">
               What business is {clientName} in? Pick a pack to seed signal weights + activate recipes.
             </div>
           </div>
         </div>
-        <span className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-[#EBCB6B]/80">
+        <span className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-[color-mix(in_srgb,var(--gold-bright)_80%,transparent)]">
           {open ? 'Hide' : 'Show'}
         </span>
       </button>
       {open && (
-        <div className="px-4 py-4 border-t border-[#EBCB6B]/20">
+        <div className="px-4 py-4 border-t border-[color-mix(in_srgb,var(--gold-bright)_20%,transparent)]">
           <p className="text-[11px] text-muted mb-3 leading-snug">
             Same engine, different tuning per vertical. Applying a pack seeds the distress signal weights from
             the pack&apos;s template, names the adapters to enable first, and tells you which cascade recipes
@@ -130,7 +130,7 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-ink font-medium">{p.displayName}</span>
-                        <span className="text-[10px] uppercase tracking-[0.12em] text-[#EBCB6B]/95 border border-[#EBCB6B]/30 rounded px-1.5 py-0.5">
+                        <span className="text-[10px] uppercase tracking-[0.12em] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] rounded px-1.5 py-0.5">
                           ${p.suggestedPriceUsd.low}–${p.suggestedPriceUsd.high}/mo
                         </span>
                       </div>
@@ -146,7 +146,7 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
                       </div>
                       <details className="mt-2">
                         <summary className="text-[11px] text-muted cursor-pointer hover:text-ink">Pitch + pricing thesis</summary>
-                        <div className="mt-2 text-[11.5px] text-ink/85 leading-snug border-l-2 border-[#EBCB6B]/30 pl-2">
+                        <div className="mt-2 text-[11.5px] text-ink/85 leading-snug border-l-2 border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] pl-2">
                           <div className="mb-1"><span className="text-ink/70 text-[10px] uppercase tracking-wider">Pitch:</span> {p.pitchTemplate}</div>
                           <div><span className="text-ink/70 text-[10px] uppercase tracking-wider">Pricing:</span> {p.pricingThesis}</div>
                         </div>

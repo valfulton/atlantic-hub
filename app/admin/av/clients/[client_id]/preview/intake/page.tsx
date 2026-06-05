@@ -76,7 +76,7 @@ export default async function ClientIntakePreview({ params }: { params: { client
         bannerExtra={
           <Link
             href={`/admin/av/brief?clientId=${clientId}`}
-            style={{ color: '#EBCB6B', textDecoration: 'none' }}
+            style={{ color: 'var(--gold-bright)', textDecoration: 'none' }}
             className="hover:underline"
           >
             Edit brief →

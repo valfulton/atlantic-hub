@@ -1349,9 +1349,9 @@ function LineEditor({ line, draft, patchField, saveLine, saving, saveMsg, dirty,
                           fontSize: 11,
                           padding: '4px 6px',
                           borderRadius: 6,
-                          background: 'rgba(196,181,253,0.06)',
-                          border: '1px solid rgba(196,181,253,0.30)',
-                          color: '#c4b5fd',
+                          background: 'rgba(125,211,252,0.06)',
+                          border: '1px solid rgba(125,211,252,0.30)',
+                          color: '#7dd3fc',
                           cursor: attach?.loading ? 'not-allowed' : 'pointer'
                         }}
                       >

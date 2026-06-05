@@ -91,7 +91,7 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
         bannerExtra={
           <Link
             href={`/admin/av/brief?clientId=${clientId}`}
-            style={{ color: '#EBCB6B', textDecoration: 'none' }}
+            style={{ color: 'var(--gold-bright)', textDecoration: 'none' }}
             className="hover:underline"
           >
             Edit creative brief →

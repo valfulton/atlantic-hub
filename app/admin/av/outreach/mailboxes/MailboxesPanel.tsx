@@ -106,7 +106,7 @@ export function MailboxesPanel() {
         <div
           role="status"
           aria-live="polite"
-          className="rounded-lg border border-[#EBCB6B]/40 bg-[#EBCB6B]/10 text-[#EBCB6B]/95 px-4 py-2 text-sm"
+          className="rounded-lg border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] px-4 py-2 text-sm"
         >
           {flash}
         </div>
@@ -193,7 +193,7 @@ export function MailboxesPanel() {
                             ? `/api/admin/av/outreach/mailboxes/oauth/microsoft/start?mailbox_id=${m.id}`
                             : `/api/admin/av/outreach/mailboxes/oauth/google/start?mailbox_id=${m.id}`
                         }
-                        className="px-3 py-1.5 text-sm rounded-md bg-[#EBCB6B]/16 border border-[#EBCB6B]/40 text-[#EBCB6B]/95 hover:bg-[#EBCB6B]/25 transition-colors"
+                        className="px-3 py-1.5 text-sm rounded-md bg-[color-mix(in_srgb,var(--gold-bright)_16%,transparent)] border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] transition-colors"
                       >
                         Complete OAuth
                       </a>
@@ -249,7 +249,7 @@ function ConnectCard({
 function MailboxStatusPill({ status }: { status: Mailbox['status'] }) {
   const styles: Record<Mailbox['status'], string> = {
     active: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-    pending_oauth: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/40',
+    pending_oauth: 'bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[var(--gold-bright)] border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)]',
     disconnected: 'bg-gray-500/15 text-gray-300 border-gray-500/40',
     error: 'bg-red-500/15 text-red-300 border-red-500/40'
   };

@@ -312,7 +312,7 @@ export function DiscoverForm({
               - brief_fallback: amber-warning tone, "Inferred from brief"
               - none: rose tone, "No ICP yet — open IcpEditor on their page" */}
         {autoFillBusy && (
-          <div className="text-[11px] text-[#EBCB6B]/75 -mt-2">Loading their saved ICP…</div>
+          <div className="text-[11px] text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)] -mt-2">Loading their saved ICP…</div>
         )}
         {!autoFillBusy && autoFilledFromClient && (
           <div className="-mt-2 space-y-1">
@@ -324,14 +324,14 @@ export function DiscoverForm({
                 </span>
               )}
               {autoFilledFromClient.source === 'mixed' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EBCB6B]/35 bg-[#EBCB6B]/10 px-2 py-0.5 font-medium text-[#EBCB6B]/95">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#EBCB6B]" aria-hidden="true" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-2 py-0.5 font-medium text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold-bright)]" aria-hidden="true" />
                   Mixed — part from {autoFilledFromClient.name}&apos;s ICP, part inferred from brief
                 </span>
               )}
               {autoFilledFromClient.source === 'brief_fallback' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EBCB6B]/35 bg-[#EBCB6B]/10 px-2 py-0.5 font-medium text-[#EBCB6B]/95">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#EBCB6B]" aria-hidden="true" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-2 py-0.5 font-medium text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold-bright)]" aria-hidden="true" />
                   Inferred from {autoFilledFromClient.name}&apos;s brief — ICP not curated yet
                 </span>
               )}
@@ -357,7 +357,7 @@ export function DiscoverForm({
               )}
               <a
                 href={`/admin/av/clients/${autoFilledFromClient.clientId}`}
-                className="text-[10.5px] uppercase tracking-wider text-[#EBCB6B]/75 hover:text-[#EBCB6B]/95"
+                className="text-[10.5px] uppercase tracking-wider text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)] hover:text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]"
               >
                 Open their ICP editor →
               </a>

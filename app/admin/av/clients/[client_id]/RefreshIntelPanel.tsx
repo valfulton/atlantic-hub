@@ -169,7 +169,7 @@ export default function RefreshIntelPanel({
             'rounded-lg px-4 py-2 text-[13px] font-medium transition ' +
             (busy || nothingSelected || flushBusy
               ? 'bg-white/10 text-white/40 cursor-not-allowed'
-              : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
+              : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
           }
         >
           {busy ? 'Regenerating…' : 'Refresh AI intel'}
@@ -236,7 +236,7 @@ export default function RefreshIntelPanel({
           )}
           {outreach && <div>· Outreach drafts deleted: {result.outreach.deleted}</div>}
           {result.stoppedEarly && (
-            <div className="text-[#EBCB6B]/95">
+            <div className="text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
               Hit the 55s soft deadline mid-batch. Click again to drain the rest — the columns are already nulled so the next run picks up where this left off.
             </div>
           )}

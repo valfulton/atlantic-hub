@@ -32,7 +32,7 @@ const ROLE_COPY: Record<ClientLeadNarrativeLine['role'], { label: string; fg: st
   // the client doesn't need our internal taxonomy, they need a feeling.
   advances: { label: 'main story', fg: '#86efac' },
   reinforces: { label: 'reinforces', fg: '#fde68a' },
-  tests: { label: 'testing angle', fg: '#c4b5fd' }
+  tests: { label: 'testing angle', fg: '#7dd3fc' }
 };
 
 export function ClientLeadNarrativeLinesPanel({ lines }: { lines: ClientLeadNarrativeLine[] }) {

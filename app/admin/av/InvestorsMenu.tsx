@@ -163,7 +163,7 @@ export function InvestorsMenu() {
           className="absolute right-0 mt-2 w-[340px] rounded-xl border border-border shadow-2xl z-50 overflow-hidden"
           style={{ backgroundColor: '#0e1420' }}
         >
-          <div className="px-4 py-3 border-b border-border bg-gradient-to-b from-[#EBCB6B]/[0.06] to-transparent">
+          <div className="px-4 py-3 border-b border-border bg-gradient-to-b from-[var(--gold-bright)]/[0.06] to-transparent">
             <div className="text-[10px] uppercase tracking-[0.18em] text-brand">Investor tour</div>
             <div className="text-sm text-ink mt-0.5 font-medium">Curated walkthrough</div>
             <p className="text-[11.5px] text-muted mt-1 leading-relaxed">
@@ -185,7 +185,7 @@ export function InvestorsMenu() {
                         target={item.external ? '_blank' : undefined}
                         rel={item.external ? 'noopener noreferrer' : undefined}
                         onClick={() => setOpen(false)}
-                        className="block px-2.5 py-2 rounded-md hover:bg-[#EBCB6B]/[0.07] transition group"
+                        className="block px-2.5 py-2 rounded-md hover:bg-[var(--gold-bright)]/[0.07] transition group"
                       >
                         <div className="flex items-start gap-2.5">
                           {item.icon && (
@@ -194,7 +194,7 @@ export function InvestorsMenu() {
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="text-[13px] text-ink font-medium leading-snug group-hover:text-[#EBCB6B]/95 transition">
+                            <div className="text-[13px] text-ink font-medium leading-snug group-hover:text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] transition">
                               {item.label}
                               {item.external && (
                                 <span className="ml-1.5 text-[10px] text-muted">↗</span>

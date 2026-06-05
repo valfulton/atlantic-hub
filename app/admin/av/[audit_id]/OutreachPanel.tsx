@@ -229,8 +229,8 @@ export function OutreachPanel({
       </section>
 
       {draft && (
-        <section className="rounded-lg border border-[#EBCB6B]/40 bg-[var(--surface)] p-4">
-          <div className="text-xs uppercase tracking-wider text-[#EBCB6B] mb-2">
+        <section className="rounded-lg border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-[var(--surface)] p-4">
+          <div className="text-xs uppercase tracking-wider text-[var(--gold-bright)] mb-2">
             Pending approval
           </div>
           <div className="text-base font-semibold text-ink mb-2">
@@ -331,7 +331,7 @@ export function OutreachPanel({
 
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    pending_approval: 'bg-[#EBCB6B]/12 text-[#EBCB6B] border-[#EBCB6B]/40',
+    pending_approval: 'bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] text-[var(--gold-bright)] border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)]',
     approved: 'bg-blue-500/15 text-blue-300 border-blue-500/40',
     sent: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
     replied: 'bg-rose-500/15 text-rose-300 border-rose-500/40',

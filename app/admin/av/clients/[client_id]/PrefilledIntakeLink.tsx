@@ -34,7 +34,7 @@ export default function PrefilledIntakeLink({ url }: { url: string }) {
       </div>
       <p className="text-xs text-muted mb-2 leading-relaxed">
         Opens straight to their filled-in intake form. They review, complete it, and submit — no password, no portal sign-in.
-        <span className="block mt-1 text-[#EBCB6B]/85">
+        <span className="block mt-1 text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">
           ⚠ Anyone with this URL can fill the form. Don&apos;t post it publicly.
         </span>
       </p>

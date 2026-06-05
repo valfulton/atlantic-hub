@@ -160,6 +160,59 @@
   /* Platinum is the STRUCTURAL metal (eyebrows, secondary chrome) */
   --border: rgba(201, 209, 220, 0.18);
 
-  /* Cormorant for content; Inter for UI labels — per memory */
-  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  /* Headline face — Fraunces everywhere (val locked 2026-06-05, public-face match) */
+  --font-serif: 'Fraunces', Georgia, serif;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   CANONICAL TOKEN SYSTEM v1  —  source: Atlantic_Hub_Playbook/Color_Token_System.md
+   ────────────────────────────────────────────────────────────────────
+   val hard rule (2026-06-05): every color flows through a token; no inline
+   hex in components. This block is the single place a restyle happens.
+     - Operator (:root) keeps its dark register; we only ADD the new named
+       accents/semantics here so operator components can reference them.
+     - The unified CLIENT register below collapses the three client scoping
+       attributes (data-surface="client" · data-skin="social" · .app) onto
+       ONE cream definition (D-A: client interior = cream, VR retired).
+   Legacy aliases keep existing components rendering while the literal sweep
+   migrates them. Skin files imported later (skin.social.css) still win where
+   they set a value — they collapse onto this base in the next wave.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Antique gold — accent ONLY (borders/rings/eyebrows; gold chips use black text).
+     Never gold text on light (2.12 ✗). --gold-bright is for DARK grounds only. */
+  --gold: #C9A961;
+  --gold-bright: #EBCB6B;
+  --cream-pure: #F5EFE3;
+  /* short alias so components can use var(--serif) */
+  --serif: var(--font-serif);
+  /* Platform colors — accurate to each network, centralized (not brand) */
+  --pf-linkedin: #0A66C2; --pf-x: #0F1419; --pf-facebook: #1877F2;
+  --pf-ig-from: #F09433; --pf-ig-to: #BC1888;
+}
+
+/* Unified CLIENT cream register — one definition for all three client scopes */
+[data-surface="client"],
+[data-skin="social"],
+.app {
+  --ground: #FAF8F4; --paper: #FFFFFF; --panel-warm: #F5EFE3;
+  --ink: #1B2329; --ink-soft: #4A4A4A; --muted: #6B6862;
+  --line: rgba(10,77,60,.12); --line-strong: rgba(10,77,60,.22);
+
+  --emerald: #0A4D3C; --emerald-bright: #1B7355; --emerald-glow: #3DAB85;
+  --gold: #C9A961; --gold-bright: #EBCB6B;
+
+  --ok: #0F6E56;     --ok-bg: rgba(15,110,86,.10);     --ok-line: rgba(15,110,86,.32);
+  --warn: #8A5316;   --warn-bg: rgba(138,83,22,.10);   --warn-line: rgba(138,83,22,.32);
+  --danger: #8C3A3A; --danger-bg: rgba(140,58,58,.10); --danger-line: rgba(140,58,58,.32);
+  --info: #2C5777;   --info-bg: rgba(44,87,119,.10);   --info-line: rgba(44,87,119,.32);
+  --signal: #7E4E16; --signal-bg: rgba(168,136,64,.14);--signal-line: rgba(168,136,64,.40);
+
+  --cream-pure: #F5EFE3; --obsidian: #0A0E18;
+
+  /* Legacy aliases — existing components keep working through the migration */
+  --cream: var(--ground); --cream-muted: var(--muted);
+  --amber: var(--gold); --amber-deep: var(--warn);
+  --serif: 'Fraunces', Georgia, serif;
 }

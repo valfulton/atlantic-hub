@@ -51,13 +51,13 @@ const STEP_LABEL: Record<string, string> = {
 const STATUS_COLOR: Record<StepResult['status'], string> = {
   ok: 'text-emerald-300',
   skipped: 'text-muted',
-  pre_skipped: 'text-[#EBCB6B]/95/85',
+  pre_skipped: 'text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]/85',
   failed: 'text-danger'
 };
 const STATUS_DOT: Record<StepResult['status'], string> = {
   ok: 'bg-emerald-400',
   skipped: 'bg-muted/50',
-  pre_skipped: 'bg-[#EBCB6B]',
+  pre_skipped: 'bg-[var(--gold-bright)]',
   failed: 'bg-red-400'
 };
 const STATUS_PREFIX: Record<StepResult['status'], string> = {
@@ -133,7 +133,7 @@ export default function PrepAllButton({
           <div className="text-[11px] text-muted flex items-center gap-2 flex-wrap">
             <span>{result.okCount} succeeded · {result.failedCount} failed</span>
             {typeof result.preSkippedCount === 'number' && result.preSkippedCount > 0 && (
-              <span className="text-[#EBCB6B]">· {result.preSkippedCount} pre-skipped (LLM not fired)</span>
+              <span className="text-[var(--gold-bright)]">· {result.preSkippedCount} pre-skipped (LLM not fired)</span>
             )}
             {/* (#361) Total cost for this run — auto-hidden under Presentation Mode. */}
             {typeof result.totalCostMicrocents === 'number' && (

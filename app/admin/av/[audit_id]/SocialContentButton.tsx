@@ -434,7 +434,7 @@ function PostToCommercialBridge({
         borderColor: 'rgba(255,156,91,0.35)'
       }}
     >
-      <div className="text-[10px] uppercase tracking-[0.12em] text-[#EBCB6B]/95 mb-2">
+      <div className="text-[10px] uppercase tracking-[0.12em] text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] mb-2">
         ✨ Turn this post into a commercial
       </div>
 
@@ -550,7 +550,7 @@ function PostToCommercialBridge({
           <div className="font-medium mb-1">Couldn&apos;t generate</div>
           <div>{errorDetail.message}</div>
           {errorDetail.hint && (
-            <div className="mt-2 text-[#EBCB6B]">
+            <div className="mt-2 text-[var(--gold-bright)]">
               <strong>Try:</strong> {errorDetail.hint}
             </div>
           )}

@@ -153,7 +153,7 @@ export default function WeeklyDigestPanel({
               'rounded-md px-3 py-1.5 text-[11.5px] font-medium transition ' +
               (busy !== 'idle'
                 ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
+                : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
             }
           >
             {busy === 'previewing' ? 'Building…' : 'Preview digest'}
@@ -179,7 +179,7 @@ export default function WeeklyDigestPanel({
                 <span className="text-white/55">Items:</span>{' '}
                 <span className="text-white/90">{preview.items.length}</span>
                 {preview.isEmpty && (
-                  <span className="ml-2 text-[10.5px] uppercase tracking-wider text-[#EBCB6B]/85">empty week</span>
+                  <span className="ml-2 text-[10.5px] uppercase tracking-wider text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">empty week</span>
                 )}
               </div>
             </div>
@@ -224,7 +224,7 @@ export default function WeeklyDigestPanel({
                 'rounded-md px-3 py-1.5 text-[11.5px] font-medium transition ' +
                 (busy !== 'idle' || !preview.to || (preview.isEmpty && !forceEmpty)
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
+                  : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
               }
             >
               {busy === 'sending' ? 'Sending…' : `Send to ${preview.to || '—'}`}

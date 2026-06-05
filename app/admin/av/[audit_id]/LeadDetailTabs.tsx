@@ -400,7 +400,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               <div className="bg-surface border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium">
-                    <span className="text-[#EBCB6B]">✨</span> Contact details verified
+                    <span className="text-[var(--gold-bright)]">✨</span> Contact details verified
                   </span>
                   {lead.enrichedAt && (
                     <span className="text-xs text-muted">
@@ -422,7 +422,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               </div>
             ) : lead.enrichmentStatus === 'failed_no_domain' ? (
               <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
-                <span className="text-[#EBCB6B]">⚠</span> Not enriched — no website on file. Add a website to this lead and the next enrichment run will pick it up.
+                <span className="text-[var(--gold-bright)]">⚠</span> Not enriched — no website on file. Add a website to this lead and the next enrichment run will pick it up.
               </div>
             ) : lead.enrichmentStatus === 'failed_no_results' ? (
               <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
@@ -430,7 +430,7 @@ export function LeadDetailTabs({ lead }: { lead: Lead }) {
               </div>
             ) : lead.enrichmentStatus === 'in_progress' ? (
               <div className="bg-surface border border-border rounded-lg p-4 text-sm">
-                <span className="text-[#EBCB6B]">⟳</span> Enrichment is in progress on this lead right now.
+                <span className="text-[var(--gold-bright)]">⟳</span> Enrichment is in progress on this lead right now.
               </div>
             ) : lead.enrichmentStatus === 'failed_permanent' ? (
               <div className="bg-surface border border-border rounded-lg p-4 text-sm text-muted">
@@ -825,7 +825,7 @@ function EditableField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-0.5 w-full text-sm bg-transparent border-b border-border focus:border-[#EBCB6B]/50 focus:outline-none py-1 transition-colors"
+        className="mt-0.5 w-full text-sm bg-transparent border-b border-border focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] focus:outline-none py-1 transition-colors"
       />
     </div>
   );

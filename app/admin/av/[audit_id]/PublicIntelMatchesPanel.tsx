@@ -43,7 +43,7 @@ const REASON_LABEL: Record<PublicIntelMatch['matchReason'], string> = {
 
 const REASON_COLOR: Record<PublicIntelMatch['matchReason'], string> = {
   client: 'text-emerald-300',
-  region: 'text-[#EBCB6B]/95',
+  region: 'text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]',
   company: 'text-blue-300'
 };
 

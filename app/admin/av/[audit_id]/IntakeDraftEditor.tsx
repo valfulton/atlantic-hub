@@ -141,7 +141,7 @@ export function IntakeDraftEditor({ auditId }: { auditId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs px-3 py-1.5 rounded-md border border-border bg-black/20 text-ink hover:border-[#EBCB6B]/35 inline-flex items-center gap-1.5"
+        className="text-xs px-3 py-1.5 rounded-md border border-border bg-black/20 text-ink hover:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] inline-flex items-center gap-1.5"
         title="Review or refine the intake-shape draft the smart scraper produced. Gets carried forward when you click Make client."
       >
         <span style={{ color: '#FFC73D' }}>✎</span>
@@ -166,10 +166,10 @@ export function IntakeDraftEditor({ auditId }: { auditId: string }) {
   }
 
   return (
-    <div className="rounded-2xl border border-[#EBCB6B]/25 bg-[#EBCB6B]/[0.03] p-4 mb-4">
+    <div className="rounded-2xl border border-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] bg-[var(--gold-bright)]/[0.03] p-4 mb-4">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.14em] text-[#EBCB6B]">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--gold-bright)]">
             Intake draft editor
           </div>
           <div className="text-[11px] text-muted mt-0.5 max-w-md leading-relaxed">
@@ -210,7 +210,7 @@ export function IntakeDraftEditor({ auditId }: { auditId: string }) {
                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                   <span className="text-[11px] text-ink/85 font-mono">{f.key}</span>
                   {f.key in edits && (
-                    <span className="text-[9.5px] uppercase tracking-wider font-medium text-[#EBCB6B]/85">
+                    <span className="text-[9.5px] uppercase tracking-wider font-medium text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">
                       edited
                     </span>
                   )}
@@ -220,7 +220,7 @@ export function IntakeDraftEditor({ auditId }: { auditId: string }) {
                   value={currentValueFor(f)}
                   onChange={(e) => setEdit(f.key, e.target.value)}
                   rows={Math.min(3, Math.max(1, Math.ceil((currentValueFor(f).length || 1) / 80)))}
-                  className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/35"
+                  className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)]"
                   placeholder="(empty — clear to remove)"
                   disabled={saving}
                 />
@@ -246,7 +246,7 @@ export function IntakeDraftEditor({ auditId }: { auditId: string }) {
                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                         <span className="text-[11px] text-ink/85 font-mono">{f.key}</span>
                         {f.key in edits && (
-                          <span className="text-[9.5px] uppercase tracking-wider font-medium text-[#EBCB6B]/85">
+                          <span className="text-[9.5px] uppercase tracking-wider font-medium text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">
                             edited
                           </span>
                         )}
@@ -256,7 +256,7 @@ export function IntakeDraftEditor({ auditId }: { auditId: string }) {
                         value={currentValueFor(f)}
                         onChange={(e) => setEdit(f.key, e.target.value)}
                         rows={Math.min(3, Math.max(1, Math.ceil((currentValueFor(f).length || 1) / 80)))}
-                        className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[#EBCB6B]/35"
+                        className="w-full bg-black/30 border border-white/10 rounded px-2 py-1.5 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)]"
                         placeholder="(empty — clear to remove)"
                         disabled={saving}
                       />
@@ -276,7 +276,7 @@ export function IntakeDraftEditor({ auditId }: { auditId: string }) {
                 'text-[12px] px-3 py-1.5 rounded-md font-medium transition ' +
                 (saving || Object.keys(edits).length === 0
                   ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'border border-[#EBCB6B]/40 text-[#EBCB6B] hover:bg-[#EBCB6B]/10')
+                  : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
               }
             >
               {saving ? 'Saving…' : `Save ${Object.keys(edits).length} change${Object.keys(edits).length === 1 ? '' : 's'}`}

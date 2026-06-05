@@ -18,7 +18,7 @@ export default function CopyMapTable({ rows }: { rows: CopyMapRow[] }) {
       <div style={{ maxWidth: 1040, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Copy map &amp; legend</h1>
-          <Link href="/admin/av/copy" style={{ color: '#EBCB6B', fontSize: 13 }}>open editor →</Link>
+          <Link href="/admin/av/copy" style={{ color: 'var(--gold-bright)', fontSize: 13 }}>open editor →</Link>
           <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9FB0C7' }}>{list.length} of {rows.length} keys</span>
         </div>
         <p style={{ color: '#9FB0C7', fontSize: 13.5, margin: '6px 0 14px' }}>
@@ -36,7 +36,7 @@ export default function CopyMapTable({ rows }: { rows: CopyMapRow[] }) {
           </div>
           {list.map((r) => (
             <Link key={r.key} href={`/admin/av/copy?key=${encodeURIComponent(r.key)}`} style={{ ...rowS, textDecoration: 'none', color: 'inherit', borderTop: '1px solid rgba(255,255,255,.07)' }}>
-              <code style={{ flex: 2, color: '#EBCB6B', fontSize: 12 }}>{r.key}</code>
+              <code style={{ flex: 2, color: 'var(--gold-bright)', fontSize: 12 }}>{r.key}</code>
               <span style={{ flex: 3, color: '#C7D3E2', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.def}</span>
               <span style={{ flex: 1.4, color: '#9FB0C7', fontSize: 12 }}>{r.page}</span>
               <span style={{ width: 120, textAlign: 'right', fontSize: 11.5, color: '#9FB0C7' }}>
