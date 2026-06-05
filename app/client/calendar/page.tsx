@@ -21,6 +21,7 @@ import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import { resolveGreetingName } from '@/lib/client/display_name';
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
+import { getImportantDatesForWindow } from '@/lib/calendar/important_dates';
 import ClientCalendar from './ClientCalendar';
 import './calendar.css';
 
@@ -29,6 +30,8 @@ export const runtime = 'nodejs';
 
 interface CalendarItem {
   id: string;
+  outboxId: number | null;   // numeric social_outbox.id — drag-to-reschedule target
+  reschedulable: boolean;    // only the client's own draft/scheduled posts can move
   whenISO: string | null;
   kind: 'queued' | 'draft';
   channel: string | null;
@@ -37,9 +40,10 @@ interface CalendarItem {
 }
 
 interface OutboxRow extends RowDataPacket {
-  outbox_id: number;
+  id: number;
   scheduled_for: Date | string | null;
-  channel: string | null;
+  published_at: Date | string | null;
+  created_at: Date | string | null;
   body_text: string | null;
   status: string | null;
 }
@@ -57,27 +61,36 @@ async function loadCalendar(clientId: number | null): Promise<CalendarItem[]> {
   const items: CalendarItem[] = [];
   try {
     const db = getAvDb();
-    // Queued social posts — the "scheduled" side of the calendar.
+    const tenant = `client:${clientId}`;
+    // Social posts for this brand's tenant. social_outbox is keyed by id +
+    // tenant_id (`client:<id>`) — NOT client_id/outbox_id, and statuses are
+    // draft/scheduled/publishing/published (not queued/approved). The earlier
+    // query used columns that don't exist, so the calendar showed nothing.
     const [outbox] = await db.execute<OutboxRow[]>(
-      `SELECT outbox_id, scheduled_for, channel, body_text, status
+      `SELECT id, scheduled_for, published_at, created_at, body_text, status
          FROM social_outbox
-        WHERE client_id = ? AND status IN ('queued','scheduled','approved')
-        ORDER BY scheduled_for ASC
-        LIMIT 25`,
-      [clientId]
+        WHERE tenant_id = ? AND status IN ('draft','scheduled','publishing','published')
+          AND archived_at IS NULL
+        ORDER BY COALESCE(scheduled_for, published_at, created_at) ASC
+        LIMIT 100`,
+      [tenant]
     );
     for (const r of outbox) {
-      const when = r.scheduled_for ? new Date(r.scheduled_for).toISOString() : null;
+      const whenRaw = r.scheduled_for || r.published_at || r.created_at;
+      const st = r.status ?? '';
       items.push({
-        id: `outbox-${r.outbox_id}`,
-        whenISO: when,
-        kind: 'queued',
-        channel: r.channel,
-        title: (r.body_text ?? '').slice(0, 100) || 'Queued post',
-        detail: r.status ?? null
+        id: `outbox-${r.id}`,
+        outboxId: r.id,
+        // only future-facing, un-published items can be dragged to a new day
+        reschedulable: st === 'draft' || st === 'scheduled',
+        whenISO: whenRaw ? new Date(whenRaw).toISOString() : null,
+        kind: st === 'draft' ? 'draft' : 'queued',
+        channel: null,
+        title: (r.body_text ?? '').slice(0, 100) || 'Social post',
+        detail: st
       });
     }
-  } catch { /* table may not exist for this tenant */ }
+  } catch { /* non-fatal */ }
 
   try {
     const db = getAvDb();
@@ -95,6 +108,8 @@ async function loadCalendar(clientId: number | null): Promise<CalendarItem[]> {
       const when = r.created_at ? new Date(r.created_at).toISOString() : null;
       items.push({
         id: `artifact-${r.id}`,
+        outboxId: null,
+        reschedulable: false,
         whenISO: when,
         kind: 'draft',
         channel: r.artifact_type,
@@ -131,6 +146,21 @@ export default async function ClientCalendarPage() {
   const firstName = await resolveGreetingName(user.display_name, clientId, 'there');
   const items = await loadCalendar(clientId);
 
+  // Important-dates layer (birthdays, busy seasons, launches) — reuses the real
+  // engine, scoped to this brand's tenant. Generous window so navigation lands on them.
+  let importantDates: { iso: string; label: string; kind?: string }[] = [];
+  if (clientId) {
+    try {
+      const y = new Date().getFullYear();
+      const rows = await getImportantDatesForWindow({
+        tenant: `client:${clientId}`,
+        fromIso: `${y}-01-01`,
+        toIso: `${y + 1}-12-31`
+      });
+      importantDates = rows.map((r) => ({ iso: r.iso, label: r.label, kind: r.kind }));
+    } catch { /* non-fatal */ }
+  }
+
   return (
     <main className="v3-wrap">
       <ClientV3TopNav />
@@ -156,7 +186,7 @@ export default async function ClientCalendarPage() {
           </p>
         </article>
       ) : (
-        <ClientCalendar items={items} />
+        <ClientCalendar items={items} importantDates={importantDates} />
       )}
 
       <p className="v3-foot">QUIET · LEGIBLE · VERIFIABLE</p>

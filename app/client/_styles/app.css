@@ -45,7 +45,7 @@
   /* (WCAG-AA) #6B6862 = 5.24:1; #5C6862 = 5.2:1, both clear 4.5:1 as text. */
   --gray-soft: #5C6862;
   --cream: #FAF8F4;
-  --paper: #FFFDF8;            /* warm ivory card (val: white was provisional) — lift comes from shadow+warmth, not clinical white */
+  --paper: #FFFFFF;            /* crisp white card (val 2026-06-05: white IS ok; cream-on-cream wasn't sexy) — contrast + shadow = the pop */
   --gold: #C49A3C;             /* richer antique gold — accent only, never text */
   --gold-bright: #E8C25A;      /* gold-leaf — dark grounds only */
   --rule: rgba(10, 77, 60, 0.14);
