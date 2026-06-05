@@ -50,21 +50,34 @@ export default function OperatorPreviewChrome({
   /** Optional extra link in the banner header (left of "Back to client"). */
   bannerExtra?: React.ReactNode;
 }) {
-  // Logo-gold inline tones — replaces every Tailwind amber-* usage.
-  const goldBorder = 'rgba(235,203,107,0.34)';
-  const goldFill = 'rgba(235,203,107,0.08)';
-  const goldInk = '#EBCB6B';
-  const goldDim = '#C7A64E';
+  // Cream-register chrome (2026-06-05): the preview wraps a CREAM client view,
+  // so the operator frame is now a light toolbar to match — not a dark strip.
+  // Gold #C9A961 is BORDER-ONLY here (it fails AA as text on cream, 1.49:1);
+  // text accents use emerald-deep #0A4D3C (9.25:1). Ink = charcoal.
+  const goldBorder = 'rgba(201,169,97,0.45)';
+  const goldFill = 'rgba(201,169,97,0.12)';
+  const goldInk = '#0A4D3C';   // emerald-deep — the AA-safe "accent text" on cream
+  const goldDim = '#0A4D3C';
+  const ink = '#1B2329';
+  const ground = '#F5EFE3';
 
   return (
-    <>
+    <div
+      style={{
+        background: ground,
+        border: '1px solid rgba(201,169,97,0.4)',
+        borderRadius: 12,
+        padding: '10px 12px',
+        marginBottom: 16
+      }}
+    >
       {/* Banner */}
       <div
         className="mb-3 rounded-lg px-4 py-2.5 text-sm flex items-center justify-between gap-3 flex-wrap"
         style={{
           border: `1px solid ${goldBorder}`,
           background: goldFill,
-          color: 'var(--cream, #F5EFE3)'
+          color: ink
         }}
       >
         <span>
@@ -111,9 +124,9 @@ export default function OperatorPreviewChrome({
             padding: '4px 10px',
             borderRadius: '6px',
             fontSize: '12px',
-            border: `1px solid ${on ? goldBorder : 'var(--rule, rgba(255,255,255,.08))'}`,
+            border: `1px solid ${on ? goldBorder : 'rgba(201,169,97,0.25)'}`,
             background: on ? goldFill : 'transparent',
-            color: on ? goldInk : 'var(--cream, #F5EFE3)',
+            color: on ? goldInk : ink,
             textDecoration: 'none',
             fontWeight: on ? 600 : 400
           };
@@ -131,6 +144,6 @@ export default function OperatorPreviewChrome({
           );
         })}
       </div>
-    </>
+    </div>
   );
 }

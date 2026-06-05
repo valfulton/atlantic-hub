@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import ClientIntelTicker from './_components/ClientIntelTicker';
 import BrandSwitcher from './_components/BrandSwitcher';
@@ -21,6 +21,14 @@ export const metadata: Metadata = {
   title: 'Client Portal - Atlantic & Vine',
   description: 'Your audit, your dashboard, your account.',
   robots: 'noindex, nofollow'
+};
+
+// viewport-fit=cover exposes env(safe-area-inset-*) so the fixed bottom tab bar
+// clears the iPhone home indicator. Without this, every safe-area calc returns 0.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover'
 };
 
 /** Resolve the logged-in person's brands + active brand for the switcher.
