@@ -127,6 +127,64 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
       { label: 'SF 311 cases · last 14d', config: { dataset: '311_cases', sinceDays: 14, maxRecords: 100 } },
       { label: 'Mission district · last 60d', config: { dataset: 'building_complaints', sinceDays: 60, neighborhood: 'Mission', maxRecords: 100 } }
     ]
+  },
+  // (#423) Maryland Land Records — statewide. Presets pick the highest-distress-
+  // volume jurisdictions and the distress-specific document types. Each preset
+  // also sets a sensible sinceDays so the first run has real catch-up depth.
+  md_land_rec: {
+    placeholder: 'click a preset →',
+    presets: [
+      {
+        label: 'Big 4 counties · all distress · 60d',
+        config: {
+          counties: ['Montgomery', 'Prince George\'s', 'Baltimore County', 'Baltimore City'],
+          sinceDays: 60
+        }
+      },
+      {
+        label: 'Baltimore metro · 30d',
+        config: {
+          counties: ['Baltimore City', 'Baltimore County'],
+          sinceDays: 30
+        }
+      },
+      {
+        label: 'DC suburbs (MoCo + PG) · 30d',
+        config: {
+          counties: ['Montgomery', 'Prince George\'s'],
+          sinceDays: 30
+        }
+      },
+      {
+        label: 'Foreclosure notices only · big 4 · 30d',
+        config: {
+          counties: ['Montgomery', 'Prince George\'s', 'Baltimore County', 'Baltimore City'],
+          docTypes: ['Notice of Sale', 'Lis Pendens', 'Substitute Trustee', 'Trustee Deed'],
+          sinceDays: 30
+        }
+      },
+      {
+        label: 'Full statewide · foreclosure docs only · 30d',
+        config: {
+          counties: [
+            'Allegany', 'Anne Arundel', 'Baltimore City', 'Baltimore County', 'Calvert',
+            'Caroline', 'Carroll', 'Cecil', 'Charles', 'Dorchester', 'Frederick', 'Garrett',
+            'Harford', 'Howard', 'Kent', 'Montgomery', 'Prince George\'s', 'Queen Anne\'s',
+            'Somerset', 'St. Mary\'s', 'Talbot', 'Washington', 'Wicomico', 'Worcester'
+          ],
+          docTypes: ['Notice of Sale', 'Lis Pendens', 'Substitute Trustee'],
+          sinceDays: 30
+        }
+      },
+      {
+        label: 'Tax sale focus · big 4 · 90d',
+        config: {
+          counties: ['Montgomery', 'Prince George\'s', 'Baltimore County', 'Baltimore City'],
+          docTypes: ['Tax Sale Certificate', 'Tax Sale Deed'],
+          sinceDays: 90
+        }
+      }
+    ]
   }
 };
 
