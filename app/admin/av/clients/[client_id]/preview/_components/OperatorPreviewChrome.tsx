@@ -18,6 +18,11 @@ const TABS = [
   { id: 'dashboard', label: 'Dashboard', path: '' },
   { id: 'leads', label: 'Leads list', path: '/leads' },
   { id: 'watchlist', label: 'Watchlist', path: '/watchlist' },
+  // (#433) Campaigns + Calendar — mirror /client/campaigns and /client/calendar.
+  // Per the nav-tab mirror rule, ClientV3TopNav NAV must keep both entries
+  // in sync with this TABS array. Edits to either array land together.
+  { id: 'campaigns', label: 'Campaigns', path: '/campaigns' },
+  { id: 'calendar', label: 'Calendar', path: '/calendar' },
   // (#419) Content Studio mirror — shows generated posts true-to-platform.
   { id: 'content', label: 'Content', path: '/content' },
   { id: 'audit', label: 'Audit', path: '/audit' },

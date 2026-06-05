@@ -16,6 +16,11 @@ const NAV = [
   { href: '/client/dashboard', label: 'Home' },
   { href: '/client/leads', label: 'Leads' },
   { href: '/client/watchlist', label: 'Watchlist' },
+  // (#433) Campaigns + Calendar — the narrative-line spine + the approval queue.
+  // Mirror entries live in OperatorPreviewChrome TABS; per the nav-tab mirror
+  // rule, edits to either array must land together.
+  { href: '/client/campaigns', label: 'Campaigns' },
+  { href: '/client/calendar', label: 'Calendar' },
   // (#419) Content Studio — generated posts ready to approve, true-to-platform preview.
   { href: '/client/content', label: 'Content' },
   { href: '/client/pr', label: 'Press' },
