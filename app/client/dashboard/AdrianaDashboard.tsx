@@ -78,6 +78,18 @@ export interface SignalCard {
   };
 }
 
+/** AV employee currently on this client's account (#377 — Adriana rep demo).
+ *  Shape mirrors `lib/client/employees_on_account.ts`. */
+export interface TeamMember {
+  userId: number;
+  displayName: string;
+  title: string | null;
+  role: 'primary_rep' | 'rep' | 'support' | 'implicit';
+  leadsAssigned: number;
+  callsLast7Days: number;
+  lastActivityAt: string | null;
+}
+
 export interface AdrianaDashboardProps {
   brandName: string;          // header brand name (e.g. "Atlantic & Vine")
   brandPill: string;          // header pill (e.g. "Client")
@@ -87,6 +99,8 @@ export interface AdrianaDashboardProps {
   subhead: string;            // "3 new signals on your watchlist since yesterday..."
   copy?: Record<string, string>; // editable section copy (dashboard.sec.*, dashboard.empty)
   brands: BrandChip[];
+  /** AV employees on this account — render as "Your A&V team" widget when present. */
+  team: TeamMember[];
   hero: FeaturedSignal | null;
   watchlist: {
     activeCountLabel: string; // "CBB · 12 active"
@@ -187,6 +201,70 @@ function Card({ card }: { card: SignalCard }) {
   );
 }
 
+/** Two-letter initials for the team avatar tile. Matches initialsOf() pattern
+ *  used elsewhere in the dashboard. */
+function teamInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '·';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** "3h ago" / "2d ago" / "just now" — kept tight, no relative-time library. */
+function relTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  return `${days}d ago`;
+}
+
+/** "Your A&V team" widget — one .app-card per assigned employee. Renders nothing
+ *  when no team members are on the account, so it never shows on Tim's view
+ *  (no AV rep) but does on Adriana's (Rebecca assigned). */
+function TeamRow({ team }: { team: TeamMember[] }) {
+  if (!team || team.length === 0) return null;
+  return (
+    <>
+      <div className="app-sh">
+        <h3>Your A&amp;V <em>team</em></h3>
+        <span className="ct">{team.length === 1 ? 'on it' : `${team.length} on it`}</span>
+      </div>
+      <div className="app-cards">
+        {team.map((m) => {
+          const lastSeen = relTime(m.lastActivityAt);
+          return (
+            <article key={m.userId} className="app-card">
+              <div className="hd">
+                <div className="logo">
+                  <span className="sc" />
+                  <b>{teamInitials(m.displayName)}</b>
+                </div>
+                <div className="nm">
+                  <b title={m.displayName}>{m.displayName}</b>
+                  <span className="chip fit">{m.title ?? 'A&V rep'}</span>
+                </div>
+              </div>
+              <div className="meta">
+                <div className="row"><span className="k">Leads</span><span className="v">{m.leadsAssigned}</span></div>
+                <div className="row"><span className="k">Calls 7d</span><span className="v">{m.callsLast7Days}</span></div>
+                {lastSeen && (
+                  <div className="row"><span className="k">Last</span><span className="v">{lastSeen}</span></div>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export default function AdrianaDashboard(p: AdrianaDashboardProps) {
   // Outer .app wrapper lives in app/client/layout.tsx so every /client/*
   // page inherits the design system without re-wrapping.
@@ -237,6 +315,11 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           </Link>
         </div>
 
+        {/* (#377) Your A&V team — Adriana sees Rebecca here. Renders nothing for
+            clients with no AV rep assigned (Tim, etc), so the surface is the
+            same dashboard but only shows the row when there's someone on it. */}
+        <TeamRow team={p.team} />
+
         {/* Featured Signal hero */}
         {p.hero && (
           <Link href={p.hero.ctaHref} className="app-feat" aria-label={p.hero.headline}>
@@ -265,7 +348,8 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           <Link href={p.watchlist.moreHref} className="more">View all →</Link>
         </div>
         {p.watchlist.cards.length === 0 ? (
-          <div className="app-empty">
+          <div className="app-wire">
+            <span className="eb">— Quiet on the wire —</span>
             <p>{p.copy?.['dashboard.empty'] ?? 'No entries yet. As your public-records sources fire, the strongest signals will land here.'}</p>
           </div>
         ) : (
