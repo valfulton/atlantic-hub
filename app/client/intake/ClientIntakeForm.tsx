@@ -141,7 +141,7 @@ export default function ClientIntakeForm({
   }
 
   const inputBase =
-    'w-full rounded-lg border bg-black/20 px-3 py-2 text-sm text-ink ' +
+    'w-full rounded-lg border bg-white px-3 py-2 text-sm text-ink ' +
     'placeholder-muted/50 focus:outline-none focus:border-brand transition-colors';
   // (#236) Blank fields get a soft amber border so the client's eye finds them.
   const inputBlank = 'border-[color-mix(in_srgb,var(--gold-bright)_45%,transparent)]';
@@ -149,8 +149,8 @@ export default function ClientIntakeForm({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-border bg-surface p-5">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-brand mb-1">✦ Your details</div>
+      <div className="rounded-2xl border border-border bg-[var(--paper)] p-5">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-[color:var(--emerald-deep)] mb-1">✦ Your details</div>
         <h1 className="text-2xl font-semibold text-ink">Let&apos;s make {brandName} shine.</h1>
         <p className="text-sm text-muted mt-2 leading-relaxed">
           We&apos;ve filled in what we already know — just review it, fix anything that&apos;s off,
@@ -180,8 +180,8 @@ export default function ClientIntakeForm({
               </button>
             </>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/45 bg-emerald-400/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--emerald-deep)]/30 bg-[var(--emerald-mist)] px-2.5 py-0.5 text-[11px] font-medium text-[color:var(--emerald-deep)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--emerald)]" aria-hidden="true" />
               Everything is in — ready to save
             </span>
           )}
@@ -192,12 +192,12 @@ export default function ClientIntakeForm({
         const count = groupCounts[grp.group];
         const groupBlank = count?.blank ?? 0;
         return (
-          <div key={grp.group} className="rounded-2xl border border-border bg-surface p-5">
+          <div key={grp.group} className="rounded-2xl border border-border bg-[var(--paper)] p-5">
             {/* (#236) Per-group header now shows the same blank count + a
                 scoped "jump to next in this section" link so the client can
                 fix one section at a time. */}
             <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-brand/80">{grp.group}</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-[color:var(--emerald-deep)]/80">{grp.group}</div>
               {groupBlank > 0 ? (
                 <button
                   type="button"
@@ -208,7 +208,7 @@ export default function ClientIntakeForm({
                   {groupBlank} left for you →
                 </button>
               ) : (
-                <span className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-emerald-300/80">
+                <span className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-[color:var(--emerald-deep)]">
                   ✓ All in
                 </span>
               )}
@@ -254,7 +254,7 @@ export default function ClientIntakeForm({
                       />
                     )}
                     {f.why && (
-                      <span className="block text-[11px] text-brand/70 mt-1 italic">
+                      <span className="block text-[11px] text-[color:var(--emerald-deep)]/70 mt-1 italic">
                         Used for: {f.why}
                       </span>
                     )}
@@ -288,7 +288,7 @@ export default function ClientIntakeForm({
             Jump to next blank ↑
           </button>
         )}
-        {msg && <span className={'text-sm ' + (msg.ok ? 'text-emerald-300' : 'text-muted italic')}>{msg.text}</span>}
+        {msg && <span className={'text-sm ' + (msg.ok ? 'text-[color:var(--emerald-deep)]' : 'text-muted italic')}>{msg.text}</span>}
       </div>
     </div>
   );

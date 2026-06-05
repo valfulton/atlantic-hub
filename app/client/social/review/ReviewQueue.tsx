@@ -94,7 +94,7 @@ function ReviewCard({
   const previewing = item.previewUrl && (item.mediaType === 'video' || item.mediaType === 'image');
 
   return (
-    <li className="rounded-2xl border border-border bg-black/20 p-4 sm:p-5">
+    <li className="rounded-2xl border border-border bg-[var(--paper)] shadow-sm p-4 sm:p-5">
       <div className="flex flex-col sm:flex-row gap-4">
         {previewing && (
           <div className="sm:w-56 shrink-0 flex flex-col gap-2">
@@ -127,7 +127,7 @@ function ReviewCard({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-brand">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)]">
               {providerLabel(item.provider)}
             </span>
             {item.providerDisplayName && (
@@ -151,12 +151,12 @@ function ReviewCard({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               rows={Math.max(3, Math.min(8, caption.split('\n').length + 1))}
-              className="w-full text-sm rounded-lg border border-border bg-black/30 px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
+              className="w-full text-sm rounded-lg border border-border bg-white px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
               placeholder={item.bodyText ?? 'Write the caption…'}
               disabled={busy}
             />
             {captionDirty && (
-              <p className="text-[11px] mt-1" style={{ color: '#fde68a' }}>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--amber-sig)' }}>
                 Your edit will replace the original when you approve.
               </p>
             )}
@@ -171,7 +171,7 @@ function ReviewCard({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              className="w-full text-sm rounded-lg border border-border bg-black/30 px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
+              className="w-full text-sm rounded-lg border border-border bg-white px-3 py-2 text-ink leading-relaxed focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
               placeholder="Any thoughts? E.g. 'punch up the open line' or 'love it, schedule after 6/1'"
               disabled={busy}
             />
@@ -185,8 +185,8 @@ function ReviewCard({
               className={
                 'text-sm px-3 py-1.5 rounded-md border transition ' +
                 (busy
-                  ? 'border-white/10 text-white/30 cursor-not-allowed'
-                  : 'border-emerald-400/40 text-emerald-200 hover:border-emerald-400/70 bg-emerald-400/10')
+                  ? 'border-transparent text-white/60 bg-[var(--emerald-deep)] opacity-50 cursor-not-allowed'
+                  : 'border-transparent text-[color:var(--cream-pure)] bg-[var(--emerald)] hover:opacity-90')
               }
             >
               {busy ? 'Saving…' : captionDirty ? '✓ Approve with my edits' : '✓ Approve & schedule'}
@@ -199,7 +199,7 @@ function ReviewCard({
                 'text-sm px-3 py-1.5 rounded-md border transition ' +
                 (busy
                   ? 'border-white/10 text-white/30 cursor-not-allowed'
-                  : 'border-border text-muted hover:text-cream hover:border-[color:var(--gold)]')
+                  : 'border-border text-muted hover:text-ink hover:border-[color:var(--gold)]')
               }
               title={
                 note && note.trim()
@@ -210,7 +210,7 @@ function ReviewCard({
               {note && note.trim() ? 'Reject + send note' : 'Reject'}
             </button>
             {err && (
-              <span className="text-[11px]" style={{ color: '#fca5a5' }}>{err}</span>
+              <span className="text-[11px]" style={{ color: 'var(--danger)' }}>{err}</span>
             )}
           </div>
         </div>
@@ -227,7 +227,7 @@ export function ReviewQueue({ initialItems }: { initialItems: ReviewItem[] }) {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-black/20 p-8 text-center">
+      <div className="rounded-2xl border border-border bg-[var(--paper)] p-8 text-center">
         <p className="text-sm text-muted">Nothing waiting for review right now.</p>
         <p className="text-[12px] text-muted mt-1">
           When commercials are queued for your approval, they&apos;ll appear here.

@@ -100,10 +100,10 @@ export default function DiscoverPanel() {
       : null;
 
   const inputCls =
-    'w-full rounded-lg px-3 py-2 text-sm bg-black/30 border border-white/12 text-ink placeholder:text-muted focus-visible:ring-2 focus-visible:ring-brand outline-none';
+    'w-full rounded-lg px-3 py-2 text-sm bg-white border border-[color:var(--line-strong)] text-ink placeholder:text-muted focus-visible:ring-2 focus-visible:ring-[color:var(--emerald)] outline-none';
 
   return (
-    <section className="mb-8 rounded-2xl border border-border bg-surface p-5 sm:p-6">
+    <section className="mb-8 rounded-2xl border border-border bg-[var(--paper)] p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3 mb-1">
         <h2 className="text-lg font-semibold text-ink">Find new leads</h2>
         {capLine && <span className="text-xs text-muted">{capLine}</span>}
@@ -195,7 +195,7 @@ export default function DiscoverPanel() {
         {msg && (
           <span
             className="text-sm"
-            style={{ color: msg.tone === 'ok' ? '#6ee7b7' : msg.tone === 'err' ? '#fca5a5' : '#cbd5e1' }}
+            style={{ color: msg.tone === 'ok' ? 'var(--emerald-deep)' : msg.tone === 'err' ? 'var(--danger)' : 'var(--muted)' }}
           >
             {msg.text}
           </span>
