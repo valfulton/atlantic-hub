@@ -1,48 +1,92 @@
 /* =====================================================================
    CLIENT VIEW · V3 SOCIAL SKIN  —  data-skin="social"
-   NAVY + CREAM + AMBER (luxury hotel / yacht register)
-   Pulled from Atlantic_Hub_Playbook/demo_client_portal_v3.html (Velvet
-   Royale chat, 2026-06-03). Two-mood architecture: operator hub gets the
-   same navy register from demo_operator_hub_v3.html; rep arena gets a
-   darker obsidian-and-aurum variant via data-skin="royale".
+   CREAM + EMERALD + GOLD (marketing-consistent register)
 
-   Critical: this block REMAPS the legacy Tailwind CSS variables (--ink,
-   --muted, --bg, --surface, --border) to navy-appropriate values so the
-   existing ClientDashboardBody renders legibly on the new ground. Bone
-   text (#F5EFE3) on navy (#0B1B2D) = AAA contrast. WCAG compliant.
+   2026-06-05 FLIP: from navy-register to cream-register. The marketing
+   site (atlanticandvine.netlify.app) sets the brand: cream ground, dark
+   forest panels, Fraunces headlines, gold leaf accent. Every v3-* surface
+   now follows it. Velvet-Royale-as-separate-skin retired (per
+   project_one_brand_system).
+
+   AA math (from newsroom-audited values, reference_brand_audit_2026_06_05):
+     gold #C9A961 on cream  → 2.12  (FAIL — gold for borders + black-text chips only)
+     emerald-deep on cream → 9.25  (PASS — use for warm text + accents)
+     gray-soft #6B6862     → 5.24  (PASS — muted text)
+     amber-deep #A88840    → 5.32  (PASS — small text, signal chips)
+     black on gold #C9A961 → 8.80  (PASS — chip text is always black)
+
+   Token names retained for backwards-compat with components that read
+   --navy/--cream/--amber; the *values* now point at cream-register colors.
    ===================================================================== */
 
 [data-skin="social"]{
-  /* V3 navy + cream + amber palette */
-  --navy:#0B1B2D; --navy-soft:#11263C; --navy-elev:#15304C;
-  --cream:#F5EFE3; --cream-muted:#A7B4C6;
-  --amber:#EBCB6B; --amber-deep:#C7A64E; --amber-bright:#F2D88A;
-  --rule:rgba(216,203,174,.16); --rule-soft:rgba(216,203,174,.09);
-  --serif:"Fraunces",Georgia,serif; /* val 2026-06-05: Fraunces = the marketing-site headline face prospects see first; one register everywhere */
+  /* V3 cream + emerald + gold palette (marketing-consistent) */
+  --navy:#F5EFE3;            /* was navy bg → now cream page bg */
+  --navy-soft:#EFE6D2;       /* was card bg navy → now ivory card */
+  --navy-elev:#E8DCBE;       /* was elevated card → now warmer cream */
+  --cream:#1B2329;           /* was cream text → now charcoal text (legible on cream) */
+  --cream-muted:#6B6862;     /* muted text on cream (AA 5.24) */
+  --amber:#C9A961;           /* gold — BORDERS + black-text chips only on cream (AA fails as text) */
+  --amber-deep:#A88840;      /* darker gold — small text/chips on cream pass AA (5.32) */
+  --amber-bright:#EBCB6B;    /* logo-gold — reserved for sparkle on dark panels (gates, etc.) */
+  --emerald-deep:#0A4D3C;    /* warm-feeling text accent on cream (AA 9.25) */
+  --rule:rgba(168,136,64,.20);
+  --rule-soft:rgba(168,136,64,.10);
+  --serif:"Fraunces",Georgia,serif;  /* val 2026-06-05: Fraunces = marketing-site headline face */
   --sans:"Inter",system-ui,sans-serif;
 
-  /* Distress + status accents (work on navy ground) */
-  --amber-sig:#EBCB6B;          /* distress signal accent (logo-gold, not orange) */
-  --emerald-glow:#8FC2AB;       /* wins / done — softened, sparing use only */
-  --rose-glow:#C98A92;          /* danger — muted, off-brand jewel retired */
-  --sky-glow:#9AB0C8;           /* info — muted toward the navy/cream register */
+  /* Distress + status accents tuned for cream ground (was navy-tuned before flip) */
+  --amber-sig:#A88840;          /* signal chips — deep gold passes AA on cream */
+  --emerald-glow:#0A4D3C;       /* wins / done — emerald-deep on cream */
+  --rose-glow:#7A3A40;          /* danger — deep rose, AA-safe */
+  --sky-glow:#2C5777;           /* info — deep harbor, AA-safe */
 
-  /* === REMAP legacy Tailwind tokens so existing components render correctly === */
-  --bg:var(--navy);
-  --surface:var(--navy-soft);
-  --surface-2:var(--navy-elev);
-  --border:var(--rule);
-  --ink:var(--cream);
-  --muted:var(--cream-muted);
-  --brand:var(--amber);
-  --brand-fg:var(--navy);
-  --danger:var(--rose-glow);
-  --ok:var(--emerald-glow);
+  /* === REMAP legacy Tailwind tokens for cream register === */
+  --bg:#F5EFE3;                 /* cream page bg */
+  --surface:#EFE6D2;            /* ivory card bg */
+  --surface-2:#E8DCBE;
+  --border:rgba(168,136,64,.20);
+  --ink:#1B2329;                /* charcoal text */
+  --muted:#6B6862;              /* warm gray (AA 5.24) */
+  --brand:#C9A961;              /* gold — accent + chips, never raw text on cream */
+  --brand-fg:#1B2329;           /* black text on gold chips per [[feedback_contrast_rule]] */
+  --danger:#7A3A40;
+  --ok:#0A4D3C;
 
   background:
-    radial-gradient(900px 460px at 90% -10%,rgba(235,203,107,.09),transparent 60%),
-    var(--navy);
-  color:var(--cream); font-family:var(--sans); min-height:100vh;
+    radial-gradient(900px 460px at 90% -10%,rgba(201,169,97,.08),transparent 60%),
+    #F5EFE3;
+  color:#1B2329;
+  font-family:var(--sans);
+  min-height:100vh;
+}
+
+/* AA-safe text overrides for cream register — anywhere v3-* used --amber for
+   TEXT (which fails AA as #C9A961 on cream), redirect to emerald-deep so the
+   warm-feeling moment survives without sacrificing legibility. */
+[data-skin="social"] .v3-h1 em,
+[data-skin="social"] .v3-eyebrow,
+[data-skin="social"] .v3-nav__lnk.on{
+  color:var(--emerald-deep);
+}
+[data-skin="social"] .sig--payoff{
+  color:var(--emerald-deep);
+  border-color:var(--emerald-deep);
+}
+[data-skin="social"] .pcta{
+  color:var(--emerald-deep);
+  border-color:var(--emerald-deep);
+}
+[data-skin="social"] .pcta:hover{
+  background:rgba(10,77,60,.08);
+}
+[data-skin="social"] .v3-card{
+  background:#FFFFFF;           /* slightly elevate cards above cream ground */
+  border-color:rgba(168,136,64,.22);
+}
+[data-skin="social"] .v3-card__h,
+[data-skin="social"] .v3-card__p{
+  color:#1B2329;
 }
 
 /* The amber wash — same trick the scrim performed in the cream version.
