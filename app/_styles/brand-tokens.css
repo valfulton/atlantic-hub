@@ -192,27 +192,35 @@
   --pf-ig-from: #F09433; --pf-ig-to: #BC1888;
 }
 
-/* Unified CLIENT cream register — one definition for all three client scopes */
+/* Unified CLIENT register — POP palette, one definition for all three client
+   scopes. Single source: AV_POP_PALETTE_spec.md. White cards on cream, emerald
+   lead, gold as jewelry, harbor + garnet for life. Operator (:root) stays dark. */
 [data-surface="client"],
 [data-skin="social"],
 .app {
-  --ground: #FAF8F4; --paper: #FFFFFF; --panel-warm: #F5EFE3;
-  --ink: #1B2329; --ink-soft: #4A4A4A; --muted: #6B6862;
-  --line: rgba(10,77,60,.12); --line-strong: rgba(10,77,60,.22);
+  --ground: #FAF8F4; --paper: #FFFFFF; --panel-warm: #FFFFFF;
+  --forest: #0A3D2E; --forest-deep: #062A1F;
+  --ink: #14201B; --ink-soft: #3C4A43; --muted: #5C6862;
+  --line: rgba(10,77,60,.14); --line-strong: rgba(10,77,60,.22);
 
-  --emerald: #0A4D3C; --emerald-bright: #1B7355; --emerald-glow: #3DAB85;
-  --gold: #C9A961; --gold-bright: #EBCB6B;
+  --emerald-deep: #0A4D3C; --emerald: #0C6049; --emerald-bright: #16A37A;
+  --emerald-glow: #16A37A; --emerald-mist: #DCEDE5;
+  --gold: #C49A3C; --gold-bright: #E8C25A; --gold-leaf: #E8C25A;
+  --harbor: #1C5C82; --garnet: #A23B2E;
 
   --ok: #0F6E56;     --ok-bg: rgba(15,110,86,.10);     --ok-line: rgba(15,110,86,.32);
-  --warn: #8A5316;   --warn-bg: rgba(138,83,22,.10);   --warn-line: rgba(138,83,22,.32);
-  --danger: #8C3A3A; --danger-bg: rgba(140,58,58,.10); --danger-line: rgba(140,58,58,.32);
-  --info: #2C5777;   --info-bg: rgba(44,87,119,.10);   --info-line: rgba(44,87,119,.32);
-  --signal: #7E4E16; --signal-bg: rgba(168,136,64,.14);--signal-line: rgba(168,136,64,.40);
+  --warn: #9A5B12;   --warn-bg: rgba(154,91,18,.10);   --warn-line: rgba(154,91,18,.32);
+  --danger: #A23B2E; --danger-bg: rgba(162,59,46,.10); --danger-line: rgba(162,59,46,.32);
+  --info: #1C5C82;   --info-bg: rgba(28,92,130,.10);   --info-line: rgba(28,92,130,.32);
+  --signal: #9A5B12; --signal-bg: rgba(196,154,60,.14);--signal-line: rgba(196,154,60,.40);
 
   --cream-pure: #F5EFE3; --obsidian: #0A0E18;
 
   /* Legacy aliases — existing components keep working through the migration */
   --cream: var(--ground); --cream-muted: var(--muted);
-  --amber: var(--gold); --amber-deep: var(--warn);
+  --navy: var(--ground); --navy-soft: var(--paper); --navy-elev: var(--paper);
+  --charcoal: var(--ink); --gray-soft: var(--muted); --gray-warm: var(--ink-soft);
+  --amber: var(--gold); --amber-deep: var(--warn); --amber-sig: var(--warn);
+  --amber-bright: var(--gold-leaf); --rose-glow: var(--garnet); --sky-glow: var(--harbor);
   --serif: 'Fraunces', Georgia, serif;
 }

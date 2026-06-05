@@ -32,25 +32,29 @@
    =================================================================== */
 
 .app {
-  /* ── Canonical tokens (mirror client_view_social_mock.html) ─────── */
+  /* ── Pop palette tokens (single source: AV_POP_PALETTE_spec.md) ─────
+     White cards on cream kept (the look val approved); accents enriched
+     to match the v3 skin exactly so dashboard + v3 are one palette. */
   --emerald-deep: #0A4D3C;
-  --emerald: #1A6B52;
-  --emerald-glow: #3DAB85;
-  --emerald-mist: #E8F2EE;
+  --emerald: #0C6049;          /* jewel fill (was #1A6B52) */
+  --emerald-glow: #16A37A;     /* sheen / decorative only */
+  --emerald-mist: #DCEDE5;     /* chip bg (deeper than #E8F2EE so it reads) */
   --black: #0A0A0A;
-  --charcoal: #1A1A1A;
-  --gray-warm: #4A4A4A;
-  /* (WCAG-AA) #8A8A8A was 3.25:1 on cream — failed. #6B6862 = 5.24:1.
-     Used for secondary labels/links; must clear 4.5:1 as text. */
-  --gray-soft: #6B6862;
+  --charcoal: #14201B;         /* emerald-black body text (was #1A1A1A) */
+  --gray-warm: #3C4A43;
+  /* (WCAG-AA) #6B6862 = 5.24:1; #5C6862 = 5.2:1, both clear 4.5:1 as text. */
+  --gray-soft: #5C6862;
   --cream: #FAF8F4;
   --paper: #FFFFFF;
-  --gold: #C9A961;
-  --gold-bright: #E2C886;
-  --rule: rgba(10, 77, 60, 0.12);
-  /* (WCAG-AA) #B5742B was 3.82:1 on white / 3.22:1 on its own tint — failed
-     as chip text. #8A5316 = 6.31:1 / 5.32:1, same warm signal register. */
-  --amber-sig: #8A5316;
+  --gold: #C49A3C;             /* richer antique gold — accent only, never text */
+  --gold-bright: #E8C25A;      /* gold-leaf — dark grounds only */
+  --rule: rgba(10, 77, 60, 0.14);
+  /* warm signal text — #9A5B12 = 5.3:1 on cream (matches v3 --amber-sig). */
+  --amber-sig: #9A5B12;
+  /* jewel accents — the pop beyond green + gold */
+  --forest: #0A3D2E;           /* the one dark moment — hero scrim / footer */
+  --harbor: #1C5C82;           /* info / secondary jewel (AA 5.6) */
+  --garnet: #A23B2E;           /* hot / urgent (AA 5.4) */
 
   --serif: 'Fraunces', Georgia, serif;
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

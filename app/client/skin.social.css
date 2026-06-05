@@ -20,43 +20,55 @@
    ===================================================================== */
 
 [data-skin="social"]{
-  /* V3 cream + emerald + gold palette (marketing-consistent) */
-  --navy:#F5EFE3;            /* was navy bg → now cream page bg */
-  --navy-soft:#EFE6D2;       /* was card bg navy → now ivory card */
-  --navy-elev:#E8DCBE;       /* was elevated card → now warmer cream */
-  --cream:#1B2329;           /* was cream text → now charcoal text (legible on cream) */
-  --cream-muted:#6B6862;     /* muted text on cream (AA 5.24) */
-  --amber:#C9A961;           /* gold — BORDERS + black-text chips only on cream (AA fails as text) */
-  --amber-deep:#A88840;      /* darker gold — small text/chips on cream pass AA (5.32) */
-  --amber-bright:#EBCB6B;    /* logo-gold — reserved for sparkle on dark panels (gates, etc.) */
-  --emerald-deep:#0A4D3C;    /* warm-feeling text accent on cream (AA 9.25) */
-  --rule:rgba(168,136,64,.20);
-  --rule-soft:rgba(168,136,64,.10);
+  /* V3 POP palette — white cards on cream, emerald lead, gold worn as jewelry.
+     Single source: AV_POP_PALETTE_spec.md. Legacy token names retained for
+     backwards-compat; the VALUES now point at the pop palette. */
+  --navy:#FAF8F4;            /* page ground (warm cream) */
+  --navy-soft:#FFFFFF;       /* CARD — crisp white lifts off cream (was tan #EFE6D2 = the morgue) */
+  --navy-elev:#FFFFFF;       /* elevated card — also white */
+  --cream:#14201B;           /* primary text (emerald-black, ~14:1) */
+  --cream-muted:#5C6862;     /* muted text (AA 5.2) */
+  --amber:#C49A3C;           /* gold — BORDERS + black-text chips only (never text on cream) */
+  --amber-deep:#9A5B12;      /* warm signal text — AA 5.3 on cream */
+  --amber-bright:#E8C25A;    /* gold-leaf — sparkle on DARK panels only (gate/scrim/footer) */
+  --emerald-deep:#0A4D3C;    /* brand lead — links/eyebrows/text-safe accent (AA 9.3) */
+  --rule:rgba(10,77,60,.14);
+  --rule-soft:rgba(10,77,60,.08);
   --serif:"Fraunces",Georgia,serif;  /* val 2026-06-05: Fraunces = marketing-site headline face */
   --sans:"Inter",system-ui,sans-serif;
 
-  /* Distress + status accents tuned for cream ground (was navy-tuned before flip) */
-  --amber-sig:#A88840;          /* signal chips — deep gold passes AA on cream */
-  --emerald-glow:#0A4D3C;       /* wins / done — emerald-deep on cream */
-  --rose-glow:#7A3A40;          /* danger — deep rose, AA-safe */
-  --sky-glow:#2C5777;           /* info — deep harbor, AA-safe */
+  /* pop accents (new names) */
+  --paper:#FFFFFF;
+  --emerald:#0C6049;            /* jewel fill — solid buttons/chips */
+  --emerald-mist:#DCEDE5;       /* quiet chip bg (deeper than old #E8F2EE so it reads) */
+  --gold:#C49A3C; --gold-leaf:#E8C25A;
+  --forest:#0A3D2E;             /* the one dark moment — gate/hero scrim/footer */
+  --harbor:#1C5C82;             /* info / secondary jewel (AA 5.6) */
+  --garnet:#A23B2E;             /* hot / urgent (AA 5.4) */
+  --line-strong:rgba(10,77,60,.22);
 
-  /* === REMAP legacy Tailwind tokens for cream register === */
-  --bg:#F5EFE3;                 /* cream page bg */
-  --surface:#EFE6D2;            /* ivory card bg */
-  --surface-2:#E8DCBE;
-  --border:rgba(168,136,64,.20);
-  --ink:#1B2329;                /* charcoal text */
-  --muted:#6B6862;              /* warm gray (AA 5.24) */
-  --brand:#C9A961;              /* gold — accent + chips, never raw text on cream */
-  --brand-fg:#1B2329;           /* black text on gold chips per [[feedback_contrast_rule]] */
-  --danger:#7A3A40;
-  --ok:#0A4D3C;
+  /* legacy status names → pop values */
+  --amber-sig:#9A5B12;          /* signal chips — warm bronze, AA on cream */
+  --emerald-glow:#0F6E56;       /* wins / done */
+  --rose-glow:#A23B2E;          /* danger → garnet */
+  --sky-glow:#1C5C82;           /* info → harbor */
+
+  /* === REMAP legacy Tailwind tokens for the pop register === */
+  --bg:#FAF8F4;                 /* cream ground */
+  --surface:#FFFFFF;            /* WHITE card */
+  --surface-2:#FAF8F4;
+  --border:rgba(10,77,60,.14);
+  --ink:#14201B;                /* emerald-black text */
+  --muted:#5C6862;              /* muted (AA 5.2) */
+  --brand:#C49A3C;              /* gold — accent + chips, never raw text on cream */
+  --brand-fg:#14201B;           /* ink text on gold chips per [[feedback_contrast_rule]] */
+  --danger:#A23B2E;
+  --ok:#0F6E56;
 
   background:
-    radial-gradient(900px 460px at 90% -10%,rgba(201,169,97,.08),transparent 60%),
-    #F5EFE3;
-  color:#1B2329;
+    radial-gradient(900px 460px at 90% -10%,rgba(196,154,60,.06),transparent 60%),
+    #FAF8F4;
+  color:#14201B;
   font-family:var(--sans);
   min-height:100vh;
 }

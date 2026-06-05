@@ -110,6 +110,18 @@ async function fetchHits(state: string, sinceDays: number, nature?: string[]): P
   }
 }
 
+/**
+ * Demo entrypoint (#372) — fetch federal filings for a single state directly,
+ * bypassing the full adapter run/store pipeline. Used by /api/demo/run, the
+ * public ZIP→signals demo. Returns the raw hits; the caller slices + shapes them.
+ */
+export async function runCourtListenerForDemo(
+  state: string,
+  sinceDays = 30
+): Promise<CourtListenerHit[]> {
+  return fetchHits(state.toUpperCase(), sinceDays);
+}
+
 export const courtListenerAdapter: PublicIntelAdapter = {
   kind: 'courtlistener', // not yet in PublicIntelKind union; cast for now
   displayName: 'CourtListener (federal courts + bankruptcy)',
