@@ -36,6 +36,35 @@
  *   safeFirstName('there', 'Acme Corp') -> null  (sentinel/legacy)
  *   safeFirstName('Pat Acme', 'Acme Corp') -> 'Pat'
  */
+// Common tokens that mark a string as a company name (not a person's name).
+// "Timothy Helfrey" contains none of these → person. "Acme Holdings LLC" does → company.
+const COMPANY_TOKENS = new Set([
+  'llc', 'inc', 'corp', 'corporation', 'ltd', 'limited', 'co', 'company',
+  'group', 'holdings', 'partners', 'lp', 'llp', 'pllc', 'pc', 'pa',
+  'services', 'consulting', 'enterprises', 'industries', 'technologies',
+  'tech', 'solutions', 'systems', 'international', 'global', 'agency',
+  'studio', 'studios', 'collective', 'lab', 'labs', 'works', 'media'
+]);
+
+/**
+ * Heuristic: does displayName clearly look like a real person's name?
+ * Person names are 2-4 tokens, each starts with a capital letter, no obvious
+ * company tokens. When this returns true, we trust displayName as a person
+ * even if it happens to match the brand (which is the Tim Helfrey case —
+ * brand was set to his name during onboarding).
+ */
+function looksLikePersonName(s: string): boolean {
+  const tokens = s.split(/[\s,]+/).filter(Boolean);
+  if (tokens.length < 2 || tokens.length > 4) return false;
+  for (const t of tokens) {
+    const stripped = t.toLowerCase().replace(/\.$/, '');
+    if (COMPANY_TOKENS.has(stripped)) return false;
+    // Must look like a name part: leading capital, then letters/apostrophes/hyphens.
+    if (!/^[A-Z][a-zA-Z'’-]+$/.test(t)) return false;
+  }
+  return true;
+}
+
 export function safeFirstName(
   displayName: string | null | undefined,
   brandName: string | null | undefined
@@ -49,6 +78,15 @@ export function safeFirstName(
 
   const first = d.split(/[\s,]+/).filter(Boolean)[0] ?? '';
   if (!first) return null;
+
+  // Trust-the-person override: if displayName clearly looks like a personal
+  // name (2-4 properly-capitalized tokens with no company suffixes), believe
+  // it even when it matches the brand. This catches the Tim Helfrey case
+  // where the client was onboarded with the contact's name as the brand and
+  // safeFirstName otherwise vetoes it as "brand stuffed in display_name".
+  // The Central-Bottle-Brunch bug remains caught for single-token displayNames
+  // and for multi-token display_names containing clear company markers.
+  if (looksLikePersonName(d)) return first;
 
   const brand = (brandName ?? '').trim();
   if (brand) {
