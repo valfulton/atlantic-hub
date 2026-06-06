@@ -370,12 +370,12 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           </Link>
         </div>
 
-        {/* (val 2026-06-06, SPEC_Dashboard_Outcome_Hero) Outcome hero — value
-            first, then the hot signal. Reads "Your pipeline · N leads in play
-            · ~$X potential" in emerald (never engine vocabulary), with the
-            this-week recap as the retention hook. Empty state when nothing
-            has landed yet ("Your pipeline is taking shape"). */}
-        <ClientHero pipeline={p.pipeline} potentialUsd={p.potentialUsd} thisWeek={p.thisWeek} signalsWaiting={p.signalsWaiting} />
+        {/* (val 2026-06-06) The ClientHero white pipeline card was duplicating
+            the greeting subhead ("Your pipeline is steady. Keep working the
+            ones in play below.") and stacking above the green Featured Signal
+            hero. Killed. The greeting IS the pipeline summary. ONE hero on
+            this page — the Featured Signal — and only when there's a real
+            signal to feature. */}
 
         {/* Featured Signal hero */}
         {p.hero && (

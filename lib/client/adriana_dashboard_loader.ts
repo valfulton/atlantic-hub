@@ -211,13 +211,14 @@ function oneLinerForSignals(row: WatchlistRow): string {
 
 /** Map a client lead row into a fresh-lead SignalCard. */
 function leadToCard(l: ClientLead): SignalCard {
-  const fit = l.icpFitScore ?? l.score ?? 0;
+  // (val 2026-06-06) "i don't even understand the numbers. either its a fit
+  // or not." Drop the numeric "{n} fit · {band}" chip. Show ONE verbal
+  // signal: capitalized band word ("Hot" / "Warm" / "Cool") or "New lead".
+  // Never the score. Never the fit percent.
   const band = l.band ?? null;
   const chipLabel = band
-    ? `${fit} fit · ${band}`
-    : l.icpFitScore != null
-      ? `${l.icpFitScore} fit`
-      : 'New lead';
+    ? band.charAt(0).toUpperCase() + band.slice(1)
+    : 'New lead';
   const trail: CascadeNode[] = [];
   if (l.contactName) trail.push({ label: l.contactTitle ? `${l.contactTitle} found` : 'Contact found' });
   if (l.email) trail.push({ label: 'Email verified' });
@@ -493,9 +494,18 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   // (#406) Short_name wins, else computed initials. The label still gets a
   // period for visual symmetry with "Atlantic & Vine." across the chrome.
   const activeBrandShort = activeClientShortName || (activeClientName ? initialsOf(activeClientName) : '');
-  const activeCountLabel = activeBrandShort
-    ? `${activeBrandShort} · ${activeCampaignCount} active`
-    : `${activeCampaignCount} active`;
+  // (val 2026-06-06) The watchlist section header was counting CAMPAIGNS
+  // (activeCampaignCount), not watchlist entries. So the header said
+  // "MB · 3 active" while the body said "no entries yet" — the two numbers
+  // came from different tables. Count the same thing the body renders.
+  const watchlistTotal = watchlistRows.length;
+  // Empty-state: no badge at all (the body already carries the message).
+  // Non-empty: show "{brand} · {N} active" — count matches what's rendered.
+  const activeCountLabel = watchlistTotal === 0
+    ? ''
+    : activeBrandShort
+      ? `${activeBrandShort} · ${watchlistTotal} active`
+      : `${watchlistTotal} active`;
 
   // Per-client editable section copy (edit in /admin/av/copy). Covers the
   // operator mirror too, since both call this loader.
