@@ -429,12 +429,16 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     }));
     // (val 2026-06-06, UX/UI SPEC §5) Outcome-led hero copy — no jargon,
     // no engine vocabulary. Headline tells the news; accent tells the move.
+    // (val 2026-06-06 build-fix) heroHeadlineFor/heroAccentFor take the
+    // strongest CONTRIBUTING SIGNAL (ClassifiedSignal), not the WatchlistRow.
+    // Pass the top signal explicitly. Fallback when row carries no signals.
     const heroEntityName = top.entityLabel || top.entityKey;
     const heroBrandShort = activeClientShortName || (activeClientName ? initialsOf(activeClientName) : '');
+    const topSignal = top.contributingSignals[0] ?? null;
     hero = {
       eyebrow: '✦ Worth your attention',
-      headline: heroHeadlineFor(top, heroEntityName),
-      headlineAccent: heroAccentFor(top),
+      headline: topSignal ? heroHeadlineFor(topSignal, heroEntityName) : `${heroEntityName} made a move this week.`,
+      headlineAccent: topSignal ? heroAccentFor(topSignal) : 'Reach out before the moment passes.',
       who: heroBrandShort ? `${heroEntityName} · ${heroBrandShort}` : heroEntityName,
       trail: trailHero,
       ctaLabel: 'See the details →',
