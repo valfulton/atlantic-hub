@@ -126,6 +126,8 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
   // (#386) Cross-brand move state: which row's picker is open, what's busy.
   const [moveOpenFor, setMoveOpenFor] = useState<string | null>(null);
   const [moveBusy, setMoveBusy] = useState<Record<string, boolean>>({});
+  // (val 2026-06-06) Inline delete — kills the "paste cleanup SQL" loop.
+  const [deleteBusy, setDeleteBusy] = useState<Record<string, boolean>>({});
 
   // (#385) API path base derived from mode. Operator surface = scoped under
   // /admin/av/clients/[id]; client surface = unscoped /client/* (server reads
@@ -257,6 +259,54 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
       }
     } catch {
       setPromoteState((s) => ({ ...s, [row.entityKey]: 'error' }));
+    }
+  }
+
+  // (val 2026-06-06) Aggregate rows (e.g. CourtListener "CA · 20 federal
+  // filings / 14d" roll-up summary) aren't real promotable entities — they're
+  // diagnostic counts. Detected by entity_key prefix. UI hides Draft/Add/Move
+  // on these and shows only Delete so val can wipe noise from her phone.
+  function isAggregateRow(row: WatchlistRow): boolean {
+    if (!row.entityKey) return false;
+    if (row.entityKey.startsWith('courtlistener:agg:')) return true;
+    if (/:agg:/.test(row.entityKey)) return true;
+    if (row.entityLabel && /·\s*\d+\s+federal filings/i.test(row.entityLabel)) return true;
+    return false;
+  }
+
+  // (val 2026-06-06) Operator-side inline delete for watchlist rows. Replaces
+  // the "paste cleanup SQL into phpMyAdmin" workflow which is unusable from
+  // mobile. Calls /distress/delete-entity with wipeRecords=true so the row
+  // doesn't re-emerge on next rescore.
+  async function deleteFor(row: WatchlistRow) {
+    if (mode !== 'operator') return; // client surface cannot delete
+    if (deleteBusy[row.entityKey]) return;
+    if (!window.confirm(`Delete "${row.entityLabel ?? row.entityKey}" from the watchlist? This also wipes the upstream record so it won't come back on rescore.`)) {
+      return;
+    }
+    setDeleteBusy((s) => ({ ...s, [row.entityKey]: true }));
+    try {
+      const r = await fetch(`/api/admin/av/clients/${clientId}/distress/delete-entity`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ entityKey: row.entityKey, wipeRecords: true })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        setError(j.error || 'Delete failed.');
+        return;
+      }
+      // Optimistically drop the row from the visible list.
+      setRows((cur) => (cur ?? []).filter((x) => x.entityKey !== row.entityKey));
+      setSelected((cur) => {
+        const next = new Set(cur);
+        next.delete(row.entityKey);
+        return next;
+      });
+    } catch {
+      setError('Delete failed.');
+    } finally {
+      setDeleteBusy((s) => ({ ...s, [row.entityKey]: false }));
     }
   }
 
@@ -603,8 +653,13 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                       <div className={`text-sm font-medium tabular-nums ${scoreColor(row.score)}`}>{row.score}</div>
                       <div className="text-[10px] text-muted">{relTime(row.lastRecomputedAt)}</div>
                     </div>
-                    {/* Action buttons — wrap on mobile, inline on desktop. */}
+                    {/* Action buttons — wrap on mobile, inline on desktop.
+                        (val 2026-06-06) Aggregate rows (e.g. "CA · 20 federal
+                        filings / 14d") hide Draft/Add/Move and surface only
+                        Delete — they're diagnostic counts, not prospects. */}
                     <div className="flex items-center gap-1.5 flex-wrap sm:shrink-0">
+                      {!isAggregateRow(row) && (
+                        <>
                       <button
                         type="button"
                         onClick={() => draftFor(row)}
@@ -678,6 +733,22 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                             </div>
                           )}
                         </div>
+                      )}
+                        </>
+                      )}
+                      {/* (val 2026-06-06) Inline delete — operator only.
+                          Available on every row (including aggregate roll-ups)
+                          so junk can be wiped from mobile without phpMyAdmin. */}
+                      {mode === 'operator' && (
+                        <button
+                          type="button"
+                          onClick={() => deleteFor(row)}
+                          disabled={!!deleteBusy[row.entityKey]}
+                          className="rounded-md border border-red-400/40 bg-red-400/10 hover:bg-red-400/20 text-red-200 text-[11px] px-2 py-1 disabled:opacity-50"
+                          title="Delete this row from the watchlist and wipe its upstream record so it won't come back on rescore"
+                        >
+                          {deleteBusy[row.entityKey] ? '…' : '🗑 Delete'}
+                        </button>
                       )}
                     </div>
                   </li>
