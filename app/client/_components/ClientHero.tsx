@@ -27,6 +27,13 @@ interface ClientHeroThisWeek {
   callsLogged: number;
 }
 
+/** (val 2026-06-06) Watchlist has entities but pipeline is empty — engine
+ *  is working, she just hasn't promoted any to leads yet. Different from the
+ *  "we're still building your audit" empty state. */
+interface ClientHeroSignalsWaiting {
+  count: number;
+}
+
 /** Compact USD format — ~$48k, ~$1.2M, ~$2,400. Always signals approximation. */
 function fmtPotential(usd: number): string {
   if (usd >= 1_000_000) {
@@ -65,11 +72,17 @@ function buildRecap(t: ClientHeroThisWeek): string | null {
 export default function ClientHero({
   pipeline,
   potentialUsd,
-  thisWeek
+  thisWeek,
+  signalsWaiting
 }: {
   pipeline: ClientHeroPipeline;
   potentialUsd: number | null;
   thisWeek: ClientHeroThisWeek;
+  /** (val 2026-06-06) Number of unpromoted entities on the watchlist.
+   *  When > 0 AND pipeline is empty, the hero shows a "ready to fill"
+   *  message that points at the watchlist below — not the "we're still
+   *  building" copy, which reads wrong when the engine is clearly firing. */
+  signalsWaiting?: ClientHeroSignalsWaiting;
 }) {
   const totalZero = pipeline.total === 0;
   const weekZero =
@@ -77,6 +90,48 @@ export default function ClientHero({
     thisWeek.postsAwaitingApproval === 0 &&
     thisWeek.pressMatches === 0 &&
     thisWeek.callsLogged === 0;
+  const waiting = signalsWaiting?.count ?? 0;
+
+  // (val 2026-06-06) Pipeline empty BUT engine is firing — point at the
+  // available action instead of saying "we're still building." Reads
+  // correctly when the watchlist below has signals ready to promote.
+  if (totalZero && waiting > 0) {
+    return (
+      <section
+        className="mb-6 rounded-2xl overflow-hidden"
+        style={{
+          background: 'var(--paper, #FFFDF8)',
+          border: '1px solid color-mix(in srgb, var(--emerald-deep, #0A4D3C) 12%, transparent)',
+          boxShadow: '0 12px 30px -22px var(--card-shadow, rgba(10, 77, 60, 0.4))'
+        }}
+      >
+        <div className="px-5 sm:px-7 py-6 sm:py-7">
+          <div
+            className="text-[10.5px] uppercase tracking-[0.22em] mb-2"
+            style={{ color: 'var(--emerald-deep, #0A4D3C)' }}
+          >
+            Your pipeline
+          </div>
+          <h1
+            className="text-[22px] sm:text-[28px] leading-tight tracking-tight"
+            style={{
+              fontFamily: 'var(--font-fraunces, "Fraunces", "Cormorant Garamond", Georgia, serif)',
+              color: 'var(--emerald-deep, #0A4D3C)',
+              fontWeight: 500
+            }}
+          >
+            Ready to fill — {waiting} {waiting === 1 ? 'opportunity' : 'opportunities'} worth a move this week.
+          </h1>
+          <p
+            className="mt-2 text-[14px] leading-relaxed"
+            style={{ color: 'var(--muted, #5C6862)' }}
+          >
+            Pick one below and add it to your pipeline. Once a name is in play, your week-by-week wins land here.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   // (SPEC §4) Warm empty state — never reads as "quiet." A brand-new client
   // sees work-in-progress, not absence. Borrows the AccessPaused tone.

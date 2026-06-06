@@ -115,6 +115,9 @@ export interface AdrianaDashboardProps {
     pressMatches: number;
     callsLogged: number;
   };
+  /** (val 2026-06-06) Unpromoted watchlist count — drives the "ready to fill"
+   *  hero state when pipeline is empty but engine is firing. */
+  signalsWaiting?: { count: number };
   hero: FeaturedSignal | null;
   watchlist: {
     activeCountLabel: string; // "CBB · 12 active"
@@ -362,7 +365,7 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             · ~$X potential" in emerald (never engine vocabulary), with the
             this-week recap as the retention hook. Empty state when nothing
             has landed yet ("Your pipeline is taking shape"). */}
-        <ClientHero pipeline={p.pipeline} potentialUsd={p.potentialUsd} thisWeek={p.thisWeek} />
+        <ClientHero pipeline={p.pipeline} potentialUsd={p.potentialUsd} thisWeek={p.thisWeek} signalsWaiting={p.signalsWaiting} />
 
         {/* Featured Signal hero */}
         {p.hero && (

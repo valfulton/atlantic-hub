@@ -34,12 +34,28 @@ function greetingTime(now = new Date()): 'morning' | 'afternoon' | 'evening' {
   return 'evening';
 }
 
-/** Two-letter brand initials from a name. */
+/** (val 2026-06-06) Brand initials fallback when short_name isn't set in DB.
+ *  Strips stopwords (the/and/of/&/'s) so possessives + connectors don't eat a
+ *  slot, then takes the first letter of every meaningful word up to 4:
+ *    "Central Business Bureau" → "CBB" (not "CB")
+ *    "Candelaria's Law & Document Agency" → "CLDA"  (not "CS")
+ *    "Atlantic & Vine" → "AV"
+ *    "Acme Co." → "AC"
+ *  Always 2-4 chars uppercased so brand chips don't truncate awkwardly.
+ *  This is only the FALLBACK — operator-set short_name still wins. */
 function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const STOPWORDS = new Set(['the', 'and', 'of', 'a', 'an', '&', "'s"]);
+  const cleaned = name
+    .trim()
+    .replace(/['']s\b/g, '') // Candelaria's → Candelaria
+    .replace(/[.,]/g, ' ');
+  const parts = cleaned
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0 && !STOPWORDS.has(w.toLowerCase()));
   if (parts.length === 0) return '·';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return parts.slice(0, 4).map((w) => w[0]).join('').toUpperCase();
 }
 
 /** Human-readable label for a ClassifiedSignal cascade node on the CLIENT side.
@@ -62,6 +78,56 @@ function cascadeNodeLabel(s: { source?: string | null; signalKind: string }): st
   return s.signalKind
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** (val 2026-06-06, UX/UI SPEC §5) Featured-hero headline. Plain news, no
+ *  "surfaced / flagged / signal / watchlist." First clause = WHAT happened. */
+function heroHeadlineFor(top: WatchlistRow['contributingSignals'][number], entity: string): string {
+  switch (top.signalKind) {
+    case 'bankruptcy_filed':    return `${entity} just filed for bankruptcy.`;
+    case 'lawsuit_filed':       return `${entity} was just named in a fresh court case.`;
+    case 'suspended_entity':    return `${entity} just lost good standing.`;
+    case 'dissolved_entity':    return `${entity} just closed up shop.`;
+    case 'new_llc':             return `${entity} just opened for business in California.`;
+    case 'ucc_filing':          return `A new lien just landed on ${entity}.`;
+    case 'leadership_change':   return `${entity} just changed who's in charge.`;
+    case 'address_change':      return `${entity} just updated their address.`;
+    case 'code_violation':      return `${entity} just got cited by the city.`;
+    case 'high_denial_rate':    return `Loan denials just climbed in this market.`;
+    case 'complaint_velocity_high': return `Complaints just spiked at ${entity}.`;
+    case 'lender_under_fire':   return `${entity} is under real complaint pressure.`;
+    case 'negative_review_trend': return `${entity}'s reviews are slipping.`;
+    case 'rapid_growth':        return `${entity} is scaling fast.`;
+    default:                    return `${entity} made a move this week.`;
+  }
+}
+
+/** Hero accent — the "what to do" line. Brief, advisory, no jargon. */
+function heroAccentFor(top: WatchlistRow['contributingSignals'][number]): string {
+  switch (top.signalKind) {
+    case 'bankruptcy_filed':
+    case 'ucc_filing':
+      return 'Everyone they owe is about to need help.';
+    case 'lawsuit_filed':
+      return 'They likely need counsel this week.';
+    case 'suspended_entity':
+      return 'Reinstatement is time-sensitive.';
+    case 'dissolved_entity':
+      return 'The bills outlast the business.';
+    case 'new_llc':
+      return 'Banking and vendor decisions are wide open.';
+    case 'leadership_change':
+      return 'Vendor relationships are up for review.';
+    case 'code_violation':
+      return 'Resolution help is on their mind.';
+    case 'complaint_velocity_high':
+    case 'lender_under_fire':
+      return 'They need a reputation lifeline.';
+    case 'rapid_growth':
+      return 'Growth-stage needs are opening up.';
+    default:
+      return 'Reach out before the moment passes.';
+  }
 }
 
 /** Map a distress WatchlistRow into the cascade trail + chip our card expects. */
@@ -92,13 +158,55 @@ function watchlistRowToCard(row: WatchlistRow): SignalCard {
   };
 }
 
-/** Heuristic Fraunces one-liner from the strongest contributing signal. */
+/** (val 2026-06-06, UX/UI SPEC §5) Per-signal one-liner — outcome-led news,
+ *  never engine vocabulary. Banned words on the client side: signal, watchlist,
+ *  distress, surfaced, flagged, cascade, schedule of creditors, UCC, docket,
+ *  any data-source name. Each line is plain news + the reason this client
+ *  should care, in a tone an owner would say to another owner. */
 function oneLinerForSignals(row: WatchlistRow): string {
   const top = row.contributingSignals[0];
-  if (!top) return 'A new signal landed on this entity.';
-  // ClassifiedSignal no longer carries a `.label` field — derive one from
-  // `.source` (preferred — operator trace) falling back to `.signalKind`.
-  return `${cascadeNodeLabel(top)}. They don't know we know yet.`;
+  if (!top) return 'Something just happened with this name. Worth a look.';
+  const name = (row.entityLabel || '').trim();
+  const who = name && name.length > 0 ? name : 'This business';
+  // Trim long names to keep the line readable on mobile cards.
+  const shortWho = who.length > 40 ? who.slice(0, 38).trimEnd() + '…' : who;
+  switch (top.signalKind) {
+    case 'bankruptcy_filed':
+      return `${shortWho} just filed for bankruptcy. Everyone they owe is about to need help getting paid.`;
+    case 'lawsuit_filed':
+      return `${shortWho} was just named in a fresh court case. Owners in this spot look for help fast.`;
+    case 'suspended_entity':
+      return `${shortWho} just lost good standing with the state. Reinstatement is time-sensitive.`;
+    case 'dissolved_entity':
+      return `${shortWho} just dissolved. The bills don't disappear when the door closes.`;
+    case 'new_llc':
+      return `${shortWho} is a brand-new California business. Banking, vendors, and credit policy are all up for grabs.`;
+    case 'ucc_filing':
+      return `A new lien just landed on ${shortWho}. Whoever's holding their paper needs to act quickly.`;
+    case 'leadership_change':
+      return `${shortWho} just changed who's in charge. Vendor relationships always get re-evaluated when that happens.`;
+    case 'address_change':
+      return `${shortWho} updated their registered address — often the first quiet sign of a bigger move.`;
+    case 'code_violation':
+      return `${shortWho} just got cited by the city. Resolution help is on their mind.`;
+    case 'high_denial_rate':
+      return 'Loan denials are climbing in this market. Borrowers are looking elsewhere.';
+    case 'high_refinance_volume':
+      return 'Refinance activity is rising here. Competitors are losing relationships right now.';
+    case 'complaint_velocity_high':
+      return `Consumer complaints just spiked at ${shortWho}. They need a reputation lifeline.`;
+    case 'lender_under_fire':
+      return `${shortWho} is under real complaint pressure right now.`;
+    case 'credit_risk_increase':
+      return `${shortWho}'s credit picture took a turn this week.`;
+    case 'negative_review_trend':
+      return `${shortWho}'s reviews are slipping — an early sign of operational stress.`;
+    case 'rapid_growth':
+      return `${shortWho} is scaling fast. Growth-stage needs are opening up.`;
+    default:
+      // Calm fallback — plain news, no engine words.
+      return `Something just moved with ${shortWho}. Worth a warm intro this week.`;
+  }
 }
 
 /** Map a client lead row into a fresh-lead SignalCard. */
@@ -319,14 +427,17 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
       label: cascadeNodeLabel(s),
       payoff: i === arr.length - 1
     }));
+    // (val 2026-06-06, UX/UI SPEC §5) Outcome-led hero copy — no jargon,
+    // no engine vocabulary. Headline tells the news; accent tells the move.
+    const heroEntityName = top.entityLabel || top.entityKey;
+    const heroBrandShort = activeClientShortName || (activeClientName ? initialsOf(activeClientName) : '');
     hero = {
-      eyebrow: '✦ This week’s strongest signal',
-      headline: `${top.entityLabel || top.entityKey} just surfaced.`,
-      headlineAccent: 'They don’t know we know.',
-      // (#406) Prefer val's nickname (short_name); fall back to computed initials.
-      who: `${top.entityLabel || top.entityKey} · flagged on your ${activeClientShortName || (activeClientName ? activeClientName.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() : 'channel')} watchlist`,
+      eyebrow: '✦ Worth your attention',
+      headline: heroHeadlineFor(top, heroEntityName),
+      headlineAccent: heroAccentFor(top),
+      who: heroBrandShort ? `${heroEntityName} · ${heroBrandShort}` : heroEntityName,
       trail: trailHero,
-      ctaLabel: 'Open the signal →',
+      ctaLabel: 'See the details →',
       ctaHref: `/client/watchlist#${encodeURIComponent(top.entityKey)}`
     };
   }
@@ -400,6 +511,10 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     pipeline,
     potentialUsd,
     thisWeek,
+    // (val 2026-06-06) Engine-is-firing-but-pipeline-empty signal. When > 0
+    // AND pipeline.total === 0, the hero renders "ready to fill" copy that
+    // points at the watchlist below instead of "we're still building."
+    signalsWaiting: { count: watchlistRows.length },
     hero,
     watchlist: {
       activeCountLabel,
