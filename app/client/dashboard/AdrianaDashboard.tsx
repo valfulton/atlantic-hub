@@ -19,7 +19,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { accent } from '@/lib/copy/accent';
 import ClientHero from '@/app/client/_components/ClientHero';
@@ -269,6 +269,17 @@ function relTime(iso: string | null): string | null {
   return `${days}d ago`;
 }
 
+/** (val 2026-06-06) Client-only wrapper around relTime so SSR returns empty
+ *  (no Date.now() in server-rendered HTML) and the value fills in after
+ *  hydration. Fixes React #425/418/423 hydration cascade that was firing
+ *  because server "5m ago" diverged from client "5m ago" by ~1 minute. */
+function ClientTime({ iso }: { iso: string | null }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+  return <>{relTime(iso)}</>;
+}
+
 /** "Your A&V team" widget — one .app-card per assigned employee. Renders nothing
  *  when no team members are on the account, so it never shows on Tim's view
  *  (no AV rep) but does on Adriana's (Rebecca assigned). */
@@ -282,7 +293,6 @@ function TeamRow({ team }: { team: TeamMember[] }) {
       </div>
       <div className="app-cards">
         {team.map((m) => {
-          const lastSeen = relTime(m.lastActivityAt);
           return (
             <article key={m.userId} className="app-card">
               <div className="hd">
@@ -298,8 +308,8 @@ function TeamRow({ team }: { team: TeamMember[] }) {
               <div className="meta">
                 <div className="row"><span className="k">Leads</span><span className="v">{m.leadsAssigned}</span></div>
                 <div className="row"><span className="k">Calls 7d</span><span className="v">{m.callsLast7Days}</span></div>
-                {lastSeen && (
-                  <div className="row"><span className="k">Last</span><span className="v">{lastSeen}</span></div>
+                {m.lastActivityAt && (
+                  <div className="row"><span className="k">Last</span><span className="v"><ClientTime iso={m.lastActivityAt} /></span></div>
                 )}
               </div>
             </article>
