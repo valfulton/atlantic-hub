@@ -50,13 +50,17 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
   const bandLabel = displayBand ? BAND_WORD[displayBand] : null;
   const bandIsHot = displayBand === 'hot';
   const icpGood = l.icpFitScore != null && l.icpFitScore >= 60;
-  const icpPoor = l.icpFitScore != null && l.icpFitScore < 40;
   const hasWorkingSite = l.website && l.websiteStatus !== 'placeholder' && l.websiteStatus !== 'dead';
   const hasDeadSite = l.website && (l.websiteStatus === 'placeholder' || l.websiteStatus === 'dead');
 
+  // (val 2026-06-06) "i don't even understand the numbers. either its a fit or
+  // not." Killed the unlabeled 28px serif score in the head row AND the
+  // numeric "60 fit" pill. Card now shows ONE verbal signal: the band word
+  // (Hot/Warm/Cool/Mixed) + a "Strong fit" label when icpGood. No numbers,
+  // no "Poor fit" shaming of her own leads.
   return (
     <article className="v3-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Head row: company + score */}
+      {/* Head row: company only — numeric score retired */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           {l.auditId ? (
@@ -79,23 +83,10 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
             </div>
           )}
         </div>
-        {l.score !== null && (
-          <div style={{
-            fontFamily: 'var(--serif)',
-            fontSize: '28px',
-            fontWeight: 500,
-            color: 'var(--cream)',
-            fontVariantNumeric: 'tabular-nums',
-            lineHeight: 1,
-            flexShrink: 0
-          }}>
-            {Math.round(l.score)}
-          </div>
-        )}
       </div>
 
-      {/* Band word + fit + audit-stale — one quiet row, no fills */}
-      {(bandLabel || l.icpFitScore != null || l.auditStale) && (
+      {/* Band word + verbal "Strong fit" + audit-stale — one quiet row, no fills */}
+      {(bandLabel || icpGood || l.auditStale) && (
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -113,15 +104,15 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
               {bandLabel}
             </span>
           )}
-          {l.icpFitScore != null && (
+          {icpGood && (
             <span style={{
-              color: icpGood ? 'var(--amber)' : icpPoor ? 'var(--cream-muted)' : 'var(--cream-muted)',
-              border: `1px solid ${icpGood ? 'var(--amber)' : 'var(--rule)'}`,
+              color: 'var(--amber)',
+              border: '1px solid var(--amber)',
               padding: '3px 9px',
               borderRadius: '999px',
               fontWeight: 500
             }}>
-              {Math.round(l.icpFitScore)} fit
+              Strong fit
             </span>
           )}
           {l.auditStale && (
