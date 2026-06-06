@@ -225,17 +225,17 @@ export default function ClientHero({
         {pipeline.total > 0 && (pipeline.hot + pipeline.warm + pipeline.cool) > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13.5px]">
             {pipeline.hot > 0 && (
-              <span style={{ color: 'var(--garnet, #A23B2E)' }}>
+              <span style={{ color: 'var(--ink, #14201B)' }}>
                 <span className="font-semibold">{pipeline.hot}</span> hot
               </span>
             )}
             {pipeline.warm > 0 && (
-              <span style={{ color: 'var(--emerald-deep, #0A4D3C)' }}>
+              <span style={{ color: 'var(--ink, #14201B)' }}>
                 <span className="font-semibold">{pipeline.warm}</span> warm
               </span>
             )}
             {pipeline.cool > 0 && (
-              <span style={{ color: 'var(--harbor, #1C5C82)' }}>
+              <span style={{ color: 'var(--ink, #14201B)' }}>
                 <span className="font-semibold">{pipeline.cool}</span> cool
               </span>
             )}

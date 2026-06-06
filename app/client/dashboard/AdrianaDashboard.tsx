@@ -221,7 +221,11 @@ function Card({ card }: { card: SignalCard }) {
           <b>{card.entityInitial}</b>
         </div>
         <div className="nm">
-          <b title={card.entityName}>{card.entityName}</b>
+          {card.primaryAction.href ? (
+            <a href={card.primaryAction.href} title={card.entityName} className="nm-link"><b>{card.entityName}</b></a>
+          ) : (
+            <b title={card.entityName}>{card.entityName}</b>
+          )}
           <span className={`chip${card.chip.kind === 'fit' ? ' fit' : ''}`}>{card.chip.label}</span>
         </div>
       </div>
@@ -237,9 +241,6 @@ function Card({ card }: { card: SignalCard }) {
           <button type="button" className="pcta" onClick={activate} disabled={pending}>
             {pending ? 'Opening…' : card.primaryAction.label}
           </button>
-        )}
-        {card.primaryAction.href && (
-          <button type="button" className="scnd" onClick={activate} aria-label="Open lead">→</button>
         )}
       </div>
     </article>

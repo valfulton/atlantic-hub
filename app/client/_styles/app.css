@@ -462,8 +462,8 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--amber-sig);
-  background: rgba(181, 116, 43, 0.10);
+  color: var(--black);
+  background: var(--gold);
   padding: 0.18rem 0.5rem;
   border-radius: 999px;
   display: inline-block;
@@ -473,6 +473,10 @@
   color: var(--emerald-deep);
   background: var(--emerald-mist);
 }
+/* Company name is the link to the lead/detail — one clear path, replaces the
+   old redundant "→" + "⋯" buttons (val 2026-06-06: "three buttons to nowhere"). */
+.app-card .nm-link { text-decoration: none; color: inherit; }
+.app-card .nm-link:hover b { text-decoration: underline; text-underline-offset: 2px; }
 .app-card .more {
   margin-left: auto;
   color: var(--gray-soft);
@@ -509,8 +513,8 @@
   border-radius: 7px;
 }
 .app-card .sig.pay {
-  background: rgba(181, 116, 43, 0.14);
-  color: var(--amber-sig);
+  background: var(--gold);
+  color: var(--black);
   font-weight: 700;
 }
 .app-card .arw { color: var(--gray-soft); font-size: 0.75rem; }
@@ -527,7 +531,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background: var(--emerald-deep);
+  background: var(--black);
   color: var(--cream);
   font-weight: 600;
   font-size: 0.85rem;
@@ -538,7 +542,7 @@
   border: 0;
   font-family: inherit;
 }
-.app-card .pcta:hover { background: var(--black); }
+.app-card .pcta:hover { background: #1f1f1f; }
 
 /* ── Celebration — earned wins only (luxury that celebrates, not a slot machine).
    Brief gold confetti + an emerald message, then it fades. Respects reduced-motion. ── */
@@ -722,3 +726,17 @@
 .app-card .meta .v { color: var(--charcoal); word-break: break-word; }
 .app-card .meta a.v { color: var(--emerald-deep); } /* AA 9.25 on cream */
 .app-card .meta a.v:hover { text-decoration: underline; }
+
+/* Called-out pain — replaces the meaningless "Pain extracted" badge. The label
+   names WHAT we found; the line below is the actual extracted pain (val 2026-06-06). */
+.app-card .painline { padding-top: 0.3rem; }
+.app-card .painline__eb {
+  display: block;
+  padding: 0 1.1rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--emerald-deep);
+}
+.app-card .painline .ln { padding-top: 0.15rem; }

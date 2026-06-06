@@ -33,23 +33,6 @@ function chipLabel(l: ClientLead): { kind: 'distress' | 'fit'; label: string } {
   return { kind: 'fit', label: l.leadStatus || 'New lead' };
 }
 
-function trailOf(l: ClientLead): { label: string; payoff?: boolean }[] {
-  const trail: { label: string; payoff?: boolean }[] = [];
-  if (l.contactName) {
-    trail.push({ label: l.contactTitle ? `${l.contactTitle} found` : 'Contact found' });
-  }
-  if (l.email) trail.push({ label: 'Email verified' });
-  if (l.phone) trail.push({ label: 'Phone in hand' });
-  if (l.callScript?.primaryPain) {
-    trail.push({ label: 'Pain extracted', payoff: true });
-  } else if (trail.length > 0) {
-    trail[trail.length - 1].payoff = true;
-  } else {
-    trail.push({ label: 'Scored', payoff: true });
-  }
-  return trail.slice(0, 3);
-}
-
 function oneLinerOf(l: ClientLead): string {
   return l.painSummary ||
          l.icpFitReasoning ||
@@ -110,7 +93,6 @@ function LeadCard({ lead }: { lead: ClientLead }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const chip = chipLabel(lead);
-  const trail = trailOf(lead);
   const href = lead.auditId ? `/client/leads/${lead.auditId}` : '#';
   function open() {
     if (href !== '#') startTransition(() => router.push(href));
@@ -124,21 +106,19 @@ function LeadCard({ lead }: { lead: ClientLead }) {
           <b>{initial}</b>
         </div>
         <div className="nm">
-          <b title={lead.company}>{lead.company}</b>
+          {lead.auditId ? (
+            <Link href={href} title={lead.company} className="nm-link"><b>{lead.company}</b></Link>
+          ) : (
+            <b title={lead.company}>{lead.company}</b>
+          )}
           <span className={`chip${chip.kind === 'fit' ? ' fit' : ''}`}>{chip.label}</span>
         </div>
-        <button type="button" className="more" aria-label="More actions">⋯</button>
       </div>
-      <p className="ln">{oneLinerOf(lead)}</p>
+      <div className="painline">
+        <span className="painline__eb">Why they need you</span>
+        <p className="ln">{oneLinerOf(lead)}</p>
+      </div>
       <LeadMeta lead={lead} />
-      <div className="trail">
-        {trail.map((n, i) => (
-          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
-            <span className={`sig${n.payoff ? ' pay' : ''}`}>{n.label}</span>
-            {i < trail.length - 1 && <span className="arw" aria-hidden="true">→</span>}
-          </span>
-        ))}
-      </div>
       <div className="foot">
         {telOf(lead) ? (
           <a className="pcta" href={telOf(lead)!}>📞 Call</a>
@@ -149,7 +129,6 @@ function LeadCard({ lead }: { lead: ClientLead }) {
             {pending ? 'Opening…' : '✚ Add to pipeline'}
           </button>
         )}
-        <Link href={href} className="scnd" aria-label="Open lead">→</Link>
       </div>
     </article>
   );

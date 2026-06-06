@@ -219,18 +219,15 @@ function leadToCard(l: ClientLead): SignalCard {
   const chipLabel = band
     ? band.charAt(0).toUpperCase() + band.slice(1)
     : 'New lead';
-  const trail: CascadeNode[] = [];
-  if (l.contactName) trail.push({ label: l.contactTitle ? `${l.contactTitle} found` : 'Contact found' });
-  if (l.email) trail.push({ label: 'Email verified' });
-  if (l.callScript?.primaryPain) trail.push({ label: 'Pain extracted', payoff: true });
-  else if (trail.length > 0) trail[trail.length - 1].payoff = true;
   return {
     id: `ld-${l.id}`,
     entityName: l.company,
     entityInitial: l.company.trim().charAt(0).toUpperCase() || '·',
     chip: { kind: 'fit', label: chipLabel },
-    oneLiner: l.painSummary || l.icpFitReasoning || 'Enriched and ready for outreach.',
-    trail: trail.length > 0 ? trail : [{ label: 'Scored', payoff: true }],
+    oneLiner: l.painSummary || l.icpFitReasoning || 'Ready for outreach.',
+    // (val 2026-06-06) no enrichment-step badges ("Pain extracted" / "Email verified")
+    // — the one-liner IS the pain; don't narrate that we extracted it.
+    trail: [],
     primaryAction: {
       label: l.phone ? '📞 Call now' : l.email ? '✎ Review & send' : '✚ Add to pipeline',
       href: l.auditId ? `/client/leads/${l.auditId}` : '/client/leads'
