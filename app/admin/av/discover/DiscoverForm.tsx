@@ -356,7 +356,7 @@ export function DiscoverForm({
                 </button>
               )}
               <a
-                href={`/admin/av/clients/${autoFilledFromClient.clientId}`}
+                href={`/admin/av/clients/${autoFilledFromClient.clientId}#icp`}
                 className="text-[10.5px] uppercase tracking-wider text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)] hover:text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]"
               >
                 Open their ICP editor →
