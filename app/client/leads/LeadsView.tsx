@@ -214,7 +214,7 @@ export default function LeadsView({ leads }: Props) {
         </div>
       ) : (
         <div className="app-empty">
-          <p>No hot fits yet. Newly scored prospects will land here.</p>
+          <p>No hot leads yet. New prospects will land here.</p>
         </div>
       )}
 

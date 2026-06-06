@@ -282,3 +282,20 @@ main > * {
   font-size: 14px !important;
   line-height: 1.45 !important;
 }
+
+/* ─── WHITE-ON-WHITE GUARD (UX/UI 2026-06-06) ─────────────────────────────
+   Any form control given a white/light background must paint dark text.
+   On the operator dark register, Tailwind preflight sets `color: inherit` on
+   form controls, so a `bg-white` input would otherwise inherit the register's
+   light --ink and render light-text-on-white (invisible while typing). Keyed
+   on the utility class so it fixes every white-bg control app-wide at once
+   (EBW booking/activity/revenue forms today) with no per-input edits. */
+input.bg-white, textarea.bg-white, select.bg-white,
+input[class*="bg-[#fff"], textarea[class*="bg-[#fff"], select[class*="bg-[#fff"] {
+  color: #14201B;
+  -webkit-text-fill-color: #14201B; /* Safari honors this over inherited color */
+}
+input.bg-white::placeholder, textarea.bg-white::placeholder {
+  color: #8A8A8A;
+  -webkit-text-fill-color: #8A8A8A;
+}

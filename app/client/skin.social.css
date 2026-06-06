@@ -20,6 +20,10 @@
    ===================================================================== */
 
 [data-skin="social"]{
+  /* Client register is light — native controls (select/date/scrollbars) must
+     render with light UA colors so a native <select> shows dark text, not
+     white-on-white. */
+  color-scheme: light;
   /* V3 POP palette — white cards on cream, emerald lead, gold worn as jewelry.
      Single source: AV_POP_PALETTE_spec.md. Legacy token names retained for
      backwards-compat; the VALUES now point at the pop palette. */

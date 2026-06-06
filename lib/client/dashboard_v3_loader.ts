@@ -68,7 +68,7 @@ export async function loadDashboardV3(args: DashboardV3LoaderArgs): Promise<Clie
   const motion: DashboardCardData[] = [];
   if (data.brief.pipeline.total > 0) {
     motion.push({
-      title: `${data.brief.pipeline.total} lead${data.brief.pipeline.total === 1 ? '' : 's'} in your pipeline${data.brief.pipeline.hot > 0 ? `, ${data.brief.pipeline.hot} scored hot` : ''}`,
+      title: `${data.brief.pipeline.total} lead${data.brief.pipeline.total === 1 ? '' : 's'} in your pipeline${data.brief.pipeline.hot > 0 ? `, ${data.brief.pipeline.hot} hot` : ''}`,
       body: 'Live prospects ranked by their AI Living Score. The strongest are always on top — open your pipeline to act on them today.',
       linkLabel: 'Open your pipeline →',
       linkHref: '/client/leads',

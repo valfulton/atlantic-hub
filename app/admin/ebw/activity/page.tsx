@@ -45,7 +45,7 @@ export default async function EbwActivityPage() {
                 <div className="flex-1 min-w-0">
                   <span className="font-medium">{TYPE_LABEL[a.activityType] || a.activityType}</span>
                   {a.prospectLabel && <span className="text-muted"> · {a.prospectLabel}</span>}
-                  {a.outcome && <span className="ml-2 text-xs px-2 py-0.5 bg-white border border-border rounded-md">{OUTCOME_LABEL[a.outcome] || a.outcome}</span>}
+                  {a.outcome && <span className="ml-2 text-xs px-2 py-0.5 bg-white text-[#14201B] border border-border rounded-md">{OUTCOME_LABEL[a.outcome] || a.outcome}</span>}
                   {a.notes && <div className="text-xs text-muted mt-1">{a.notes}</div>}
                 </div>
                 <div className="text-xs text-muted whitespace-nowrap">{a.occurredOn}</div>

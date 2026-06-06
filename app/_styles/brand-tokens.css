@@ -32,6 +32,10 @@
    ==================================================================== */
 
 :root {
+  /* Native controls (select / date pickers / scrollbars) render with dark UA
+     colors on the operator dark register — without this, Safari paints a white
+     <select> control and the light selected text reads white-on-white. */
+  color-scheme: dark;
   /* ─────────────────────────────────────────────────────────────────
      OPERATOR HUB (default — /admin/*)
      Dark navy + amber. The existing register, kept intact.

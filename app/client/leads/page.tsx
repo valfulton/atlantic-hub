@@ -116,7 +116,7 @@ export default async function ClientLeadsPage() {
             {locked
               ? 'Lead discovery finds and scores prospects for your business automatically. Unlocks on Sprint.'
               : leads.length > 0
-                ? `${leads.length} in your pipeline${hot > 0 ? ` · ${hot} scored hot` : ''}. Best-fit first.`
+                ? `${leads.length} in your pipeline${hot > 0 ? ` · ${hot} hot` : ''}. Best-fit first.`
                 : 'Prospects for your business land here, best-fit first.'}
           </p>
         </section>

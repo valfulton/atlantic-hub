@@ -66,7 +66,7 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
           ) : (
             <h3 className="v3-card__h" style={{ margin: 0 }}>{l.company}</h3>
           )}
-          {l.industry && (
+          {l.industry && !['other', 'unknown', 'n/a', 'none'].includes(l.industry.trim().toLowerCase()) && (
             <div style={{
               fontFamily: 'var(--sans)',
               fontSize: '10.5px',
