@@ -138,7 +138,12 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
         </div>
       )}
 
-      {l.icpFitReasoning && (
+      {/* (val 2026-06-06) Show fit-reasoning ONLY on strong fits. The generated
+          text on weak/mixed fits leaks internal voice ("the client's ideal
+          sectors") and tells the client their own lead "lacks a clear match" —
+          never client-appropriate. Build chat owns regenerating this in client
+          voice (2nd person, never "the client", never admit weak fit). */}
+      {l.icpFitReasoning && icpGood && (
         <p style={{
           margin: 0,
           fontFamily: 'var(--serif)',

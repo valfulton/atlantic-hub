@@ -26,12 +26,12 @@
 .cal-cell { background: var(--paper, #FFFDF8); border: 1px solid var(--line, rgba(10,77,60,.12));
   border-radius: 8px; min-height: 108px; padding: .35rem; display: flex; flex-direction: column; gap: .2rem; }
 .cal-cell--out { background: var(--cream, #FAF8F4); opacity: .55; }
-.cal-cell--today { outline: 2px solid var(--gold, #C49A3C); outline-offset: -1px; } /* gold = border accent only */
+.cal-cell--today { outline: 2px solid var(--gold, #E8C25A); outline-offset: -1px; } /* clean gold = border accent only */
 .cal-cell--drop { border-color: var(--emerald, #0C6049); background: var(--emerald-mist, #DCEDE5); }
 .cal-cell__d { font-size: .72rem; color: var(--muted, #5C6862); font-weight: 600; }
 .cal-cell--today .cal-cell__d { color: var(--emerald-deep, #0A4D3C); font-weight: 700; }
 
-.cal-hol { font-size: .58rem; color: var(--amber-sig, #9A5B12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-hol { font-size: .58rem; color: var(--harbor, #1C5C82); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-imp { font-size: .6rem; color: var(--emerald-deep, #0A4D3C); background: var(--emerald-mist, #DCEDE5);
   border-radius: 5px; padding: .1rem .3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -40,9 +40,9 @@
   border: 1px solid transparent; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-item--drag { cursor: grab; }
 .cal-item--drag:active { cursor: grabbing; }
-/* queued = emerald, draft = amber (dashboard vocabulary, no jewel hues) */
+/* queued = emerald, draft = harbor (pending/secondary — no brown) */
 .cal-item--queued { color: var(--emerald-deep, #0A4D3C); background: var(--emerald-mist, #DCEDE5); border-color: rgba(10,77,60,.18); }
-.cal-item--draft  { color: var(--amber-sig, #9A5B12); background: rgba(154,91,18,.12); border-color: rgba(154,91,18,.30); }
+.cal-item--draft  { color: var(--harbor, #1C5C82); background: rgba(28,92,130,.10); border-color: rgba(28,92,130,.28); }
 .cal-more { font-size: .6rem; color: var(--muted, #5C6862); padding-left: .2rem; }
 
 .cal-legend { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; align-items: center; }

@@ -32,8 +32,8 @@
   --navy-elev:#FFFFFF;       /* elevated card — warm ivory */
   --cream:#14201B;           /* primary text (emerald-black, ~14:1) */
   --cream-muted:#5C6862;     /* muted text (AA 5.2) */
-  --amber:#C49A3C;           /* gold — BORDERS + black-text chips only (never text on cream) */
-  --amber-deep:#9A5B12;      /* warm signal text — AA 5.3 on cream */
+  --amber:#E8C25A;           /* clean champagne gold — borders + black-text chips/jewelry ONLY, never text on cream (NO brown) */
+  --amber-deep:#A23B2E;      /* urgent signal text → garnet (was brown #9A5B12; brown dumped 2026-06-06) */
   --amber-bright:#E8C25A;    /* gold-leaf — sparkle on DARK panels only (gate/scrim/footer) */
   --emerald-deep:#0A4D3C;    /* brand lead — links/eyebrows/text-safe accent (AA 9.3) */
   --rule:rgba(10,77,60,.14);
@@ -45,17 +45,17 @@
   --paper:#FFFFFF;              /* warm ivory card */
   --card-shadow:rgba(10,77,60,.40);  /* emerald-toned card lift (newsroom wires geometry) */
   --card-edge:#E8C25A;          /* gold-leaf hairline / jewelry edge */
-  --emerald:#0C6049;            /* jewel fill — solid buttons/chips */
-  --emerald-mist:#DCEDE5;       /* quiet chip bg (deeper than old #E8F2EE so it reads) */
-  --gold:#C49A3C; --gold-leaf:#E8C25A;
-  --forest:#0A3D2E;             /* the one dark moment — gate/hero scrim/footer */
+  --emerald:#0A4D3C;            /* collapsed to the ONE green (was #0C6049) — buttons+chips+text all one green */
+  --emerald-mist:#DCEDE5;       /* quiet chip bg — the only light-green tint */
+  --gold:#E8C25A; --gold-leaf:#E8C25A;   /* clean champagne gold, jewelry only (no mustard/brown) */
+  --forest:#0A4D3C;             /* dark grounds use the one green; darken via gradient, not a 2nd token */
   --harbor:#1C5C82;             /* info / secondary jewel (AA 5.6) */
   --garnet:#A23B2E;             /* hot / urgent (AA 5.4) */
   --line-strong:rgba(10,77,60,.22);
 
   /* legacy status names → pop values */
-  --amber-sig:#9A5B12;          /* signal chips — warm bronze, AA on cream */
-  --emerald-glow:#0F6E56;       /* wins / done */
+  --amber-sig:#A23B2E;          /* distress/signal chips → garnet (brown dumped 2026-06-06) */
+  --emerald-glow:#0A4D3C;       /* wins/done use the one green */
   --rose-glow:#A23B2E;          /* danger → garnet */
   --sky-glow:#1C5C82;           /* info → harbor */
 
@@ -66,13 +66,13 @@
   --border:rgba(10,77,60,.14);
   --ink:#14201B;                /* emerald-black text */
   --muted:#5C6862;              /* muted (AA 5.2) */
-  --brand:#C49A3C;              /* gold — accent + chips, never raw text on cream */
-  --brand-fg:#14201B;           /* ink text on gold chips per [[feedback_contrast_rule]] */
+  --brand:#0A4D3C;              /* client brand = emerald (was gold #C49A3C); emerald leads, gold is jewelry only */
+  --brand-fg:#FAF8F4;           /* cream text on emerald brand buttons */
   --danger:#A23B2E;
-  --ok:#0F6E56;
+  --ok:#0A4D3C;
 
   background:
-    radial-gradient(900px 460px at 90% -10%,rgba(196,154,60,.06),transparent 60%),
+    radial-gradient(900px 460px at 90% -10%,rgba(232,194,90,.05),transparent 60%),
     #FAF8F4;
   color:#14201B;
   font-family:var(--sans);

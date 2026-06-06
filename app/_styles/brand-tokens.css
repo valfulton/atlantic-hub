@@ -195,7 +195,7 @@
      bronze anchor -> body -> champagne glint (#F5F4C0) -> body -> bronze. Use via
      .gold-leaf on DARK grounds (monogram, gate accent, hairline). On cream gold is
      a solid (--gold for fills/borders; --gold-deep for any gold text). */
-  --gold-leaf-grad: linear-gradient(110deg,#6E4F2E 0%,#A9842A 22%,#CFAF65 42%,#F5F4C0 50%,#E6CE7E 60%,#A9842A 80%,#6E4F2E 100%);
+  --gold-leaf-grad: linear-gradient(110deg,#8A6B1A 0%,#C9A227 22%,#E6CE7E 42%,#F5F4C0 50%,#E6CE7E 60%,#C9A227 80%,#8A6B1A 100%);
   --cream-pure: #F5EFE3;
   /* short alias so components can use var(--serif) */
   --serif: var(--font-serif);
@@ -212,20 +212,20 @@
 .app {
   --ground: #FAF8F4; --paper: #FFFFFF; --panel-warm: #FFFFFF;  /* crisp WHITE cards (val 2026-06-05: white IS ok; cream-on-cream not sexy); lift = white + shadow */
   --card-shadow: rgba(10,77,60,.40); --card-edge: #E8C25A;     /* emerald lift + gold-leaf jewelry edge (newsroom wires geometry) */
-  --forest: #0A3D2E; --forest-deep: #062A1F;
+  --forest: #0A4D3C; --forest-deep: #062A1F;   /* forest = the one green; -deep is only a darker gradient floor of the SAME hue */
   --ink: #14201B; --ink-soft: #3C4A43; --muted: #5C6862;
   --line: rgba(10,77,60,.14); --line-strong: rgba(10,77,60,.22);
 
-  --emerald-deep: #0A4D3C; --emerald: #0C6049; --emerald-bright: #16A37A;
-  --emerald-glow: #16A37A; --emerald-mist: #DCEDE5;
-  --gold: #CFAF65; --gold-deep: #7D5B3C; --gold-bright: #E6CE7E; --gold-leaf: #E6CE7E;  /* matched to the LOGO pixels: body #CFAF65, bronze #7D5B3C (text-on-light), highlight in the leaf grad */
+  --emerald-deep: #0A4D3C; --emerald: #0A4D3C; --emerald-bright: #0A4D3C;
+  --emerald-glow: #0A4D3C; --emerald-mist: #DCEDE5;   /* ONE green (#0A4D3C) + one tint; the #0C6049/#16A37A variants collapsed 2026-06-06 */
+  --gold: #E8C25A; --gold-deep: #C9A227; --gold-bright: #E6CE7E; --gold-leaf: #E8C25A;  /* clean champagne golds — jewelry on DARK only, never text on cream (brown #7D5B3C/#CFAF65 dumped 2026-06-06) */
   --harbor: #1C5C82; --garnet: #A23B2E;
 
   --ok: #0F6E56;     --ok-bg: rgba(15,110,86,.10);     --ok-line: rgba(15,110,86,.32);
-  --warn: #9A5B12;   --warn-bg: rgba(154,91,18,.10);   --warn-line: rgba(154,91,18,.32);
+  --warn: #A23B2E;   --warn-bg: rgba(162,59,46,.10);   --warn-line: rgba(162,59,46,.32);
   --danger: #A23B2E; --danger-bg: rgba(162,59,46,.10); --danger-line: rgba(162,59,46,.32);
   --info: #1C5C82;   --info-bg: rgba(28,92,130,.10);   --info-line: rgba(28,92,130,.32);
-  --signal: #9A5B12; --signal-bg: rgba(196,154,60,.14);--signal-line: rgba(196,154,60,.40);
+  --signal: #A23B2E; --signal-bg: rgba(162,59,46,.12); --signal-line: rgba(162,59,46,.38);
 
   --cream-pure: #F5EFE3; --obsidian: #0A0E18;
 

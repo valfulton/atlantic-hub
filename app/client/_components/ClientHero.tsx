@@ -230,7 +230,7 @@ export default function ClientHero({
               </span>
             )}
             {pipeline.warm > 0 && (
-              <span style={{ color: 'var(--warn, var(--amber-sig, #9A5B12))' }}>
+              <span style={{ color: 'var(--emerald-deep, #0A4D3C)' }}>
                 <span className="font-semibold">{pipeline.warm}</span> warm
               </span>
             )}

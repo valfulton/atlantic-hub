@@ -249,7 +249,7 @@
   --rg-cream:       #1A1A1A;             /* role: primary text → charcoal */
   --rg-cream-muted: #4A4A4A;             /* role: muted text → warm gray (AA) */
   --rg-amber:       #0A4D3C;             /* role: accent (h1 em, CTA, links, focus) → emerald-deep */
-  --rg-amber-deep:  #7D5B3C;             /* role: eyebrow → bronze jewelry (AA on cream) */
+  --rg-amber-deep:  #0A4D3C;             /* role: eyebrow → emerald (brown bronze dumped 2026-06-06) */
   --rg-rule:        rgba(10, 77, 60, 0.16);
   background:
     radial-gradient(820px 480px at 50% -14%, rgba(201, 169, 97, 0.10), transparent 60%),

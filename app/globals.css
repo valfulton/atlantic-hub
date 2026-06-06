@@ -299,3 +299,22 @@ input.bg-white::placeholder, textarea.bg-white::placeholder {
   color: #8A8A8A;
   -webkit-text-fill-color: #8A8A8A;
 }
+
+/* ─── DROP ALL-CAPS ON CLIENT SURFACES (val 2026-06-06) ───────────────────
+   Luxury editorial = sentence case. The client register had uppercase + wide
+   tracking on eyebrows / chips / kickers / labels (class-based AND inline).
+   This kills text-transform across the client subtree (the !important beats
+   inline `textTransform:'uppercase'`) and de-spaces the former micro-labels.
+   Scoped to the client register only — operator chrome keeps its uppercase. */
+[data-skin="social"] *,
+.app * {
+  text-transform: none !important;
+}
+[data-skin="social"] [class*="eyebrow"], [data-skin="social"] [class*="kick"],
+[data-skin="social"] [class*="chip"], [data-skin="social"] [class*="label"],
+[data-skin="social"] .eb, [data-skin="social"] .ct,
+[data-skin="social"] [style*="letter-spacing"],
+.app [class*="eyebrow"], .app [class*="kick"], .app [class*="chip"],
+.app [class*="label"], .app .eb, .app .ct, .app [style*="letter-spacing"] {
+  letter-spacing: normal !important;
+}

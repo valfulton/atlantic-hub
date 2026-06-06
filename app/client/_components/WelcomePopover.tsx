@@ -152,7 +152,7 @@ export default function WelcomePopover({
           width: '100%',
           borderRadius: 24,
           border: '1px solid color-mix(in srgb, var(--emerald-deep, #0A4D3C) 14%, transparent)',
-          borderTop: '2px solid color-mix(in srgb, var(--gold-deep, #7D5B3C) 55%, transparent)',
+          borderTop: '2px solid color-mix(in srgb, var(--gold-leaf, #E8C25A) 50%, transparent)',
           background: 'var(--paper, #ffffff)',
           padding: '28px 28px 22px',
           boxShadow: '0 30px 60px -20px color-mix(in srgb, var(--emerald-deep, #0A4D3C) 32%, transparent)',
@@ -164,7 +164,7 @@ export default function WelcomePopover({
             fontSize: 10,
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
-            color: 'var(--gold-deep, #7D5B3C)',
+            color: 'var(--emerald-deep, #0A4D3C)',
             marginBottom: 8
           }}
         >
