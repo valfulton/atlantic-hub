@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { accent } from '@/lib/copy/accent';
+import ClientHero from '@/app/client/_components/ClientHero';
 
 export interface BrandChip {
   id: number;
@@ -101,6 +102,19 @@ export interface AdrianaDashboardProps {
   brands: BrandChip[];
   /** AV employees on this account — render as "Your A&V team" widget when present. */
   team: TeamMember[];
+  /** (val 2026-06-06, SPEC) Outcome-hero payload — value first, jargon never.
+   *  Pipeline = leads in play bucketed by band. potentialUsd = leadsInPlay ×
+   *  avgDealValue (whole USD, null when no deal model on file). thisWeek =
+   *  trailing 7d retention-hook counts; the hero hides any clause whose count
+   *  is 0 (don't write "and 0 posts"). */
+  pipeline: { total: number; hot: number; warm: number; cool: number };
+  potentialUsd: number | null;
+  thisWeek: {
+    leadsAdded: number;
+    postsAwaitingApproval: number;
+    pressMatches: number;
+    callsLogged: number;
+  };
   hero: FeaturedSignal | null;
   watchlist: {
     activeCountLabel: string; // "CBB · 12 active"
@@ -157,6 +171,32 @@ function CardMeta({ contact }: { contact?: SignalCard['contact'] }) {
   );
 }
 
+/** Real tap-to-call href from a card's contact, or null. */
+function telFromContact(c?: SignalCard['contact']): string | null {
+  const phone = c?.phone;
+  if (!phone) return null;
+  const cleaned = phone.replace(/[^\d+]/g, '');
+  return cleaned.replace(/\D/g, '').length >= 7 ? `tel:${cleaned}` : null;
+}
+/** Prefilled mailto from a card — a ready first email in one tap. */
+function mailtoFromCard(card: SignalCard): string | null {
+  const email = card.contact?.email;
+  if (!email) return null;
+  const subject = `Quick idea for ${card.entityName || 'your team'}`;
+  const pain = (card.oneLiner || '').trim();
+  const body = [
+    'Hi there,',
+    '',
+    `I came across ${card.entityName || 'your business'} and wanted to reach out.`,
+    ...(pain ? ['', pain] : []),
+    '',
+    'Would you be open to a short call this week?',
+    '',
+    'Best,'
+  ].join('\n');
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function Card({ card }: { card: SignalCard }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -181,21 +221,23 @@ function Card({ card }: { card: SignalCard }) {
           <b title={card.entityName}>{card.entityName}</b>
           <span className={`chip${card.chip.kind === 'fit' ? ' fit' : ''}`}>{card.chip.label}</span>
         </div>
-        <button type="button" className="more" aria-label="More actions">⋯</button>
       </div>
       <p className="ln">{card.oneLiner}</p>
       <Trail nodes={card.trail} />
       <CardMeta contact={card.contact} />
       <div className="foot">
-        <button
-          type="button"
-          className="pcta"
-          onClick={activate}
-          disabled={pending}
-        >
-          {pending ? 'Opening…' : card.primaryAction.label}
-        </button>
-        <button type="button" className="scnd" aria-label="More">⋯</button>
+        {telFromContact(card.contact) ? (
+          <a className="pcta" href={telFromContact(card.contact)!}>📞 Call</a>
+        ) : mailtoFromCard(card) ? (
+          <a className="pcta" href={mailtoFromCard(card)!}>✉ Email</a>
+        ) : (
+          <button type="button" className="pcta" onClick={activate} disabled={pending}>
+            {pending ? 'Opening…' : card.primaryAction.label}
+          </button>
+        )}
+        {card.primaryAction.href && (
+          <button type="button" className="scnd" onClick={activate} aria-label="Open lead">→</button>
+        )}
       </div>
     </article>
   );
@@ -314,6 +356,13 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             <span className="lbl">Add brand</span>
           </Link>
         </div>
+
+        {/* (val 2026-06-06, SPEC_Dashboard_Outcome_Hero) Outcome hero — value
+            first, then the hot signal. Reads "Your pipeline · N leads in play
+            · ~$X potential" in emerald (never engine vocabulary), with the
+            this-week recap as the retention hook. Empty state when nothing
+            has landed yet ("Your pipeline is taking shape"). */}
+        <ClientHero pipeline={p.pipeline} potentialUsd={p.potentialUsd} thisWeek={p.thisWeek} />
 
         {/* Featured Signal hero */}
         {p.hero && (

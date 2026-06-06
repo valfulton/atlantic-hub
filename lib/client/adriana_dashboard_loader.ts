@@ -13,6 +13,7 @@ import { listClientLeads, type ClientLead } from '@/lib/client/leads';
 import { listEmployeesForClient } from '@/lib/client/employees_on_account';
 import { getAvDb } from '@/lib/db/av';
 import { getCopyMap } from '@/lib/copy/store';
+import { getClientDealModel, leadMonthlyCents } from '@/lib/sales/deal_model';
 import type { RowDataPacket } from 'mysql2';
 import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember } from '@/app/client/dashboard/AdrianaDashboard';
 
@@ -136,6 +137,95 @@ function leadToCard(l: ClientLead): SignalCard {
   };
 }
 
+/** (val 2026-06-06, SPEC §1) "This week" counts scoped to the active brand
+ *  over the trailing 7 days. Every query soft-fails to 0 so a missing table
+ *  never breaks the dashboard. The hero hides any clause whose count is 0.
+ *  Order — leads first (the headline), then approval queue, press, calls. */
+async function loadThisWeekCounts(clientId: number): Promise<{
+  leadsAdded: number;
+  postsAwaitingApproval: number;
+  pressMatches: number;
+  callsLogged: number;
+}> {
+  const pool = getAvDb();
+  type Cnt = RowDataPacket & { n: number };
+  const day7 = `DATE_SUB(NOW(), INTERVAL 7 DAY)`;
+  const safe = async (sql: string, params: unknown[]): Promise<number> => {
+    try {
+      const [rows] = await pool.execute<Cnt[]>(sql, params);
+      return Number(rows[0]?.n ?? 0);
+    } catch {
+      return 0;
+    }
+  };
+  const [leadsAdded, postsAwaitingApproval, pressMatches, callsLogged] = await Promise.all([
+    safe(
+      `SELECT COUNT(*) AS n FROM leads
+        WHERE client_id = ? AND archived_at IS NULL AND created_at >= ${day7}`,
+      [clientId]
+    ),
+    // Social outbox queued and awaiting client approval. Real table is
+    // social_outbox; client_approval IS NULL = pending; client_approval = false
+    // = rejected; true = approved. Pending = "needs your attention" recap clause.
+    safe(
+      `SELECT COUNT(*) AS n FROM social_outbox
+        WHERE client_id = ? AND client_approval IS NULL`,
+      [clientId]
+    ),
+    safe(
+      `SELECT COUNT(*) AS n FROM pr_opportunities
+        WHERE client_id = ? AND created_at >= ${day7}`,
+      [clientId]
+    ),
+    safe(
+      `SELECT COUNT(*) AS n FROM call_log
+        WHERE client_id = ? AND created_at >= ${day7}`,
+      [clientId]
+    )
+  ]);
+  return { leadsAdded, postsAwaitingApproval, pressMatches, callsLogged };
+}
+
+/** (val 2026-06-06, SPEC §1) Sum the monthly forecast across the client's
+ *  open pipeline using their real deal model (`per_head` or `flat`, stored on
+ *  the clients row). Returns USD whole dollars, or null when the client has
+ *  no deal_model set — the hero treats null as "hide the $ line." Never
+ *  fabricates a number; this is a real forecast or nothing. */
+async function computePipelinePotentialUsd(clientId: number): Promise<number | null> {
+  try {
+    const model = await getClientDealModel(clientId);
+    if (!model) return null;
+    const db = getAvDb();
+    type Row = RowDataPacket & {
+      deal_unit_count: number | null;
+      deal_flat_cents: number | null;
+    };
+    const [rows] = await db.execute<Row[]>(
+      `SELECT deal_unit_count, deal_flat_cents FROM leads
+        WHERE client_id = ?
+          AND archived_at IS NULL
+          AND lead_status IN ('new','qualifying','audited','enriched','contacted','engaged','proposal')`,
+      [clientId]
+    );
+    let totalCents = 0;
+    let anyValued = false;
+    for (const r of rows) {
+      const cents = leadMonthlyCents(model, {
+        dealUnitCount: r.deal_unit_count == null ? null : Number(r.deal_unit_count),
+        dealFlatCents: r.deal_flat_cents == null ? null : Number(r.deal_flat_cents)
+      });
+      if (cents != null) {
+        totalCents += cents;
+        anyValued = true;
+      }
+    }
+    if (!anyValued) return null;
+    return Math.round(totalCents / 100);
+  } catch {
+    return null;
+  }
+}
+
 /** Count of active narrative lines for the client (for the "12 active" chip).
  *  Returns 0 on schema mismatch — degrades silently. */
 async function countActiveCampaigns(clientId: number): Promise<number> {
@@ -244,13 +334,33 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   const watchlistCards = watchlistRows.slice(0, 4).map(watchlistRowToCard);
 
   // Fresh leads — top 4 most-recent leads in the user's pipeline.
+  // Also feeds the outcome hero (pipeline buckets + potential $).
   let leadCards: SignalCard[] = [];
+  let allLeads: ClientLead[] = [];
   try {
-    const leads = await listClientLeads({ client_id: activeClientId });
-    leadCards = leads.slice(0, 4).map(leadToCard);
+    allLeads = await listClientLeads({ client_id: activeClientId });
+    leadCards = allLeads.slice(0, 4).map(leadToCard);
   } catch {
     leadCards = [];
+    allLeads = [];
   }
+
+  // (SPEC §1) Pipeline bucket counts + potential $. "Open" = not lost/won/dead.
+  const OPEN_STATUSES = new Set<string>(['new', 'qualifying', 'audited', 'enriched', 'contacted', 'engaged', 'proposal']);
+  const openLeads = allLeads.filter((l) => OPEN_STATUSES.has(l.leadStatus));
+  const pipeline = {
+    total: openLeads.length,
+    hot: openLeads.filter((l) => l.band === 'hot').length,
+    warm: openLeads.filter((l) => l.band === 'warm').length,
+    cool: openLeads.filter((l) => l.band === 'cool').length
+  };
+  let potentialUsd: number | null = null;
+  if (activeClientId && pipeline.total > 0) {
+    potentialUsd = await computePipelinePotentialUsd(activeClientId);
+  }
+  const thisWeek = activeClientId
+    ? await loadThisWeekCounts(activeClientId)
+    : { leadsAdded: 0, postsAwaitingApproval: 0, pressMatches: 0, callsLogged: 0 };
 
   const newCount = watchlistRows.filter((r) => {
     const ageHours = (Date.now() - r.firstSeenAt.getTime()) / 3600000;
@@ -285,6 +395,11 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     copy,
     brands,
     team,
+    // (SPEC §1) Outcome-hero payload — pipeline buckets, forecast potential,
+    // and the "this week" recap counts. Hero hides zero clauses.
+    pipeline,
+    potentialUsd,
+    thisWeek,
     hero,
     watchlist: {
       activeCountLabel,
