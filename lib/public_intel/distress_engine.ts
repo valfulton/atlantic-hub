@@ -86,11 +86,15 @@ export const SIGNAL_LIBRARY: Record<SignalKind, { label: string; description: st
 };
 
 /**
- * The advisor's seven seeded weights for CBB (Central Business Bureau).
- * Applied on first run for the CBB client_id. Other clients start with
- * defaultWeight from SIGNAL_LIBRARY and val tunes from there.
+ * The advisor's seven seeded weights for the COLLECTIONS vertical (CBB's
+ * shape). Used by the collections vertical pack — NEVER apply as a global
+ * default for non-collections clients (e.g. real estate, recruiting). Other
+ * verticals use their own pack.signalWeights from lib/public_intel/vertical_packs.
+ *
+ * (val 2026-06-06) Renamed from CBB_DEFAULT_WEIGHTS to flag the vertical
+ * scoping. Old name kept as legacy alias for backwards compat only.
  */
-export const CBB_DEFAULT_WEIGHTS: Partial<Record<SignalKind, number>> = {
+export const COLLECTIONS_VERTICAL_WEIGHTS: Partial<Record<SignalKind, number>> = {
   new_llc: 10,
   ucc_filing: 20,
   negative_review_trend: 15,
@@ -99,6 +103,10 @@ export const CBB_DEFAULT_WEIGHTS: Partial<Record<SignalKind, number>> = {
   credit_risk_increase: 40,
   leadership_change: 15
 };
+
+/** @deprecated Use COLLECTIONS_VERTICAL_WEIGHTS or the vertical pack's
+ *  signalWeights instead. Kept only to avoid breaking older imports. */
+export const CBB_DEFAULT_WEIGHTS = COLLECTIONS_VERTICAL_WEIGHTS;
 
 export interface ClassifiedSignal {
   signalKind: SignalKind;

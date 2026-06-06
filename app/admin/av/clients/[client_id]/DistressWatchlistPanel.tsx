@@ -5,7 +5,7 @@
  *
  * The Revenue Distress Intelligence Engine surface. Top-N entities by
  * weighted distress score for THIS client. Operator clicks "Rescore" to
- * recompute over the lookback window; "Seed CBB defaults" applies the
+ * recompute over the lookback window; "Seed defaults" applies the
  * advisor's 7 weights if no weights are configured yet.
  *
  * The framing this lives under: Atlantic Hub doesn't sell leads, it sells
@@ -128,6 +128,9 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
   const [moveBusy, setMoveBusy] = useState<Record<string, boolean>>({});
   // (val 2026-06-06) Inline delete — kills the "paste cleanup SQL" loop.
   const [deleteBusy, setDeleteBusy] = useState<Record<string, boolean>>({});
+  // (val 2026-06-06) Which row is expanded to show full details. One open at
+  // a time keeps the list short; tap the same row to collapse.
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   // (#385) API path base derived from mode. Operator surface = scoped under
   // /admin/av/clients/[id]; client surface = unscoped /client/* (server reads
@@ -508,7 +511,7 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                   className="rounded-lg border border-border bg-black/30 hover:bg-white/5 text-ink text-[12px] px-3 py-1.5 disabled:opacity-50"
                   title="Apply the advisor's 7 default weights for collections / legal services clients. Idempotent — won't overwrite existing weights."
                 >
-                  Seed CBB defaults + rescore
+                  Seed defaults + rescore
                 </button>
               </>
             )}
@@ -627,9 +630,23 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                       <span className={`sm:hidden ml-auto text-sm font-medium tabular-nums ${scoreColor(row.score)}`}>{row.score}</span>
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[12.5px] text-ink break-words sm:truncate">
-                        {row.entityLabel ?? row.entityKey}
-                      </div>
+                      {/* (val 2026-06-06) Entity name is now tappable to expand
+                          the row details — "i need to see the information on
+                          the cards in the watchlist". One row open at a time. */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedRow((cur) => (cur === row.entityKey ? null : row.entityKey))}
+                        className="text-left w-full hover:text-[var(--gold-bright)] transition-colors group"
+                        aria-expanded={expandedRow === row.entityKey}
+                        title="Tap to see the contributing signals + full details"
+                      >
+                        <div className="text-[12.5px] text-ink break-words sm:truncate group-hover:text-[var(--gold-bright)]">
+                          <span aria-hidden className="inline-block w-3 text-muted/70 mr-1 tabular-nums">
+                            {expandedRow === row.entityKey ? '▾' : '▸'}
+                          </span>
+                          {row.entityLabel ?? row.entityKey}
+                        </div>
+                      </button>
                       <div className="text-[11px] text-muted flex flex-wrap gap-1.5 mt-0.5">
                         {row.regionCode && (
                           <span className="rounded bg-bg/60 border border-border px-1 py-0.5">{row.regionCode}</span>
