@@ -55,7 +55,7 @@ export async function loadDashboardV3(args: DashboardV3LoaderArgs): Promise<Clie
         hero = {
           label: "This week's strongest signal",
           title: v.headline,
-          body: `${top.entityLabel || 'A flagged entity'} surfaced on your watchlist with a score of ${top.score}. The cascade engine traced it through public records — open the signal to see who they are and how to reach out.`,
+          body: `${top.entityLabel || 'A new prospect'} came up as worth watching this week — open it to see who they are and how to reach out.`,
           ctaLabel: 'Open the signal',
           ctaHref: '/client/watchlist',
           trail: v.trail

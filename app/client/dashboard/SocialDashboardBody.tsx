@@ -111,7 +111,7 @@ export default function SocialDashboardBody({ firstName, brands, activeBrandId, 
           <SectionHead
             kicker="Your watchlist"
             title="This week, sorted by who needs you most"
-            dek={`${cards.length + (featured ? 1 : 0)} entities · scored from public records`}
+            dek={`${cards.length + (featured ? 1 : 0)} prospects we're watching for you`}
             tone="sea"
           >
             <button

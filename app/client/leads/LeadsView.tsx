@@ -143,7 +143,7 @@ function LeadCard({ lead }: { lead: ClientLead }) {
         {telOf(lead) ? (
           <a className="pcta" href={telOf(lead)!}>📞 Call</a>
         ) : mailtoOf(lead) ? (
-          <a className="pcta" href={mailtoOf(lead)!}>✉ Email</a>
+          <a className="pcta" href={mailtoOf(lead)!}>✉️ Email</a>
         ) : (
           <button type="button" className="pcta" onClick={open} disabled={pending}>
             {pending ? 'Opening…' : '✚ Add to pipeline'}

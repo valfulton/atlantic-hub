@@ -144,8 +144,8 @@ export default function ClientWatchlistV3(p: ClientWatchlistV3Props) {
   if (rows === null) {
     return (
       <div className="v3-card">
-        <h3 className="v3-card__h">Pulling today&apos;s signals…</h3>
-        <p className="v3-card__p">One moment — we&apos;re reading the public records the engine watches for you.</p>
+        <h3 className="v3-card__h">Pulling today&apos;s opportunities…</h3>
+        <p className="v3-card__p">One moment — we&apos;re gathering what we&apos;re watching for you.</p>
       </div>
     );
   }

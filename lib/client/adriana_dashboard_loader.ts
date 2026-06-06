@@ -477,10 +477,14 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     const ageHours = (Date.now() - r.firstSeenAt.getTime()) / 3600000;
     return ageHours <= 36;
   }).length;
+  // (val 2026-06-06, UX/UI 13:12) Greeting subhead — never "quiet" when the
+  // pipeline is busy. Priority: new-this-week > steady pipeline > truly empty.
   const subhead =
     newCount > 0
-      ? `${newCount} new ${newCount === 1 ? 'signal' : 'signals'} on your watchlist since yesterday. Here’s what’s worth a move.`
-      : 'Quiet on the wire. New signals will appear here as they’re scored.';
+      ? `${newCount} new ${newCount === 1 ? 'prospect' : 'prospects'} worth watching since yesterday. Here’s what’s worth a move.`
+      : pipeline.total > 0
+      ? 'Your pipeline is steady. Keep working the ones in play below.'
+      : 'We’re scanning for your next opportunities — the strongest ones will appear here as we spot them.';
 
   // (#406) Short_name wins, else computed initials. The label still gets a
   // period for visual symmetry with "Atlantic & Vine." across the chrome.

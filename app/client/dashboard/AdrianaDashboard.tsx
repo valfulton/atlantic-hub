@@ -232,7 +232,7 @@ function Card({ card }: { card: SignalCard }) {
         {telFromContact(card.contact) ? (
           <a className="pcta" href={telFromContact(card.contact)!}>📞 Call</a>
         ) : mailtoFromCard(card) ? (
-          <a className="pcta" href={mailtoFromCard(card)!}>✉ Email</a>
+          <a className="pcta" href={mailtoFromCard(card)!}>✉️ Email</a>
         ) : (
           <button type="button" className="pcta" onClick={activate} disabled={pending}>
             {pending ? 'Opening…' : card.primaryAction.label}
@@ -396,8 +396,8 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
         </div>
         {p.watchlist.cards.length === 0 ? (
           <div className="app-wire">
-            <span className="eb">— Quiet on the wire —</span>
-            <p>{p.copy?.['dashboard.empty'] ?? 'No entries yet. As your public-records sources fire, the strongest signals will land here.'}</p>
+            <span className="eb">— On watch for you —</span>
+            <p>{p.copy?.['dashboard.empty'] ?? 'Nothing flagged yet. The strongest opportunities we spot will land here first.'}</p>
           </div>
         ) : (
           <div className="app-cards">
@@ -414,7 +414,7 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
         {p.freshLeads.cards.length === 0 ? (
           <div className="app-wire">
             <span className="eb">— On the hunt —</span>
-            <p>Your enrichment queue is quiet right now. New leads will surface here as they're scored.</p>
+            <p>We're lining up your next leads — fresh matches will appear here as we find them.</p>
           </div>
         ) : (
           <div className="app-cards">
