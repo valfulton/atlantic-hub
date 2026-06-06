@@ -54,46 +54,49 @@ interface ConfigPreset {
 }
 const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPreset[] }> = {
   hmda: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
-      { label: 'FL state · 2024', config: { states: ['FL'], year: 2024 } },
-      { label: 'FL + CA · 2024', config: { states: ['FL', 'CA'], year: 2024 } },
-      { label: 'Palm Beach county only', config: { countyFips: ['12099'], year: 2024 } }
+      { label: 'Florida mortgage apps + denials — 2024', config: { states: ['FL'], year: 2024 } },
+      { label: 'Florida + California mortgage apps + denials — 2024', config: { states: ['FL', 'CA'], year: 2024 } },
+      { label: 'Palm Beach County mortgage apps + denials — 2024', config: { countyFips: ['12099'], year: 2024 } }
     ]
   },
   ca_sos: {
-    placeholder: 'click a preset →',
+    // (val 2026-06-06) CA SOS bizfileOnline is a LOOKUP, not a sweep — the
+    // API can't return "all suspended CA businesses." So presets are honest:
+    // type a name in, get that entity's status out. Used mostly by cascades
+    // (downstream of UCC/CourtListener triggers) to enrich a known name.
+    placeholder: 'click a preset → then replace BUSINESS NAME with the real name',
     presets: [
-      { label: 'Search "Candelaria"', config: { query: 'Candelaria' } },
-      { label: 'Search "Acme"', config: { query: 'Acme' } },
-      { label: 'Active entities only', config: { query: 'Candelaria', includeInactive: false } },
-      { label: 'Specific entity number', config: { entityNumbers: ['C1234567'] } }
+      { label: 'Look up one business by name', config: { query: 'BUSINESS NAME HERE' } },
+      { label: 'Look up by CA entity number (C1234567)', config: { entityNumbers: ['C1234567'] } },
+      { label: 'Auto-run from cascades (recommended)', config: { mode: 'cascade_only' } }
     ]
   },
   cfpb: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
-      { label: 'FL · all products · 90d', config: { states: ['FL'], sinceDays: 90 } },
-      { label: 'FL + CA · Mortgage · 90d', config: { states: ['FL', 'CA'], products: ['Mortgage'], sinceDays: 90 } },
-      { label: 'CA · Debt collection · 180d', config: { states: ['CA'], products: ['Debt collection'], sinceDays: 180 } }
+      { label: 'Florida consumer complaints — all products, last 90d', config: { states: ['FL'], sinceDays: 90 } },
+      { label: 'FL + CA mortgage complaints — last 90d', config: { states: ['FL', 'CA'], products: ['Mortgage'], sinceDays: 90 } },
+      { label: 'CA debt-collection complaints — last 180d', config: { states: ['CA'], products: ['Debt collection'], sinceDays: 180 } }
     ]
   },
   census_acs: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
-      { label: 'Palm Beach FL (pairs with HMDA)', config: { countyFips: ['12099'] } },
-      { label: 'LA County CA', config: { countyFips: ['06037'] } },
-      { label: 'FL state-level', config: { stateFips: ['12'] } },
-      { label: 'CA state-level', config: { stateFips: ['06'] } }
+      { label: 'Palm Beach County income + housing context (pairs with HMDA)', config: { countyFips: ['12099'] } },
+      { label: 'LA County income + housing context', config: { countyFips: ['06037'] } },
+      { label: 'Florida statewide demographics', config: { stateFips: ['12'] } },
+      { label: 'California statewide demographics', config: { stateFips: ['06'] } }
     ]
   },
   courtlistener: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
-      { label: 'CA · last 14d (CBB starter)', config: { states: ['CA'], sinceDays: 14 } },
-      { label: 'CA + FL · last 14d', config: { states: ['CA', 'FL'], sinceDays: 14 } },
-      { label: 'CA · Bankruptcy only · 30d', config: { states: ['CA'], natureOfSuit: ['Bankruptcy'], sinceDays: 30 } },
-      { label: 'CA · Contract / debt · 14d', config: { states: ['CA'], natureOfSuit: ['Contract: Other'], sinceDays: 14 } }
+      { label: 'New CA federal court filings — last 14d (Collections starter)', config: { states: ['CA'], sinceDays: 14 } },
+      { label: 'New CA + FL federal filings — last 14d', config: { states: ['CA', 'FL'], sinceDays: 14 } },
+      { label: 'New CA federal bankruptcies — last 30d', config: { states: ['CA'], natureOfSuit: ['Bankruptcy'], sinceDays: 30 } },
+      { label: 'New CA contract / debt suits — last 14d', config: { states: ['CA'], natureOfSuit: ['Contract: Other'], sinceDays: 14 } }
     ]
   },
   ucc_ca: {
@@ -108,58 +111,58 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
     ]
   },
   pacer_docket: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
-      { label: 'CA bankruptcies · last 30d', config: { states: ['CA'], sinceDays: 30 } },
-      { label: 'CA + FL bankruptcies · 30d', config: { states: ['CA', 'FL'], sinceDays: 30 } },
-      { label: 'Specific docket IDs', config: { docketIds: [123456] } }
+      { label: 'New CA bankruptcy dockets + creditors — last 30d', config: { states: ['CA'], sinceDays: 30 } },
+      { label: 'New CA + FL bankruptcy dockets — last 30d', config: { states: ['CA', 'FL'], sinceDays: 30 } },
+      { label: 'Pull specific dockets by ID', config: { docketIds: [123456] } }
     ]
   },
   gbp: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
-      { label: 'Empty (paste your place IDs)', config: { placeIds: [] } },
-      { label: 'Seed from a search', config: { seedQuery: 'collections agency Los Angeles' } }
+      { label: 'Track your own list of places (paste IDs)', config: { placeIds: [] } },
+      { label: 'Auto-find places to track from a search', config: { seedQuery: 'collections agency Los Angeles' } }
     ]
   },
   datasf: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
-      { label: 'SF building complaints · last 30d', config: { dataset: 'building_complaints', sinceDays: 30, maxRecords: 100 } },
-      { label: 'SF Notices of Violation · last 30d', config: { dataset: 'code_violations', sinceDays: 30, maxRecords: 100 } },
-      { label: 'SF 311 cases · last 14d', config: { dataset: '311_cases', sinceDays: 14, maxRecords: 100 } },
-      { label: 'Mission district · last 60d', config: { dataset: 'building_complaints', sinceDays: 60, neighborhood: 'Mission', maxRecords: 100 } }
+      { label: 'SF properties with new building complaints — last 30d', config: { dataset: 'building_complaints', sinceDays: 30, maxRecords: 100 } },
+      { label: 'SF properties with new code violations — last 30d', config: { dataset: 'code_violations', sinceDays: 30, maxRecords: 100 } },
+      { label: 'SF 311 service cases — last 14d', config: { dataset: '311_cases', sinceDays: 14, maxRecords: 100 } },
+      { label: 'Mission-district building complaints — last 60d', config: { dataset: 'building_complaints', sinceDays: 60, neighborhood: 'Mission', maxRecords: 100 } }
     ]
   },
   // (#423) Maryland Land Records — statewide. Presets pick the highest-distress-
   // volume jurisdictions and the distress-specific document types. Each preset
   // also sets a sensible sinceDays so the first run has real catch-up depth.
   md_land_rec: {
-    placeholder: 'click a preset →',
+    placeholder: 'Pick a preset above to fill this in →',
     presets: [
       {
-        label: 'Big 4 counties · all distress · 60d',
+        label: 'Top-4 MD counties — all distress filings, last 60d',
         config: {
           counties: ['Montgomery', 'Prince George\'s', 'Baltimore County', 'Baltimore City'],
           sinceDays: 60
         }
       },
       {
-        label: 'Baltimore metro · 30d',
+        label: 'Baltimore metro distress filings — last 30d',
         config: {
           counties: ['Baltimore City', 'Baltimore County'],
           sinceDays: 30
         }
       },
       {
-        label: 'DC suburbs (MoCo + PG) · 30d',
+        label: 'MoCo + PG (DC suburbs) distress filings — last 30d',
         config: {
           counties: ['Montgomery', 'Prince George\'s'],
           sinceDays: 30
         }
       },
       {
-        label: 'Foreclosure notices only · big 4 · 30d',
+        label: 'Top-4 counties — foreclosure filings only, last 30d',
         config: {
           counties: ['Montgomery', 'Prince George\'s', 'Baltimore County', 'Baltimore City'],
           docTypes: ['Notice of Sale', 'Lis Pendens', 'Substitute Trustee', 'Trustee Deed'],
@@ -167,7 +170,7 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
         }
       },
       {
-        label: 'Full statewide · foreclosure docs only · 30d',
+        label: 'Statewide MD foreclosure filings — last 30d',
         config: {
           counties: [
             'Allegany', 'Anne Arundel', 'Baltimore City', 'Baltimore County', 'Calvert',
@@ -180,7 +183,7 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
         }
       },
       {
-        label: 'Tax sale focus · big 4 · 90d',
+        label: 'Top-4 counties — tax-sale filings, last 90d',
         config: {
           counties: ['Montgomery', 'Prince George\'s', 'Baltimore County', 'Baltimore City'],
           docTypes: ['Tax Sale Certificate', 'Tax Sale Deed'],
@@ -188,7 +191,7 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
         }
       },
       {
-        label: 'Annapolis / Anne Arundel · all distress · 60d',
+        label: 'Anne Arundel — all distress, last 60d',
         config: {
           counties: ['Anne Arundel'],
           sinceDays: 60
@@ -200,7 +203,7 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
         // Severn / South River corridors. Post-filter at the adapter level
         // once that flag is wired; for now the operator gets a labelled
         // search hint via `legalDescriptionContains`.
-        label: 'Waterfront Anne Arundel · distress · 60d',
+        label: 'Waterfront Anne Arundel — distress filings, last 60d',
         config: {
           counties: ['Anne Arundel'],
           sinceDays: 60,
@@ -306,6 +309,41 @@ const SMOKE_STATUS_COPY: Record<SmokeResult['status'], { label: string; cls: str
   not_available:   { label: 'Not built yet',  cls: 'text-muted border-border bg-bg/30' }
 };
 
+// (val 2026-06-06) Vertical packs the operator can activate one-tap. Mirrors
+// lib/public_intel/vertical_packs.ts. Kept in sync by hand for now since this
+// is presentation only; the endpoint validates the packId server-side.
+const STARTER_PACKS: { id: string; label: string }[] = [
+  { id: 'collections',          label: 'Collections agencies + legal referrals' },
+  { id: 'real_estate',          label: 'Real estate (distress + recovery)' },
+  { id: 'b2b_sales',            label: 'B2B sales (payroll · merchant · ADP-style)' },
+  { id: 'commercial_insurance', label: 'Commercial insurance brokers' },
+  { id: 'commercial_lending',   label: 'Commercial lending (banks · equipment finance)' },
+  { id: 'law_firm',             label: 'Law firm (collections · bankruptcy · employment)' },
+  { id: 'recruiting',           label: 'Recruiting + executive search' },
+  { id: 'marketing_agency',     label: 'Marketing agency (AV\'s own register)' },
+  { id: 'luxury_hospitality',   label: 'Luxury hospitality (yacht · marina · estate events)' }
+];
+
+interface AdapterRunReport {
+  kind: string;
+  displayName: string;
+  status: 'ran' | 'skipped_lookup' | 'skipped_unavailable' | 'errored';
+  detail: string;
+  written?: number;
+  fromCache?: number;
+}
+
+interface ActivatePackResult {
+  ok: boolean;
+  packId: string;
+  packName?: string;
+  weightsSeeded?: number;
+  adapterReports?: AdapterRunReport[];
+  rescored?: { entitiesScored: number; recordsScanned: number } | null;
+  elapsedMs?: number;
+  error?: string;
+}
+
 export default function PublicIntelPanel({ clientId, clientName }: { clientId: number; clientName: string }) {
   const [open, setOpen] = useState(false);
   const [adapters, setAdapters] = useState<AdapterEntry[] | null>(null);
@@ -315,6 +353,10 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
   const [error, setError] = useState<string | null>(null);
   const [smokeBusy, setSmokeBusy] = useState(false);
   const [smokeReport, setSmokeReport] = useState<SmokeReport | null>(null);
+  // (val 2026-06-06) Starter-pack one-tap activation state.
+  const [packPick, setPackPick] = useState<string>('collections');
+  const [packBusy, setPackBusy] = useState(false);
+  const [packResult, setPackResult] = useState<ActivatePackResult | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -430,6 +472,40 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
     }
   }
 
+  // (val 2026-06-06) One-tap "activate the starter pack for this client's
+  // vertical." Seeds signal weights, enables + auto-configs + runs each
+  // recommended adapter, then triggers a distress rescore. Replaces the
+  // "scroll past 10 adapter cards, type JSON into each" first-run loop.
+  async function activatePack() {
+    if (!packPick || packBusy) return;
+    setPackBusy(true);
+    setPackResult(null);
+    setError(null);
+    try {
+      const r = await fetch(
+        `/api/admin/av/clients/${clientId}/intelligence/activate-pack`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ packId: packPick })
+        }
+      );
+      const j: ActivatePackResult = await r.json();
+      if (!r.ok || !j.ok) {
+        setError(j.error || 'Pack activation failed.');
+        setPackResult(j);
+        return;
+      }
+      setPackResult(j);
+      // Refresh the panel so newly-enabled adapters reflect their new state.
+      await load();
+    } catch {
+      setError('Pack activation failed.');
+    } finally {
+      setPackBusy(false);
+    }
+  }
+
   async function loadRecords(kind: string) {
     try {
       const r = await fetch(
@@ -495,6 +571,93 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
             >
               {smokeBusy ? 'Testing…' : '⚙ Test all adapters'}
             </button>
+          </div>
+
+          {/* (val 2026-06-06) 🚀 Starter pack — the confident default. One tap
+              picks the right adapters for this client's vertical, runs them,
+              rescores. Replaces "scroll past 10 cards and type JSON." */}
+          <div className="mb-4 rounded-xl border border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_6%,transparent)] p-3.5">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+              <div className="min-w-0">
+                <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--gold-bright)]">Starter pack</div>
+                <div className="text-[11.5px] text-ink/80 leading-snug mt-0.5">
+                  One tap: enable the right adapters for this vertical, run them, rescore the watchlist.
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-stretch gap-2">
+              <select
+                value={packPick}
+                onChange={(e) => setPackPick(e.target.value)}
+                disabled={packBusy}
+                className="flex-1 min-w-[180px] rounded-md border border-border bg-bg/40 text-ink text-[12px] px-2.5 py-1.5 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)]"
+                aria-label="Vertical pack to activate"
+              >
+                {STARTER_PACKS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={activatePack}
+                disabled={packBusy}
+                className={
+                  'shrink-0 rounded-md border text-[12px] font-medium px-3 py-1.5 transition-colors ' +
+                  (packBusy
+                    ? 'border-border bg-bg/40 text-muted cursor-wait'
+                    : 'border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_18%,transparent)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_28%,transparent)] text-[var(--gold-bright)]')
+                }
+                title="Apply the pack's signal weights, enable + run its adapters, then rescore the distress watchlist"
+              >
+                {packBusy ? 'Activating…' : '🚀 Activate'}
+              </button>
+            </div>
+            {packResult && (
+              <div className="mt-3 rounded-md border border-border/60 bg-bg/40 p-2.5">
+                <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--gold-bright)] mb-1.5">
+                  {packResult.ok ? 'Activated' : 'Activation failed'} · {packResult.packName ?? packResult.packId}
+                  {typeof packResult.elapsedMs === 'number' && (
+                    <span className="text-muted normal-case tracking-normal"> · {(packResult.elapsedMs/1000).toFixed(1)}s</span>
+                  )}
+                </div>
+                {packResult.ok ? (
+                  <ul className="text-[11.5px] text-ink/85 space-y-0.5">
+                    <li>· Signal weights seeded: <span className="text-emerald-300">{packResult.weightsSeeded ?? 0}</span></li>
+                    {(packResult.adapterReports ?? []).map((r) => (
+                      <li key={r.kind} className="flex items-baseline justify-between gap-2">
+                        <span className="truncate">
+                          <span className={
+                            r.status === 'ran' ? 'text-emerald-300'
+                              : r.status === 'errored' ? 'text-danger'
+                              : 'text-muted'
+                          }>
+                            {r.status === 'ran' ? '✓' : r.status === 'errored' ? '✗' : '○'}
+                          </span>{' '}
+                          {r.displayName}
+                          {r.status === 'ran' && typeof r.written === 'number' && (
+                            <span className="text-muted"> · {r.written} written{r.fromCache ? `, ${r.fromCache} from cache` : ''}</span>
+                          )}
+                          {r.status === 'skipped_lookup' && (
+                            <span className="text-muted"> · fires via cascade</span>
+                          )}
+                          {r.status === 'skipped_unavailable' && (
+                            <span className="text-muted"> · coming soon</span>
+                          )}
+                          {r.status === 'errored' && (
+                            <span className="text-danger"> · {r.detail}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                    {packResult.rescored && (
+                      <li>· Rescored watchlist: <span className="text-emerald-300">{packResult.rescored.entitiesScored}</span> entities from {packResult.rescored.recordsScanned} records</li>
+                    )}
+                  </ul>
+                ) : (
+                  <div className="text-[11.5px] text-danger">{packResult.error || 'Unknown error.'}</div>
+                )}
+              </div>
+            )}
           </div>
           {smokeReport && (
             <div className="mb-4 rounded-xl border border-brand/30 bg-brand/[0.06] p-3">
