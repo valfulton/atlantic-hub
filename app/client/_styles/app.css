@@ -102,7 +102,7 @@
   font-family: var(--serif);
   font-weight: 600;
   font-size: 1.1rem;
-  color: var(--black);
+  color: var(--emerald-deep); /* wordmark = emerald, never black (val) */
 }
 .app-top .pill {
   font-size: 0.6rem;
@@ -150,11 +150,11 @@
   font-family: var(--serif);
   font-weight: 600;
   font-size: 1.9rem;
-  color: var(--black);
+  color: var(--emerald-deep); /* greeting headline = emerald, never black (val) */
   margin: 0;
   line-height: 1.1;
 }
-.app-hello h1 em { font-style: italic; color: var(--emerald-deep); }
+.app-hello h1 em { font-style: italic; color: var(--emerald); }
 .app-hello p {
   color: var(--gray-warm);
   font-size: 0.95rem;
@@ -364,7 +364,7 @@
   font-family: var(--serif);
   font-weight: 600;
   font-size: 1.45rem;
-  color: var(--black);
+  color: var(--emerald-deep); /* headlines are emerald, never black (val) */
   margin: 0;
 }
 .app-sh h3 em { font-style: italic; color: var(--emerald-deep); }
@@ -429,15 +429,8 @@
   padding: 1rem 1.1rem 0.2rem;
 }
 .app-card .logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 11px;
-  background-size: cover;
-  background-position: center;
-  position: relative;
-  overflow: hidden;
-  flex-shrink: 0;
-  background-color: var(--emerald-deep);
+  /* val: the company letter tile is a pointless decoration — gone. The name leads. */
+  display: none;
 }
 .app-card .logo .sc {
   position: absolute;
@@ -457,7 +450,7 @@
 .app-card .nm { flex: 1; min-width: 0; }
 .app-card .nm b {
   font-size: 1rem;
-  color: var(--black);
+  color: var(--emerald-deep); /* card title = emerald, never black (val) */
   font-weight: 600;
   display: block;
   white-space: nowrap;
@@ -496,7 +489,7 @@
   font-weight: 500;
   font-size: 1.18rem;
   line-height: 1.25;
-  color: var(--black);
+  color: var(--emerald-deep); /* serif display line = emerald, never black (val) */
   padding: 0.5rem 1.1rem 0.2rem;
   margin: 0;
 }
@@ -546,6 +539,42 @@
   font-family: inherit;
 }
 .app-card .pcta:hover { background: var(--black); }
+
+/* ── Celebration — earned wins only (luxury that celebrates, not a slot machine).
+   Brief gold confetti + an emerald message, then it fades. Respects reduced-motion. ── */
+@keyframes av-confetti-fall {
+  0%   { transform: translateY(-14vh) rotate(0deg);   opacity: 0; }
+  12%  { opacity: 1; }
+  100% { transform: translateY(108vh) rotate(420deg); opacity: 0; }
+}
+@keyframes av-celebrate-pop {
+  0%   { transform: scale(0.92) translateY(6px); opacity: 0; }
+  14%  { transform: scale(1) translateY(0);      opacity: 1; }
+  82%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.av-celebrate { position: fixed; inset: 0; z-index: 200; pointer-events: none; display: grid; place-items: center; }
+.av-celebrate__msg {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--card-edge);
+  border-radius: 16px;
+  padding: 1.2rem 1.9rem;
+  box-shadow: 0 24px 60px -26px var(--card-shadow);
+  text-align: center;
+  animation: av-celebrate-pop 2.8s ease forwards;
+}
+.av-celebrate__msg b { display: block; font-family: var(--serif); font-size: 1.5rem; font-weight: 600; color: var(--emerald-deep); line-height: 1.1; }
+.av-celebrate__msg span { font-size: 0.88rem; color: var(--gray-soft); }
+.av-confetti {
+  position: absolute; top: 0; width: 9px; height: 9px; border-radius: 1px;
+  background: linear-gradient(135deg, #F5F4C0, #CFAF65 55%, #7D5B3C);
+  animation: av-confetti-fall 2.8s linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .av-confetti { display: none; }
+  .av-celebrate__msg { animation: none; }
+}
 .app-card .scnd {
   width: 42px;
   height: 42px;

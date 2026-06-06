@@ -69,6 +69,32 @@ function fmtDate(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/** tel: href from a messy phone string (digits + leading +). Null if too short. */
+function telHref(phone: string | null): string | null {
+  if (!phone) return null;
+  const cleaned = phone.replace(/[^\d+]/g, '');
+  return cleaned.replace(/\D/g, '').length >= 7 ? `tel:${cleaned}` : null;
+}
+
+/** A ready-to-send first email, prefilled from the lead's own call script. */
+function defaultEmail(lead: ClientLeadDetail): { subject: string; body: string } {
+  const first = (lead.contactName || '').trim().split(/\s+/)[0] || 'there';
+  const opener = lead.callScript?.openers?.[0]?.trim();
+  const pain = lead.callScript?.primaryPain?.trim();
+  const subject = `Quick idea for ${lead.company || 'your team'}`;
+  const body = [
+    `Hi ${first},`,
+    '',
+    opener || `I came across ${lead.company || 'your business'} and wanted to reach out.`,
+    ...(pain ? ['', pain] : []),
+    '',
+    'Would you be open to a short call this week?',
+    '',
+    'Best,'
+  ].join('\n');
+  return { subject, body };
+}
+
 function Field({ label, value, href }: { label: string; value: string | null; href?: string }) {
   if (!value) return null;
   return (
@@ -128,6 +154,35 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
   const [callNotes, setCallNotes] = useState('');
   const [savingCall, setSavingCall] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
+  const [callSaved, setCallSaved] = useState(false);
+  const [celebrate, setCelebrate] = useState<string | null>(null);
+
+  // Quick fact-finding — checked chips fold into the call note (no API change).
+  const FACT_CHIPS = ['Reached decision-maker', 'Confirmed the pain', 'Budget discussed', 'Wants a proposal', 'Set a follow-up', 'Not a fit'];
+  const [facts, setFacts] = useState<string[]>([]);
+  const toggleFact = (f: string) => setFacts((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]));
+
+  // Quick email composer — prefilled from the lead, opens the user's mail app.
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailCopied, setEmailCopied] = useState(false);
+  function openEmail() {
+    if (!emailSubject && !emailBody) {
+      const d = defaultEmail(lead);
+      setEmailSubject(d.subject);
+      setEmailBody(d.body);
+    }
+    setEmailOpen(true);
+  }
+  const mailtoHref = `mailto:${lead.email || ''}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+  async function copyEmail() {
+    try {
+      await navigator.clipboard.writeText(`Subject: ${emailSubject}\n\n${emailBody}`);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 1500);
+    } catch { /* clipboard unavailable */ }
+  }
 
   const fetchCalls = useCallback(async () => {
     try {
@@ -151,14 +206,24 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
     setSavingCall(true);
     setCallError(null);
     try {
+      const factStr = facts.length ? facts.join(' · ') : '';
+      const combinedNotes = [factStr, callNotes.trim()].filter(Boolean).join(' — ');
       const res = await fetch(`/api/client/leads/${lead.auditId}/calls`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome, notes: callNotes.trim() || undefined })
+        body: JSON.stringify({ outcome, notes: combinedNotes || undefined })
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
       setCallNotes('');
+      setFacts([]);
+      setCallSaved(true);
+      setTimeout(() => setCallSaved(false), 2200);
+      // Earned win → a brief, classy celebration (luxury that celebrates).
+      if (outcome === 'meeting_booked' || outcome === 'converted') {
+        setCelebrate(outcome);
+        setTimeout(() => setCelebrate(null), 2900);
+      }
       setCallsLoaded(false); // refetch the list
       await fetchCalls();
     } catch (e) {
@@ -222,6 +287,21 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
 
   return (
     <div>
+      {celebrate && (
+        <div className="av-celebrate" aria-hidden="true">
+          {Array.from({ length: 16 }).map((_, i) => (
+            <span
+              key={i}
+              className="av-confetti"
+              style={{ left: `${(i * 6.2 + 4) % 96}%`, animationDelay: `${(i % 5) * 0.12}s` }}
+            />
+          ))}
+          <div className="av-celebrate__msg">
+            <b>{celebrate === 'converted' ? 'Deal won.' : 'Meeting booked.'}</b>
+            <span>{celebrate === 'converted' ? 'That’s a close — beautiful work.' : 'Nicely done — that’s the one that matters.'}</span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-1">
         <div className="min-w-0">
@@ -247,19 +327,82 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
 
       {/* Front-and-center: log a call without hunting for it. Reject sits
           beside it so a "this isn't a fit" call doesn't require backing out. */}
-      <div className="mt-4 flex items-center gap-3 flex-wrap">
+      {/* Act-first row: one tap to dial or email, right where you read the script.
+          Call is primary; logging + reject sit beside it as quiet actions. */}
+      <div className="mt-4 flex items-center gap-2.5 flex-wrap">
+        {telHref(lead.phone) && (
+          <a
+            href={telHref(lead.phone)!}
+            className="inline-flex items-center gap-2 px-5 rounded-lg text-[15px] font-medium"
+            style={{ minHeight: 46, background: 'var(--emerald-deep)', color: 'var(--cream-pure)' }}
+          >
+            &#x1F4DE; Call{lead.contactName ? ` ${lead.contactName.split(/\s+/)[0]}` : ''}
+          </a>
+        )}
+        <button
+          onClick={openEmail}
+          className="inline-flex items-center gap-2 px-5 rounded-lg text-[15px] font-medium"
+          style={{ minHeight: 46, background: telHref(lead.phone) ? 'transparent' : 'var(--emerald-deep)', color: telHref(lead.phone) ? 'var(--emerald-deep)' : 'var(--cream-pure)', border: telHref(lead.phone) ? '1px solid var(--emerald-deep)' : 'none' }}
+        >
+          &#9993; Email
+        </button>
         <button
           onClick={() => setActive('Calls')}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-          style={{ background: 'var(--emerald)', color: 'var(--cream-pure)', border: 'none' }}
+          className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium text-muted hover:text-ink"
+          style={{ minHeight: 46, background: 'transparent', border: '1px solid var(--border)' }}
         >
-          &#x1F4DE; Log a call
+          Log a call
         </button>
-        {/* (#300) Reject control on detail page (was list-only). Lifted styling
-            from ClientLeadReject's chip variant so it sits visually next to
-            "Log a call" as an equal-weight action without competing for focus. */}
         <ClientLeadReject leadId={lead.id} />
       </div>
+
+      {/* Quick email — prefilled from this lead's own script; opens the user's mail app. */}
+      {emailOpen && (
+        <div className="mt-4 rounded-2xl border border-border bg-white p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)]">
+              Email {lead.contactName ? lead.contactName.split(/\s+/)[0] : 'this lead'}
+            </div>
+            <button onClick={() => setEmailOpen(false)} className="text-muted hover:text-ink text-base leading-none" aria-label="Close">&times;</button>
+          </div>
+          {!lead.email && (
+            <p className="text-[12px] text-muted mb-2">No email on file yet — draft it here and add the address in your mail app.</p>
+          )}
+          <label className="block mb-2">
+            <span className="block text-[11px] text-muted mb-1">Subject</span>
+            <input
+              value={emailSubject}
+              onChange={(e) => setEmailSubject(e.target.value)}
+              className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-base text-ink"
+            />
+          </label>
+          <label className="block mb-3">
+            <span className="block text-[11px] text-muted mb-1">Message</span>
+            <textarea
+              value={emailBody}
+              onChange={(e) => setEmailBody(e.target.value)}
+              rows={7}
+              className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-base text-ink leading-relaxed"
+            />
+          </label>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <a
+              href={mailtoHref}
+              className="inline-flex items-center gap-2 px-5 rounded-lg text-[15px] font-medium"
+              style={{ minHeight: 46, background: 'var(--emerald-deep)', color: 'var(--cream-pure)' }}
+            >
+              Open in email app &rarr;
+            </a>
+            <button
+              onClick={copyEmail}
+              className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium text-muted hover:text-ink"
+              style={{ minHeight: 46, background: 'transparent', border: '1px solid var(--border)' }}
+            >
+              {emailCopied ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* (#46 Inc 5) Read-only mirror of the operator's narrative-lines
           panel. Shows ONLY linked lines + outcomes (no candidates, no
@@ -320,8 +463,8 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
           <Field label="Industry" value={lead.industry} />
           <Field label="Contact" value={lead.contactName} />
           <Field label="Title" value={lead.contactTitle} />
-          <Field label="Email" value={lead.email} />
-          <Field label="Phone" value={lead.phone} />
+          <Field label="Email" value={lead.email} href={lead.email ? `mailto:${lead.email}` : undefined} />
+          <Field label="Phone" value={lead.phone} href={telHref(lead.phone) ?? undefined} />
           <Field
             label="Website"
             value={
@@ -365,6 +508,23 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
         <div className="space-y-5">
           <div className="rounded-2xl border border-border bg-white p-5">
             <div className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--emerald-deep)] mb-3">Log a call</div>
+            {/* Quick fact-finding — tap what you learned; it saves with the call. */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {FACT_CHIPS.map((f) => {
+                const on = facts.includes(f);
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => toggleFact(f)}
+                    className="text-[12px] rounded-full font-medium transition-colors"
+                    style={{ minHeight: 38, padding: '0 14px', background: on ? 'var(--emerald-mist)' : 'transparent', color: on ? 'var(--emerald-deep)' : 'var(--muted)', border: `1px solid ${on ? 'var(--emerald-deep)' : 'var(--border)'}` }}
+                  >
+                    {on ? '✓ ' : ''}{f}
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
               <label className="block sm:w-56">
                 <span className="block text-[11px] text-muted mb-1">How did it go?</span>
@@ -372,7 +532,7 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value)}
                   disabled={savingCall}
-                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-base text-ink"
                 >
                   {CALL_OUTCOMES.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -386,19 +546,20 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
                   onChange={(e) => setCallNotes(e.target.value)}
                   disabled={savingCall}
                   placeholder="What was said, next step, who to ask for…"
-                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
+                  className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-base text-ink"
                 />
               </label>
               <button
                 onClick={logCall}
                 disabled={savingCall}
-                className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                style={{ background: 'var(--emerald)', color: 'var(--cream-pure)', border: 'none' }}
+                className="rounded-lg px-5 text-[15px] font-medium disabled:opacity-50"
+                style={{ minHeight: 46, background: 'var(--emerald-deep)', color: 'var(--cream-pure)', border: 'none' }}
               >
                 {savingCall ? 'Saving…' : 'Save call'}
               </button>
             </div>
-            {callError && <p className="text-[11px] text-rose-400 mt-2">Could not save: {callError}</p>}
+            {callSaved && <p className="text-[12px] mt-2" style={{ color: 'var(--emerald-deep)' }}>&#10003; Logged — nice work.</p>}
+            {callError && <p className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>Could not save: {callError}</p>}
           </div>
 
           <div>
@@ -434,15 +595,15 @@ export default function ClientLeadDetailTabs({ lead }: { lead: ClientLeadDetail 
               disabled={savingNote}
               rows={3}
               placeholder="Anything worth remembering about this lead…"
-              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
+              className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-base text-ink"
             />
             <div className="flex items-center justify-end gap-3 mt-2">
-              {noteError && <span className="text-[11px] text-rose-400">Could not save: {noteError}</span>}
+              {noteError && <span className="text-[11px]" style={{ color: 'var(--danger)' }}>Could not save: {noteError}</span>}
               <button
                 onClick={addNote}
                 disabled={savingNote || !noteBody.trim()}
                 className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                style={{ background: 'var(--emerald)', color: 'var(--cream-pure)', border: 'none' }}
+                style={{ background: 'var(--emerald-deep)', color: 'var(--cream-pure)', border: 'none' }}
               >
                 {savingNote ? 'Saving…' : 'Save note'}
               </button>

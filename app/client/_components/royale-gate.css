@@ -231,3 +231,47 @@
   text-transform: uppercase;
   color: rgba(148, 164, 184, 0.7);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   CREAM REGISTER  (val 2026-06-06)
+   The gate now matches the MARKETING SITE — cream + emerald + Fraunces —
+   not the old obsidian "By invitation" direction. Scoped to a modifier
+   class so the OPERATOR login (OperatorLoginForm) stays on the dark .rg
+   base. Applied via <RoyaleGateFrame register="cream">.
+
+   The --rg-* names below are kept; only their ROLE-VALUES are remapped:
+   --rg-cream is the primary TEXT color (→ charcoal ink on cream ground),
+   --rg-amber is the accent (→ emerald, AA on cream), --rg-amber-deep is
+   the small-caps eyebrow (→ bronze jewelry, AA). Gold never becomes body
+   text on light (fails AA) — it stays a metal accent only.
+   ────────────────────────────────────────────────────────────────── */
+.rg--cream {
+  --rg-cream:       #1A1A1A;             /* role: primary text → charcoal */
+  --rg-cream-muted: #4A4A4A;             /* role: muted text → warm gray (AA) */
+  --rg-amber:       #0A4D3C;             /* role: accent (h1 em, CTA, links, focus) → emerald-deep */
+  --rg-amber-deep:  #7D5B3C;             /* role: eyebrow → bronze jewelry (AA on cream) */
+  --rg-rule:        rgba(10, 77, 60, 0.16);
+  background:
+    radial-gradient(820px 480px at 50% -14%, rgba(201, 169, 97, 0.10), transparent 60%),
+    radial-gradient(680px 420px at 50% 122%, rgba(10, 77, 60, 0.05), transparent 60%),
+    #FAF8F4;
+  color: #1A1A1A;
+}
+/* Field labels read emerald (matches the cream Door-A inquire gate); the
+   category eyebrow keeps the bronze jewelry note above. */
+.rg--cream .rg-label { color: var(--rg-amber); }
+.rg--cream .rg-input {
+  background: #FFFFFF;
+  color: #1A1A1A;
+}
+.rg--cream .rg-input::placeholder { color: #8A8A8A; }
+.rg--cream .rg-input:focus {
+  border-color: var(--rg-amber);
+  box-shadow: 0 0 0 3px rgba(10, 77, 60, 0.14);
+}
+.rg--cream .rg-cta:hover:not(:disabled) {
+  background: rgba(10, 77, 60, 0.08);
+}
+.rg--cream .rg-foot {
+  color: rgba(74, 74, 74, 0.75);
+}

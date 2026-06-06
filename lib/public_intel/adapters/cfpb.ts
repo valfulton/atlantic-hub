@@ -119,7 +119,11 @@ export const cfpbAdapter: PublicIntelAdapter = {
     'Every complaint a US consumer has filed against a bank, lender, or credit reporter, by state + product + issue. Gold companion to HMDA — tells you which lenders are under fire in which markets.',
   requiresKey: false,
   costNote: 'Free · CFPB public Socrata API · no rate limit issues at SMB scale',
-  bestFor: ['Marty (consumer loans)', 'Adriana (debt collection in CA)', 'Banking / credit advisors'],
+  // (val 2026-06-06, honesty pass) CFPB surfaces complaints AGAINST financial
+  // companies (lenders/servicers), NOT businesses that need a collector. So it
+  // fits CONSUMER LENDING, not Adriana's collections — removing that misleading
+  // "best for" so the panel stops implying it's a CBB/collections source.
+  bestFor: ['Marty (consumer lending)', 'Banking / credit advisors'],
 
   validateConfig(config) {
     if (config == null) return null;

@@ -56,10 +56,30 @@ function oneLinerOf(l: ClientLead): string {
          (l.contactName ? `${l.contactName} reachable. Ready to send.` : 'Enriched and ready.');
 }
 
-function ctaLabelOf(l: ClientLead): string {
-  if (l.phone) return '📞 Call now';
-  if (l.email) return '✎ Review & send';
-  return '✚ Add to pipeline';
+/** Real tap-to-call href (digits + leading +), or null if no usable number. */
+function telOf(l: ClientLead): string | null {
+  if (!l.phone) return null;
+  const cleaned = l.phone.replace(/[^\d+]/g, '');
+  return cleaned.replace(/\D/g, '').length >= 7 ? `tel:${cleaned}` : null;
+}
+
+/** Prefilled mailto: a ready first email, so "Email" sends in one tap. */
+function mailtoOf(l: ClientLead): string | null {
+  if (!l.email) return null;
+  const first = (l.contactName || '').trim().split(/\s+/)[0] || 'there';
+  const subject = `Quick idea for ${l.company || 'your team'}`;
+  const pain = (l.painSummary || l.callScript?.primaryPain || '').trim();
+  const body = [
+    `Hi ${first},`,
+    '',
+    `I came across ${l.company || 'your business'} and wanted to reach out.`,
+    ...(pain ? ['', pain] : []),
+    '',
+    'Would you be open to a short call this week?',
+    '',
+    'Best,'
+  ].join('\n');
+  return `mailto:${l.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 /** Contact facts — phone (tap-to-call) + full address + website. Always shown
@@ -120,10 +140,16 @@ function LeadCard({ lead }: { lead: ClientLead }) {
         ))}
       </div>
       <div className="foot">
-        <button type="button" className="pcta" onClick={open} disabled={pending}>
-          {pending ? 'Opening…' : ctaLabelOf(lead)}
-        </button>
-        <Link href={href} className="scnd" aria-label="View lead">→</Link>
+        {telOf(lead) ? (
+          <a className="pcta" href={telOf(lead)!}>📞 Call</a>
+        ) : mailtoOf(lead) ? (
+          <a className="pcta" href={mailtoOf(lead)!}>✉ Email</a>
+        ) : (
+          <button type="button" className="pcta" onClick={open} disabled={pending}>
+            {pending ? 'Opening…' : '✚ Add to pipeline'}
+          </button>
+        )}
+        <Link href={href} className="scnd" aria-label="Open lead">→</Link>
       </div>
     </article>
   );

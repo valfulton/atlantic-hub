@@ -2,13 +2,19 @@
  * RoyaleGateFrame  (val 2026-06-04)
  *
  * Shared layout for invitation/gate surfaces in the magic-link flow.
- * Matches the "By invitation." designer mockup exactly: obsidian ground,
- * centered AV logo, gold eyebrow, Cormorant headline with italic accent,
- * italic muted lede, children = the form, "QUIET · LEGIBLE · VERIFIABLE"
- * footer mark.
+ * Centered AV logo, eyebrow, Fraunces headline with italic accent, muted
+ * lede, children = the form, footer mark.
  *
- * All visual tokens live in `royale-gate.css`. To retune the gate system,
- * edit that one file — do not patch hex literals in components.
+ * Two registers (val 2026-06-06):
+ *   register="cream" (client/public gate) — MATCHES THE MARKETING SITE:
+ *     cream ground, emerald accent, bronze eyebrow, Fraunces. This is the
+ *     direction for every client-facing gate (login Door B, set-password).
+ *   register="dark"  (default) — the legacy obsidian frame, kept ONLY for
+ *     the operator login so the operator register stays dark.
+ *
+ * All visual tokens live in `royale-gate.css` (.rg base + .rg--cream).
+ * To retune the gate system, edit that one file — do not patch hex
+ * literals in components.
  *
  * Usage:
  *   <RoyaleGateFrame
@@ -30,14 +36,18 @@ interface Props {
   /** (#418) Footer mark, editable via copy key `gate.foot`. Optional;
    *  defaults to the original "Quiet · Legible · Verifiable" when omitted. */
   foot?: React.ReactNode;
+  /** (val 2026-06-06) Visual register. "cream" = marketing-site cream/emerald
+   *  (every client/public gate). "dark" = legacy obsidian (operator login only). */
+  register?: 'cream' | 'dark';
 }
 
-export default function RoyaleGateFrame({ eyebrow, headline, lede, children, asideTop, foot }: Props) {
+export default function RoyaleGateFrame({ eyebrow, headline, lede, children, asideTop, foot, register = 'dark' }: Props) {
+  const cream = register === 'cream';
   return (
-    <div className="rg" data-skin="royale">
+    <div className={cream ? 'rg rg--cream' : 'rg'} data-skin={cream ? 'social' : 'royale'}>
       <main className="rg-stage">
         <img
-          src="/brand/av_logo_white1152.png"
+          src={cream ? '/brand/av-logo.png' : '/brand/av_logo_white1152.png'}
           alt="Atlantic & Vine"
           className="rg-logo"
           width={190}

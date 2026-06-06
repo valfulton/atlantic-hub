@@ -54,7 +54,7 @@
 [data-skin="social"] .sigcard:hover{transform:translateY(-3px);border-color:var(--gold,#C9A961);
   box-shadow:0 20px 42px -26px rgba(10,77,60,.45)}
 [data-skin="social"] .sigcard__hd{display:flex;align-items:center;gap:.75rem;padding:1rem 1.1rem .2rem}
-[data-skin="social"] .sigcard__logo{width:44px;height:44px;border-radius:10px;position:relative;overflow:hidden;flex-shrink:0;background-size:cover;background-position:center;background-color:var(--emerald,#0A4D3C)}
+[data-skin="social"] .sigcard__logo{display:none} /* val: company letter tile = pointless decoration; name leads */
 [data-skin="social"] .sigcard__logo b{position:relative;color:var(--cream-pure,#F5EFE3);font-family:var(--serif);font-weight:600;display:grid;place-items:center;height:100%}
 [data-skin="social"] .sigcard__nm{flex:1;min-width:0}
 [data-skin="social"] .sigcard__nm b{font-size:1.06rem;color:var(--ink,#1B2329);font-weight:600;font-family:var(--serif);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.25}
@@ -176,12 +176,12 @@
    colorless trail pills → real signal chips (bronze) with an emerald payoff. */
 [data-skin="social"] .sigcard .pcta,
 [data-skin="social"] .pcta{
-  background:var(--emerald,#0A4D3C);color:var(--cream-pure,#F5EFE3);
-  border:1px solid var(--emerald,#0A4D3C);font-weight:600;
-  border-radius:10px;padding:.7rem 1.1rem;letter-spacing:.01em;text-transform:none;font-size:.85rem;
+  background:var(--emerald-deep,#0A4D3C);color:var(--cream-pure,#F5EFE3);
+  border:1px solid var(--emerald-deep,#0A4D3C);font-weight:600;
+  border-radius:10px;padding:.7rem 1.1rem;letter-spacing:.01em;text-transform:none;font-size:.95rem;
   transition:background .2s,transform .15s,box-shadow .2s}
 [data-skin="social"] .sigcard .pcta:hover,
-[data-skin="social"] .pcta:hover{background:var(--emerald-bright,#1B7355);transform:translateY(-1px);
+[data-skin="social"] .pcta:hover{background:var(--forest,#0A3D2E);transform:translateY(-1px);
   box-shadow:0 10px 22px -12px rgba(10,77,60,.5)}
 [data-skin="social"] .sigcard .pcta:focus-visible{outline:2px solid var(--gold,#C9A961);outline-offset:2px}
 

@@ -21,6 +21,11 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export default async function ClientSocialReviewPage() {
+  // (val 2026-06-06) Retired — Content Studio (/client/content) is the ONE approve
+  // queue. Two divergent queues over the same data was a hazard, so this route
+  // redirects there. The code below is kept (unreachable) for reference.
+  redirect('/client/content');
+
   const actor = readClientActorFromHeaders(headers() as unknown as Headers);
   if (!actor) redirect('/client/login');
 

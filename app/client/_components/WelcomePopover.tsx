@@ -14,8 +14,9 @@
  *   - Operator preview mode never sees it (the parent skips rendering when
  *     `previewMode` is true so val doesn't have to dismiss it on every mirror)
  *
- * Tone: warm, luxury-nautical accent (amber + ink), no "AI" jargon per house
- * rule. Maximally short copy — clients skip walls of text.
+ * Tone: warm, luxury cream register (white card, emerald headline, gold as a
+ * thin leaf only) to match the /client/* app — never a dark SaaS modal over the
+ * cream app. No "AI" jargon per house rule. Maximally short copy.
  */
 import { useEffect, useState } from 'react';
 
@@ -134,7 +135,7 @@ export default function WelcomePopover({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(8, 12, 24, 0.78)',
+        background: 'color-mix(in srgb, var(--emerald-deep, #0A4D3C) 72%, transparent)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         zIndex: 60,
@@ -150,12 +151,12 @@ export default function WelcomePopover({
           maxWidth: 460,
           width: '100%',
           borderRadius: 24,
-          border: '1px solid color-mix(in srgb, var(--gold-bright) 25%, transparent)',
-          background:
-            'radial-gradient(140% 160% at 0% 0%, color-mix(in srgb, var(--gold-bright) 12%, transparent), transparent 55%), linear-gradient(180deg, #0e1525 0%, #0a1120 100%)',
+          border: '1px solid color-mix(in srgb, var(--emerald-deep, #0A4D3C) 14%, transparent)',
+          borderTop: '2px solid color-mix(in srgb, var(--gold-deep, #7D5B3C) 55%, transparent)',
+          background: 'var(--paper, #ffffff)',
           padding: '28px 28px 22px',
-          boxShadow: '0 30px 60px rgba(0, 0, 0, 0.45)',
-          color: '#e2e8f0'
+          boxShadow: '0 30px 60px -20px color-mix(in srgb, var(--emerald-deep, #0A4D3C) 32%, transparent)',
+          color: 'var(--ink, #14201B)'
         }}
       >
         <div
@@ -163,7 +164,7 @@ export default function WelcomePopover({
             fontSize: 10,
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
-            color: 'var(--gold-bright)',
+            color: 'var(--gold-deep, #7D5B3C)',
             marginBottom: 8
           }}
         >
@@ -176,13 +177,13 @@ export default function WelcomePopover({
             fontSize: 22,
             lineHeight: 1.25,
             letterSpacing: '-0.01em',
-            color: '#f8fafc',
+            color: 'var(--emerald-deep, #0A4D3C)',
             fontWeight: 600
           }}
         >
           {slide.title}
         </h2>
-        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#cbd5e1' }}>{slide.body}</p>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'color-mix(in srgb, var(--ink, #14201B) 78%, transparent)' }}>{slide.body}</p>
 
         {slide.href && slide.hrefLabel && (
           <a
@@ -192,9 +193,9 @@ export default function WelcomePopover({
               display: 'inline-block',
               marginTop: 14,
               fontSize: 13,
-              color: 'var(--gold-bright)',
+              color: 'var(--emerald-deep, #0A4D3C)',
               textDecoration: 'none',
-              fontWeight: 500
+              fontWeight: 600
             }}
           >
             {slide.hrefLabel}
@@ -211,7 +212,7 @@ export default function WelcomePopover({
                 width: i === step ? 18 : 6,
                 height: 6,
                 borderRadius: 3,
-                background: i === step ? 'var(--gold-bright)' : 'rgba(255, 255, 255, 0.18)',
+                background: i === step ? 'var(--emerald-deep, #0A4D3C)' : 'color-mix(in srgb, var(--emerald-deep, #0A4D3C) 18%, transparent)',
                 transition: 'width 0.2s ease'
               }}
             />
@@ -234,7 +235,7 @@ export default function WelcomePopover({
             style={{
               background: 'transparent',
               border: 0,
-              color: '#94a3b8',
+              color: 'color-mix(in srgb, var(--ink, #14201B) 55%, transparent)',
               fontSize: 12,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -249,9 +250,9 @@ export default function WelcomePopover({
                 type="button"
                 onClick={prev}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#cbd5e1',
+                  background: 'transparent',
+                  border: '1px solid color-mix(in srgb, var(--emerald-deep, #0A4D3C) 22%, transparent)',
+                  color: 'var(--emerald-deep, #0A4D3C)',
                   fontSize: 13,
                   padding: '8px 14px',
                   borderRadius: 10,
@@ -266,9 +267,9 @@ export default function WelcomePopover({
               type="button"
               onClick={next}
               style={{
-                background: 'var(--gold-bright)',
+                background: 'var(--emerald-deep, #0A4D3C)',
                 border: 0,
-                color: '#0a1120',
+                color: 'var(--cream-pure, #FFFDF8)',
                 fontSize: 13,
                 padding: '8px 16px',
                 borderRadius: 10,

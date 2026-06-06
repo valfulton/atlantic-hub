@@ -134,6 +134,7 @@ function LoginForm() {
   if (door === 'B') {
     return (
       <RoyaleGateFrame
+        register="cream"
         eyebrow={c['gate.client_login.eyebrow']}
         headline={accent(c['gate.client_login.h1'])}
         lede={c['gate.client_login.lede']}

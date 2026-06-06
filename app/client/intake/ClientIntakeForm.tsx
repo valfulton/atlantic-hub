@@ -167,14 +167,14 @@ export default function ClientIntakeForm({
           </span>
           {totals.blank > 0 ? (
             <>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--gold-bright)_45%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-2.5 py-0.5 text-[11px] font-medium text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--gold-bright)_45%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-2.5 py-0.5 text-[11px] font-medium text-[color:var(--amber-deep)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold-bright)]" aria-hidden="true" />
                 Still need you on {totals.blank}
               </span>
               <button
                 type="button"
                 onClick={() => jumpToNextBlank()}
-                className="text-[11.5px] font-medium text-[color-mix(in_srgb,var(--gold-bright)_90%,transparent)] hover:text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)] underline-offset-2 hover:underline"
+                className="text-[11.5px] font-medium text-[color:var(--amber-deep)] hover:text-[color:var(--emerald-deep)] underline-offset-2 hover:underline"
               >
                 Jump to the next one →
               </button>
@@ -202,7 +202,7 @@ export default function ClientIntakeForm({
                 <button
                   type="button"
                   onClick={() => jumpToNextBlank(grp.group)}
-                  className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.14em] font-medium text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)] hover:text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]"
+                  className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.14em] font-medium text-[color:var(--amber-deep)] hover:text-[color:var(--emerald-deep)]"
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold-bright)]" aria-hidden="true" />
                   {groupBlank} left for you →
@@ -230,7 +230,7 @@ export default function ClientIntakeForm({
                           amber so it points the eye without nagging. Drops the
                           moment the field has any non-whitespace content. */}
                       {blank && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-[color-mix(in_srgb,var(--gold-bright)_45%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-1.5 py-0 text-[9.5px] uppercase tracking-[0.12em] font-medium text-[color-mix(in_srgb,var(--gold-bright)_95%,transparent)]">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-[color-mix(in_srgb,var(--gold-bright)_45%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)] px-1.5 py-0 text-[10px] uppercase tracking-[0.12em] font-medium text-[color:var(--amber-deep)]">
                           <span className="h-1 w-1 rounded-full bg-[var(--gold-bright)]" aria-hidden="true" />
                           Your turn
                         </span>
@@ -283,7 +283,7 @@ export default function ClientIntakeForm({
           <button
             type="button"
             onClick={() => jumpToNextBlank()}
-            className="text-[11.5px] font-medium text-[color:var(--gold-bright)] hover:text-[color:var(--gold-leaf)]"
+            className="text-[11.5px] font-medium text-[color:var(--amber-deep)] hover:text-[color:var(--emerald-deep)]"
           >
             Jump to next blank ↑
           </button>

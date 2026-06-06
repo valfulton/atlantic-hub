@@ -131,5 +131,5 @@ export default function SocialPostPreview({
 
 const capStyle: React.CSSProperties = {
   width: 'calc(100% - 1.6rem)', margin: '0 .8rem .6rem', minHeight: 70, fontFamily: 'inherit',
-  fontSize: '.82rem', border: '1px solid #ddd', borderRadius: 8, padding: '.5rem', color: '#111',
+  fontSize: '16px', border: '1px solid #ddd', borderRadius: 8, padding: '.5rem', color: '#111',
 };

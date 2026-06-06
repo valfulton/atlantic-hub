@@ -219,7 +219,13 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <h3 className="text-ink font-semibold text-[15px] truncate">
-                        {r.entityLabel || r.entityKey}
+                        <Link
+                          href={`/admin/av/clients/${r.clientId}/preview/watchlist#${entityRef}`}
+                          className="hover:text-[var(--gold-bright)] hover:underline transition-colors"
+                          title="Open this entity in the client view"
+                        >
+                          {r.entityLabel || r.entityKey}
+                        </Link>
                       </h3>
                       {r.regionCode && (
                         <span className="text-[10px] uppercase tracking-wider text-muted">{r.regionCode}</span>

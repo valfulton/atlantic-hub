@@ -34,6 +34,7 @@ export default function ContentStudio({
   const [filter, setFilter] = useState<string>('All');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [toast, setToast] = useState('');
+  const [celebrate, setCelebrate] = useState(false);
 
   const shown = useMemo(() => items.filter((i) => matches(i.provider, filter)), [items, filter]);
   // Per-filter counts so the chips show the platform mix at a glance, and
@@ -60,6 +61,11 @@ export default function ContentStudio({
       if (res.ok && d?.ok !== false) {
         setItems((xs) => xs.filter((x) => x.outboxId !== id));
         setToast(decision === 'approve' ? 'Approved — scheduled to post ✓' : 'Sent back');
+        // Earned moment: clearing the LAST post in the queue (not every approve).
+        if (decision === 'approve' && items.length === 1) {
+          setCelebrate(true);
+          setTimeout(() => setCelebrate(false), 2900);
+        }
       } else {
         setToast(d?.reason || 'Could not save — reload and retry');
       }
@@ -73,6 +79,21 @@ export default function ContentStudio({
 
   return (
     <div className="studio">
+      {celebrate && (
+        <div className="av-celebrate" aria-hidden="true">
+          {Array.from({ length: 16 }).map((_, i) => (
+            <span
+              key={i}
+              className="av-confetti"
+              style={{ left: `${(i * 6.2 + 4) % 96}%`, animationDelay: `${(i % 5) * 0.12}s` }}
+            />
+          ))}
+          <div className="av-celebrate__msg">
+            <b>All caught up.</b>
+            <span>Every post approved and scheduled — beautifully done.</span>
+          </div>
+        </div>
+      )}
       <section className="v3-greet">
         <p className="v3-eyebrow">Your content</p>
         <h1 className="v3-h1">Ready to <em>post.</em></h1>

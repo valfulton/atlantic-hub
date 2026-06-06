@@ -21,31 +21,33 @@ interface KindMeta {
   dot: string;
 }
 
+// Cream register, AA-safe: garnet = time-sensitive, emerald = momentum/working,
+// harbor = focus, gold-deep = your strength. Color is never the only signal (text label too).
 const KIND_META: Record<GuidanceKind, KindMeta> = {
   deadline_window: {
     label: 'Time-sensitive',
-    chip: 'text-[var(--gold-bright)] border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]',
-    dot: 'bg-[var(--gold-bright)]'
+    chip: 'text-[color:var(--garnet)] border-[color-mix(in_srgb,var(--garnet)_35%,transparent)] bg-[color-mix(in_srgb,var(--garnet)_10%,transparent)]',
+    dot: 'bg-[var(--garnet)]'
   },
   momentum: {
     label: 'Momentum',
-    chip: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
-    dot: 'bg-emerald-400'
+    chip: 'text-[color:var(--emerald-deep)] border-[color-mix(in_srgb,var(--emerald-deep)_30%,transparent)] bg-[var(--emerald-mist)]',
+    dot: 'bg-[var(--emerald-deep)]'
   },
   authority: {
     label: 'Your strength',
-    chip: 'text-brand border-border bg-surface',
-    dot: 'bg-brand'
+    chip: 'text-[color:var(--gold-deep)] border-[color-mix(in_srgb,var(--gold-deep)_35%,transparent)] bg-[color-mix(in_srgb,var(--gold-deep)_10%,transparent)]',
+    dot: 'bg-[var(--gold)]'
   },
   focus: {
     label: 'Focus',
-    chip: 'text-blue-300 border-blue-500/40 bg-blue-500/10',
-    dot: 'bg-blue-400'
+    chip: 'text-[color:var(--harbor)] border-[color-mix(in_srgb,var(--harbor)_30%,transparent)] bg-[color-mix(in_srgb,var(--harbor)_10%,transparent)]',
+    dot: 'bg-[var(--harbor)]'
   },
   format: {
     label: 'What is working',
-    chip: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
-    dot: 'bg-emerald-400'
+    chip: 'text-[color:var(--emerald-deep)] border-[color-mix(in_srgb,var(--emerald-deep)_30%,transparent)] bg-[var(--emerald-mist)]',
+    dot: 'bg-[var(--emerald-deep)]'
   }
 };
 
@@ -54,9 +56,9 @@ function MomentumBadge({ guidance }: { guidance: ClientGuidance }) {
   if (!m.summary || m.direction === 'unknown') return null;
   const tone =
     m.direction === 'rising'
-      ? 'text-emerald-300'
+      ? 'text-[color:var(--emerald-deep)]'
       : m.direction === 'cooling'
-        ? 'text-blue-300'
+        ? 'text-[color:var(--harbor)]'
         : 'text-muted';
   const word =
     m.direction === 'rising' ? 'Rising' : m.direction === 'cooling' ? 'Re-engage' : 'Steady';
@@ -88,7 +90,7 @@ function GuidanceCard({ item }: { item: GuidanceItem }) {
               {meta.label}
             </span>
             {typeof item.decayDays === 'number' && (
-              <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--gold-bright)]">
+              <span className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--garnet)]">
                 {item.decayDays <= 0
                   ? 'Closes today'
                   : item.decayDays === 1

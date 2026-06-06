@@ -182,8 +182,16 @@
 :root {
   /* Antique gold — accent ONLY (borders/rings/eyebrows; gold chips use black text).
      Never gold text on light (2.12 ✗). --gold-bright is for DARK grounds only. */
-  --gold: #C9A961;
-  --gold-bright: #EBCB6B;
+  /* GOLD matched to the actual LOGO pixels (sampled 2026-06-05): shadow #7D5B3C,
+     body #CFAF65, highlight #F5F4C0. So the on-screen gold == the logo's gold. */
+  --gold: #CFAF65;        /* CORE — the logo body gold (accent/borders) */
+  --gold-deep: #7D5B3C;   /* bronze — the ONLY gold that's AA as TEXT on cream */
+  --gold-bright: #E6CE7E; /* bright gold (dark grounds) */
+  /* BRIGHT-LEAF metallic gold — specular gradient spanning the logo's range:
+     bronze anchor -> body -> champagne glint (#F5F4C0) -> body -> bronze. Use via
+     .gold-leaf on DARK grounds (monogram, gate accent, hairline). On cream gold is
+     a solid (--gold for fills/borders; --gold-deep for any gold text). */
+  --gold-leaf-grad: linear-gradient(110deg,#6E4F2E 0%,#A9842A 22%,#CFAF65 42%,#F5F4C0 50%,#E6CE7E 60%,#A9842A 80%,#6E4F2E 100%);
   --cream-pure: #F5EFE3;
   /* short alias so components can use var(--serif) */
   --serif: var(--font-serif);
@@ -198,7 +206,7 @@
 [data-surface="client"],
 [data-skin="social"],
 .app {
-  --ground: #FAF8F4; --paper: #FFFDF8; --panel-warm: #FFFDF8;  /* warm ivory cards (val: white provisional); lift = shadow+warmth */
+  --ground: #FAF8F4; --paper: #FFFFFF; --panel-warm: #FFFFFF;  /* crisp WHITE cards (val 2026-06-05: white IS ok; cream-on-cream not sexy); lift = white + shadow */
   --card-shadow: rgba(10,77,60,.40); --card-edge: #E8C25A;     /* emerald lift + gold-leaf jewelry edge (newsroom wires geometry) */
   --forest: #0A3D2E; --forest-deep: #062A1F;
   --ink: #14201B; --ink-soft: #3C4A43; --muted: #5C6862;
@@ -206,7 +214,7 @@
 
   --emerald-deep: #0A4D3C; --emerald: #0C6049; --emerald-bright: #16A37A;
   --emerald-glow: #16A37A; --emerald-mist: #DCEDE5;
-  --gold: #C49A3C; --gold-bright: #E8C25A; --gold-leaf: #E8C25A;
+  --gold: #CFAF65; --gold-deep: #7D5B3C; --gold-bright: #E6CE7E; --gold-leaf: #E6CE7E;  /* matched to the LOGO pixels: body #CFAF65, bronze #7D5B3C (text-on-light), highlight in the leaf grad */
   --harbor: #1C5C82; --garnet: #A23B2E;
 
   --ok: #0F6E56;     --ok-bg: rgba(15,110,86,.10);     --ok-line: rgba(15,110,86,.32);
@@ -224,4 +232,30 @@
   --amber: var(--gold); --amber-deep: var(--warn); --amber-sig: var(--warn);
   --amber-bright: var(--gold-leaf); --rose-glow: var(--garnet); --sky-glow: var(--harbor);
   --serif: 'Fraunces', Georgia, serif;
+}
+
+/* ── Metallic gold-leaf utility (bright-leaf) ───────────────────────────────
+   Clip the specular gradient to text/icon on DARK grounds so gold reads as
+   polished metal, not flat mustard. `.gold-leaf--spark` sweeps the catch-light
+   on hover/focus — the "make the right things sparkle" moment.
+   APPROVED TOOL, not a mandate: use where a gold flourish fits (monogram, gate
+   eyebrow, a hairline, a hero accent). NEVER on the wordmark; never as text on
+   cream (gold on light = solid --gold for borders only, never text). */
+.gold-leaf{
+  background:var(--gold-leaf-grad);
+  background-size:220% 100%;
+  background-position:18% 0;
+  -webkit-background-clip:text;background-clip:text;
+  color:transparent;
+}
+.gold-leaf--spark{ transition:background-position 1s ease; }
+.gold-leaf--spark:hover,.gold-leaf--spark:focus-visible{ background-position:92% 0; }
+/* AMBIENT sparkle — toned DOWN to a slow, subtle drift (val 2026-06-05: "sexy,
+   mysterious, not cheesy. luxury."). The catch-light barely breathes across the
+   gold rather than sweeping — a whisper, not a slot machine. Tune SPEED here. */
+@keyframes av-gold-shimmer{ 0%,100%{ background-position:34% 0; } 50%{ background-position:66% 0; } }
+.gold-leaf--shimmer{ animation:av-gold-shimmer 12s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce){
+  .gold-leaf--spark{ transition:none; }
+  .gold-leaf--shimmer{ animation:none; }
 }

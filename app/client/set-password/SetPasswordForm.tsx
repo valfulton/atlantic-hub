@@ -71,7 +71,7 @@ function SetPasswordBody({ copy }: { copy: SetPasswordCopy }) {
   const lede = welcoming ? copy.ledeWelcoming : copy.ledeReturning;
 
   return (
-    <RoyaleGateFrame eyebrow={copy.eyebrow} headline={accent(h1)} lede={lede} foot={copy.foot}>
+    <RoyaleGateFrame register="cream" eyebrow={copy.eyebrow} headline={accent(h1)} lede={lede} foot={copy.foot}>
       <form onSubmit={handleSubmit} aria-labelledby="set-pw-heading">
         <div style={{ marginBottom: 14 }}>
           <label htmlFor="password" className="rg-label">{copy.labelNew}</label>
