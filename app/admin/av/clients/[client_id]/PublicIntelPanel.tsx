@@ -268,6 +268,26 @@ function categorize(adapter: AdapterEntry): AdapterCategory {
   return ADAPTER_CATEGORY[adapter.kind] ?? 'enrichment';
 }
 
+// (val 2026-06-06, SPEC §6) Compress the verbose costNote into a one-chip
+// summary at the title row. Pattern: lead with FREE / ~$X/mo, leave the
+// breakdown for the expanded body. Per UX/UI spec: emerald for free,
+// amber for paid, muted for unknown.
+type CostTier = 'free' | 'paid' | 'unknown';
+interface CostChip { tier: CostTier; label: string }
+function parseCost(costNote: string): CostChip {
+  const note = (costNote || '').trim();
+  if (!note) return { tier: 'unknown', label: '—' };
+  // Per-month figure wins (~$3.40/mo, $499/mo, $99 per month).
+  const monthly = note.match(/\$?(\d+(?:\.\d+)?)\s*\/\s*(?:client\s*\/\s*)?mo\b/i) ||
+                  note.match(/\$?(\d+(?:\.\d+)?)\s*per\s*month/i);
+  if (monthly) return { tier: 'paid', label: `~$${monthly[1]}/mo` };
+  // "$0.017 per snapshot"-style per-call pricing.
+  const perCall = note.match(/\$?(\d+(?:\.\d+)?)\s*per\s*(snapshot|call|request|query)/i);
+  if (perCall) return { tier: 'paid', label: `~$${perCall[1]}/${perCall[2].toLowerCase().slice(0, 4)}` };
+  if (/\bfree\b/i.test(note)) return { tier: 'free', label: 'FREE' };
+  return { tier: 'unknown', label: 'cost?' };
+}
+
 function relTime(iso: string | null): string {
   if (!iso) return 'never';
   const ms = Date.now() - new Date(iso).getTime();
@@ -357,6 +377,11 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
   const [packPick, setPackPick] = useState<string>('collections');
   const [packBusy, setPackBusy] = useState(false);
   const [packResult, setPackResult] = useState<ActivatePackResult | null>(null);
+  // (val 2026-06-06, SPEC §2) Section-level "Run all enabled" busy flag.
+  const [sectionBusy, setSectionBusy] = useState(false);
+  // (val 2026-06-06, SPEC §4) Track the most recent preset clicked per adapter
+  // so we can echo "Set to: {label}" above the JSON box. Plain-English receipt.
+  const [presetEchoes, setPresetEchoes] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setError(null);
@@ -438,6 +463,34 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
     } finally {
       setBusyKind(null);
     }
+  }
+
+  // (val 2026-06-06, SPEC §2) Run every enabled adapter in one section
+  // sequentially. No new endpoint — reuses /public-intel/run per adapter.
+  // Errors don't block siblings; final reload reflects whichever landed.
+  async function runAllInSection(kinds: string[]) {
+    if (kinds.length === 0 || sectionBusy) return;
+    setSectionBusy(true);
+    setError(null);
+    let ran = 0;
+    let errored = 0;
+    for (const kind of kinds) {
+      try {
+        const r = await fetch(`/api/admin/av/clients/${clientId}/public-intel/run`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sourceKind: kind })
+        });
+        const j = await r.json();
+        if (!r.ok || j.ok === false) errored++;
+        else ran++;
+      } catch {
+        errored++;
+      }
+    }
+    await load();
+    setSectionBusy(false);
+    if (errored > 0) setError(`Ran ${ran}, ${errored} errored. Check individual adapters below.`);
   }
 
   // (#429) Smoke-test every adapter at once. Hits the new endpoint
@@ -650,7 +703,20 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                       </li>
                     ))}
                     {packResult.rescored && (
-                      <li>· Rescored watchlist: <span className="text-emerald-300">{packResult.rescored.entitiesScored}</span> entities from {packResult.rescored.recordsScanned} records</li>
+                      <li>
+                        · Rescored watchlist: <span className="text-emerald-300">{packResult.rescored.entitiesScored}</span> entities from {packResult.rescored.recordsScanned} records
+                        {packResult.rescored.entitiesScored > 0 && (
+                          <>
+                            {' · '}
+                            <a
+                              href={`/admin/av/clients/${clientId}#distress`}
+                              className="text-[var(--gold-bright)] underline-offset-2 hover:underline"
+                            >
+                              View watchlist →
+                            </a>
+                          </>
+                        )}
+                      </li>
                     )}
                   </ul>
                 ) : (
@@ -728,20 +794,63 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                 buckets.set(cat, cur);
               }
               return (
-                <div className="grid gap-5">
+                <div className="grid gap-3">
                   {CATEGORY_ORDER.filter((cat) => (buckets.get(cat) ?? []).length > 0).map((cat) => {
                     const meta = CATEGORY_META[cat];
                     const list = buckets.get(cat) ?? [];
+                    // (val 2026-06-06, SPEC §5) Only "Find prospects" defaults
+                    // open on mobile. Others collapsed with a summary chip in
+                    // the header showing armed count.
+                    const defaultOpen = cat === 'prospect_source';
+                    const armedKinds = list
+                      .filter((a) => a.available && a.source?.enabled)
+                      .map((a) => a.kind);
+                    const armedCount = armedKinds.length;
                     return (
-                      <section key={cat} className="grid gap-2">
-                        <header className="flex items-baseline justify-between gap-3 border-b border-border/60 pb-1.5">
-                          <div className="min-w-0">
-                            <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--gold-bright)]">{meta.title}</div>
-                            <div className="text-[11.5px] text-muted leading-snug mt-0.5">{meta.subtitle}</div>
+                      <details
+                        key={cat}
+                        open={defaultOpen}
+                        className="group rounded-xl border border-border/50 bg-bg/20"
+                      >
+                        <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-bg/30 transition-colors">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--gold-bright)] flex items-center gap-2">
+                              <span
+                                aria-hidden
+                                className="inline-block w-2.5 transition-transform group-open:rotate-90 text-muted"
+                              >▶</span>
+                              {meta.title}
+                              {!defaultOpen && (
+                                <span className="text-muted/70 normal-case tracking-normal text-[10.5px]">
+                                  · {armedCount > 0 ? `${armedCount} armed` : `${list.length} available`}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-muted leading-snug mt-0.5 ml-4">{meta.subtitle}</div>
                           </div>
+                          {/* (SPEC §2) Per-section Run-all-enabled link. Visible only
+                              when something is armed AND the section is runnable
+                              (prospect_source + enrichment). Cascade sources fire
+                              themselves; coming-soon are unavailable. */}
+                          {(cat === 'prospect_source' || cat === 'enrichment') && armedCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); runAllInSection(armedKinds); }}
+                              disabled={sectionBusy}
+                              className={
+                                'shrink-0 text-[10.5px] uppercase tracking-[0.1em] rounded px-2 py-1 border ' +
+                                (sectionBusy
+                                  ? 'border-border bg-bg/40 text-muted cursor-wait'
+                                  : 'border-emerald-400/30 text-emerald-300 hover:bg-emerald-400/10')
+                              }
+                              title={`Run every enabled adapter in ${meta.title}`}
+                            >
+                              {sectionBusy ? 'Running…' : `▶ Run all (${armedCount})`}
+                            </button>
+                          )}
                           <div className="text-[10.5px] text-muted/70 tabular-nums shrink-0">{list.length}</div>
-                        </header>
-                        <ul className="grid gap-3">
+                        </summary>
+                        <ul className="grid gap-3 p-3 pt-1">
                           {list.map((a) => (
                 <li
                   key={a.kind}
@@ -751,6 +860,24 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-ink font-medium">{a.displayName}</span>
+                        {/* (val 2026-06-06, SPEC §6) Cost chip — one glance at FREE vs paid.
+                            Emerald for free, amber for paid, muted for unknown. AA on dark. */}
+                        {(() => {
+                          const c = parseCost(a.costNote);
+                          const cls = c.tier === 'free'
+                            ? 'text-emerald-300 border-emerald-400/30 bg-emerald-400/10'
+                            : c.tier === 'paid'
+                            ? 'text-amber-200 border-amber-400/30 bg-amber-400/10'
+                            : 'text-muted border-border bg-bg/40';
+                          return (
+                            <span
+                              className={`text-[10px] uppercase tracking-[0.12em] rounded px-1.5 py-0.5 border ${cls}`}
+                              title={a.costNote || 'No cost note'}
+                            >
+                              {c.label}
+                            </span>
+                          );
+                        })()}
                         {!a.available && (
                           <span className="text-[10px] uppercase tracking-[0.12em] text-muted/80 border border-border rounded px-1.5 py-0.5">
                             Coming soon
@@ -765,9 +892,9 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                       <div className="text-[11.5px] text-muted leading-snug mt-1">{a.description}</div>
                       <div className="text-[11px] text-muted mt-1.5">
                         <span className="text-ink/70">Best for:</span> {a.bestFor.join(' · ')}
-                        <span className="mx-1.5 text-muted/40">·</span>
-                        <span className="text-ink/70">{a.costNote}</span>
                       </div>
+                      {/* Detailed cost breakdown moved into the body (SPEC §6) — chip is the headline. */}
+                      <div className="text-[10.5px] text-muted/70 mt-1 italic">{a.costNote}</div>
                       {a.source && (
                         <div className="text-[11px] text-muted mt-1.5">
                           Last run:{' '}
@@ -785,48 +912,71 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                   </div>
                   {a.available && (
                     <div className="mt-3 grid gap-2">
-                      <label className="grid gap-1.5">
-                        <span className="text-[10.5px] uppercase tracking-[0.12em] text-muted">
-                          Config (JSON)
-                        </span>
-                        {/* (#373) Click-to-fill preset chips. One click drops the
-                            formatted JSON straight into the textarea below — no
-                            typing required for the common cases. */}
-                        {CONFIG_PRESETS[a.kind] && (
-                          <div className="flex flex-wrap items-center gap-1.5 -mt-0.5">
-                            <span className="text-[10.5px] text-ink/70 uppercase tracking-[0.1em]">
-                              Quick fill:
-                            </span>
-                            {CONFIG_PRESETS[a.kind].presets.map((p) => (
-                              <button
-                                key={p.label}
-                                type="button"
-                                onClick={() =>
-                                  setDrafts((prev) => ({
-                                    ...prev,
-                                    [a.kind]: JSON.stringify(p.config, null, 2)
-                                  }))
-                                }
-                                className="rounded-md border border-brand/40 bg-brand/[0.08] hover:bg-brand/[0.16] text-brand text-[11px] font-medium px-2 py-1 transition-colors"
-                                title="Click to populate the config box with this preset"
-                              >
-                                {p.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <textarea
-                          value={drafts[a.kind] ?? ''}
-                          onChange={(e) => setDrafts((p) => ({ ...p, [a.kind]: e.target.value }))}
-                          placeholder={CONFIG_PRESETS[a.kind]?.placeholder ?? '{}'}
-                          rows={5}
-                          className="rounded-md border border-border bg-black/40 px-3 py-2 text-[13px] text-ink font-mono leading-relaxed placeholder:text-ink/35"
-                          spellCheck={false}
-                        />
-                        <span className="text-[10.5px] text-ink/55">
-                          Tip: edit the JSON directly after a preset to tweak it. Save + enable persists; Run now fires the adapter.
-                        </span>
-                      </label>
+                      {/* (SPEC §4) Quick-fill chips stay above the fold — one tap
+                          and the JSON is set. Clicking echoes the human label
+                          right below so val sees what changed without opening
+                          the raw JSON box. */}
+                      {CONFIG_PRESETS[a.kind] && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10.5px] text-ink/70 uppercase tracking-[0.1em]">
+                            Quick fill:
+                          </span>
+                          {CONFIG_PRESETS[a.kind].presets.map((p) => (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => {
+                                setDrafts((prev) => ({
+                                  ...prev,
+                                  [a.kind]: JSON.stringify(p.config, null, 2)
+                                }));
+                                setPresetEchoes((prev) => ({ ...prev, [a.kind]: p.label }));
+                              }}
+                              className="rounded-md border border-brand/40 bg-brand/[0.08] hover:bg-brand/[0.16] text-brand text-[11px] font-medium px-2 py-1 transition-colors"
+                              title="Click to populate the config box with this preset"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {presetEchoes[a.kind] && (
+                        <div className="text-[11px] text-emerald-300/90">
+                          <span className="uppercase tracking-[0.12em] text-emerald-300/70 text-[10px]">Set to:</span>{' '}
+                          {presetEchoes[a.kind]}
+                        </div>
+                      )}
+                      {/* (SPEC §4) Raw JSON tucked behind a disclosure — on mobile
+                          val never has to see it. Auto-opens after a preset click
+                          (because that's when she'd want to tweak). */}
+                      <details
+                        className="rounded-md border border-border/60 bg-black/20 group"
+                        open={!!presetEchoes[a.kind]}
+                      >
+                        <summary className="list-none cursor-pointer flex items-center justify-between gap-2 px-2.5 py-1.5 text-[10.5px] uppercase tracking-[0.12em] text-muted hover:text-ink">
+                          <span className="flex items-center gap-2">
+                            <span aria-hidden className="inline-block w-2 transition-transform group-open:rotate-90">▶</span>
+                            Advanced (edit JSON)
+                          </span>
+                          <span className="normal-case tracking-normal text-[10px] text-muted/60">
+                            {(drafts[a.kind] ?? '').trim() ? 'configured' : 'empty'}
+                          </span>
+                        </summary>
+                        <div className="px-2.5 pb-2.5 pt-1 grid gap-1.5">
+                          <textarea
+                            value={drafts[a.kind] ?? ''}
+                            onChange={(e) => setDrafts((p) => ({ ...p, [a.kind]: e.target.value }))}
+                            placeholder={CONFIG_PRESETS[a.kind]?.placeholder ?? '{}'}
+                            rows={5}
+                            className="rounded-md border border-border bg-black/40 px-3 py-2 text-[13px] text-ink font-mono leading-relaxed placeholder:text-ink/35"
+                            spellCheck={false}
+                            aria-label="Adapter config JSON"
+                          />
+                          <span className="text-[10.5px] text-ink/55">
+                            Tip: edit the JSON directly after a preset to tweak it. Save + enable persists; Run now fires the adapter.
+                          </span>
+                        </div>
+                      </details>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           type="button"
@@ -883,7 +1033,7 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                 </li>
               ))}
                         </ul>
-                      </section>
+                      </details>
                     );
                   })}
                 </div>
