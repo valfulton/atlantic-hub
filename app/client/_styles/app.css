@@ -525,18 +525,21 @@
   gap: 0.6rem;
   align-items: center;
 }
+/* ONE refined button scale (val 2026-06-06: "what's going on with the size?").
+   Content-width, not full-bleed — sized to its label, sits left in the foot.
+   Every card button (watchlist · fresh leads · pipeline) shares this class. */
 .app-card .pcta {
-  flex: 1;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   background: var(--black);
   color: var(--cream);
   font-weight: 600;
-  font-size: 0.85rem;
-  padding: 0.7rem 1rem;
-  border-radius: 9px;
+  font-size: 0.82rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 10px;
   cursor: pointer;
   transition: background 0.2s;
   border: 0;
@@ -608,35 +611,33 @@
 }
 .app-empty p { margin: 0; }
 
-/* ── "QUIET ON THE WIRE" — watchlist empty-state hero ──────────────
-   The one dark forest moment on the dashboard (the "velvet rope"). val:
-   the flat box that replaced it is wrong — this is the beautiful version.
-   gold-bright + cream are AA-safe on the dark forest ground. */
+/* ── Watchlist / leads EMPTY state — calm, NOT a hero (val 2026-06-06:
+   "this is not a hero moment. it's giving me nothing"). A big dark-green
+   slab for "nothing yet" was wrong. Quiet cream card, emerald eyebrow
+   accent, muted copy. The POPULATED hero (.app-feat — the Ronald-Lawrence
+   box val approved) stays dark-green; that one earns the drama, empty
+   doesn't. */
 .app-wire {
-  position: relative;
-  overflow: hidden;
-  border-radius: 16px;
-  padding: 2.6rem 1.6rem;
+  border-radius: 14px;
+  padding: 1.5rem 1.4rem;
   text-align: center;
-  background:
-    radial-gradient(120% 150% at 50% -30%, rgba(22, 163, 122, 0.28), transparent 60%),
-    linear-gradient(160deg, var(--forest), var(--emerald-deep));
-  box-shadow: 0 24px 56px -30px rgba(10, 77, 60, 0.55);
-  color: var(--cream);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  color: var(--ink);
 }
 .app-wire .eb {
   display: inline-block;
   font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--gold-bright);
-  margin-bottom: 0.7rem;
+  color: var(--emerald-deep);
+  margin-bottom: 0.5rem;
 }
 .app-wire p {
   margin: 0 auto;
   max-width: 46ch;
-  color: rgba(245, 239, 227, 0.85);
+  color: var(--muted);
   font-size: 0.95rem;
   line-height: 1.6;
 }
