@@ -99,9 +99,12 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
   ucc_ca: {
     placeholder: 'click a preset →',
     presets: [
-      { label: 'Search "Candelaria"', config: { debtor: 'Candelaria' } },
-      { label: 'Search "Acme"', config: { debtor: 'Acme' } },
-      { label: 'Include lapsed filings', config: { debtor: 'Candelaria', includeLapsed: true } }
+      // (val 2026-06-06) Relabeled — the old labels named the *search input*
+      // ("Candelaria", "Acme") which meant nothing. The new labels describe
+      // the OUTCOME so val knows what each preset finds.
+      { label: 'Auto-run from cascades (recommended)', config: { mode: 'cascade_only' } },
+      { label: 'Manual lookup — type a business name in JSON', config: { debtor: 'BUSINESS NAME HERE' } },
+      { label: 'Include lapsed filings (5yr history)', config: { debtor: 'BUSINESS NAME HERE', includeLapsed: true } }
     ]
   },
   pacer_docket: {
@@ -213,6 +216,54 @@ const CONFIG_PRESETS: Record<string, { placeholder: string; presets: ConfigPrese
     ]
   }
 };
+
+// (val 2026-06-06) Group adapters by what they DO for the operator. Three
+// buckets:
+//   1. prospect_source — adapters val triggers manually that emit business
+//      names she can promote to leads. The top-of-funnel.
+//   2. cascade_source — adapters that fire automatically when an upstream
+//      trigger lands (e.g. UCC lookup after a CA SOS suspension). No reason
+//      to run these by hand — they execute via Run Cascades.
+//   3. coming_soon — adapter scaffolded but not yet usable.
+//
+// Any adapter not in the map falls into "Other / signal enrichment".
+type AdapterCategory = 'prospect_source' | 'cascade_source' | 'enrichment' | 'coming_soon';
+const ADAPTER_CATEGORY: Record<string, AdapterCategory> = {
+  ca_sos: 'prospect_source',
+  pacer_docket: 'prospect_source',
+  courtlistener: 'prospect_source',
+  gbp: 'prospect_source',
+  datasf: 'prospect_source',
+  md_land_rec: 'prospect_source',
+  ucc_ca: 'cascade_source',
+  hmda: 'enrichment',
+  cfpb: 'enrichment',
+  census_acs: 'enrichment'
+};
+const CATEGORY_META: Record<AdapterCategory, { title: string; subtitle: string }> = {
+  prospect_source: {
+    title: 'Find prospects',
+    subtitle: 'Run these to surface business names you can promote to leads. Start here.'
+  },
+  cascade_source: {
+    title: 'Auto-fires via cascade',
+    subtitle: 'These run automatically when a trigger lands. You usually don\'t need to touch them.'
+  },
+  enrichment: {
+    title: 'Scoring + context',
+    subtitle: 'These add weight to existing prospects (HMDA, Census, CFPB complaint volume). Background fuel.'
+  },
+  coming_soon: {
+    title: 'Coming soon',
+    subtitle: 'Scaffolded but not live yet.'
+  }
+};
+const CATEGORY_ORDER: AdapterCategory[] = ['prospect_source', 'cascade_source', 'enrichment', 'coming_soon'];
+
+function categorize(adapter: AdapterEntry): AdapterCategory {
+  if (!adapter.available) return 'coming_soon';
+  return ADAPTER_CATEGORY[adapter.kind] ?? 'enrichment';
+}
 
 function relTime(iso: string | null): string {
   if (!iso) return 'never';
@@ -502,8 +553,33 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
           {!adapters ? (
             <div className="text-[11px] text-muted">Loading adapters…</div>
           ) : (
-            <ul className="grid gap-3">
-              {adapters.map((a) => (
+            (() => {
+              // (val 2026-06-06) Group adapters by category so the panel reads
+              // like a checklist instead of 10 random cards. Each section gets
+              // a heading + one-line explainer so val knows what to DO in each.
+              const buckets = new Map<AdapterCategory, AdapterEntry[]>();
+              for (const a of adapters) {
+                const cat = categorize(a);
+                const cur = buckets.get(cat) ?? [];
+                cur.push(a);
+                buckets.set(cat, cur);
+              }
+              return (
+                <div className="grid gap-5">
+                  {CATEGORY_ORDER.filter((cat) => (buckets.get(cat) ?? []).length > 0).map((cat) => {
+                    const meta = CATEGORY_META[cat];
+                    const list = buckets.get(cat) ?? [];
+                    return (
+                      <section key={cat} className="grid gap-2">
+                        <header className="flex items-baseline justify-between gap-3 border-b border-border/60 pb-1.5">
+                          <div className="min-w-0">
+                            <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--gold-bright)]">{meta.title}</div>
+                            <div className="text-[11.5px] text-muted leading-snug mt-0.5">{meta.subtitle}</div>
+                          </div>
+                          <div className="text-[10.5px] text-muted/70 tabular-nums shrink-0">{list.length}</div>
+                        </header>
+                        <ul className="grid gap-3">
+                          {list.map((a) => (
                 <li
                   key={a.kind}
                   className={`rounded-xl border ${a.available ? 'border-border bg-bg/40' : 'border-border/40 bg-bg/20'} p-3.5`}
@@ -643,7 +719,13 @@ export default function PublicIntelPanel({ clientId, clientName }: { clientId: n
                   )}
                 </li>
               ))}
-            </ul>
+                        </ul>
+                      </section>
+                    );
+                  })}
+                </div>
+              );
+            })()
           )}
         </div>
       )}
