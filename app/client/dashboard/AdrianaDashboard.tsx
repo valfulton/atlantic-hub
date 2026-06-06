@@ -315,11 +315,6 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           </Link>
         </div>
 
-        {/* (#377) Your A&V team — Adriana sees Rebecca here. Renders nothing for
-            clients with no AV rep assigned (Tim, etc), so the surface is the
-            same dashboard but only shows the row when there's someone on it. */}
-        <TeamRow team={p.team} />
-
         {/* Featured Signal hero */}
         {p.hero && (
           <Link href={p.hero.ctaHref} className="app-feat" aria-label={p.hero.headline}>
@@ -374,6 +369,12 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             {p.freshLeads.cards.map((c) => <Card key={c.id} card={c} />)}
           </div>
         )}
+
+        {/* (#377, val 2026-06-05) Account team — moved to the footer position;
+            employee assignment is supporting cast, never the headline.
+            Awaiting UX/UI design pass — likely becomes a small chip strip
+            rather than a card row. Renders nothing if no team assigned. */}
+        <TeamRow team={p.team} />
       </div>
     </>
   );

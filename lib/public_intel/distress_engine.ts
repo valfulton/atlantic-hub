@@ -198,18 +198,31 @@ export function classifyRecord(r: IntelRecord): ClassifiedSignal[] {
   }
 
   if (r.sourceKind === 'courtlistener') {
-    // Will be populated when the CourtListener adapter writes records.
-    // Each filing record maps to a lawsuit_filed or bankruptcy_filed signal.
+    // Each filing maps to a lawsuit_filed or bankruptcy_filed signal.
+    // (val 2026-06-06) Skip parse-failure case names. CourtListener returns
+    // "Miscellaneous Entry", "Unknown Case Title - Adversary Proceeding",
+    // or a stub like "v." (no party names recovered) for ~40% of bankruptcy
+    // dockets. Scoring those clutters the Intelligence Feed + watchlist with
+    // rows the operator can't promote or action. Drop them at this layer so
+    // they never enter entity_distress_scores in the first place.
     const j = r.recordJson as { entity?: string; court?: string; nature?: string };
-    const isBankruptcy = typeof j.court === 'string' && /bankr/i.test(j.court);
-    const entityKey = r.entityKey;
-    out.push({
-      signalKind: isBankruptcy ? 'bankruptcy_filed' : 'lawsuit_filed',
-      entityKey,
-      entityLabel: j.entity ?? r.summaryLabel,
-      regionCode: r.regionCode,
-      source: `CourtListener · ${j.court ?? 'court'} · ${j.nature ?? 'civil'}`
-    });
+    const label = (j.entity ?? r.summaryLabel ?? '').trim();
+    const isJunkCaseName =
+      label.length < 3 ||
+      /^v\.?$/i.test(label) ||
+      /^miscellaneous entry/i.test(label) ||
+      /^unknown case title/i.test(label) ||
+      /^in re\s*:?\s*$/i.test(label);
+    if (!isJunkCaseName) {
+      const isBankruptcy = typeof j.court === 'string' && /bankr/i.test(j.court);
+      out.push({
+        signalKind: isBankruptcy ? 'bankruptcy_filed' : 'lawsuit_filed',
+        entityKey: r.entityKey,
+        entityLabel: label,
+        regionCode: r.regionCode,
+        source: `CourtListener · ${j.court ?? 'court'} · ${j.nature ?? 'civil'}`
+      });
+    }
   }
 
   // (#388) DataSF records: each row is a complaint or NOV on a property.

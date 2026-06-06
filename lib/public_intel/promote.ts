@@ -68,6 +68,23 @@ export async function promoteEntityToLead(input: PromoteEntityInput): Promise<Pr
   const rawScore = typeof input.score === 'number' && Number.isFinite(input.score) ? input.score : 0;
   const signalKinds = Array.isArray(input.signalKinds) ? input.signalKinds : [];
 
+  // (val 2026-06-06) Reject junk CourtListener entity labels before they
+  // pollute the leads table. CL case-title parsing sometimes produces "v.",
+  // "Miscellaneous Entry", "Unknown Case Title", or single-char strings.
+  // Those rows surface on the watchlist because the engine still scored the
+  // FILING; the parse failure is on the human label. Promoting them creates
+  // a useless lead row that costs an enrichment burn to figure out is junk.
+  const trimmed = company.trim();
+  const isJunk =
+    trimmed.length < 3 ||
+    /^v\.?$/i.test(trimmed) ||
+    /^miscellaneous entry$/i.test(trimmed) ||
+    /^unknown case title$/i.test(trimmed) ||
+    /^\(unknown entity\)$/i.test(trimmed);
+  if (isJunk) {
+    throw new Error(`junk entity label "${trimmed}" — skipped to keep leads table clean (filter the watchlist row instead)`);
+  }
+
   // 1. Dedup: same client + same company name = already-a-lead, return it.
   const [existing] = await db.execute<LeadRow[]>(
     `SELECT id, audit_id
