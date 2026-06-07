@@ -1,0 +1,60 @@
+/* MobileAccordion + QuickActionsRibbon — operator dark register, mobile-first.
+   44px+ touch targets, gold sparingly (key action only). Desktop = pass-through. */
+
+.macc {
+  border: 1px solid var(--border, rgba(255,255,255,.10));
+  border-radius: 12px;
+  background: var(--surface, rgba(255,255,255,.04));
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.macc-head {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 56px; padding: 10px 14px;
+  background: transparent; border: 0; cursor: pointer; text-align: left;
+  color: var(--ink, #f1f5f9); font-family: inherit;
+}
+.macc-icon {
+  flex-shrink: 0; width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 8px; background: rgba(255,255,255,.06); color: var(--brand, #EBCB6B);
+}
+.macc-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.macc-title { font-size: 15px; font-weight: 600; color: var(--ink, #f1f5f9); }
+.macc-status { font-size: 12.5px; color: var(--muted, #94a3b8); margin-top: 2px; }
+.macc-toggle {
+  flex-shrink: 0; width: 32px; height: 32px; display: grid; place-items: center;
+  font-size: 22px; line-height: 1; color: var(--muted, #94a3b8);
+}
+.macc-body { display: none; padding: 0 14px 14px; }
+.macc.is-open .macc-body { display: block; }
+
+/* DESKTOP: accordion disappears — panel renders exactly as before. */
+@media (min-width: 768px) {
+  .macc { border: 0; background: transparent; border-radius: 0; margin-bottom: 0; overflow: visible; }
+  .macc-head { display: none; }
+  .macc-body { display: block !important; padding: 0; }
+}
+
+/* ── Quick-actions ribbon (mobile only, sticky under the breadcrumb) ── */
+.qa-ribbon { display: none; }
+@media (max-width: 767px) {
+  .qa-ribbon {
+    display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    padding: 10px 0; position: sticky; top: 0; z-index: 30;
+    background: var(--bg, #0b1220);
+    scrollbar-width: none;
+  }
+  .qa-ribbon::-webkit-scrollbar { display: none; }
+  .qa-btn {
+    flex: 0 0 auto; min-height: 44px; display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 14px; border-radius: 10px;
+    border: 1px solid var(--border, rgba(255,255,255,.12));
+    background: rgba(255,255,255,.04); color: var(--ink, #f1f5f9);
+    font-weight: 600; font-size: 13px; white-space: nowrap; cursor: pointer; font-family: inherit;
+  }
+  /* primary (first) action gets the gold accent — jewelry, not a slab */
+  .qa-btn--primary {
+    border-color: color-mix(in srgb, var(--brand, #EBCB6B) 50%, transparent);
+    color: var(--brand, #EBCB6B);
+  }
+}

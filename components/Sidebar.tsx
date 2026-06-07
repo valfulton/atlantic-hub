@@ -65,6 +65,19 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
   // viewport. Persists across reloads via localStorage. When collapsed, the
   // sidebar is replaced by a small floating "Open" chip in the top-left.
   const [collapsed, setCollapsed] = useState(false);
+  // (val 2026-06-07, #494 · UX/UI nav rule 3) Track viewport so the expanded
+  // sidebar on mobile renders as a slide-in DRAWER (fixed + translate +
+  // backdrop) rather than shifting page content. Drawer reads premium;
+  // overlay would feel abrupt per UX/UI's call.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    function sync() { setIsMobile(mq.matches); }
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     // (val 2026-06-07, #494) On phones the 256px sidebar swallows the
@@ -72,8 +85,8 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
     // mobile val sees full-width content + the floating hamburger she can
     // tap to summon the sidebar when needed. Desktop respects her stored
     // preference.
-    const isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (isMobile) {
+    const mobile = window.matchMedia('(max-width: 767px)').matches;
+    if (mobile) {
       setCollapsed(true);
       return;
     }
@@ -112,7 +125,25 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
   }
 
   return (
-    <aside className="w-64 min-h-screen flex flex-col bg-[rgba(10,15,26,0.55)] backdrop-blur-xl border-r border-border">
+    <>
+      {/* Mobile-only backdrop — tap to close (val 2026-06-07, UX/UI nav rule 3) */}
+      {isMobile && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          onClick={toggle}
+          className="fixed inset-0 z-30 bg-black/45 md:hidden"
+        />
+      )}
+    <aside
+      className={[
+        'w-64 min-h-screen flex flex-col bg-[rgba(10,15,26,0.55)] backdrop-blur-xl border-r border-border',
+        // Mobile drawer slide-in: fixed left, smooth transform. Desktop unchanged.
+        isMobile
+          ? 'fixed inset-y-0 left-0 z-40 shadow-2xl transition-transform duration-200 ease-out'
+          : ''
+      ].join(' ')}
+    >
       {/* Brand header — V3 polish (#392). Grid replaces the magic ml-[52px]
           indents so logo + label + meta share one visual column. */}
       <div className="px-5 py-5 border-b border-border relative">
@@ -189,5 +220,6 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
         </button>
       </div>
     </aside>
+    </>
   );
 }

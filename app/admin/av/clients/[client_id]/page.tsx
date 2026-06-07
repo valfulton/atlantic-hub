@@ -14,6 +14,7 @@ import PortalAccessToggle from './PortalAccessToggle';
 import PrefilledIntakeLink from './PrefilledIntakeLink';
 import FindLeadsForClient from './FindLeadsForClient';
 import IcpEditor from './IcpEditor';
+import QuickActionsRibbon from '@/app/admin/_components/QuickActionsRibbon';
 import SharpenIcpPanel from './SharpenIcpPanel';
 import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import RefreshIntelPanel from './RefreshIntelPanel';
@@ -263,6 +264,18 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <span className="mx-1.5">/</span>
         <span className="text-ink">{d.name}</span>
       </div>
+
+      {/* (val 2026-06-07, #494) Mobile-only quick-actions ribbon. On phones
+          val can tap any of these to scroll to + auto-expand the target
+          panel — no more 2,000px scroll to reach the thing she wants.
+          Hidden on desktop (all panels visible there anyway). */}
+      <QuickActionsRibbon
+        actions={[
+          { label: 'Send access', icon: '🔑', targetId: 'access-group', primary: true },
+          { label: 'Edit ICP', icon: '✎', targetId: 'icp' },
+          { label: 'Pipeline', icon: '◉', targetId: 'their-pipeline' }
+        ]}
+      />
 
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
@@ -702,7 +715,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* (#306) Their pipeline — with bulk-select + bulk-delete + bulk-move-
           to-another-client. Address inline so val can triage by geography. */}
-      <div className="rounded-2xl border border-border bg-surface p-4">
+      <div id="their-pipeline" className="rounded-2xl border border-border bg-surface p-4">
         <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-3">Their pipeline</div>
         <ClientPipelineList
           clientId={clientId}
