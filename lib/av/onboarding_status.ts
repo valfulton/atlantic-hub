@@ -259,7 +259,7 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       key: 'account',
       label: 'Account',
       status: 'done',
-      anchor: 'access-group'
+      anchor: 'account'
     },
     {
       id: 2,

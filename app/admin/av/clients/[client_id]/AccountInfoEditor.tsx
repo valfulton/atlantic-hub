@@ -45,7 +45,9 @@ export default function AccountInfoEditor({
   // it was missed at client creation. Pre-filled with the current address (if
   // any) so leaving it alone is a no-op.
   const [newEmail, setNewEmail] = useState(contactEmail ?? '');
-  const [open, setOpen] = useState(false);
+  // (val 2026-06-07) Default OPEN so the email field is visible without hunting
+  // for the collapsed link. The ① Account onboarding chip jumps straight here.
+  const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 

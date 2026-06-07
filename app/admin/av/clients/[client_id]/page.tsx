@@ -487,7 +487,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       {/* Multi-brand (#101): give this same login another brand (e.g. Adriana's CBB + CLDA). */}
       <AddBrandPanel clientId={clientId} ownerName={d.members[0]?.displayName || d.name} />
 
-      {/* Account info editor (name / industry / contact) — no SQL needed. */}
+      {/* Account info editor (name / industry / contact) — no SQL needed.
+          id="account" is the jump target for onboarding step ① Account. */}
+      <div id="account" style={{ scrollMarginTop: 80 }} />
       <AccountInfoEditor
         clientId={clientId}
         initialClientName={d.name}
