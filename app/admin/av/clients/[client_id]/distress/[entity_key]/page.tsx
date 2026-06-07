@@ -41,9 +41,14 @@ const STRUCTURED_HINTS: Record<string, Array<{ path: string; label: string }>> =
     { path: 'docket_number', label: 'Docket #' },
     { path: 'court', label: 'Court' },
     { path: 'date_filed', label: 'Filed' },
+    { path: 'date_terminated', label: 'Terminated' },
+    { path: 'chapter', label: 'Chapter' },
     { path: 'nature_of_suit', label: 'Nature' },
     { path: 'parties', label: 'Parties' },
-    { path: 'absolute_url', label: 'CourtListener URL' }
+    { path: 'attorney', label: 'Attorney(s)' },
+    { path: 'assigned_to', label: 'Judge' },
+    { path: 'jury_demand', label: 'Jury demand' },
+    { path: 'docket_url', label: 'Docket URL' }
   ],
   pacer_docket: [
     { path: 'case_name', label: 'Case' },
@@ -138,11 +143,29 @@ function fmtDate(d: Date | string): string {
   });
 }
 
+/**
+ * Tolerant payload lookup (val 2026-06-07). STRUCTURED_HINTS use snake_case
+ * (`case_name`, `date_filed`) but several adapters serialize camelCase
+ * (`caseName`, `dateFiled`). Try the literal key first, then convert
+ * snake↔camel both directions, so a hint hits regardless of which style the
+ * adapter chose. Returns the first non-empty value found.
+ */
+function pickField(recordJson: Record<string, unknown>, path: string): unknown {
+  if (recordJson[path] != null) return recordJson[path];
+  // snake → camel
+  const camel = path.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+  if (recordJson[camel] != null) return recordJson[camel];
+  // camel → snake
+  const snake = path.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  if (recordJson[snake] != null) return recordJson[snake];
+  return null;
+}
+
 function StructuredFields({ sourceKind, recordJson }: { sourceKind: string; recordJson: Record<string, unknown> }) {
   const hints = STRUCTURED_HINTS[sourceKind] ?? [];
   if (hints.length === 0) return null;
   const rows = hints
-    .map((h) => ({ label: h.label, value: fmtVal(recordJson[h.path]) }))
+    .map((h) => ({ label: h.label, value: fmtVal(pickField(recordJson, h.path)) }))
     .filter((r) => r.value && r.value.length > 0);
   if (rows.length === 0) return null;
   return (

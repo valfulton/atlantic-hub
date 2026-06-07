@@ -35,11 +35,22 @@ interface CourtListenerConfig {
 interface CourtListenerHit {
   filedAt: string | null;
   caseName: string | null;
+  caseNameShort: string | null;
   court: string | null;
   courtId: string | null;
   natureOfSuit: string | null;
   docketUrl: string | null;
+  docketNumber: string | null;
   party: string | null;
+  parties: string[] | null;
+  attorney: string[] | null;
+  /** Bankruptcy chapter (7 / 11 / 13) when present — drives the consumer
+   *  vs corporate signal split for the distress engine. */
+  chapter: string | null;
+  /** Magistrate / assigned judge label when CourtListener returns it. */
+  assignedTo: string | null;
+  juryDemand: string | null;
+  dateTerminated: string | null;
   state: string | null;
 }
 
@@ -84,23 +95,39 @@ async function fetchHits(state: string, sinceDays: number, nature?: string[]): P
     const j = (await res.json()) as {
       results?: Array<{
         dateFiled?: string;
+        dateTerminated?: string;
         caseName?: string;
+        caseNameShort?: string;
         court?: string;
         court_id?: string;
         suitNature?: string;
         absolute_url?: string;
+        docketNumber?: string;
+        docket_number?: string;
         party?: string[];
+        attorney?: string[];
+        chapter?: string | number;
+        assignedTo?: string;
+        juryDemand?: string;
         court_state?: string;
       }>;
     };
     return (j.results ?? []).map((r) => ({
       filedAt: r.dateFiled ?? null,
       caseName: r.caseName ?? null,
+      caseNameShort: r.caseNameShort ?? null,
       court: r.court ?? null,
       courtId: r.court_id ?? null,
       natureOfSuit: r.suitNature ?? null,
       docketUrl: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : null,
+      docketNumber: r.docketNumber ?? r.docket_number ?? null,
       party: Array.isArray(r.party) ? r.party.join(' / ') : null,
+      parties: Array.isArray(r.party) ? r.party : null,
+      attorney: Array.isArray(r.attorney) ? r.attorney : null,
+      chapter: r.chapter != null ? String(r.chapter) : null,
+      assignedTo: r.assignedTo ?? null,
+      juryDemand: r.juryDemand ?? null,
+      dateTerminated: r.dateTerminated ?? null,
       state: r.court_state ?? state.toUpperCase()
     }));
   } catch {
