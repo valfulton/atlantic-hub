@@ -37,15 +37,7 @@ export default async function IntakePage({
     <div className="max-w-3xl">
       <h1 className="text-3xl font-semibold tracking-tight mb-1">
         Client{' '}
-        <span
-          className="font-bold italic"
-          style={{
-            background: 'linear-gradient(120deg, #FF5A6E 0%, #FF9C5B 50%, #FFC73D 100%)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            color: 'transparent'
-          }}
-        >
+        <span className="font-bold italic text-brand">
           Intake
         </span>
       </h1>
