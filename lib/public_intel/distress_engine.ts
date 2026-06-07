@@ -116,6 +116,11 @@ export interface ClassifiedSignal {
   regionCode: string | null;
   /** Free-form trace so the operator can audit "why is this entity hot?" */
   source: string;
+  /** (val 2026-06-07) The public_intel_records.record_id that fired this
+   *  signal. Persisted into entity_distress_scores.contributing_signals so
+   *  the dossier can join back to the actual record(s) — no more "0 RECORDS"
+   *  when the synthetic entity_key doesn't string-match the stored key. */
+  recordId?: number;
   /** (val 2026-06-07, #484) The actual upstream event date — when the court
    *  filed the case, when the SOS suspended the entity, when the recorder
    *  stamped the deed. Extracted from the source payload at classify time
@@ -303,7 +308,13 @@ export function classifyRecord(r: IntelRecord): ClassifiedSignal[] {
   // emitted by this record. Individual `out.push({...})` sites above don't
   // need to know about dates — the classifier handles it uniformly here so
   // adding a new signal kind never forgets the date.
-  return eventDate ? out.map((s) => ({ ...s, eventDate })) : out;
+  // (val 2026-06-07) Also stamp recordId so the dossier can join score
+  // rows back to their source records — closes the "0 RECORDS" gap.
+  return out.map((s) => ({
+    ...s,
+    recordId: r.recordId,
+    ...(eventDate ? { eventDate } : {})
+  }));
 }
 
 interface SignalWeightRow extends RowDataPacket {

@@ -182,31 +182,56 @@ export async function loadDossierForEntity(args: {
   }
 
   // ---- 2. Raw intel records ----
-  // Three-part WHERE: exact key match, JSON-search by entity label, client scope.
+  // FOUR-part WHERE — covers every way records can be linked to a watchlist row:
+  //   (a) record_id appears in the score row's contributing_signals JSON
+  //       (val 2026-06-07 — the robust path: the engine stamps recordId on every
+  //       signal it emits, so we can always join back without string-matching).
+  //       Also bypasses client_id scoping by INTENT — if the signal contributed
+  //       to THIS client's score, the record is in-scope by definition. Fixes
+  //       the "WHAT WE HOLD (0 RECORDS)" case where the record was stored with
+  //       a different client_id (system-wide / AV's) than the watchlist row.
+  //   (b) Exact entity_key match (legacy adapters that share the synthetic key).
+  //   (c) entity_label JSON-search (catches related rows naming the entity).
+  //   (d) Client scope (always applied for b + c).
   let records: DossierRecord[] = [];
   try {
+    // Extract every record_id the engine persisted alongside this score's
+    // contributing signals — those records ARE the dossier rows we want.
+    const traceRecordIds: number[] = [];
+    for (const s of watchlist?.contributingSignals ?? []) {
+      const rid = (s as { recordId?: unknown }).recordId;
+      if (typeof rid === 'number' && Number.isFinite(rid)) traceRecordIds.push(rid);
+    }
+
     const labelLike = entityLabel ? `%${entityLabel.toLowerCase()}%` : null;
+    const idClause = traceRecordIds.length > 0
+      ? `record_id IN (${traceRecordIds.map(() => '?').join(',')}) OR `
+      : '';
     const sql = labelLike
       ? `SELECT record_id, source_kind, entity_key, summary_label, region_code,
                 record_json, fetched_at, expires_at
            FROM public_intel_records
-          WHERE (client_id = ? OR client_id IS NULL)
+          WHERE ${idClause}(
+            (client_id = ? OR client_id IS NULL)
             AND (
               entity_key = ?
               OR LOWER(CAST(record_json AS CHAR)) LIKE ?
             )
+          )
           ORDER BY fetched_at DESC
           LIMIT ${maxRecords}`
       : `SELECT record_id, source_kind, entity_key, summary_label, region_code,
                 record_json, fetched_at, expires_at
            FROM public_intel_records
-          WHERE (client_id = ? OR client_id IS NULL)
+          WHERE ${idClause}(
+            (client_id = ? OR client_id IS NULL)
             AND entity_key = ?
+          )
           ORDER BY fetched_at DESC
           LIMIT ${maxRecords}`;
     const params = labelLike
-      ? [args.clientId, args.entityKey, labelLike]
-      : [args.clientId, args.entityKey];
+      ? [...traceRecordIds, args.clientId, args.entityKey, labelLike]
+      : [...traceRecordIds, args.clientId, args.entityKey];
 
     const [rawRows] = await db.execute<PublicIntelRow[]>(sql, params);
 
