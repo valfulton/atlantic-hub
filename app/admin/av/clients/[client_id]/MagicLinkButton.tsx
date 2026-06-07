@@ -17,7 +17,7 @@
  */
 import { useState } from 'react';
 
-export default function MagicLinkButton({ clientId }: { clientId: number }) {
+export default function MagicLinkButton({ clientId, clientName }: { clientId: number; clientName?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -72,14 +72,30 @@ export default function MagicLinkButton({ clientId }: { clientId: number }) {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 mb-6">
-      {/* (#297) Recipient + expiry as the FIRST thing val reads. */}
-      <div className="flex items-baseline justify-between gap-3 mb-1.5 flex-wrap">
-        <div className="text-[11px] uppercase tracking-[0.12em] text-muted">
-          Magic link {email ? <>for <span className="text-ink/90 normal-case tracking-normal font-medium">{email}</span></> : '(recipient unknown)'}
+      {/* (val 2026-06-07, #486) Identity badge — val sometimes has multiple
+          MagicLinkButton tabs open at once and couldn't tell which client the
+          URL belonged to before sending. Now the BRAND + client_id sit at the
+          top in big letters; email + expiry follow below. */}
+      <div
+        className="mb-2.5 rounded-lg px-3 py-2 flex items-baseline justify-between gap-3 flex-wrap"
+        style={{ background: 'rgba(235,203,107,0.10)', border: '1px solid rgba(235,203,107,0.32)' }}
+      >
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Link for</div>
+          <div className="text-sm font-semibold text-ink">
+            {clientName ? clientName : `Client #${clientId}`}
+            <span className="ml-2 text-[11px] font-normal text-muted/80">#{clientId}</span>
+          </div>
         </div>
         <span className="text-[10px] text-muted/80 shrink-0" title="Expires in 24 hours from generation. Single-use: lands them in a session, then the token is consumed.">
           Valid {hours}h · single-use
         </span>
+      </div>
+      {/* (#297) Recipient email as the SECOND row. */}
+      <div className="flex items-baseline justify-between gap-3 mb-1.5 flex-wrap">
+        <div className="text-[11px] uppercase tracking-[0.12em] text-muted">
+          Magic link {email ? <>for <span className="text-ink/90 normal-case tracking-normal font-medium">{email}</span></> : '(recipient unknown)'}
+        </div>
       </div>
       <p className="text-[11.5px] text-muted/90 mb-2 leading-snug">
         Logs them in for {hours}h and lands them on their intake until it&apos;s complete. After they click it once, the token consumes — if they need to log in again later, hit Regenerate.

@@ -20,6 +20,11 @@ import { getClientDashboardData } from '@/lib/client/dashboard_data';
 import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
 import AdrianaDashboard from '@/app/client/dashboard/AdrianaDashboard';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
+// (val 2026-06-07, #487) Mount the WelcomePopover in preview-mode so the
+// operator sees the EXACT popovers her client is about to see. Without this,
+// the client reads it to val for the first time on the call.
+import WelcomePopover from '@/app/client/_components/WelcomePopover';
+import { getWelcomePopupSlides } from '@/lib/welcome/copy';
 // AdrianaDashboard renders against the canonical client-app design system.
 // The operator preview route doesn't go through app/client/layout.tsx, so
 // we import the design system here directly.
@@ -81,6 +86,12 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
     brandPill: 'Client'
   });
 
+  // (val 2026-06-07, #487) Load the popover slides exactly as the live
+  // dashboard does — operator-edited copy wins, baked-in defaults fall back.
+  // Tier defaults to 'sprint' to surface the full set; the popover already
+  // filters per tier so non-sprint slides are simply not shown.
+  const welcomeSlides = await getWelcomePopupSlides();
+
   return (
     <div>
       <OperatorPreviewChrome
@@ -104,6 +115,18 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
           the design-system shell normally hangs). */}
       <div className="app">
         <AdrianaDashboard {...props} />
+        {/* (val 2026-06-07, #487) Ultimate mirror: same popovers the real
+            client sees, force-shown (previewMode=true skips localStorage and
+            does not persist a dismissal — so the real client's first-visit
+            popover still fires when they log in). */}
+        <WelcomePopover
+          clientUserId={member?.client_user_id ?? null}
+          firstName={data.firstName || clientName.split(/\s+/)[0] || 'there'}
+          brandName={clientName}
+          tier={member?.tier ?? 'sprint'}
+          previewMode={true}
+          slides={welcomeSlides}
+        />
       </div>
     </div>
   );

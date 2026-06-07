@@ -52,9 +52,18 @@ export default function WelcomePopover({
 
   const storageKey = clientUserId ? `av_welcome_seen_${clientUserId}` : null;
 
+  // (val 2026-06-07, #487) previewMode used to HIDE the popover so the
+  // operator never saw what the client was about to see — "i do not like
+  // that my client read to me for the first time the pop ups." Flipped:
+  // previewMode = always show, no localStorage check, no dismissal
+  // persistence. Demo time is for seeing the real client experience.
   useEffect(() => {
     setMounted(true);
-    if (previewMode || !storageKey) return;
+    if (previewMode) {
+      setOpen(true);
+      return;
+    }
+    if (!storageKey) return;
     try {
       const seen = window.localStorage.getItem(storageKey);
       if (!seen) setOpen(true);
@@ -64,7 +73,7 @@ export default function WelcomePopover({
     }
   }, [previewMode, storageKey]);
 
-  if (!mounted || previewMode || !open) return null;
+  if (!mounted || !open) return null;
 
   // (#408) Operator overrides win when present, else fall back to baked-in
   // defaults. Filter by tier: a slide with `tiers` set only renders for
@@ -105,7 +114,10 @@ export default function WelcomePopover({
     .map((s) => ({ ...s, eyebrow: sub(s.eyebrow), title: sub(s.title), body: sub(s.body) }));
 
   function dismiss() {
-    if (storageKey) {
+    // (val 2026-06-07, #487) In preview mode the operator is just looking —
+    // never persist dismissal so the real client still sees the popover on
+    // their first visit. Real client dismissals still write to localStorage.
+    if (storageKey && !previewMode) {
       try { window.localStorage.setItem(storageKey, new Date().toISOString()); } catch { /* non-fatal */ }
     }
     setOpen(false);

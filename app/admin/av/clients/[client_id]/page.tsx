@@ -350,7 +350,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       <ClientAccessGroup
         portal={
           <>
-            <MagicLinkButton clientId={clientId} />
+            <MagicLinkButton clientId={clientId} clientName={d.name} />
             <SendPasswordButton clientId={clientId} />
           </>
         }
