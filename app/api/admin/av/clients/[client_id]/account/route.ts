@@ -58,6 +58,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const shortName = clean(body.shortName, 20);
   const contactName = clean(body.contactName, 255);
   const memberEmail = clean(body.memberEmail, 320)?.toLowerCase() ?? null;
+  // (val 2026-06-07) Operator can now ADD or CHANGE the contact email on the
+  // account from this surface — closes the "I created Chip without an email
+  // and have no way to add one" gap. If a row already exists for this client,
+  // we UPDATE its email; if none exists, we INSERT one so subsequent magic
+  // link / password / prefilled-intake actions have a target.
+  const newMemberEmail = clean(body.newMemberEmail, 320)?.toLowerCase() ?? null;
 
   try {
     const db = getAvDb();
@@ -85,12 +91,48 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       );
     }
 
+    // (val 2026-06-07) Add/change the contact email. Three cases:
+    //   1. memberEmail exists AND newMemberEmail differs → UPDATE the row's email.
+    //   2. memberEmail is null AND newMemberEmail provided → INSERT a row so
+    //      future magic-link / send-password actions have a target.
+    //   3. newMemberEmail equals memberEmail → no-op (saving without changes).
+    let emailUpdated = false;
+    if (newMemberEmail) {
+      if (memberEmail && newMemberEmail !== memberEmail) {
+        try {
+          await db.execute<ResultSetHeader>(
+            `UPDATE client_users SET email = ? WHERE client_id = ? AND email = ?`,
+            [newMemberEmail, clientId, memberEmail]
+          );
+          emailUpdated = true;
+        } catch (err) {
+          console.error('[account:emailUpdate]', clientId, (err as Error).message);
+        }
+      } else if (!memberEmail) {
+        try {
+          // Create a baseline client_users row so onboarding actions work.
+          // password_hash NULL is fine — operator will send magic link / password.
+          await db.execute<ResultSetHeader>(
+            `INSERT INTO client_users (client_id, email, display_name)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE display_name = COALESCE(VALUES(display_name), display_name)`,
+            [clientId, newMemberEmail, contactName ?? null]
+          );
+          emailUpdated = true;
+        } catch (err) {
+          console.error('[account:emailInsert]', clientId, (err as Error).message);
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       clientName,
       industry: industryProvided ? industry : undefined,
       shortName: shortNameProvided ? shortName : undefined,
-      contactName
+      contactName,
+      emailUpdated,
+      contactEmail: newMemberEmail ?? memberEmail
     });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });

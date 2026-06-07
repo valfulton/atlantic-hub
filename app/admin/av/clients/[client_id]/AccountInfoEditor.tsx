@@ -41,6 +41,10 @@ export default function AccountInfoEditor({
   const [shortName, setShortName] = useState(initialShortName ?? '');
   const [industry, setIndustry] = useState(initialIndustry);
   const [contactName, setContactName] = useState(initialContactName);
+  // (val 2026-06-07) Editable email so val can add/update Chip's email when
+  // it was missed at client creation. Pre-filled with the current address (if
+  // any) so leaving it alone is a no-op.
+  const [newEmail, setNewEmail] = useState(contactEmail ?? '');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -57,7 +61,8 @@ export default function AccountInfoEditor({
           shortName: shortName.trim(), // empty string is valid (clears the nickname)
           industry: industry.trim(),
           contactName: contactName.trim(),
-          memberEmail: contactEmail ?? undefined
+          memberEmail: contactEmail ?? undefined,
+          newMemberEmail: newEmail.trim().toLowerCase() || undefined
         })
       });
       const j = await res.json();
@@ -121,12 +126,29 @@ export default function AccountInfoEditor({
             Contact name {contactEmail ? `(${contactEmail})` : '(no member on account)'}
           </span>
           <input
-            style={{ ...input, opacity: contactEmail ? 1 : 0.5 }}
+            style={input}
             value={contactName}
             onChange={(e) => setContactName(e.target.value)}
-            disabled={busy || !contactEmail}
+            disabled={busy}
             placeholder="The name they see — e.g. Skip Krause"
           />
+        </label>
+        <label className="block">
+          <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            Contact email {contactEmail ? '(change to update)' : '(add one to send access)'}
+          </span>
+          <input
+            style={input}
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            disabled={busy}
+            placeholder="chip@example.com"
+            autoComplete="email"
+          />
+          <span style={{ display: 'block', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+            Used for the magic link, password, and prefilled-intake share. Saving creates the login if missing.
+          </span>
         </label>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
