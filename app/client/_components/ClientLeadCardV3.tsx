@@ -46,6 +46,9 @@ export interface ClientLeadCardV3Props {
 
 export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLeadCardV3Props) {
   const l = lead;
+  // One-tap call straight from the lead card (val 2026-06-07).
+  const telDigits = l.phone ? l.phone.replace(/[^\d+]/g, '') : '';
+  const telHref = telDigits.replace(/\D/g, '').length >= 7 ? `tel:${telDigits}` : null;
   const displayBand = effectiveBand(l.band, l.icpFitScore);
   const bandLabel = displayBand ? BAND_WORD[displayBand] : null;
   const bandIsHot = displayBand === 'hot';
@@ -238,7 +241,10 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
         )}
         {l.phone && (
           <span>
-            <span style={{ color: 'var(--cream-muted)' }}>Phone</span> {l.phone}
+            <span style={{ color: 'var(--cream-muted)' }}>Phone</span>{' '}
+            {telHref ? (
+              <a href={telHref} style={{ color: 'inherit', textDecoration: 'none', borderBottom: '1px solid var(--rule)' }}>{l.phone}</a>
+            ) : l.phone}
           </span>
         )}
         {(l.addressStreet || l.addressCity) && (
@@ -259,7 +265,7 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
         )}
       </div>
 
-      {/* Foot row: primary "Open lead →" + quiet Reject */}
+      {/* Foot row: one-tap Call (primary) + path to the call journey + quiet Reject */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -267,8 +273,21 @@ export default function ClientLeadCardV3({ lead, leadHref, preview }: ClientLead
         flexWrap: 'wrap',
         marginTop: '4px'
       }}>
+        {telHref && (
+          <a
+            href={telHref}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '.4rem',
+              background: 'var(--gold, #C9A961)', color: 'var(--black, #0A0A0A)',
+              fontWeight: 600, fontSize: '13px', padding: '.5rem 1rem',
+              borderRadius: '8px', textDecoration: 'none'
+            }}
+          >
+            📞 Call{l.contactName ? ` ${l.contactName.trim().split(/\s+/)[0]}` : ''}
+          </a>
+        )}
         {l.auditId && (
-          <a href={leadHref} className="v3-link">Open lead →</a>
+          <a href={leadHref} className="v3-link">{telHref ? 'Log the call →' : 'Open lead →'}</a>
         )}
         {!preview && (
           <span style={{ marginLeft: 'auto' }}>

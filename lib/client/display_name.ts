@@ -79,6 +79,13 @@ export function safeFirstName(
   const first = d.split(/[\s,]+/).filter(Boolean)[0] ?? '';
   if (!first) return null;
 
+  // (val 2026-06-07) The "Central" red flag: if display_name IS the brand name
+  // (the company was stuffed into the contact field), it is NEVER a person —
+  // even a 3-word company like "Central Business Bureau" that fools the person
+  // heuristic and rendered the greeting as "Central". Veto here, BEFORE the
+  // trust-the-person override below.
+  if (brandName && d.toLowerCase() === brandName.trim().toLowerCase()) return null;
+
   // Trust-the-person override: if displayName clearly looks like a personal
   // name (2-4 properly-capitalized tokens with no company suffixes), believe
   // it even when it matches the brand. This catches the Tim Helfrey case
@@ -127,19 +134,30 @@ export async function resolveGreetingName(
   fallback: string = 'there'
 ): Promise<string> {
   let brandName: string | null = null;
+  let shortName: string | null = null;
   if (clientId) {
     try {
       const { getAvDb } = await import('@/lib/db/av');
       const db = getAvDb();
       const [rows] = await db.execute(
-        `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
+        `SELECT client_name, short_name FROM clients WHERE client_id = ? LIMIT 1`,
         [clientId]
       );
-      const r = (rows as Array<{ client_name: string | null }>)[0];
+      const r = (rows as Array<{ client_name: string | null; short_name: string | null }>)[0];
       brandName = r?.client_name ?? null;
+      shortName = r?.short_name ?? null;
     } catch {
       /* fallback wins */
     }
   }
-  return greetingName(displayName, brandName, fallback);
+  // (val 2026-06-07) Greeting-name priority: a real person contact → the
+  // operator-set nickname (short_name) → the WHOLE company name (never a
+  // truncated first word like "Central") → the friendly fallback.
+  const person = safeFirstName(displayName, brandName);
+  if (person) return person;
+  const nick = (shortName ?? '').trim();
+  if (nick) return nick;
+  const full = (brandName ?? '').trim();
+  if (full) return full;
+  return fallback;
 }
