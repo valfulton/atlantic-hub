@@ -262,11 +262,22 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                     </div>
 
                     <div className="flex flex-wrap gap-2 text-[11.5px]">
+                      {/* (val 2026-06-07) Primary discovery action: see every
+                          raw record the engine has on this entity — the
+                          full payload, derived signals, promoted-lead link. */}
+                      <Link
+                        href={`/admin/av/clients/${r.clientId}/distress/${entityRef}`}
+                        className="text-[var(--gold-bright)] hover:underline font-medium"
+                        title="See every field we pulled on this entity"
+                      >
+                        📂 View intel →
+                      </Link>
+                      <span className="text-muted">·</span>
                       <Link
                         href={`/admin/av/clients/${r.clientId}/preview/watchlist#${entityRef}`}
-                        className="text-[var(--gold-bright)] hover:underline"
+                        className="text-muted hover:text-ink"
                       >
-                        Open in client view →
+                        Open in client view
                       </Link>
                       <span className="text-muted">·</span>
                       <Link
@@ -276,10 +287,6 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
                         Tune signal weights
                       </Link>
                       <span className="text-muted">·</span>
-                      {/* (val 2026-06-05) Was labelled "Promote → lead" but
-                          only navigated — confusing. Relabel + send to the
-                          per-client distress panel where the REAL bulk-promote
-                          button lives. */}
                       <Link
                         href={`/admin/av/clients/${r.clientId}#distress`}
                         className="text-muted hover:text-ink"

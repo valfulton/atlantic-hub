@@ -677,6 +677,21 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                     <div className="flex items-center gap-1.5 flex-wrap sm:shrink-0">
                       {!isAggregateRow(row) && (
                         <>
+                      {/* (val 2026-06-07) Operator-only: open the full intel
+                          dossier — every raw record + every signal + the
+                          promoted-lead link. Client mode never sees this
+                          (this is the "what we actually pulled" view). */}
+                      {mode === 'operator' && (
+                        <a
+                          href={`/admin/av/clients/${clientId}/distress/${encodeURIComponent(row.entityKey)}`}
+                          target="_blank"
+                          rel="noopener"
+                          className="rounded-md border border-violet-400/40 bg-violet-400/10 hover:bg-violet-400/20 text-violet-200 text-[11px] px-2 py-1"
+                          title="See every raw field we pulled on this entity"
+                        >
+                          📂 Intel
+                        </a>
+                      )}
                       <button
                         type="button"
                         onClick={() => draftFor(row)}
