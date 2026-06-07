@@ -111,7 +111,7 @@ export default async function ClientsPage() {
         review their leads, discovery activity, and any errors.
       </p>
 
-      <div className="flex flex-wrap items-start">
+      <div id="new-client" className="flex flex-wrap items-start scroll-mt-20">
         <NewClientForm />
         <ConvertLeadToClient leads={convertible} />
       </div>
@@ -124,8 +124,8 @@ export default async function ClientsPage() {
           <p className="text-muted text-sm mt-1">Client hubs are created automatically when a client signs in.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-muted border-b border-border">
                 <th className="px-4 py-3 font-medium">Client</th>
@@ -238,6 +238,17 @@ export default async function ClientsPage() {
           </table>
         </div>
       )}
+
+      {/* Mobile-only gold FAB → jumps to the new-client form (val 2026-06-07).
+          Thumb-zone create action; the inline form stays for desktop. */}
+      <a
+        href="#new-client"
+        className="md:hidden fixed bottom-5 right-5 z-40 inline-flex items-center gap-1.5 rounded-full h-12 px-5 font-semibold text-sm shadow-lg"
+        style={{ background: 'var(--brand)', color: 'var(--brand-fg)' }}
+        aria-label="New client"
+      >
+        <span aria-hidden="true">＋</span> New client
+      </a>
     </div>
   );
 }

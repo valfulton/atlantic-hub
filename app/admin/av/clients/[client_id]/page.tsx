@@ -15,6 +15,7 @@ import PrefilledIntakeLink from './PrefilledIntakeLink';
 import FindLeadsForClient from './FindLeadsForClient';
 import IcpEditor from './IcpEditor';
 import QuickActionsRibbon from '@/app/admin/_components/QuickActionsRibbon';
+import MobileAccordion from '@/app/admin/_components/MobileAccordion';
 import SharpenIcpPanel from './SharpenIcpPanel';
 import EnrichClientLeadsButton from './EnrichClientLeadsButton';
 import RefreshIntelPanel from './RefreshIntelPanel';
@@ -347,7 +348,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           what each link does. Replaces the earlier #297 amber explainer card
           which sat above two scattered controls; that copy is now the group's
           sub-section headers. */}
-      <div id="access-group">
+      {/* (val 2026-06-07) Wrapped in MobileAccordion: collapses to a 56px header
+          on phones, untouched on desktop. The quick-actions ribbon's "Send
+          access" scrolls here + auto-expands it (id must match the ribbon's
+          targetId). Pattern to replicate across the rest of the cockpit panels. */}
+      <MobileAccordion id="access-group" icon="🔑" title="Send access" status="Magic link · password · prefilled intake">
       {/* (#368) When NO login resolves for this brand (no direct client_user
           and no brand_members row), show the attach panel BEFORE the access
           group — it's the only thing that'll make any of those buttons work. */}
@@ -376,7 +381,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           </>
         }
       />
-      </div>
+      </MobileAccordion>
 
       {/* (#235) Fill intake from public web — paste their site, get suggested
           intake fields drafted from the page. Eliminates the SQL-paste
@@ -596,12 +601,12 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       />
 
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
-      <div id="icp">
+      <MobileAccordion id="icp" icon="✎" title="Edit ICP" status="Ideal customer profile + fit">
         <div className="flex justify-end mb-1.5 -mr-1">
           <ActionStatusChip status={onboarding.actions.icp} notRunLabel="Not set" />
         </div>
         <IcpEditor clientId={clientId} initial={icp} provenance={icpProvenance} />
-      </div>
+      </MobileAccordion>
 
       {/* Find leads scoped to THIS client (their hub only — never the AV pipeline). */}
       <div id="find-leads">
@@ -715,7 +720,8 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* (#306) Their pipeline — with bulk-select + bulk-delete + bulk-move-
           to-another-client. Address inline so val can triage by geography. */}
-      <div id="their-pipeline" className="rounded-2xl border border-border bg-surface p-4">
+      <MobileAccordion id="their-pipeline" icon="◉" title="Their pipeline" status="Leads to triage">
+      <div className="rounded-2xl border border-border bg-surface p-4">
         <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-3">Their pipeline</div>
         <ClientPipelineList
           clientId={clientId}
@@ -737,6 +743,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
             .map((c) => ({ clientId: c.clientId, name: c.name }))}
         />
       </div>
+      </MobileAccordion>
     </div>
   );
 }

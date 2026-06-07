@@ -1,0 +1,32 @@
+/* ResponsiveTable — desktop table, mobile stacked cards. Operator dark register. */
+.rt-table { width: 100%; border-collapse: collapse; }
+.rt-cards { display: none; }
+.rt-r { text-align: right; }
+
+.rt-table th {
+  text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted, #94a3b8); padding: 8px 10px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,.10));
+}
+.rt-table td {
+  padding: 10px; font-size: 14px; color: var(--ink, #f1f5f9);
+  border-bottom: 1px solid var(--border, rgba(255,255,255,.06));
+}
+.rt-empty {
+  padding: 1.5rem; text-align: center; color: var(--muted, #94a3b8); font-size: 14px;
+  border: 1px solid var(--border, rgba(255,255,255,.10)); border-radius: 12px;
+}
+
+@media (max-width: 767px) {
+  .rt-table { display: none; }
+  .rt-cards { display: flex; flex-direction: column; gap: 10px; }
+  .rt-card {
+    border: 1px solid var(--border, rgba(255,255,255,.10)); border-radius: 12px;
+    background: var(--surface, rgba(255,255,255,.04)); padding: 12px 14px;
+  }
+  .rt-card-h { font-size: 15px; font-weight: 600; color: var(--ink, #f1f5f9); margin-bottom: 8px; }
+  .rt-dl { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .rt-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+  .rt-row dt { color: var(--muted, #94a3b8); flex-shrink: 0; }
+  .rt-row dd { margin: 0; color: var(--ink, #f1f5f9); text-align: right; min-width: 0; }
+}
