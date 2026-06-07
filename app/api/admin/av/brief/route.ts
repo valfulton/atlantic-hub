@@ -52,13 +52,39 @@ export async function GET(req: NextRequest) {
       getBriefPayload(tenantId, clientId),
       getBriefForPrompt({ tenantId, clientId })
     ]);
+    const merged: Record<string, unknown> = { ...(payload ?? {}) };
+    // (val 2026-06-07) Seed identity from the client RECORD when the brief is
+    // blank, so EXISTING clients (not just ones created after the carryover fix)
+    // show their company / contact name / industry in the intake. Only fills
+    // empty keys — anything already saved in the brief wins. Persists into the
+    // brief the moment the operator saves.
+    if (clientId != null) {
+      try {
+        const { getClientAccountDetail } = await import('@/lib/av/clients_overview');
+        const d = await getClientAccountDetail(clientId);
+        if (d) {
+          const m = d.members?.[0];
+          const seed: Record<string, string | null | undefined> = {
+            company: d.name,
+            industry: d.industry,
+            contact_name: m?.displayName
+          };
+          for (const [k, v] of Object.entries(seed)) {
+            const cur = merged[k];
+            if (typeof v === 'string' && v.trim() && !(typeof cur === 'string' && cur.trim())) {
+              merged[k] = v.trim();
+            }
+          }
+        }
+      } catch { /* non-fatal: the brief still loads without the identity seed */ }
+    }
     return NextResponse.json({
       ok: true,
       tenantId,
       clientId,
       brandName: prompt.brandName,
       grounded: prompt.grounded,
-      payload: payload ?? {},
+      payload: merged,
       promptBlock: prompt.block
     });
   } catch (err) {

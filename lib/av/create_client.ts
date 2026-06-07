@@ -71,6 +71,11 @@ export async function createClientFromOperator(input: CreateClientInput): Promis
   const intakePayload: Record<string, unknown> = {
     ...(input.intake ?? {}),
     company: input.company ?? input.intake?.company ?? null,
+    // (val 2026-06-07) Seed the intake's contact_name from the typed name so
+    // "create new client" data actually pulls into the intake form. Previously
+    // the typed name only became display_name, leaving the Contact name field
+    // empty in the intake. (display_name handling below is unchanged — #420 still holds.)
+    contact_name: input.intake?.contact_name ?? (input.name && input.name.trim() ? input.name.trim() : null),
     industry: input.industry ?? input.intake?.industry ?? null,
     source: 'operator_created'
   };
