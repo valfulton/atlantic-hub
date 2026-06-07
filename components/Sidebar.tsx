@@ -67,6 +67,16 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // (val 2026-06-07, #494) On phones the 256px sidebar swallows the
+    // viewport. Force-collapse under 768px regardless of localStorage so
+    // mobile val sees full-width content + the floating hamburger she can
+    // tap to summon the sidebar when needed. Desktop respects her stored
+    // preference.
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    if (isMobile) {
+      setCollapsed(true);
+      return;
+    }
     try {
       setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
     } catch { /* swallow */ }

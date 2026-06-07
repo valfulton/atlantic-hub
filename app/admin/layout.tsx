@@ -13,16 +13,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const showAv = avEnabled && isOperator;
   const showEbw = ebwEnabled && isOperator;
 
+  // (val 2026-06-07, #494) Mobile path: on phones the 256px fixed sidebar +
+  // 32px main padding leaves the operator with ~60px of usable width. Hide
+  // the sidebar under 768px (it's still reachable via the hamburger inside
+  // the Sidebar component's mobile mode) and shrink main padding so the
+  // form/buttons get the screen they need. Desktop layout unchanged.
   return (
     <div className="flex min-h-screen">
       <Sidebar showAv={showAv} showEbw={showEbw} />
-      {/* (#270) max-w-7xl was clipping the long action button row on lead
-          detail at typical zoom levels. Remove the hard width cap and let the
-          flex container breathe — sidebar is 256px fixed, content fills the
-          rest. Add a max-w of 1600px so on ultrawide monitors text doesn't
-          stretch past readable line length, but on standard 1440-1920 screens
-          it'll use the full width. */}
-      <main className="flex-1 px-8 py-8 min-w-0" style={{ maxWidth: '1600px' }}>
+      <main
+        className="flex-1 px-4 sm:px-8 py-4 sm:py-8 min-w-0"
+        style={{ maxWidth: '1600px' }}
+      >
         {isOperator && <IntelTicker />}
         {children}
       </main>
