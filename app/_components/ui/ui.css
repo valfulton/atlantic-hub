@@ -1,0 +1,76 @@
+/* ====================================================================
+   ATLANTIC & VINE — UI PRIMITIVES (one source for Button/Card/Chip/Banner)
+   ====================================================================
+   Token-driven + register-aware (client = cream, operator = dark) so the
+   same component adapts. Locked brand (2026-06-07): cream/white surfaces,
+   black ink + buttons, GOLD reserved for "say something" moments only,
+   emerald the accent. Crisp radii, hairline borders, one quiet hover lift.
+
+   Adopt these and retire the per-surface .pcta / .app-card / .sig / .chip
+   sprawl. Migration is a separate sweep — these ship as additive primitives.
+   ==================================================================== */
+
+/* ── BUTTON ───────────────────────────────────────────────────────── */
+.av-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  font-family: var(--sans, 'Inter', system-ui, sans-serif);
+  font-weight: 600; font-size: .85rem; line-height: 1;
+  padding: .62rem 1.2rem; border-radius: 8px; border: 1px solid transparent;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: transform .16s ease, background .2s ease, border-color .2s ease;
+}
+.av-btn:active { transform: translateY(1px); }
+.av-btn--sm { padding: .42rem .85rem; font-size: .78rem; }
+.av-btn--block { width: 100%; }
+/* gold = the primary client action (Call, Draft outreach). Black text = AA. */
+.av-btn--gold  { background: var(--gold, #C9A961); color: var(--black, #0A0A0A); }
+.av-btn--gold:hover  { background: #B8975A; }
+/* dark = alternate primary on light grounds */
+.av-btn--dark  { background: var(--ink, #14201B); color: var(--cream, #FAF8F4); }
+.av-btn--dark:hover  { background: #000; }
+/* ghost = secondary; thin emerald outline, never a solid block */
+.av-btn--ghost { background: transparent; color: var(--emerald-deep, #0A4D3C);
+  border-color: color-mix(in srgb, var(--emerald-deep, #0A4D3C) 30%, transparent); }
+.av-btn--ghost:hover { background: var(--emerald-mist, #E8F2EE); }
+.av-btn[disabled] { opacity: .55; cursor: wait; }
+
+/* ── CARD ─────────────────────────────────────────────────────────── */
+.av-card {
+  background: var(--paper, #fff);
+  border: 1px solid color-mix(in srgb, var(--emerald-deep, #0A4D3C) 12%, transparent);
+  border-radius: 12px; padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(10,77,60,.05), 0 14px 30px -22px rgba(10,77,60,.22);
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+.av-card--hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 44px -26px rgba(10,77,60,.32);
+}
+
+/* ── CHIP ─────────────────────────────────────────────────────────── */
+.av-chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-family: var(--sans, 'Inter', system-ui, sans-serif); font-weight: 600;
+  font-size: .66rem; letter-spacing: .04em; padding: .22rem .55rem; border-radius: 6px;
+}
+.av-chip--solid { background: var(--emerald-deep, #0A4D3C); color: var(--cream, #FAF8F4); }
+.av-chip--dark  { background: var(--ink, #14201B); color: var(--cream, #FAF8F4); }
+.av-chip--gold  { background: var(--gold, #C9A961); color: var(--black, #0A0A0A); } /* RESERVED: premium/featured only */
+.av-chip--quiet { background: transparent; color: var(--muted, #5C6862);
+  border: 1px solid color-mix(in srgb, var(--ink, #14201B) 18%, transparent); }
+
+/* ── BANNER ───────────────────────────────────────────────────────── */
+.av-banner {
+  display: flex; align-items: flex-start; gap: .7rem;
+  padding: 14px 16px; border-radius: 10px; font-size: .9rem; line-height: 1.5; border: 1px solid;
+}
+.av-banner--info   { background: var(--emerald-mist, #E8F2EE); color: var(--emerald-deep, #0A4D3C);
+  border-color: color-mix(in srgb, var(--emerald-deep, #0A4D3C) 20%, transparent); }
+.av-banner--gold   { background: color-mix(in srgb, var(--gold, #C9A961) 14%, transparent); color: var(--ink, #14201B);
+  border-color: color-mix(in srgb, var(--gold, #C9A961) 45%, transparent); }
+.av-banner--danger { background: color-mix(in srgb, var(--garnet, #A23B2E) 8%, transparent); color: var(--garnet, #A23B2E);
+  border-color: color-mix(in srgb, var(--garnet, #A23B2E) 30%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .av-btn, .av-card, .av-card--hover:hover { transition: none !important; transform: none !important; }
+}

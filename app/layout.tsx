@@ -1,11 +1,16 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Atlantic Hub',
   description: 'Operator dashboard for Atlantic & Vine, Events by Water, and HunterHoney Research',
-  robots: 'noindex, nofollow'
+  robots: 'noindex, nofollow',
+  // App-first access (val 2026-06-07): installable client app, iOS standalone.
+  appleWebApp: { capable: true, title: 'Atlantic & Vine', statusBarStyle: 'default' },
+  icons: { apple: '/brand/av-monogram.png' }
 };
+
+export const viewport: Viewport = { themeColor: '#0A4D3C' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

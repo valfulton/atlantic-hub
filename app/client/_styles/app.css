@@ -149,11 +149,12 @@
 .app-hello { padding: 1.6rem 0 0.4rem; }
 .app-hello h1 {
   font-family: var(--serif);
-  font-weight: 600;
-  font-size: 1.9rem;
+  font-weight: 400;            /* light display — Fraunces now actually loads (was 600 = Georgia fallback) */
+  font-size: 2.3rem;
+  letter-spacing: -0.018em;    /* tightened tracking like the marketing headlines */
   color: var(--emerald-deep); /* greeting headline = emerald, never black (val) */
   margin: 0;
-  line-height: 1.1;
+  line-height: 1.08;
 }
 .app-hello h1 em { font-style: italic; color: var(--emerald); }
 .app-hello p {
@@ -358,13 +359,14 @@
   display: flex;
   align-items: baseline;
   gap: 0.7rem;
-  margin: 2rem 0 1.1rem;
+  margin: 2.8rem 0 1.2rem;   /* more air between sections (was 2rem) */
   flex-wrap: wrap;
 }
 .app-sh h3 {
   font-family: var(--serif);
-  font-weight: 600;
-  font-size: 1.45rem;
+  font-weight: 500;          /* lighter section heads (was 600) */
+  font-size: 1.5rem;
+  letter-spacing: -0.012em;
   color: var(--emerald-deep); /* headlines are emerald, never black (val) */
   margin: 0;
 }
@@ -398,7 +400,7 @@
 .app-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.2rem;
+  gap: 1.5rem;
 }
 @media (max-width: 760px) {
   .app-cards { grid-template-columns: 1fr; gap: 1rem; }
@@ -406,18 +408,15 @@
 
 .app-card {
   background: var(--paper);
-  /* visible emerald hairline (warm-ivory fill is ~2 shades off cream, so the
-     EDGE + shadow must do the separating, not the fill) */
-  border: 1px solid rgba(10, 77, 60, 0.20);
-  /* gold-leaf jewelry edge (one thin gold moment per card) */
-  border-top: 2px solid var(--card-edge);
-  border-radius: 14px;
+  /* TRUE hairline + soft shadow do the separating (was a heavy 0.20 border +
+     2px top stripe — too boxy; matches the Card primitive now). */
+  border: 1px solid color-mix(in srgb, var(--emerald-deep) 12%, transparent);
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* present emerald-toned lift so the card clearly floats off the cream */
-  box-shadow: 0 2px 6px rgba(10, 77, 60, 0.07), 0 14px 30px -18px var(--card-shadow);
-  transition: transform 0.25s, box-shadow 0.25s;
+  box-shadow: 0 1px 3px rgba(10, 77, 60, 0.05), 0 14px 30px -22px var(--card-shadow);
+  transition: transform 0.22s, box-shadow 0.22s;
 }
 .app-card:hover {
   transform: translateY(-3px); /* consistent lift across ALL card types (val: "consistent, not weird") */
@@ -452,7 +451,7 @@
 .app-card .nm b {
   font-size: 1rem;
   color: var(--emerald-deep); /* card title = emerald, never black (val) */
-  font-weight: 600;
+  font-weight: 500;           /* lighter card title (was 600) */
   display: block;
   white-space: nowrap;
   overflow: hidden;

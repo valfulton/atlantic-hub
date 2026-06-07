@@ -174,89 +174,89 @@ export default function ClientHero({
   }
 
   const recap = buildRecap(thisWeek);
+  const serif = 'var(--font-fraunces, "Fraunces", "Cormorant Garamond", Georgia, serif)';
+
+  // (val 2026-06-07) "LIVE RESULTS"-style box, mirroring the marketing site:
+  // a green tag, a tight bold Fraunces headline, then a row of big emerald
+  // stat numbers with small labels. Tighter, more exciting than the old band row.
+  const stats: { value: string; label: string }[] = [
+    { value: String(pipeline.total), label: 'in play' }
+  ];
+  if (pipeline.hot > 0) stats.push({ value: String(pipeline.hot), label: 'hot' });
+  else if (pipeline.warm > 0) stats.push({ value: String(pipeline.warm), label: 'warm' });
+  if (potentialUsd != null && potentialUsd > 0) stats.push({ value: fmtPotential(potentialUsd), label: 'potential' });
+  else if (thisWeek.leadsAdded > 0) stats.push({ value: String(thisWeek.leadsAdded), label: 'new this week' });
+  else if (pipeline.warm > 0 && !stats.some((s) => s.label === 'warm')) stats.push({ value: String(pipeline.warm), label: 'warm' });
+  const shownStats = stats.slice(0, 3);
 
   return (
     <section
       className="mb-6 rounded-2xl overflow-hidden"
       style={{
-        background: 'var(--paper, #FFFDF8)',
+        background: 'var(--paper, #FFFFFF)',
         border: '1px solid color-mix(in srgb, var(--emerald-deep, #0A4D3C) 12%, transparent)',
         boxShadow: '0 12px 30px -22px var(--card-shadow, rgba(10, 77, 60, 0.4))'
       }}
     >
-      <div className="px-5 sm:px-7 py-6 sm:py-7">
-        {/* (SPEC §2) Eyebrow — "Your pipeline" in emerald small-caps. */}
-        <div
-          className="text-[10.5px] uppercase tracking-[0.22em] mb-2"
-          style={{ color: 'var(--emerald-deep, #0A4D3C)' }}
-        >
-          Your pipeline
-        </div>
-
-        {/* (SPEC §2) Headline — value first. "{N} leads in play · ~${X} potential
-            (forecast)". Fraunces, emerald, never black. */}
-        <h1
-          className="text-[24px] sm:text-[32px] leading-tight tracking-tight break-words"
+      <div style={{ padding: '18px 22px 20px' }}>
+        {/* Green tag — "live results" energy */}
+        <span
           style={{
-            fontFamily: 'var(--font-fraunces, "Fraunces", "Cormorant Garamond", Georgia, serif)',
-            color: 'var(--emerald-deep, #0A4D3C)',
-            fontWeight: 500
+            display: 'inline-block',
+            fontSize: '10px',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            fontWeight: 600,
+            background: 'var(--emerald-deep, #0A4D3C)',
+            color: 'var(--cream, #FAF8F4)',
+            padding: '4px 10px',
+            borderRadius: '5px'
           }}
         >
-          {pipeline.total} {pipeline.total === 1 ? 'lead' : 'leads'} in play
-          {potentialUsd != null && potentialUsd > 0 && (
-            <>
-              <span style={{ color: 'color-mix(in srgb, var(--emerald-deep, #0A4D3C) 35%, transparent)' }}> · </span>
-              <span title="Forecast based on your pipeline and average deal value. Not booked revenue.">
-                {fmtPotential(potentialUsd)} potential{' '}
-                <span
-                  className="text-[12px] sm:text-[14px] align-baseline"
-                  style={{ color: 'var(--muted, #5C6862)', fontStyle: 'italic', fontWeight: 400 }}
-                >
-                  (forecast)
-                </span>
-              </span>
-            </>
-          )}
+          Your pipeline
+        </span>
+
+        {/* Bold Fraunces headline (dark, contrasts the green stats) */}
+        <h1
+          style={{
+            fontFamily: serif,
+            fontWeight: 600,
+            fontSize: '1.5rem',
+            letterSpacing: '-0.015em',
+            lineHeight: 1.15,
+            color: 'var(--ink, #14201B)',
+            margin: '12px 0 0'
+          }}
+        >
+          Qualified leads, in play.
         </h1>
 
-        {/* (SPEC §2) Band row — only non-zero clauses appear. Garnet/amber-sig/harbor
-            on cream (AA, replaces navy-era rose/gold/sky pastels). */}
-        {pipeline.total > 0 && (pipeline.hot + pipeline.warm + pipeline.cool) > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13.5px]">
-            {pipeline.hot > 0 && (
-              <span style={{ color: 'var(--ink, #14201B)' }}>
-                <span className="font-semibold">{pipeline.hot}</span> hot
-              </span>
-            )}
-            {pipeline.warm > 0 && (
-              <span style={{ color: 'var(--ink, #14201B)' }}>
-                <span className="font-semibold">{pipeline.warm}</span> warm
-              </span>
-            )}
-            {pipeline.cool > 0 && (
-              <span style={{ color: 'var(--ink, #14201B)' }}>
-                <span className="font-semibold">{pipeline.cool}</span> cool
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* (SPEC §2) Recap line — the retention hook. Plain-English, muted ink,
-            only the non-zero clauses. Italic Fraunces for the warmth. */}
         {recap && (
-          <p
-            className="mt-3 text-[14.5px] leading-relaxed"
-            style={{
-              fontFamily: 'var(--font-fraunces, "Fraunces", "Cormorant Garamond", Georgia, serif)',
-              color: 'var(--ink, #14201B)',
-              fontStyle: 'italic',
-              fontWeight: 400
-            }}
-          >
+          <p style={{ color: 'var(--muted, #5C6862)', fontSize: '13.5px', lineHeight: 1.5, margin: '6px 0 0' }}>
             {recap}
           </p>
         )}
+
+        <div
+          style={{
+            borderTop: '1px solid color-mix(in srgb, var(--emerald-deep, #0A4D3C) 12%, transparent)',
+            margin: '16px 0 14px'
+          }}
+        />
+
+        {/* Big emerald stat numbers + small labels */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {shownStats.map((s, i) => (
+            <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontFamily: serif, fontWeight: 600, fontSize: '1.95rem', lineHeight: 1, color: 'var(--emerald-deep, #0A4D3C)' }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted, #5C6862)', marginTop: '7px' }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
