@@ -96,6 +96,36 @@ function LoginForm() {
     initialError ? ERROR_MESSAGES[initialError] ?? 'Could not sign in. Please try again.' : null
   );
   const [submitting, setSubmitting] = useState(false);
+  // Self-serve "email me a fresh secure link" — covers the client whose
+  // original magic link expired (or who never set a password before their
+  // session lapsed) so they don't have to resubmit the public intake form.
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
+
+  async function handleResend() {
+    setResendMsg(null);
+    if (!email.trim()) {
+      setError('Enter your email above, then tap “email me a secure link.”');
+      return;
+    }
+    setError(null);
+    setResending(true);
+    try {
+      const res = await fetch('/api/client/magic-link/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const body = await res.json().catch(() => ({}));
+      // Always a generic confirmation — the endpoint never reveals whether the
+      // address has an account.
+      setResendMsg(body.message || 'If that email has an account, a secure sign-in link is on its way.');
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  }
 
   useEffect(() => {
     if (initialError && typeof window !== 'undefined') {
@@ -175,6 +205,7 @@ function LoginForm() {
             />
           </div>
           {error && <div role="alert" className="rg-error">{error}</div>}
+          {resendMsg && <div role="status" className="rg-success">{resendMsg}</div>}
           <button
             type="submit"
             disabled={submitting}
@@ -183,6 +214,17 @@ function LoginForm() {
           >
             {submitting ? 'Signing in…' : c['gate.client_login.cta']}
           </button>
+          <p style={{ marginTop: 14, fontSize: '0.85rem', textAlign: 'center' }}>
+            Link expired, or first time signing in?{' '}
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              className="rg-textlink"
+            >
+              {resending ? 'Sending…' : 'Email me a secure link'}
+            </button>
+          </p>
         </form>
       </RoyaleGateFrame>
     );
@@ -260,6 +302,11 @@ function LoginForm() {
                 {error}
               </div>
             )}
+            {resendMsg && (
+              <div role="status" className="ig-note">
+                {resendMsg}
+              </div>
+            )}
 
             <button className="ig-cta" type="submit" disabled={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}
@@ -269,11 +316,16 @@ function LoginForm() {
             </button>
 
             <p className="ig-fallback">
-              First time here? Submit the intake form at{' '}
+              Link expired, or first time signing in?{' '}
+              <button type="button" className="ig-resend" onClick={handleResend} disabled={resending}>
+                {resending ? 'Sending…' : 'Email me a secure link'}
+              </button>
+              <br />
+              No account yet? Submit the intake form at{' '}
               <a href="https://atlanticandvine.netlify.app/#client-intake">
                 atlanticandvine.com
-              </a>{' '}
-              and we&apos;ll send you a secure link.
+              </a>
+              .
             </p>
           </form>
         </main>
@@ -436,6 +488,28 @@ function LoginForm() {
             font-size: 0.85rem;
             line-height: 1.5;
           }
+          .ig-note {
+            margin: 0.2rem 0 1.1rem;
+            padding: 0.7rem 0.85rem;
+            border-radius: 4px;
+            background: rgba(10, 77, 60, 0.06);
+            border: 1px solid rgba(10, 77, 60, 0.22);
+            color: var(--emerald-deep);
+            font-size: 0.85rem;
+            line-height: 1.5;
+          }
+          .ig-resend {
+            background: none;
+            border: none;
+            padding: 0;
+            font: inherit;
+            color: var(--emerald-deep);
+            font-weight: 600;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            cursor: pointer;
+          }
+          .ig-resend:disabled { opacity: 0.6; cursor: wait; }
 
           .ig-cta {
             width: 100%;
