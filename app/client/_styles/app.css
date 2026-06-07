@@ -38,7 +38,7 @@
   --emerald-deep: #0A4D3C;
   --emerald: #0A4D3C;          /* collapsed to the ONE green (brand) — was #0C6049 */
   --emerald-glow: #0A4D3C;     /* collapsed — no extra greens (was #16A37A) */
-  --emerald-mist: #DCEDE5;     /* the only light-green tint */
+  --emerald-mist: #E8F2EE;     /* match marketing styles (#E8F2EE) */
   --black: #0A0A0A;
   --charcoal: #14201B;         /* emerald-black body text (was #1A1A1A) */
   --gray-warm: #3C4A43;
@@ -46,13 +46,13 @@
   --gray-soft: #5C6862;
   --cream: #FAF8F4;
   --paper: #FFFFFF;            /* crisp white card (val 2026-06-05: white IS ok; cream-on-cream wasn't sexy) — contrast + shadow = the pop */
-  --gold: #E8C25A;             /* clean champagne gold — jewelry/dark-ground only, never text (no brown/mustard) */
-  --gold-bright: #E8C25A;      /* gold-leaf — dark grounds only */
+  --gold: #C9A961;             /* FLAT antique gold = marketing #C9A961. Reserved for premium/featured tags. NO shine. */
+  --gold-bright: #C9A961;      /* flat antique gold, dark grounds only */
   --rule: rgba(10, 77, 60, 0.14);
   --card-shadow: rgba(10, 77, 60, 0.40);  /* emerald-toned card lift (newsroom wires the box-shadow geometry) */
-  --card-edge: #E8C25A;                   /* gold-leaf hairline / jewelry edge */
+  --card-edge: rgba(10,77,60,.12);        /* quiet emerald hairline (gold edge removed) */
   /* urgent signal text → garnet (brown #9A5B12 dumped 2026-06-06). */
-  --amber-sig: #A23B2E;
+  --amber-sig: #0A4D3C;
   /* jewel accents — the pop beyond green + gold */
   --forest: #0A4D3C;           /* dark grounds use the one green (darken via gradient, not a 2nd token) */
   --harbor: #1C5C82;           /* info / secondary jewel (AA 5.6) */
@@ -325,9 +325,9 @@
   border-radius: 7px;
 }
 .app-feat .sig.pay {
-  background: var(--gold);
-  color: var(--black); /* (WCAG-AA) bg-gold → text-black, 8.8:1 */
-  border-color: var(--gold);
+  background: rgba(250, 248, 244, 0.14);
+  color: var(--cream);
+  border-color: rgba(250, 248, 244, 0.35); /* cream outline on the dark hero — "bankruptcy filed" is not gold-worthy (gold is reserved) */
 }
 .app-feat .arw { color: rgba(250, 248, 244, 0.6); font-size: 0.8rem; }
 .app-feat .cta {
@@ -462,8 +462,8 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--black);
-  background: var(--gold);
+  color: var(--cream);
+  background: var(--emerald-deep);
   padding: 0.18rem 0.5rem;
   border-radius: 999px;
   display: inline-block;
@@ -513,8 +513,8 @@
   border-radius: 7px;
 }
 .app-card .sig.pay {
-  background: var(--gold);
-  color: var(--black);
+  background: var(--emerald-deep);
+  color: var(--cream);
   font-weight: 700;
 }
 .app-card .arw { color: var(--gray-soft); font-size: 0.75rem; }

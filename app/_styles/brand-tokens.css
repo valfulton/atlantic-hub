@@ -195,7 +195,7 @@
      bronze anchor -> body -> champagne glint (#F5F4C0) -> body -> bronze. Use via
      .gold-leaf on DARK grounds (monogram, gate accent, hairline). On cream gold is
      a solid (--gold for fills/borders; --gold-deep for any gold text). */
-  --gold-leaf-grad: linear-gradient(110deg,#8A6B1A 0%,#C9A227 22%,#E6CE7E 42%,#F5F4C0 50%,#E6CE7E 60%,#C9A227 80%,#8A6B1A 100%);
+  --gold-leaf-grad: linear-gradient(#C9A961,#C9A961);   /* FLAT — val: "I hate the shine, it makes it illegible." Metallic gradient retired. */
   --cream-pure: #F5EFE3;
   /* short alias so components can use var(--serif) */
   --serif: var(--font-serif);
@@ -211,14 +211,14 @@
 [data-skin="social"],
 .app {
   --ground: #FAF8F4; --paper: #FFFFFF; --panel-warm: #FFFFFF;  /* crisp WHITE cards (val 2026-06-05: white IS ok; cream-on-cream not sexy); lift = white + shadow */
-  --card-shadow: rgba(10,77,60,.40); --card-edge: #E8C25A;     /* emerald lift + gold-leaf jewelry edge (newsroom wires geometry) */
+  --card-shadow: rgba(10,77,60,.40); --card-edge: rgba(10,77,60,.12);     /* quiet emerald hairline — gold edge removed (gold is reserved, not a card frame) */
   --forest: #0A4D3C; --forest-deep: #062A1F;   /* forest = the one green; -deep is only a darker gradient floor of the SAME hue */
   --ink: #14201B; --ink-soft: #3C4A43; --muted: #5C6862;
   --line: rgba(10,77,60,.14); --line-strong: rgba(10,77,60,.22);
 
   --emerald-deep: #0A4D3C; --emerald: #0A4D3C; --emerald-bright: #0A4D3C;
-  --emerald-glow: #0A4D3C; --emerald-mist: #DCEDE5;   /* ONE green (#0A4D3C) + one tint; the #0C6049/#16A37A variants collapsed 2026-06-06 */
-  --gold: #E8C25A; --gold-deep: #C9A227; --gold-bright: #E6CE7E; --gold-leaf: #E8C25A;  /* clean champagne golds — jewelry on DARK only, never text on cream (brown #7D5B3C/#CFAF65 dumped 2026-06-06) */
+  --emerald-glow: #0A4D3C; --emerald-mist: #E8F2EE;   /* match marketing site styles exactly (#E8F2EE) */
+  --gold: #C9A961; --gold-deep: #C9A961; --gold-bright: #C9A961; --gold-leaf: #C9A961;  /* FLAT antique gold = marketing --gold-accent #C9A961. NO shine. Reserved to "say something" (premium/featured tags), never routine chips */
   --harbor: #1C5C82; --garnet: #A23B2E;
 
   --ok: #0F6E56;     --ok-bg: rgba(15,110,86,.10);     --ok-line: rgba(15,110,86,.32);
