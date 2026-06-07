@@ -46,7 +46,14 @@ const AV_NAV = [
   { href: '/admin/av/popups', label: 'Onboarding popups', section: 'sub' as const },
   { href: '/admin/av/content', label: 'Content & blog', section: 'sub' as const },
   { href: '/admin/av/commercials', label: 'Commercials', section: 'sub' as const },
-  { href: '/admin/social/calendar', label: 'Campaign timeline', section: 'sub' as const }
+  { href: '/admin/social/calendar', label: 'Campaign timeline', section: 'sub' as const },
+  // (val 2026-06-07) Hidden-page sweep — previously reachable only by URL.
+  // Surfacing the four pages val actually uses so she stops chasing tabs.
+  // /admin/av/selftest stays hidden (dev health-check probe, not for ops).
+  { href: '/admin/av/intel-freshness', label: 'Intel freshness', section: 'sub' as const },
+  { href: '/admin/av/intelligence', label: 'Intelligence trifecta', section: 'sub' as const },
+  { href: '/admin/av/conductor', label: 'Conductor console', section: 'sub' as const },
+  { href: '/admin/av/copy', label: 'Copy steering', section: 'sub' as const }
 ];
 
 const EBW_NAV = [

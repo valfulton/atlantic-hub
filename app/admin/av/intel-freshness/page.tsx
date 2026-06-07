@@ -1,6 +1,7 @@
-// OPERATOR-ONLY — reachable only via operator/investor surfaces, never public/client nav (by design).
-// Absence from nav is intentional, not abandonment. Do NOT delete in a dead-code sweep.
-// See Atlantic_Hub_Playbook/Hidden_Pages_Audit.md (PR A).
+// OPERATOR-ONLY — now linked in the operator sidebar as "Intel freshness"
+// per val 2026-06-07. Was previously hidden by design; she asked for direct
+// access so she can run bulk refresh without chasing URLs. Still gated by
+// /admin/* middleware (no public/client access).
 
 /**
  * /admin/av/intel-freshness  (#204)
