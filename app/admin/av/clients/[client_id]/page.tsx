@@ -274,6 +274,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         actions={[
           { label: 'Send access', icon: '🔑', targetId: 'access-group', primary: true },
           { label: 'Edit ICP', icon: '✎', targetId: 'icp' },
+          { label: 'Intel', icon: '🛰', targetId: 'intel' },
           { label: 'Pipeline', icon: '◉', targetId: 'their-pipeline' }
         ]}
       />
@@ -352,7 +353,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           on phones, untouched on desktop. The quick-actions ribbon's "Send
           access" scrolls here + auto-expands it (id must match the ribbon's
           targetId). Pattern to replicate across the rest of the cockpit panels. */}
-      <MobileAccordion id="access-group" icon="🔑" title="Send access" status="Magic link · password · prefilled intake">
+      <MobileAccordion group="cockpit" id="access-group" icon="🔑" title="Send access" status="Magic link · password · prefilled intake">
       {/* (#368) When NO login resolves for this brand (no direct client_user
           and no brand_members row), show the attach panel BEFORE the access
           group — it's the only thing that'll make any of those buttons work. */}
@@ -424,7 +425,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           recommended adapters + cascade recipes for that vertical. */}
       {/* (val 2026-06-07) Intelligence cluster — collapsed into ONE accordion on
           phones (the densest part of the cockpit). Desktop = pass-through. */}
-      <MobileAccordion id="intel" icon="🛰" title="Intelligence" status="Signals · watchlist · cascade · feed">
+      <MobileAccordion group="cockpit" id="intel" icon="🛰" title="Intelligence" status="Signals · watchlist · cascade · feed">
       <div id="vertical-pack" className="mb-5">
         <VerticalPackPanel clientId={clientId} clientName={d.name} />
       </div>
@@ -605,7 +606,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
       />
 
       {/* Editable ICP — who discovery targets (fix off-target leads, exclude noise). */}
-      <MobileAccordion id="icp" icon="✎" title="Edit ICP" status="Ideal customer profile + fit">
+      <MobileAccordion group="cockpit" id="icp" icon="✎" title="Edit ICP" status="Ideal customer profile + fit">
         <div className="flex justify-end mb-1.5 -mr-1">
           <ActionStatusChip status={onboarding.actions.icp} notRunLabel="Not set" />
         </div>
@@ -636,6 +637,8 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         initialPosture={intelCfg.posture}
       />
 
+      {/* (val 2026-06-07) PR cluster collapsed into one accordion on phones. */}
+      <MobileAccordion group="cockpit" id="pr" icon="📣" title="PR &amp; press" status="Pipeline · inbox · sources">
       {/* (#213 Part A) Their PR pipeline -- opportunities matched to this
           client's leads. Was previously only visible in the global PR inbox. */}
       <ClientPrPanel clientId={clientId} clientName={d.name} />
@@ -673,6 +676,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           }))
         ).catch(() => [])}
       />
+      </MobileAccordion>
 
       {/* Bulk lead handoff: assign unassigned prospects to this client. */}
       <AssignLeadsPanel clientId={clientId} clientName={d.name} leads={unassigned} />
@@ -724,7 +728,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* (#306) Their pipeline — with bulk-select + bulk-delete + bulk-move-
           to-another-client. Address inline so val can triage by geography. */}
-      <MobileAccordion id="their-pipeline" icon="◉" title="Their pipeline" status="Leads to triage">
+      <MobileAccordion group="cockpit" id="their-pipeline" icon="◉" title="Their pipeline" status="Leads to triage">
       <div className="rounded-2xl border border-border bg-surface p-4">
         <div className="text-[11px] uppercase tracking-[0.12em] text-muted mb-3">Their pipeline</div>
         <ClientPipelineList

@@ -8,9 +8,9 @@
  *   DESKTOP (>=768px): the header disappears entirely and the body always
  *     shows — a transparent pass-through, so existing layouts are UNCHANGED.
  *
- * One-open-at-a-time: pass `id` + listen via the QuickActionsRibbon, or drive
- * it controlled (`open` + `onToggle`) from a parent that closes siblings.
- * Auto-expand: dispatch `window` CustomEvent('macc-open', { detail: id }).
+ * One-open-at-a-time: give accordions the same `group` + a stable `id`; opening
+ * one closes its siblings (event-based, no parent shell or reorder needed).
+ * Auto-expand from the ribbon: dispatch CustomEvent('macc-open', { detail: id }).
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import './macc.css';
@@ -19,17 +19,19 @@ interface Props {
   title: string;
   status?: string;
   icon?: ReactNode;
-  /** Stable id so the quick-actions ribbon can scroll-to + auto-expand it. */
+  /** Stable id so the ribbon can scroll-to + auto-expand, and so group siblings can coordinate. */
   id?: string;
+  /** Accordions sharing a group are mutually exclusive on mobile (one open at a time). */
+  group?: string;
   defaultOpen?: boolean;
-  /** Controlled mode (parent does one-open-at-a-time). */
+  /** Controlled mode (parent drives open state). */
   open?: boolean;
   onToggle?: (next: boolean) => void;
   children: ReactNode;
 }
 
 export default function MobileAccordion({
-  title, status, icon, id, defaultOpen = false, open, onToggle, children
+  title, status, icon, id, group, defaultOpen = false, open, onToggle, children
 }: Props) {
   const controlled = open != null;
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
@@ -37,6 +39,10 @@ export default function MobileAccordion({
   const ref = useRef<HTMLElement>(null);
 
   function setOpen(next: boolean) {
+    // One-open-at-a-time: announce so siblings in this group close themselves.
+    if (next && group && id) {
+      window.dispatchEvent(new CustomEvent('macc-exclusive', { detail: { group, id } }));
+    }
     if (controlled) onToggle?.(next);
     else setInternalOpen(next);
   }
@@ -54,6 +60,21 @@ export default function MobileAccordion({
     return () => window.removeEventListener('macc-open', handler as EventListener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, controlled]);
+
+  // One-open-at-a-time: when a sibling in the same group opens, collapse self.
+  useEffect(() => {
+    if (!group || !id) return;
+    function handler(e: Event) {
+      const d = (e as CustomEvent).detail as { group?: string; id?: string } | undefined;
+      if (d && d.group === group && d.id !== id) {
+        if (controlled) onToggle?.(false);
+        else setInternalOpen(false);
+      }
+    }
+    window.addEventListener('macc-exclusive', handler as EventListener);
+    return () => window.removeEventListener('macc-exclusive', handler as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group, id, controlled]);
 
   return (
     <section ref={ref} id={id} className={`macc${isOpen ? ' is-open' : ''}`}>

@@ -27,8 +27,10 @@
  * Adding a new vertical = add one entry to VERTICAL_PACKS. No new code, no
  * new schema. That's the leverage.
  */
-import { seedDefaultsForClient, type SignalKind } from './distress_engine';
+import { seedDefaultsForClient, SIGNAL_LIBRARY, type SignalKind } from './distress_engine';
+import { getAvDb } from '@/lib/db/av';
 import type { PublicIntelKind } from './types';
+import type { ResultSetHeader } from 'mysql2';
 
 export type VerticalPackId =
   | 'collections'              // CBB — collection agencies, legal referrals
@@ -358,6 +360,25 @@ export async function applyVerticalPackToClient(clientId: number, packId: Vertic
     };
   }
   const seeded = await seedDefaultsForClient(clientId, pack.signalWeights);
+  // (val 2026-06-07) Pack is now an INCLUDE list, not a positive-only seed.
+  // Insert enabled=0 rows for every signal NOT in the pack — that way
+  // library defaults can't leak (e.g. corporate-targeted CBB no longer
+  // fires CFPB consumer signals: lender_under_fire, complaint_velocity_high).
+  // Idempotent: existing rows are unchanged (INSERT IGNORE), so a manual
+  // operator override of a non-pack signal still wins on the next re-apply.
+  let disabled = 0;
+  try {
+    const db = getAvDb();
+    for (const kind of Object.keys(SIGNAL_LIBRARY) as SignalKind[]) {
+      if (pack.signalWeights[kind] != null) continue; // pack uses this signal — leave it
+      const [res] = await db.execute<ResultSetHeader>(
+        `INSERT IGNORE INTO distress_signal_weights (client_id, signal_kind, weight, enabled, description)
+         VALUES (?, ?, 0, 0, ?)`,
+        [clientId, kind, `Disabled by ${pack.id} pack — not in pack's signalWeights`]
+      );
+      if (res.affectedRows > 0) disabled++;
+    }
+  } catch { /* non-fatal — disables can be applied later via pack re-apply */ }
   const nextSteps: string[] = [
     `Vertical: ${pack.displayName}`,
     `Pitch: ${pack.pitchTemplate}`,

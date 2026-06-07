@@ -330,7 +330,11 @@ export async function loadEffectiveWeights(clientId: number): Promise<Map<Signal
       `SELECT signal_kind, weight, enabled FROM distress_signal_weights WHERE client_id IS NULL`
     );
     for (const r of defaultRows) {
-      if (r.enabled) out.set(r.signal_kind as SignalKind, Number(r.weight));
+      // (val 2026-06-07) enabled=0 means DISABLED for this tenant — zero out
+      // the weight so scoring skips it (was: silently preserved library
+      // default, so disables were no-ops and consumer signals leaked onto
+      // corporate-targeted packs).
+      out.set(r.signal_kind as SignalKind, r.enabled ? Number(r.weight) : 0);
     }
     // Per-client overrides win.
     const [clientRows] = await db.execute<SignalWeightRow[]>(
@@ -338,7 +342,8 @@ export async function loadEffectiveWeights(clientId: number): Promise<Map<Signal
       [clientId]
     );
     for (const r of clientRows) {
-      if (r.enabled) out.set(r.signal_kind as SignalKind, Number(r.weight));
+      // Same fix per-client — enabled=0 now actually disables.
+      out.set(r.signal_kind as SignalKind, r.enabled ? Number(r.weight) : 0);
     }
   } catch { /* table missing → use library defaults only */ }
   return out;
@@ -436,7 +441,12 @@ export async function rescoreClient(clientId: number, lookbackDays = 90): Promis
     }
   } catch { /* fail soft */ }
 
-  // Upsert into entity_distress_scores.
+  // Upsert into entity_distress_scores. We stamp `last_recomputed_at = NOW()`
+  // for every entity touched this run so we can then DELETE old rows that
+  // weren't touched — gives the rescore full-refresh semantics. Without the
+  // delete, an entity that no longer scores (e.g. signal was disabled by a
+  // pack change) lingers on the watchlist forever.
+  const runStartedAt = new Date();
   try {
     for (const [entityKey, slot] of byEntity) {
       const clampedScore = Math.max(0, Math.min(1000, slot.score));
@@ -460,6 +470,17 @@ export async function rescoreClient(clientId: number, lookbackDays = 90): Promis
         ]
       );
     }
+    // (val 2026-06-07) Full-refresh: drop any row not touched this run.
+    // Preserves operator-actioned entities (last_action set) so a "contacted"
+    // entity sticks around even if it no longer scores — we shouldn't lose
+    // outreach history because a signal config changed.
+    await db.execute<ResultSetHeader>(
+      `DELETE FROM entity_distress_scores
+        WHERE client_id = ?
+          AND last_recomputed_at < ?
+          AND last_action IS NULL`,
+      [clientId, runStartedAt]
+    );
   } catch { /* non-fatal */ }
 
   const sorted = Array.from(byEntity.entries())
