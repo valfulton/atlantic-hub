@@ -135,6 +135,19 @@ function timeWord(t: AdrianaDashboardProps['greetingTime']): string {
   return t === 'morning' ? 'Good morning' : t === 'afternoon' ? 'Good afternoon' : 'Good evening';
 }
 
+/** Render the brand wordmark with the ampersand in italic Fraunces (the scrolly &). */
+function wordmark(name: string) {
+  const i = name.indexOf('&');
+  if (i === -1) return name;
+  return (
+    <>
+      {name.slice(0, i)}
+      <span className="amp">&amp;</span>
+      {name.slice(i + 1)}
+    </>
+  );
+}
+
 function Trail({ nodes, dark }: { nodes: CascadeNode[]; dark?: boolean }) {
   if (nodes.length === 0) return null;
   return (
@@ -330,7 +343,7 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
       <div className="app-top">
         <div className="app-top-in">
           <img src="https://atlanticandvine.netlify.app/av-logo.png" alt="A&amp;V" />
-          <span className="bt">{p.brandName}</span>
+          <span className="bt">{wordmark(p.brandName)}</span>
           <span className="pill">{p.brandPill}</span>
           <div className="me">
             <span>{p.firstName}</span>

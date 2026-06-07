@@ -139,11 +139,8 @@ function watchlistRowToCard(row: WatchlistRow): SignalCard {
   // "Freshness" chip — newest signal first.
   const newestAt = row.firstSeenAt;
   const days = Math.floor((Date.now() - newestAt.getTime()) / 86400000);
-  const chipLabel =
-    days <= 0 ? 'New · filed today' :
-    days === 1 ? 'New · filed yesterday' :
-    days < 7 ? `New · ${days} days ago` :
-    'Distress signal';
+  const filedOn = newestAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const chipLabel = days < 7 ? `New · filed ${filedOn}` : `Filed ${filedOn}`;
   return {
     id: `wl-${row.entityKey}`,
     entityName: row.entityLabel || row.entityKey,

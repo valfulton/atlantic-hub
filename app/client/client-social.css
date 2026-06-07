@@ -51,8 +51,8 @@
   /* warm ivory lifts off cream via an emerald-toned shadow, not stark white */
   box-shadow:0 1px 2px rgba(10,77,60,.04),0 16px 34px -24px var(--card-shadow,rgba(10,77,60,.4));
   transition:transform .2s,box-shadow .2s,border-color .2s}
-[data-skin="social"] .sigcard:hover{transform:translateY(-3px);border-color:var(--gold,#C9A961);
-  box-shadow:0 20px 42px -26px rgba(10,77,60,.45)}
+[data-skin="social"] .sigcard:hover{transform:translateY(-3px);
+  box-shadow:0 20px 42px -26px rgba(10,77,60,.45)}/* lift only — no gold border flash (gold is reserved) */
 [data-skin="social"] .sigcard__hd{display:flex;align-items:center;gap:.75rem;padding:1rem 1.1rem .2rem}
 [data-skin="social"] .sigcard__logo{display:none} /* val: company letter tile = pointless decoration; name leads */
 [data-skin="social"] .sigcard__logo b{position:relative;color:var(--cream-pure,#F5EFE3);font-family:var(--serif);font-weight:600;display:grid;place-items:center;height:100%}
@@ -118,7 +118,7 @@
 /* In motion section */
 [data-skin="social"] .v3-sec{font-family:var(--sans);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber-deep);margin:34px 0 14px}
 [data-skin="social"] .v3-card{border:1px solid var(--rule);border-radius:12px;padding:20px 22px;margin-bottom:14px;background:var(--navy-soft);transition:border-color .25s,transform .25s}
-[data-skin="social"] .v3-card:hover{border-color:rgba(235,203,107,.25);transform:translateY(-1px)}
+[data-skin="social"] .v3-card:hover{transform:translateY(-3px)}/* match the -3px lift; no amber border flash */
 [data-skin="social"] .v3-card__h{font-family:var(--serif);font-weight:500;font-size:20px;margin:0 0 4px;color:var(--cream)}
 [data-skin="social"] .v3-card__p{font-family:var(--sans);color:var(--cream);opacity:.86;font-size:15px;line-height:1.6;margin:0 0 14px}
 [data-skin="social"] .v3-card__row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
