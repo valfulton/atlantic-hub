@@ -116,6 +116,55 @@ export interface ClassifiedSignal {
   regionCode: string | null;
   /** Free-form trace so the operator can audit "why is this entity hot?" */
   source: string;
+  /** (val 2026-06-07, #484) The actual upstream event date — when the court
+   *  filed the case, when the SOS suspended the entity, when the recorder
+   *  stamped the deed. Extracted from the source payload at classify time
+   *  via SOURCE_DATE_FIELDS below. ISO date string (YYYY-MM-DD) when known,
+   *  null when the source payload doesn't carry one (in which case callers
+   *  fall back to first-seen-at — the time WE ingested the signal). This
+   *  is what powers the "filed Jun 4" chip on watchlist cards. */
+  eventDate?: string | null;
+}
+
+/** Per-source-kind path into the record_json where the upstream event date
+ *  lives. First non-empty hit wins. ISO date string preserved as-is; the
+ *  loader parses on render. Add entries here as new adapters land. */
+const SOURCE_DATE_FIELDS: Record<string, string[]> = {
+  courtlistener: ['date_filed', 'dateFiled', 'date_terminated'],
+  pacer_docket:  ['date_filed', 'dateFiled', 'filing_date'],
+  ca_sos:        ['status_date', 'last_status_date', 'incorporation_date'],
+  ucc_ca:        ['filing_date', 'filingDate', 'lapse_date'],
+  cfpb:          ['date_received', 'dateReceived'],
+  md_land_rec:   ['recording_date', 'recordingDate', 'document_date'],
+  datasf:        ['date_opened', 'last_updated', 'opened_date'],
+  gbp:           ['snapshot_date', 'last_review_date'],
+  hmda:          ['activity_year_filed', 'activity_year'],
+  census_acs:    [] // demographic baseline, no event date
+};
+
+function extractSourceDate(sourceKind: string, recordJson: Record<string, unknown>): string | null {
+  const fields = SOURCE_DATE_FIELDS[sourceKind] ?? [];
+  for (const path of fields) {
+    const v = recordJson[path];
+    if (v == null) continue;
+    if (typeof v === 'string' && v.trim().length > 0) {
+      // Normalize YYYY-MM-DD slice — handle both 'YYYY-MM-DD' and ISO timestamps.
+      const m = v.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m) return m[1];
+      // 4-digit year alone (HMDA activity_year): pin to Jan 1 so it sorts.
+      if (/^\d{4}$/.test(v.trim())) return `${v.trim()}-01-01`;
+      return v.trim().slice(0, 10);
+    }
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      // Year-as-number (HMDA): pin to Jan 1.
+      if (v >= 1900 && v <= 2100) return `${Math.floor(v)}-01-01`;
+      // Epoch ms or sec
+      const ms = v > 1e12 ? v : v * 1000;
+      const d = new Date(ms);
+      if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    }
+  }
+  return null;
 }
 
 interface IntelRecord {
@@ -135,6 +184,10 @@ interface IntelRecord {
  */
 export function classifyRecord(r: IntelRecord): ClassifiedSignal[] {
   const out: ClassifiedSignal[] = [];
+  // (val 2026-06-07, #484) Compute the upstream event date once from the
+  // record payload. Stamped onto every signal at the return statement below.
+  // null when the source carries no date — callers fall back to firstSeenAt.
+  const eventDate = extractSourceDate(r.sourceKind, r.recordJson);
 
   if (r.sourceKind === 'ca_sos' && r.entityKey.startsWith('ca_sos:entity:')) {
     // Per-entity CA SOS rows. record_json is one CaSosEntity.
@@ -246,7 +299,11 @@ export function classifyRecord(r: IntelRecord): ClassifiedSignal[] {
     });
   }
 
-  return out;
+  // (val 2026-06-07, #484) Stamp the upstream event date onto every signal
+  // emitted by this record. Individual `out.push({...})` sites above don't
+  // need to know about dates — the classifier handles it uniformly here so
+  // adding a new signal kind never forgets the date.
+  return eventDate ? out.map((s) => ({ ...s, eventDate })) : out;
 }
 
 interface SignalWeightRow extends RowDataPacket {
@@ -434,6 +491,11 @@ export interface WatchlistRow {
   lastRecomputedAt: Date;
   lastAction: 'contacted' | 'dismissed' | 'converted' | 'ignored' | null;
   lastActedAt: Date | null;
+  /** (val 2026-06-07, #484) Most-recent upstream event date across all
+   *  contributing signals (e.g. the court's date_filed). YYYY-MM-DD or
+   *  null when no signal carries a date — in which case render the chip
+   *  from firstSeenAt as before. */
+  latestEventDate?: string | null;
 }
 
 /** Top-N distress entities for a client, score-descending. */
@@ -466,6 +528,18 @@ export async function watchlistForClient(clientId: number, limit = 25): Promise<
         const v = typeof r.contributing_signals === 'string' ? JSON.parse(r.contributing_signals) : r.contributing_signals;
         if (Array.isArray(v)) parsed = v as ClassifiedSignal[];
       } catch { parsed = []; }
+      // (val 2026-06-07, #484) Pick the most-recent event date across
+      // contributing signals so the watchlist card chip can show the real
+      // court/SOS/UCC date instead of when we ingested it. Soft-fail to
+      // null when no signal carries one (backfill: prior rows stored
+      // before this commit won't have eventDate; chips fall back to
+      // firstSeenAt naturally on the client side).
+      let latestEventDate: string | null = null;
+      for (const s of parsed) {
+        if (s.eventDate && (!latestEventDate || s.eventDate > latestEventDate)) {
+          latestEventDate = s.eventDate;
+        }
+      }
       return {
         entityKey: r.entity_key,
         entityLabel: r.entity_label,
@@ -475,7 +549,8 @@ export async function watchlistForClient(clientId: number, limit = 25): Promise<
         firstSeenAt: r.first_seen_at,
         lastRecomputedAt: r.last_recomputed_at,
         lastAction: r.last_action,
-        lastActedAt: r.last_acted_at
+        lastActedAt: r.last_acted_at,
+        latestEventDate
       };
     });
   } catch { return []; }

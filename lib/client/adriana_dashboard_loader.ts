@@ -136,8 +136,14 @@ function watchlistRowToCard(row: WatchlistRow): SignalCard {
     label: cascadeNodeLabel(s),
     payoff: i === arr.length - 1
   } as CascadeNode));
-  // "Freshness" chip — newest signal first.
-  const newestAt = row.firstSeenAt;
+  // (val 2026-06-07, #484) Prefer the upstream event date when present
+  // (e.g. CourtListener date_filed, CA SOS status_date) — that's the real
+  // "filing date" the chip should show. Fall back to firstSeenAt only when
+  // no contributing signal carries an upstream date. Old rows scored before
+  // #484 won't have eventDate; those gracefully use firstSeenAt as before.
+  const eventIso = row.latestEventDate;
+  const eventDate = eventIso ? new Date(`${eventIso}T00:00:00`) : null;
+  const newestAt = eventDate && !Number.isNaN(eventDate.getTime()) ? eventDate : row.firstSeenAt;
   const days = Math.floor((Date.now() - newestAt.getTime()) / 86400000);
   const filedOn = newestAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const chipLabel = days < 7 ? `New · filed ${filedOn}` : `Filed ${filedOn}`;
