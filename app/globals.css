@@ -304,3 +304,13 @@ input.bg-white::placeholder, textarea.bg-white::placeholder {
    flattened the tasteful small-caps eyebrows too and read WORSE. Small-caps
    micro-labels are luxury editorial and stay. Only oversized/headline caps
    should be addressed, case by case — not a global kill.) */
+
+/* ─── DIM-TEXT LEGIBILITY FLOOR (val 2026-06-07: "legible to all standards") ──
+   White text at 20–40% opacity on the dark operator register falls below WCAG
+   AA. Raise the floor so dim labels stay readable. Targets text utilities only;
+   background/border opacity is untouched. (text-white/50+ is already borderline-OK.) */
+[class*="text-white/40"],
+[class*="text-white/30"],
+[class*="text-white/20"] {
+  color: rgba(255, 255, 255, 0.66) !important;
+}

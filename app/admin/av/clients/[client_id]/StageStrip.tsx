@@ -40,11 +40,11 @@ function StageChip({ stage }: { stage: StageState }) {
     <div className={`flex flex-col gap-0.5 rounded-md px-2.5 py-2 transition-colors hover:bg-white/[0.03] ${cls}`}>
       <div className="flex items-center gap-1.5">
         <span aria-hidden className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${dotCls}`} />
-        <span className="text-[10px] uppercase tracking-[0.14em] opacity-80">{stage.id}</span>
+        <span className="text-[10px] uppercase tracking-[0.14em]">{stage.id}</span>
       </div>
       <div className="text-[11.5px] font-medium leading-tight">{stage.label}</div>
       {stage.detail && (
-        <div className="text-[10px] opacity-70 leading-tight">{stage.detail}</div>
+        <div className="text-[10px] leading-tight">{stage.detail}</div>
       )}
     </div>
   );
@@ -77,12 +77,12 @@ export default function StageStrip({ status }: { status: OnboardingStatus }) {
           {demoReady ? ' · demo ready' : ' · keep going'}
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-2">
         {stages.map((s) => (
           <StageChip key={s.key} stage={s} />
         ))}
       </div>
-      <div className="flex items-center gap-4 text-[10px] text-muted/80 mt-3 pt-2 border-t border-border/60">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted mt-3 pt-2 border-t border-border/60">
         <span className="inline-flex items-center gap-1.5">
           <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Done
         </span>
