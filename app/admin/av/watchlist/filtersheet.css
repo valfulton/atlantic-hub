@@ -1,0 +1,31 @@
+/* FilterSheet — chip + bottom-sheet on phones, inline form on desktop. Dark register. */
+.fs-chip { display: none; }
+.fs-panel-head { display: none; }
+
+@media (max-width: 767px) {
+  .fs-chip {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+    padding: 0 16px; margin-bottom: 1rem; border-radius: 999px; cursor: pointer; font-family: inherit;
+    border: 1px solid var(--border, rgba(255,255,255,.12));
+    background: var(--surface, rgba(255,255,255,.04)); color: var(--ink, #f1f5f9);
+    font-weight: 600; font-size: 13px;
+  }
+  .fs-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.5); border: 0; }
+  .fs-panel { display: none; }
+  .fs-panel.is-open {
+    display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    max-height: 85vh; overflow-y: auto;
+    background: var(--bg, #0b1220); border-top: 1px solid var(--border, rgba(255,255,255,.14));
+    border-radius: 16px 16px 0 0;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+  .fs-panel-head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+    color: var(--ink, #f1f5f9); font-weight: 600; font-size: 15px;
+  }
+  .fs-panel-head button {
+    background: transparent; border: 0; color: var(--muted, #94a3b8);
+    font-size: 18px; cursor: pointer; min-height: 36px; min-width: 36px;
+  }
+}

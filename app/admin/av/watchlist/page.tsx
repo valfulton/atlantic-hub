@@ -15,6 +15,7 @@ import {
   listClientsWithWatchlist,
   listSignalKinds
 } from '@/lib/public_intel/all_watchlists';
+import FilterSheet from './FilterSheet';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -58,6 +59,7 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
   const minScore = searchParams?.min ? Number.parseInt(searchParams.min, 10) : 0;
   const days = searchParams?.days ? Number.parseInt(searchParams.days, 10) : null;
   const q = searchParams?.q || null;
+  const activeCount = [clientId, kind, minScore > 0 ? minScore : null, days, q].filter((v) => v != null && v !== '').length;
 
   const [rows, clientChoices, kindChoices] = await Promise.all([
     listUnifiedWatchlist({ clientId, signalKind: kind, minScore, withinDays: days, q, limit: 200 }),
@@ -85,7 +87,10 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
         </p>
       </header>
 
-      {/* Filters — GET-param form so deep-linking works (e.g. ?client=9&days=7) */}
+      {/* Filters — GET-param form so deep-linking works (e.g. ?client=9&days=7).
+          Wrapped in FilterSheet: collapses to a "Filters · N" chip + bottom-sheet
+          on phones; inline on desktop (val 2026-06-07 operator-mobile). */}
+      <FilterSheet activeCount={activeCount}>
       <form
         method="GET"
         className="rounded-2xl border border-border bg-surface p-4 mb-6"
@@ -174,6 +179,7 @@ export default async function UnifiedWatchlistPage({ searchParams }: { searchPar
           </Link>
         </div>
       </form>
+      </FilterSheet>
 
       {/* Summary strip */}
       <div className="flex flex-wrap gap-4 mb-6 text-[12px]">
