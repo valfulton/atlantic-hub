@@ -422,6 +422,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           Sits ABOVE Public Intelligence because the pack tells val which
           adapters to enable. Applying a pack seeds weights + names the
           recommended adapters + cascade recipes for that vertical. */}
+      {/* (val 2026-06-07) Intelligence cluster — collapsed into ONE accordion on
+          phones (the densest part of the cockpit). Desktop = pass-through. */}
+      <MobileAccordion id="intel" icon="🛰" title="Intelligence" status="Signals · watchlist · cascade · feed">
       <div id="vertical-pack" className="mb-5">
         <VerticalPackPanel clientId={clientId} clientName={d.name} />
       </div>
@@ -470,6 +473,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         </div>
         <ExtractIntelButton clientId={clientId} />
       </div>
+      </MobileAccordion>
 
       {/* (#45) Social channels — paste profile URLs val has on file; client
           confirms in their intake. Drives the per-brand post-target rails.
