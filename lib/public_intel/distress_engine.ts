@@ -58,6 +58,10 @@ export type SignalKind =
   | 'bankruptcy_filed'
   // (#388) From DataSF adapter:
   | 'code_violation'
+  // (val 2026-06-07) From MD Land Records — Mortgage / Deed of Trust filings:
+  // a property changed hands or took on new debt. New owner = new opex
+  // review = commercial solar / energy / vendor opportunity.
+  | 'property_transfer'
   // Generic / cross-source:
   | 'ucc_filing'
   | 'credit_risk_increase'
@@ -82,7 +86,8 @@ export const SIGNAL_LIBRARY: Record<SignalKind, { label: string; description: st
   credit_risk_increase: { label: 'Credit risk increase', description: 'D&B / Experian risk score deteriorated (when wired).', defaultWeight: 40 },
   negative_review_trend: { label: 'Negative review trend', description: 'Google / Yelp rating drop + review velocity shift. Often precedes operational problems.', defaultWeight: 15 },
   address_change: { label: 'Address change', description: 'Recent registered address change. Growth, contraction, or evasion signal.', defaultWeight: 10 },
-  rapid_growth: { label: 'Rapid growth', description: 'Multiple amendments + officer changes + new locations in short window.', defaultWeight: 10 }
+  rapid_growth: { label: 'Rapid growth', description: 'Multiple amendments + officer changes + new locations in short window.', defaultWeight: 10 },
+  property_transfer: { label: 'Property transfer / new mortgage', description: 'A commercial property recorded a new Mortgage or Deed of Trust — title changed hands or new debt was taken on. New owner typically reassesses utility/opex contracts in their first 90 days.', defaultWeight: 25 }
 };
 
 /**
@@ -287,6 +292,43 @@ export function classifyRecord(r: IntelRecord): ClassifiedSignal[] {
         entityLabel: label,
         regionCode: r.regionCode,
         source: `CourtListener · ${j.court ?? 'court'} · ${j.nature ?? 'civil'}`
+      });
+    }
+  }
+
+  // (val 2026-06-07) MD Land Records: every recorded filing in the 24 MD
+  // jurisdictions. Document type drives the signal:
+  //   Mortgage / Deed of Trust → property_transfer (new owner / new debt =
+  //     opex review window — gold for commercial solar, energy services,
+  //     vendor prospecting, insurance brokers)
+  //   Lis Pendens / Foreclosure → lawsuit_filed (existing signal)
+  //   Trustee Deed / Notice of Sale → property_transfer (auction completion =
+  //     new owner; same opex-review window)
+  //   Tax Sale Certificate / Tax Sale Deed → property_transfer (tax-driven
+  //     transfer = motivated new owner)
+  // Without this branch md_land_rec records sit in public_intel_records and
+  // never fire — that's why the MD adapter looked "quiet" even when running.
+  if (r.sourceKind === 'md_land_rec') {
+    const j = r.recordJson as { document_type?: string; party_name?: string; county?: string };
+    const docType = (j.document_type ?? '').toLowerCase();
+    const label = j.party_name ?? r.summaryLabel ?? null;
+    const region = j.county ?? r.regionCode ?? 'MD';
+
+    if (/mortgage|deed of trust|trustee deed|notice of sale|tax sale/.test(docType)) {
+      out.push({
+        signalKind: 'property_transfer',
+        entityKey: r.entityKey,
+        entityLabel: label,
+        regionCode: region,
+        source: `MD Land Records · ${docType} · ${region}`
+      });
+    } else if (/lis pendens|foreclosure/.test(docType)) {
+      out.push({
+        signalKind: 'lawsuit_filed',
+        entityKey: r.entityKey,
+        entityLabel: label,
+        regionCode: region,
+        source: `MD Land Records · ${docType} · ${region}`
       });
     }
   }

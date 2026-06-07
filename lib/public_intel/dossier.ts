@@ -400,5 +400,9 @@ export const SIGNAL_KIND_COPY: Record<SignalKind, { label: string; why: string }
   rapid_growth: {
     label: 'Rapid growth',
     why: 'Growth-stage signals indicate scaling — different vertical packs treat this as an opportunity rather than distress (e.g. B2B sales prospecting).'
+  },
+  property_transfer: {
+    label: 'Property transfer / new mortgage',
+    why: 'A commercial property recorded a new Mortgage, Deed of Trust, or Trustee Deed. New ownership or new debt typically triggers an opex/utility/vendor review within 90 days — the moment commercial solar, energy services, insurance, and B2B vendors are most likely to be evaluated.'
   }
 };

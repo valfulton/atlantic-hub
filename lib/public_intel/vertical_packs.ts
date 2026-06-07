@@ -38,6 +38,7 @@ export type VerticalPackId =
   | 'b2b_sales'                // ADP / Paychex / payroll / merchant services
   | 'commercial_insurance'     // Commercial insurance brokers
   | 'commercial_lending'       // Banks, SBA lenders, equipment finance
+  | 'commercial_solar'         // Chip Zenke / Circa Energy — commercial solar developers, EPCs, energy consultants
   | 'law_firm'                 // Practice-specific (employment, corporate, collections, bankruptcy)
   | 'recruiting'               // Staffing + executive search
   | 'marketing_agency'         // AV's own home turf — agencies selling marketing services
@@ -212,6 +213,60 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     pricingThesis:
       'Lenders pay $50-200K/year for FIS / Moody\'s commercial intelligence. We deliver per-market regional intelligence at 1/10 the cost with cascade attribution they can show their credit committee.',
     suggestedPriceUsd: { low: 999, high: 4999 }
+  },
+
+  commercial_solar: {
+    id: 'commercial_solar',
+    displayName: 'Commercial solar + renewable energy services',
+    shortPositioning: 'We surface commercial properties at the exact moment an energy decision is on the table.',
+    targetAudience: 'corporate',
+    signalWeights: {
+      // Property changed hands or took on new debt — new owner's 90-day
+      // opex review is the sweet-spot window for solar pitch.
+      property_transfer: 40,
+      // New commercial LLC = new lease / location / utility contract being set up.
+      new_llc: 30,
+      // Expanding business = larger kWh load = bigger solar ROI conversation.
+      rapid_growth: 35,
+      // Relocation = utility contract reset.
+      address_change: 30,
+      // New CFO / Director of Facilities re-evaluates opex line items first 90 days.
+      leadership_change: 25,
+      // Building permit / code violation = forced retrofit window (HVAC + electrical
+      // often pair with solar upgrades). DataSF for SF; future county adapters
+      // will expand coverage.
+      code_violation: 20,
+      // Already deploying capex = open to solar capex.
+      ucc_filing: 15
+    },
+    cascadeRecipeIds: [
+      // Maps to existing recipes that fit solar's "moment of energy decision" framing.
+      // Future solar-specific recipes (building-permit → solar pitch, PJM
+      // interconnection → competitor visibility) activate when those adapters ship.
+      'new_llc_credit_opportunity',
+      'suspended_entity_vendor_exposure'
+    ],
+    recommendedAdapters: [
+      'ca_sos',         // CA businesses — useful for CA solar pros
+      'md_land_rec',    // MD statewide property transfers — the primary signal for Chip
+      'datasf',         // SF code violations = retrofit window
+      'census_acs',     // Tract-level commercial density
+      'gbp',            // Find businesses by category
+      'courtlistener'   // Federal cases involving commercial real estate / energy
+    ],
+    bestForRoles: [
+      'Commercial solar developers + EPCs',
+      'Energy management consultants',
+      'PPA / solar tax-equity arrangers',
+      'Renewable energy account execs',
+      'Building decarbonization consultants',
+      'Commercial HVAC/electrical retrofit firms'
+    ],
+    pitchTemplate:
+      'Stop chasing every business with a roof. Surface the commercial properties making energy decisions RIGHT NOW — new ownership, expansion signals, leadership changes, building permits — with the specific reason to call. Your reps open with "I noticed you just moved into a 40K sqft facility — what is your kWh spend looking like?" not a cold pitch.',
+    pricingThesis:
+      'Commercial solar reps drown in cold prospecting (100 calls to 1 meeting industry avg). Per-signal intelligence with a documented opex-review window cuts sales cycle 4-6 months. One mid-market PPA closes pays the year.',
+    suggestedPriceUsd: { low: 799, high: 2999 }
   },
 
   law_firm: {
