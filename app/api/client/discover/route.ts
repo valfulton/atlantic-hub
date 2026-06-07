@@ -138,8 +138,27 @@ export async function POST(req: NextRequest) {
   if ('error' in r) return r.error;
   const { user, clientId } = r;
 
+  // (val 2026-06-07) Free-tier paywall. audit_only ('free') accounts get a
+  // structured paywall response the client UI can render as a modal +
+  // checkout button — instead of a flat 403 with a generic message.
+  // Status 402 ('Payment Required') is the canonical signal; the body
+  // carries everything the modal needs: copy, the upgrade tier, and the
+  // checkout-session URL the client will be redirected to.
   if (user.tier === 'audit_only') {
-    return NextResponse.json({ error: 'upgrade_required', message: 'Lead discovery is available on the Sprint plan and above.' }, { status: 403 });
+    return NextResponse.json({
+      error: 'paywall',
+      paywall: {
+        reason: 'free_tier_locked',
+        title: 'Find more leads',
+        body: 'Lead discovery is a paid capability. Upgrade to the Sprint plan to find a new batch of leads matched to your ICP every month.',
+        currentTier: 'audit_only',
+        suggestedTier: 'sprint',
+        checkoutUrl: `/api/client/billing/checkout-session?plan=sprint&reason=discover_more_leads`,
+        ctaLabel: 'Upgrade to Sprint',
+        secondaryHref: '/client/pricing',
+        secondaryLabel: 'See plans'
+      }
+    }, { status: 402 });
   }
 
   let body: Record<string, unknown> = {};

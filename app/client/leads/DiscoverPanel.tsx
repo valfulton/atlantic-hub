@@ -16,6 +16,20 @@ interface Usage {
   perRun?: number;
 }
 
+/** Paywall payload returned by /api/client/discover when the caller is on a
+ *  tier that doesn't include lead discovery (audit_only today). Shape mirrors
+ *  the server response — the modal renders whatever the server sent so we
+ *  can A/B copy/CTAs without touching this component. */
+interface Paywall {
+  title: string;
+  body: string;
+  ctaLabel: string;
+  checkoutUrl: string;
+  secondaryLabel?: string;
+  secondaryHref?: string;
+  suggestedTier?: string;
+}
+
 function toCsv(arr: string[]): string {
   return arr.join(', ');
 }
@@ -38,6 +52,7 @@ export default function DiscoverPanel() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [running, setRunning] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err' | 'info'; text: string } | null>(null);
+  const [paywall, setPaywall] = useState<Paywall | null>(null);
 
   useEffect(() => {
     fetch('/api/client/discover', { cache: 'no-store' })
@@ -76,7 +91,14 @@ export default function DiscoverPanel() {
         body: JSON.stringify({ icp })
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      // (val 2026-06-07) 402 = paywall. Free-tier (audit_only) clients get a
+      // structured upgrade payload from the server; render it as a modal
+      // instead of a flat error toast. The "click to upgrade" button hits
+      // /api/client/billing/checkout-session which routes to Stripe when
+      // wired (today: to /client/pricing with plan preselected).
+      if (res.status === 402 && j.paywall) {
+        setPaywall(j.paywall as Paywall);
+      } else if (!res.ok) {
         setMsg({ tone: 'err', text: j.message || j.error || 'Discovery failed. Please try again.' });
       } else {
         if (j.usage) setUsage(j.usage);
@@ -201,6 +223,99 @@ export default function DiscoverPanel() {
           </span>
         )}
       </div>
+
+      {/* (val 2026-06-07) Free-tier paywall modal — renders when the discover
+          endpoint returned 402. ALL copy comes from the server response so
+          we can A/B without touching this file. */}
+      {paywall && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="paywall-title"
+          onClick={() => setPaywall(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(10,20,16,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--paper)',
+              border: '1px solid var(--rule)',
+              borderRadius: 16,
+              boxShadow: '0 30px 60px -20px rgba(10,77,60,0.4)',
+              padding: '28px 28px 22px',
+              maxWidth: 460,
+              width: '100%',
+              color: 'var(--ink)'
+            }}
+          >
+            <div style={{
+              fontSize: 10, letterSpacing: '0.22em',
+              textTransform: 'uppercase', color: 'var(--emerald-deep)',
+              marginBottom: 8
+            }}>
+              Upgrade · {paywall.suggestedTier ?? 'Sprint'}
+            </div>
+            <h3 id="paywall-title" style={{
+              margin: '0 0 10px',
+              fontFamily: 'var(--serif)',
+              fontSize: 22, fontWeight: 500,
+              color: 'var(--emerald-deep)'
+            }}>
+              {paywall.title}
+            </h3>
+            <p style={{ margin: '0 0 18px', fontSize: 14, lineHeight: 1.5, color: 'var(--ink)' }}>
+              {paywall.body}
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <a
+                href={paywall.checkoutUrl}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '10px 18px',
+                  background: 'var(--gold)',
+                  color: 'var(--black)',
+                  borderRadius: 10, fontWeight: 600, fontSize: 14,
+                  textDecoration: 'none'
+                }}
+              >
+                {paywall.ctaLabel} →
+              </a>
+              {paywall.secondaryHref && paywall.secondaryLabel && (
+                <a
+                  href={paywall.secondaryHref}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    padding: '10px 14px',
+                    color: 'var(--emerald-deep)',
+                    border: '1px solid var(--emerald-deep)',
+                    borderRadius: 10, fontWeight: 500, fontSize: 13,
+                    textDecoration: 'none'
+                  }}
+                >
+                  {paywall.secondaryLabel}
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setPaywall(null)}
+                style={{
+                  marginLeft: 'auto',
+                  background: 'transparent', border: 0,
+                  color: 'var(--muted)', fontSize: 12,
+                  cursor: 'pointer', padding: '10px 6px'
+                }}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
