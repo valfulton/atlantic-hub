@@ -113,10 +113,22 @@ export const config = {
     '/admin/:path*',
     '/api/admin/:path*',
     // Client portal pages (protected)
+    // (val 2026-06-07, #485) Every client-facing tab listed in BottomTabBar
+    // + ClientV3TopNav MUST be in this matcher. If a tab is missing, the
+    // middleware never fires → x-ah-client-user-id header is unset → the
+    // page sees actor === null and redirects to /client/login. That's the
+    // "leads tab bounces back" bug Adriana hit. Keep this list in sync with
+    // app/client/_components/BottomTabBar.tsx + ClientV3TopNav.tsx.
     '/client/dashboard/:path*',
     '/client/audit/:path*',
     '/client/leads/:path*',
     '/client/intake/:path*',
+    '/client/watchlist/:path*',
+    '/client/content/:path*',
+    '/client/calendar/:path*',
+    '/client/campaigns/:path*',
+    '/client/intelligence/:path*',
+    '/client/social/:path*',
     // (#220) Client-facing PR pipeline.
     '/client/pr/:path*',
     '/client/set-password',
