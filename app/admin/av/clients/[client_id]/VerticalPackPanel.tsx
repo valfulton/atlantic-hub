@@ -42,6 +42,9 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
   const [busy, setBusy] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ApplyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // (#530c) Which pack is currently applied to this client + when.
+  const [appliedPackId, setAppliedPackId] = useState<string | null>(null);
+  const [appliedAt, setAppliedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +52,9 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
       const j = await r.json();
       if (!r.ok || !j.ok) { setError(j.error || 'Could not load.'); return; }
       setPacks(j.packs as PackRow[]);
+      // (#530c) Pull current pack state so we can render the "Applied" badge.
+      setAppliedPackId(typeof j.appliedPackId === 'string' ? j.appliedPackId : null);
+      setAppliedAt(typeof j.appliedAt === 'string' ? j.appliedAt : null);
       setError(null);
     } catch { setError('Could not load.'); }
   }, [clientId]);
@@ -56,6 +62,10 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
   useEffect(() => {
     if (open && !packs) load();
   }, [open, packs, load]);
+
+  // (#530c) Load applied-pack state on mount even when collapsed, so the
+  // header chip shows what's currently applied without expanding the panel.
+  useEffect(() => { load(); }, [load]);
 
   async function applyPack(packId: string) {
     if (!confirm(`Apply the "${packId}" vertical pack to ${clientName}?\n\nThis seeds the distress signal weights for this vertical and tells you which adapters to enable. Idempotent — your manual weight overrides stay.`)) return;
@@ -72,9 +82,25 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
         setError(`Apply failed: ${j.packId}`);
       } else {
         setLastResult(j);
+        // (#530c) Optimistically mark this pack as applied so the chip flips
+        // before the next page load.
+        setAppliedPackId(packId);
+        setAppliedAt(new Date().toISOString());
       }
     } catch { setError('Apply failed.'); }
     finally { setBusy(null); }
+  }
+
+  // (#530c) Helper: human-readable "applied 5 minutes ago" for the chip.
+  function relTime(iso: string | null): string {
+    if (!iso) return '';
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return '';
+    const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86400)}d ago`;
   }
 
   return (
@@ -100,6 +126,17 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
             <div className="text-sm text-ink/95 mt-0.5">
               What business is {clientName} in? Pick a pack to seed signal weights + activate recipes.
             </div>
+            {/* (#530c) "Applied" chip — surfaces which pack is in force without
+                expanding the panel. */}
+            {appliedPackId && (
+              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/[0.08] px-2 py-0.5 text-[10.5px] text-emerald-200">
+                <span aria-hidden>✓</span>
+                <span>
+                  Applied · {appliedPackId.replace(/_/g, ' ')}
+                  {appliedAt && <span className="text-emerald-200/70"> · {relTime(appliedAt)}</span>}
+                </span>
+              </div>
+            )}
           </div>
         </div>
         <span className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-[color-mix(in_srgb,var(--gold-bright)_80%,transparent)]">
@@ -156,9 +193,18 @@ export default function VerticalPackPanel({ clientId, clientName }: { clientId: 
                       type="button"
                       onClick={() => applyPack(p.id)}
                       disabled={busy === p.id}
-                      className="shrink-0 rounded-lg border border-border bg-brand text-black font-medium text-[12px] px-3 py-1.5 disabled:opacity-50"
+                      className={
+                        'shrink-0 rounded-lg font-medium text-[12px] px-3 py-1.5 disabled:opacity-50 ' +
+                        (appliedPackId === p.id
+                          ? 'border border-emerald-400/60 bg-emerald-400/[0.12] text-emerald-100'
+                          : 'border border-border bg-brand text-black')
+                      }
                     >
-                      {busy === p.id ? 'Applying…' : 'Apply pack'}
+                      {busy === p.id
+                        ? 'Applying…'
+                        : appliedPackId === p.id
+                          ? '✓ Applied · re-apply'
+                          : 'Apply pack'}
                     </button>
                   </div>
                 </li>

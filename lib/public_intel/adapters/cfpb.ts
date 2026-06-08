@@ -71,8 +71,10 @@ interface CfpbConfig {
   company?: string;
   /** (#528) Unified entity-name field val types into all adapter panels.
    *  For CFPB this aliases `company` (complaints are filed against companies,
-   *  so a company name like "NDVIP Inc" works best, but accepted either way). */
-  name?: string;
+   *  so a company name like "NDVIP Inc" works best, but accepted either way).
+   *  (#530c) Accepts an array too — e.g. ["NDVIP Inc", "Prior Entity LLC"] runs
+   *  both lookups and dedups complaints by complaint_id. */
+  name?: string | string[];
   /** When in company-lookup mode, how many specific complaints to fetch.
    *  Default 25, max 100. Each complaint becomes its own public_intel_record. */
   maxResults?: number;
@@ -121,7 +123,12 @@ function isCfpbConfig(c: unknown): c is CfpbConfig {
   // panel. For CFPB it maps to the company-name search (CFPB complaints are
   // filed against companies, not individuals — so this works best with a
   // company name like "NDVIP Inc" but we still accept a person name too).
-  if (o.name !== undefined && typeof o.name !== 'string') return false;
+  if (o.name !== undefined) {
+    if (typeof o.name !== 'string'
+        && !(Array.isArray(o.name) && o.name.every((s) => typeof s === 'string'))) {
+      return false;
+    }
+  }
   if (o.maxResults !== undefined && typeof o.maxResults !== 'number') return false;
   return true;
 }
@@ -290,7 +297,12 @@ export const cfpbAdapter: PublicIntelAdapter = {
     // like First+Last with no corporate suffix), we want to reject loudly so
     // she switches to the actual company name like "NDVIP Inc" — otherwise
     // CFPB silently returns 0 and we mis-label it a "clean signal."
-    const candidate = (c.name ?? c.company ?? '').trim();
+    // (#530c) name can be a string or array; check whichever single entry the
+    // operator typed. Array means they explicitly chose multiple terms — trust them.
+    let candidate = '';
+    if (typeof c.company === 'string' && c.company.trim()) candidate = c.company.trim();
+    else if (typeof c.name === 'string' && c.name.trim()) candidate = c.name.trim();
+    // (arrays: skip the person-name check — array input is power-user mode)
     if (candidate && looksLikePersonName(candidate)) {
       return `"${candidate}" looks like a person name. CFPB (Consumer Financial Protection Bureau) tracks complaints against COMPANIES, not individuals. Use the COMPANY name here (e.g. "NDVIP Inc" not "Mark Francis"). CFPB website: https://www.consumerfinance.gov/data-research/consumer-complaints/`;
     }
@@ -310,8 +322,25 @@ export const cfpbAdapter: PublicIntelAdapter = {
     const sinceDays = cfg.sinceDays ?? 90;
     const productKey = products ? products.join(',') : 'all';
     // (#528) Accept either `company` (explicit) or `name` (unified panel
-    // field). Either field triggers the name-targeted lookup path.
-    const companyLookup = ((cfg.company ?? cfg.name) ?? '').trim();
+    // field). (#530c) name can also be an array — collect into a deduped list.
+    const companyList: string[] = (() => {
+      const out: string[] = [];
+      const seen = new Set<string>();
+      const push = (s: unknown) => {
+        if (typeof s !== 'string') return;
+        const t = s.trim();
+        if (!t) return;
+        const key = t.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(t);
+      };
+      push(cfg.company);
+      if (typeof cfg.name === 'string') push(cfg.name);
+      else if (Array.isArray(cfg.name)) for (const n of cfg.name) push(n);
+      return out;
+    })();
+    const companyLookup = companyList[0] ?? '';
     const maxResults = cfg.maxResults ?? 25;
 
     let written = 0;
@@ -320,28 +349,38 @@ export const cfpbAdapter: PublicIntelAdapter = {
 
     // (#526) Company-lookup mode: filter by specific company name + persist
     // each individual complaint as its own record (not the state aggregate).
-    if (companyLookup) {
-      const entityKeyBase = `cfpb:company:${companyLookup.toLowerCase().replace(/\s+/g, '_').slice(0, 80)}:${sinceDays}d`;
+    if (companyList.length > 0) {
+      const combinedSlug = companyList.map((c) => c.toLowerCase().replace(/\s+/g, '_')).join('+').slice(0, 100);
+      const entityKeyBase = `cfpb:company:${combinedSlug}:${sinceDays}d`;
       const cached = await findCachedRecord<{ complaints: CfpbComplaint[] }>('cfpb', entityKeyBase);
       if (cached) {
         fromCache = 1;
       } else {
-        const complaints = await fetchByCompany(companyLookup, states, sinceDays, maxResults);
+        // (#530c) Fetch per company; dedupe complaints by complaint_id.
+        const seenIds = new Set<string>();
+        const merged: CfpbComplaint[] = [];
+        for (const c of companyList) {
+          const batch = await fetchByCompany(c, states, sinceDays, maxResults);
+          for (const cmp of batch) {
+            if (!cmp.complaint_id || seenIds.has(cmp.complaint_id)) continue;
+            seenIds.add(cmp.complaint_id);
+            merged.push(cmp);
+          }
+        }
         const expires = new Date(Date.now() + CACHE_DAYS * 24 * 60 * 60 * 1000);
-        // Store one aggregate "lookup roll-up" record so cache works, AND
-        // store each complaint individually so Intelligence Feed shows them.
-        await storeRecord<{ complaints: CfpbComplaint[]; query: string; total: number }>({
+        const queryLabel = companyList.length === 1 ? `"${companyList[0]}"` : companyList.map((c) => `"${c}"`).join(' + ');
+        await storeRecord<{ complaints: CfpbComplaint[]; queries: string[]; total: number }>({
           sourceKind: 'cfpb',
           entityKey: entityKeyBase,
           clientId: ctx.clientId ?? ctx.source.clientId,
           leadId: ctx.leadId ?? null,
-          recordJson: { complaints, query: companyLookup, total: complaints.length },
-          summaryLabel: `${complaints.length} CFPB complaint${complaints.length === 1 ? '' : 's'} against "${companyLookup}" / ${sinceDays}d`.slice(0, 240),
+          recordJson: { complaints: merged, queries: companyList, total: merged.length },
+          summaryLabel: `${merged.length} CFPB complaint${merged.length === 1 ? '' : 's'} against ${queryLabel} / ${sinceDays}d`.slice(0, 240),
           regionCode: states[0] ?? null,
           expiresAt: expires
         });
         written++;
-        for (const c of complaints) {
+        for (const c of merged) {
           if (!c.complaint_id) continue;
           await storeRecord<CfpbComplaint>({
             sourceKind: 'cfpb',
@@ -356,10 +395,13 @@ export const cfpbAdapter: PublicIntelAdapter = {
           written++;
         }
       }
-      const detail = `Company "${companyLookup}": ${written} fetched, ${fromCache} from cache`;
+      const detail = `Companies ${companyList.map((c) => `"${c}"`).join(', ')}: ${written} fetched, ${fromCache} from cache`;
       await noteRun({ sourceId: ctx.source.sourceId, status: 'ok', detail });
       return { ok: true, written, fromCache, detail };
     }
+    // The original single-string `companyLookup` is preserved below for any
+    // legacy code paths still reading it; treat as a no-op when the list is empty.
+    void companyLookup;
 
     for (const state of states) {
       const entityKey = `cfpb:${state}:${productKey}:${sinceDays}d`;

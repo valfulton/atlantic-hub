@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { listPacks, applyVerticalPackToClient, type VerticalPackId } from '@/lib/public_intel/vertical_packs';
+import { getBriefPayload, saveBriefPayload } from '@/lib/client/brief_store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,8 +24,16 @@ export async function GET(req: NextRequest, { params }: { params: { client_id: s
   if (!Number.isFinite(clientId) || clientId <= 0) {
     return NextResponse.json({ error: 'invalid client id' }, { status: 400 });
   }
+  // (#530c) Surface which pack is currently applied so the UI can show
+  // "Applied" indicator + the apply timestamp.
+  const brief = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
+  const appliedPackId = typeof brief?.vertical_pack_id === 'string' ? brief.vertical_pack_id : null;
+  const appliedAt = typeof brief?.vertical_pack_applied_at === 'string' ? brief.vertical_pack_applied_at : null;
+
   return NextResponse.json({
     ok: true,
+    appliedPackId,
+    appliedAt,
     packs: listPacks().map((p) => ({
       id: p.id,
       displayName: p.displayName,
@@ -58,5 +67,22 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   if (!packId) return NextResponse.json({ error: 'packId required' }, { status: 400 });
 
   const result = await applyVerticalPackToClient(clientId, packId);
+
+  // (#530c) Persist which pack is now applied so the UI can show "✓ Applied"
+  // even after a page refresh. Stored in brief_payload (no schema migration).
+  // saveBriefPayload does a full column replace, so we must pre-load + merge.
+  try {
+    const current = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
+    const merged = {
+      ...(current ?? {}),
+      vertical_pack_id: packId,
+      vertical_pack_applied_at: new Date().toISOString()
+    };
+    await saveBriefPayload('av', clientId, merged);
+  } catch (err) {
+    console.error('[vertical-pack:persist]', (err as Error).message);
+    // Don't fail the apply if brief save errored — the weights were still seeded.
+  }
+
   return NextResponse.json(result);
 }

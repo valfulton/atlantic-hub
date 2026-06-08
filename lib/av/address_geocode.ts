@@ -51,8 +51,24 @@ const ENDPOINT = 'https://geocoding.geo.census.gov/geocoder/geographies/onelinea
  */
 export async function geocodeAddress(oneLine: string): Promise<GeocodeResult | null> {
   if (!oneLine || oneLine.trim().length < 5) return null;
+  // (#530c, val 2026-06-08) Census API choked on ", USA" suffix in val's test.
+  // Try the original first, then fall back to a cleaned variant.
+  const result = await geocodeOnce(oneLine.trim());
+  if (result) return result;
+  const cleaned = oneLine
+    .trim()
+    .replace(/,?\s*(USA|United States|U\.S\.A?\.?)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned !== oneLine.trim() && cleaned.length >= 5) {
+    return geocodeOnce(cleaned);
+  }
+  return null;
+}
+
+async function geocodeOnce(oneLine: string): Promise<GeocodeResult | null> {
   const params = new URLSearchParams();
-  params.set('address', oneLine.trim());
+  params.set('address', oneLine);
   params.set('benchmark', 'Public_AR_Current');
   params.set('vintage', 'Current_Current');
   params.set('format', 'json');
