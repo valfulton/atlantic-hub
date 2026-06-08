@@ -35,6 +35,10 @@ interface CfpbConfig {
    *  Fulfills the KYC use case where val wants "what complaints exist
    *  against THIS company" not "what's the state-wide aggregate". */
   company?: string;
+  /** (#528) Unified entity-name field val types into all adapter panels.
+   *  For CFPB this aliases `company` (complaints are filed against companies,
+   *  so a company name like "NDVIP Inc" works best, but accepted either way). */
+  name?: string;
   /** When in company-lookup mode, how many specific complaints to fetch.
    *  Default 25, max 100. Each complaint becomes its own public_intel_record. */
   maxResults?: number;
@@ -79,6 +83,11 @@ function isCfpbConfig(c: unknown): c is CfpbConfig {
   if (o.products !== undefined && !(Array.isArray(o.products) && o.products.every((s) => typeof s === 'string'))) return false;
   if (o.sinceDays !== undefined && typeof o.sinceDays !== 'number') return false;
   if (o.company !== undefined && typeof o.company !== 'string') return false;
+  // (#528) "name" is the unified field across all adapters val types into the
+  // panel. For CFPB it maps to the company-name search (CFPB complaints are
+  // filed against companies, not individuals — so this works best with a
+  // company name like "NDVIP Inc" but we still accept a person name too).
+  if (o.name !== undefined && typeof o.name !== 'string') return false;
   if (o.maxResults !== undefined && typeof o.maxResults !== 'number') return false;
   return true;
 }
@@ -229,7 +238,9 @@ export const cfpbAdapter: PublicIntelAdapter = {
     }
     const c: CfpbConfig = config;
     // (#526) Company-lookup mode doesn't require a state — nationwide search.
-    const isLookup = typeof c.company === 'string' && c.company.trim().length > 0;
+    const isLookup =
+      (typeof c.company === 'string' && c.company.trim().length > 0) ||
+      (typeof c.name === 'string' && c.name.trim().length > 0);
     if (!isLookup && (!c.states || c.states.length === 0)) {
       return 'set at least one state in states[] (or set company to do nationwide lookup)';
     }
@@ -254,7 +265,9 @@ export const cfpbAdapter: PublicIntelAdapter = {
     const products = cfg.products && cfg.products.length > 0 ? cfg.products : undefined;
     const sinceDays = cfg.sinceDays ?? 90;
     const productKey = products ? products.join(',') : 'all';
-    const companyLookup = (cfg.company ?? '').trim();
+    // (#528) Accept either `company` (explicit) or `name` (unified panel
+    // field). Either field triggers the name-targeted lookup path.
+    const companyLookup = ((cfg.company ?? cfg.name) ?? '').trim();
     const maxResults = cfg.maxResults ?? 25;
 
     let written = 0;

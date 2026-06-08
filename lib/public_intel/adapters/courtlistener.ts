@@ -30,6 +30,13 @@ interface CourtListenerConfig {
   states?: string[];
   natureOfSuit?: string[];
   sinceDays?: number;
+  /** (#528, val 2026-06-08) When set, runs name-targeted full-text search via
+   *  fetchByName instead of the state-aggregate sweep. Each matching docket
+   *  becomes its own public_intel_record keyed by docket URL — so the
+   *  Intelligence Feed shows the person's actual cases, not random state filings. */
+  name?: string;
+  /** When in name-lookup mode, max hits to fetch. Default 25, cap 100. */
+  maxResults?: number;
 }
 
 interface CourtListenerHit {
@@ -63,6 +70,8 @@ function isCfg(c: unknown): c is CourtListenerConfig {
   if (o.states !== undefined && !(Array.isArray(o.states) && o.states.every((s) => typeof s === 'string'))) return false;
   if (o.natureOfSuit !== undefined && !(Array.isArray(o.natureOfSuit) && o.natureOfSuit.every((s) => typeof s === 'string'))) return false;
   if (o.sinceDays !== undefined && typeof o.sinceDays !== 'number') return false;
+  if (o.name !== undefined && typeof o.name !== 'string') return false;
+  if (o.maxResults !== undefined && typeof o.maxResults !== 'number') return false;
   return true;
 }
 
@@ -251,9 +260,16 @@ export const courtListenerAdapter: PublicIntelAdapter = {
 
   validateConfig(config) {
     if (config == null) return null;
-    if (!isCfg(config)) return 'config must be { states?: string[], natureOfSuit?: string[], sinceDays?: number }';
+    if (!isCfg(config)) return 'config must be { states?: string[], natureOfSuit?: string[], sinceDays?: number, name?: string, maxResults?: number }';
     const c = config as CourtListenerConfig;
-    if (!c.states || c.states.length === 0) return 'set at least one state in states[]';
+    // (#528) Name-targeted lookup is nationwide — states[] is optional in that mode.
+    const isNameLookup = typeof c.name === 'string' && c.name.trim().length > 0;
+    if (!isNameLookup && (!c.states || c.states.length === 0)) {
+      return 'set at least one state in states[] (or set name for nationwide person/entity lookup)';
+    }
+    if (c.maxResults !== undefined && (c.maxResults < 1 || c.maxResults > 100)) {
+      return 'maxResults must be between 1 and 100';
+    }
     if (c.sinceDays !== undefined && (c.sinceDays < 1 || c.sinceDays > 365)) {
       return 'sinceDays must be between 1 and 365';
     }
@@ -270,10 +286,59 @@ export const courtListenerAdapter: PublicIntelAdapter = {
     const cfg: CourtListenerConfig = (cfgRaw as CourtListenerConfig | null) ?? {};
     const sinceDays = cfg.sinceDays ?? 14;
     const natureKey = (cfg.natureOfSuit ?? []).join(',') || 'any';
+    const nameLookup = (cfg.name ?? '').trim();
+    const maxResults = cfg.maxResults ?? 25;
 
     let written = 0;
     let fromCache = 0;
     const errors: string[] = [];
+
+    // (#528) Name-targeted lookup: filter dockets by entity name and persist
+    // each match as its own record. Replaces the state-aggregate noise pattern
+    // (those random VA/WI/DE bankruptcies that aren't related to the subject).
+    if (nameLookup) {
+      const slug = nameLookup.toLowerCase().replace(/\s+/g, '_').slice(0, 80);
+      const aggKey = `courtlistener:name:lookup:${slug}:${sinceDays || 'all'}d`;
+      const cached = await findCachedRecord<{ hits: CourtListenerHit[] }>('courtlistener', aggKey);
+      if (cached) {
+        fromCache = 1;
+      } else {
+        const hits = await fetchByName(nameLookup, maxResults, sinceDays || undefined);
+        const expires = new Date(Date.now() + CACHE_DAYS * 24 * 60 * 60 * 1000);
+        // Roll-up record so the panel sees a "lookup ran" entry even on zero
+        await storeRecord<{ query: string; hits: CourtListenerHit[]; total: number }>({
+          sourceKind: 'courtlistener',
+          entityKey: aggKey,
+          clientId: ctx.clientId ?? ctx.source.clientId,
+          recordJson: { query: nameLookup, hits, total: hits.length },
+          summaryLabel: hits.length > 0
+            ? `${hits.length} federal filing${hits.length === 1 ? '' : 's'} naming "${nameLookup}"`
+            : `0 federal filings naming "${nameLookup}" — clean signal`,
+          regionCode: null,
+          expiresAt: expires
+        });
+        written++;
+        for (const h of hits) {
+          const docketSlug = (h.docketUrl ?? `${h.court ?? ''}/${h.caseName ?? ''}/${h.docketNumber ?? ''}`)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .slice(0, 180);
+          await storeRecord<CourtListenerHit & { matched_query: string }>({
+            sourceKind: 'courtlistener',
+            entityKey: `courtlistener:name:${docketSlug}`,
+            clientId: ctx.clientId ?? ctx.source.clientId,
+            recordJson: { ...h, matched_query: nameLookup },
+            summaryLabel: `${h.caseName ?? 'Unknown case'} · ${h.court ?? ''} · ${h.filedAt ?? ''}`.slice(0, 240),
+            regionCode: h.state,
+            expiresAt: expires
+          });
+          written++;
+        }
+      }
+      const detail = `Name "${nameLookup}": ${written} fetched, ${fromCache} from cache`;
+      await noteRun({ sourceId: ctx.source.sourceId, status: 'ok', detail });
+      return { ok: true, written, fromCache, detail };
+    }
 
     for (const state of cfg.states ?? []) {
       const stateUp = state.toUpperCase();
