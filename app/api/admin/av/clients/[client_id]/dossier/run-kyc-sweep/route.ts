@@ -65,6 +65,35 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const company = typeof brief?.company === 'string' ? brief.company.trim() : '';
   const contactName = typeof brief?.contact_name === 'string' ? brief.contact_name.trim() : '';
 
+  // (#530) Derive a state hint for CourtListener name lookup. We try several
+  // brief fields in order of specificity. If nothing yields a 2-letter state,
+  // we fall back to nationwide (states = undefined) so the search still runs.
+  function deriveStateHint(): string[] | undefined {
+    const candidates: Array<unknown> = [
+      brief?.business_state,
+      brief?.address_state,
+      brief?.state,
+      brief?.state_code,
+      brief?.billing_state
+    ];
+    for (const c of candidates) {
+      if (typeof c === 'string') {
+        const trimmed = c.trim().toUpperCase();
+        if (/^[A-Z]{2}$/.test(trimmed)) return [trimmed];
+      }
+    }
+    // Try to pluck a 2-letter state out of an address string ("..., GA, 30040")
+    const addrCandidates: Array<unknown> = [brief?.business_address, brief?.address];
+    for (const c of addrCandidates) {
+      if (typeof c === 'string') {
+        const m = c.match(/,\s*([A-Z]{2})\s*,?\s*\d{5}/);
+        if (m) return [m[1]];
+      }
+    }
+    return undefined;
+  }
+  const stateHint = deriveStateHint();
+
   if (!company && !contactName) {
     return NextResponse.json({
       ok: false,
@@ -159,7 +188,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       const seenDocket = new Set<string>();
       const allHits: Array<{ name: string; hit: Awaited<ReturnType<typeof courtListenerFetchByName>>[number] }> = [];
       for (const queryName of namesToScreen) {
-        const hits = await courtListenerFetchByName(queryName, 15);
+        // (#530) Scope to the brief's state when known — drops the cross-country
+        // false positives (Mark Francis Dumas in RI, Zmuda in AZ, etc.)
+        const hits = await courtListenerFetchByName(queryName, 15, undefined, stateHint);
         for (const h of hits) {
           const key = h.docketUrl ?? `${h.court ?? ''}/${h.caseName ?? ''}/${h.docketNumber ?? ''}`;
           if (seenDocket.has(key)) continue;

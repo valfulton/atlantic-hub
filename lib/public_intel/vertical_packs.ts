@@ -42,7 +42,11 @@ export type VerticalPackId =
   | 'law_firm'                 // Practice-specific (employment, corporate, collections, bankruptcy)
   | 'recruiting'               // Staffing + executive search
   | 'marketing_agency'         // AV's own home turf — agencies selling marketing services
-  | 'luxury_hospitality';      // Yacht / marina / luxury hotel / high-end events (val's wheelhouse)
+  | 'luxury_hospitality'       // Yacht / marina / luxury hotel / high-end events (val's wheelhouse)
+  // (#530, val 2026-06-08) DD Report product line — investors / lenders / M&A
+  // advisors / franchise vetters who pay 5-10x marketing prices for a
+  // pre-engagement intelligence report on a person + their company.
+  | 'client_screening';        // Pre-engagement DD — KYC-style screening for investors, lenders, advisors
 
 /**
  * (#384) Target audience: drives the score-time filter that prevents
@@ -376,6 +380,59 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     pricingThesis:
       'Smaller market, wealthier customers, higher per-deal value. Luxury market generic tools are weakest here precisely because the data is fragmented across yacht registries, marina permits, hotel filings. Specialization commands premium pricing. This is the niche the advisor flagged as the best fit for AV given Events by Water + nautical brand position.',
     suggestedPriceUsd: { low: 999, high: 4999 }
+  },
+
+  // (#530, val 2026-06-08) Pre-Engagement Intelligence Report — the DD product
+  // line val identified while screening Mark Francis. Same engine, different
+  // audience: investors / lenders / M&A / franchise vetters who pay 5-10x
+  // marketing prices for a polished pre-engagement report on a person + their
+  // company. Output is the DD Report markdown (#525). This pack tunes weights
+  // and recipes so the watchlist surfaces the SIGNALS THAT MATTER for that
+  // audience (dissolution, bankruptcy, lawsuits, IP gaps) rather than the
+  // marketing-prospect signals other packs prioritize.
+  client_screening: {
+    id: 'client_screening',
+    displayName: 'Pre-engagement DD (investors, lenders, advisors)',
+    shortPositioning: 'The polished intelligence report that lets you walk away — or in — with confidence.',
+    targetAudience: 'both',
+    signalWeights: {
+      // KYC weights — what investors actually care about, ranked.
+      dissolved_entity: 50,    // corporate dissolution = top-line "do not invest" signal
+      suspended_entity: 40,
+      bankruptcy_filed: 60,
+      lawsuit_filed: 35,
+      credit_risk_increase: 30,
+      negative_review_trend: 15,
+      leadership_change: 20,   // mid-deal leadership turnover is a yellow flag
+      new_llc: 5               // a brand-new entity isn't risk; it's just data
+    },
+    cascadeRecipeIds: [
+      // Re-uses existing cascade recipes that produce DD-relevant signal.
+      // The DD Report endpoint (#525) consumes the resulting watchlist rows.
+      'courtlistener_defendant_distress',
+      'bankruptcy_creditor_extraction',
+      'suspended_entity_vendor_exposure'
+    ],
+    recommendedAdapters: [
+      'courtlistener',   // litigation + bankruptcy by name
+      'cfpb',            // consumer-finance complaints by company
+      'census_acs',      // address-area context
+      'hmda',            // mortgage-market context by address
+      'ca_sos'           // entity status (CA today; multi-state via #422 Puppeteer)
+    ],
+    bestForRoles: [
+      'Angel investors (the Mike Bannister case)',
+      'Family offices + small VCs without dedicated DD teams',
+      'M&A advisors + business brokers',
+      'Banks / SBA lenders doing pre-loan diligence',
+      'Franchise vetting agencies',
+      'Board nomination + executive screening'
+    ],
+    pitchTemplate:
+      'Before you write the check — or sign the partnership — you deserve to know what the public record says. A Pre-Engagement Intelligence Report aggregates federal court filings, state corporate registries, consumer complaints, IP defensibility, and address-history signals into one confidential dossier. Same depth a top-tier investor would commission, delivered in 48 hours instead of three weeks.',
+    pricingThesis:
+      'Different audience, different price point. A marketing engagement is $300-$2K/mo; a single pre-engagement DD report is $1,995-$7,995 because the buyer is making a $50K-$5M decision. The same engine produces both — investors pay for the polished deliverable + the speed. Bundleable as add-on to marketing engagements ("DD-as-a-service for any client you refer in").',
+    suggestedPriceUsd: { low: 1995, high: 7995 }
   }
 };
 

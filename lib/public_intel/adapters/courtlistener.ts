@@ -158,7 +158,8 @@ async function fetchHits(state: string, sinceDays: number, nature?: string[]): P
 export async function fetchByName(
   name: string,
   maxResults = 25,
-  sinceDays?: number
+  sinceDays?: number,
+  states?: string[]
 ): Promise<CourtListenerHit[]> {
   const params = new URLSearchParams();
   params.set('type', 'r');
@@ -169,6 +170,12 @@ export async function fetchByName(
   if (sinceDays && sinceDays > 0) {
     const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
     params.set('filed_after', yyyymmdd(since));
+  }
+  // (#528b, val 2026-06-08) Scope to user's states when provided. Critical for
+  // common names like "Mark Francis" — without state scoping val gets 7 different
+  // Mark Francises across the country (Dumas in RI, Zmuda in AZ, Buchholz in FL).
+  if (states && states.length > 0) {
+    for (const s of states) params.append('court_state', s.toUpperCase());
   }
   const url = `${ENDPOINT}?${params.toString()}`;
   const controller = new AbortController();
@@ -202,9 +209,40 @@ export async function fetchByName(
         court_state?: string;
       }>;
     };
-    // Defense: free-text search can drag in noise. Drop rows where neither
-    // caseName nor party array actually contains the queried name (case-insensitive).
-    const needle = name.toLowerCase();
+    // Defense: free-text search drags in substrings. CourtListener's q= for
+    // "Mark Francis" returns "Mark Francis Dumas", "Mark Francis Zmuda" etc.
+    // because "Mark Francis" appears as first+middle in those names.
+    // We tighten to: the queried phrase must appear with a word boundary on
+    // BOTH sides in a party entry — OR appear as an exact party match — OR
+    // the case name contains it as a non-embedded phrase ("Smith v. Mark Francis"
+    // is fine; "Mark Francis Dumas v. Acme" is not).
+    const needle = name.toLowerCase().trim();
+    const tokenCount = needle.split(/\s+/).length;
+    const tightMatch = (haystack: string): boolean => {
+      const hay = haystack.toLowerCase();
+      if (!hay.includes(needle)) return false;
+      // Require word-boundary AND no additional name tokens immediately after.
+      // "Mark Francis Dumas" → after match, next char is " D" → reject (additional name token).
+      // "Mark Francis v. Acme" → after match, next chars are " v." → accept (court syntax, not a name).
+      const idx = hay.indexOf(needle);
+      const before = idx === 0 ? '' : hay[idx - 1];
+      const after = hay.slice(idx + needle.length);
+      // Reject if preceded by a letter (means substring of bigger word).
+      if (before && /[a-z]/.test(before)) return false;
+      // Reject if followed by " <Capitalizedword>" where the word is letters
+      // only — that's a continued name. Allow if followed by punctuation,
+      // end-of-string, OR a court-syntax word (v., et al, jr, sr, iii).
+      const trimmedAfter = after.trim();
+      if (trimmedAfter === '') return true;
+      const COURT_OK = /^(v\.|vs\.|et\s+al|jr\.?|sr\.?|iii|ii|iv|in\s+re)/i;
+      if (COURT_OK.test(trimmedAfter)) return true;
+      // Otherwise — does the next word look like another name? Any word that
+      // starts with a letter and is ≥2 chars long. That indicates a 3rd name
+      // token like "Dumas" → reject.
+      const nextWord = trimmedAfter.match(/^([a-z]{2,})/i);
+      if (nextWord) return false;
+      return true;
+    };
     return (j.results ?? [])
       .map((r) => ({
         filedAt: r.dateFiled ?? null,
@@ -225,9 +263,17 @@ export async function fetchByName(
         state: r.court_state ?? null
       }))
       .filter((h) => {
-        const cn = (h.caseName ?? '').toLowerCase();
-        const pj = (h.party ?? '').toLowerCase();
-        return cn.includes(needle) || pj.includes(needle);
+        // Reference tokenCount to keep the symbol live for future tuning.
+        void tokenCount;
+        if (tightMatch(h.caseName ?? '')) return true;
+        if (tightMatch(h.party ?? '')) return true;
+        // Also check individual party array entries (caseName may strip middle names).
+        if (Array.isArray(h.parties)) {
+          for (const p of h.parties) {
+            if (tightMatch(p ?? '')) return true;
+          }
+        }
+        return false;
       });
   } catch {
     return [];
@@ -303,7 +349,12 @@ export const courtListenerAdapter: PublicIntelAdapter = {
       if (cached) {
         fromCache = 1;
       } else {
-        const hits = await fetchByName(nameLookup, maxResults, sinceDays || undefined);
+        const hits = await fetchByName(
+          nameLookup,
+          maxResults,
+          sinceDays || undefined,
+          cfg.states && cfg.states.length > 0 ? cfg.states : undefined
+        );
         const expires = new Date(Date.now() + CACHE_DAYS * 24 * 60 * 60 * 1000);
         // Roll-up record so the panel sees a "lookup ran" entry even on zero
         await storeRecord<{ query: string; hits: CourtListenerHit[]; total: number }>({
