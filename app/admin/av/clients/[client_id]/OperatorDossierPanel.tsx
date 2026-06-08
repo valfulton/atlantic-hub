@@ -180,6 +180,13 @@ export default function OperatorDossierPanel({
         rawHits?: number;
         filteredHits?: number;
       };
+      // (#536) Top matches inline — no navigation needed to see the 1 hit.
+      topHits?: Array<{
+        label: string;
+        sublabel?: string;
+        url?: string;
+        matchedQuery?: string;
+      }>;
     }>;
     flagsAdded: number;
     // (#535b) What brief fields the sweep read — surfaces empty fields fast.
@@ -779,6 +786,29 @@ ${markdownToBasicHtml(ddReport.markdown)}
                         <> · raw API {s.query.rawHits} → filtered {s.query.filteredHits}</>
                       )}
                     </div>
+                  )}
+                  {/* (#536) Top matches inline — drill in without navigating. */}
+                  {s.topHits && s.topHits.length > 0 && (
+                    <ul className="text-[10.5px] text-white/70 ml-4 mt-1 space-y-0.5 list-none">
+                      {s.topHits.map((h, hi) => (
+                        <li key={hi} className="flex items-start gap-1">
+                          <span className="text-white/35">→</span>
+                          <div className="min-w-0">
+                            {h.url ? (
+                              <a href={h.url} target="_blank" rel="noopener" className="text-sky-300/90 hover:text-sky-200 hover:underline">
+                                {h.label}
+                              </a>
+                            ) : (
+                              <span>{h.label}</span>
+                            )}
+                            {h.sublabel && <span className="text-white/40"> · {h.sublabel}</span>}
+                            {h.matchedQuery && (
+                              <span className="text-[9.5px] text-emerald-300/70"> · matched "{h.matchedQuery}"</span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </li>
               ))}

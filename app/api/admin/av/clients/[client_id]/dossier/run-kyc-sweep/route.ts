@@ -55,6 +55,14 @@ interface StepResult {
     /** Hit count after strict-name filtering. */
     filteredHits?: number;
   };
+  /** (#536) Top matched records — shown inline so val can drill in without
+   *  navigating. Capped at 5 to keep the payload small. */
+  topHits?: Array<{
+    label: string;
+    sublabel?: string;
+    url?: string;
+    matchedQuery?: string;
+  }>;
 }
 
 export async function POST(req: NextRequest, { params }: { params: { client_id: string } }) {
@@ -150,7 +158,13 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       query: {
         names: [company, contactName].filter((n) => n && n.length > 0),
         rawHits: totalHits
-      }
+      },
+      // (#536) Top 5 patents inline.
+      topHits: [...patents.byAssignee, ...patents.byInventor].slice(0, 5).map((p) => ({
+        label: p.patentTitle || `Patent ${p.patentId}`,
+        sublabel: p.patentId,
+        url: p.publicUrl ?? undefined
+      }))
     });
 
     // Persist patents to public_intel_records
@@ -241,7 +255,14 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
           states: stateHint,
           sinceDays: 0,
           filteredHits: hitCount
-        }
+        },
+        // (#536) Top 5 cases inline so val sees what matched without navigating.
+        topHits: allHits.slice(0, 5).map(({ name: matchedQuery, hit }) => ({
+          label: hit.caseName ?? 'Unknown case',
+          sublabel: [hit.court, hit.filedAt, hit.docketNumber].filter(Boolean).join(' · '),
+          url: hit.docketUrl ?? undefined,
+          matchedQuery
+        }))
       });
 
       // Persist each filing as its own record so the Intelligence Feed
@@ -323,7 +344,15 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
           sinceDays: 1825,
           rawHits: hits,
           filteredHits: hits
-        }
+        },
+        // (#536) Top 5 complaints inline. CFPB complaint detail URL has no
+        // public deep link — link to the CFPB search filtered to this co.
+        topHits: complaints.slice(0, 5).map((c) => ({
+          label: `${c.product}${c.sub_product ? ' / ' + c.sub_product : ''} — ${c.issue}`,
+          sublabel: [c.state, c.date_received, c.company_response].filter(Boolean).join(' · '),
+          url: `https://www.consumerfinance.gov/data-research/consumer-complaints/search/?company=${encodeURIComponent(company)}`,
+          matchedQuery: company
+        }))
       });
 
       // Persist each complaint to public_intel_records
