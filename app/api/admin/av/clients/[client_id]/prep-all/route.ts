@@ -30,6 +30,9 @@ import { extractIntakeIntelligence } from '@/lib/client/intake_extract';
 import { proposeLinesFromIntake } from '@/lib/campaigns/propose_lines';
 import { scrapeAndSuggestForBrand } from '@/lib/social/targets';
 import { runPrepPreflight } from '@/lib/av/prep_preflight';
+import { lookupPatentsForClient, type PatentHit } from '@/lib/av/uspto_patents';
+import { getDossier, saveDossier, newRedFlagId } from '@/lib/av/client_dossier';
+import type { ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
 // Web fetches + 2 LLM calls in sequence; cap at the platform max.
@@ -241,6 +244,77 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     } catch (e) {
       results.push(failed('socials_scrape', e));
     }
+  }
+
+  // -------- Step 6: USPTO patent screen ----------------------------------
+  // (#525, val 2026-06-08) Quick Prep auto-fires the patent lookup so new
+  // clients get an IP-defensibility check on Day 1. Per the no-duct-tape
+  // rule: hits persist to public_intel_records (visible in Intelligence
+  // Feed) AND a red-flag entry stamps either the hit count OR a clean signal.
+  try {
+    const brief = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
+    const companyName = typeof brief?.company === 'string' ? brief.company : '';
+    const contactName = typeof brief?.contact_name === 'string' ? brief.contact_name : '';
+    if (!companyName && !contactName) {
+      results.push(skipped('uspto_patents', 'No company or contact name on brief'));
+    } else {
+      const patents = await lookupPatentsForClient({ companyName, contactName });
+      const totalHits = patents.byAssignee.length + patents.byInventor.length;
+      // Persist hits to public_intel_records
+      if (totalHits > 0) {
+        try {
+          const db = getAvDb();
+          const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+          const all: PatentHit[] = [...patents.byAssignee, ...patents.byInventor];
+          for (const hit of all) {
+            if (!hit.patentId) continue;
+            await db.execute<ResultSetHeader>(
+              `INSERT INTO public_intel_records
+                 (source_kind, entity_key, client_id, lead_id, record_json,
+                  summary_label, region_code, fetched_at, expires_at)
+               VALUES ('uspto_patents', ?, ?, NULL, CAST(? AS JSON), ?, 'US', NOW(), ?)
+               ON DUPLICATE KEY UPDATE
+                 client_id = VALUES(client_id),
+                 record_json = VALUES(record_json),
+                 summary_label = VALUES(summary_label),
+                 fetched_at = NOW(),
+                 expires_at = VALUES(expires_at)`,
+              [
+                hit.patentId,
+                clientId,
+                JSON.stringify(hit),
+                (hit.patentTitle || `Patent ${hit.patentId}`).slice(0, 250),
+                expiresAt
+              ]
+            );
+          }
+        } catch (err) {
+          console.error('[prep-all:patents:persist]', clientId, (err as Error).message);
+        }
+      }
+      // Append a red-flag entry (or clean-signal flag) to the dossier
+      try {
+        const dossierNow = await getDossier(clientId);
+        const flag = {
+          id: newRedFlagId(),
+          label: totalHits > 0
+            ? `${totalHits} USPTO patent${totalHits === 1 ? '' : 's'} found · ${patents.byAssignee.length} by company, ${patents.byInventor.length} by inventor`
+            : `USPTO: 0 patents found for "${companyName || contactName}" — clean signal OR filed under different name`,
+          source: 'uspto_patents' as const,
+          severity: (totalHits >= 10 ? 'medium' : 'low') as 'low' | 'medium',
+          surfaced_at: new Date().toISOString()
+        };
+        const existing = dossierNow.redFlags.filter((f) => f.source !== 'uspto_patents');
+        await saveDossier(clientId, { redFlags: [flag, ...existing] }, {
+          updatedBy: guard.actor.userId ? `user:${guard.actor.userId}` : 'operator'
+        });
+      } catch (err) {
+        console.error('[prep-all:patents:flag]', clientId, (err as Error).message);
+      }
+      results.push(ok('uspto_patents', totalHits > 0 ? `${totalHits} hit${totalHits === 1 ? '' : 's'}` : '0 hits (clean signal)'));
+    }
+  } catch (e) {
+    results.push(failed('uspto_patents', e));
   }
 
   const okCount = results.filter((r) => r.status === 'ok').length;

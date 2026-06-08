@@ -50,6 +50,79 @@ function newRedFlagId(): string {
   return 'rf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+/**
+ * (#525) Minimal markdown → HTML converter for the print-friendly DD report
+ * tab. We don't want to ship a real markdown lib client-side just for this
+ * one feature — the report uses a known subset of markdown (headers, lists,
+ * tables, bold, code, blockquotes, hr) and this handles all of it.
+ *
+ * If we end up using this in more places, swap for `marked` (5kb gzip) or
+ * `micromark`. For now: zero-dep.
+ */
+function markdownToBasicHtml(md: string): string {
+  // Escape HTML first (we'll add tags after).
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const lines = md.split('\n');
+  const out: string[] = [];
+  let inList = false;
+  let inTable = false;
+  let tableHeaderDone = false;
+
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+  const closeTable = () => { if (inTable) { out.push('</tbody></table>'); inTable = false; tableHeaderDone = false; } };
+
+  const inline = (s: string) => {
+    let r = escapeHtml(s);
+    // bold
+    r = r.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // inline code
+    r = r.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // italic (single underscore around word)
+    r = r.replace(/\b_([^_]+)_\b/g, '<em>$1</em>');
+    return r;
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line.trim()) {
+      closeList(); closeTable();
+      continue;
+    }
+    if (line.startsWith('# ')) { closeList(); closeTable(); out.push(`<h1>${inline(line.slice(2))}</h1>`); continue; }
+    if (line.startsWith('## ')) { closeList(); closeTable(); out.push(`<h2>${inline(line.slice(3))}</h2>`); continue; }
+    if (line.startsWith('### ')) { closeList(); closeTable(); out.push(`<h3>${inline(line.slice(4))}</h3>`); continue; }
+    if (line === '---') { closeList(); closeTable(); out.push('<hr>'); continue; }
+    if (line.startsWith('> ')) { closeList(); closeTable(); out.push(`<blockquote>${inline(line.slice(2))}</blockquote>`); continue; }
+    if (line.startsWith('- ') || line.startsWith('  - ')) {
+      closeTable();
+      if (!inList) { out.push('<ul>'); inList = true; }
+      const depth = line.startsWith('  - ') ? 4 : 2;
+      out.push(`<li>${inline(line.slice(depth))}</li>`);
+      continue;
+    }
+    if (line.startsWith('|')) {
+      closeList();
+      const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+      // Separator row like |---|---|
+      if (cells.every((c) => /^:?-+:?$/.test(c))) continue;
+      if (!inTable) { out.push('<table><thead>'); inTable = true; tableHeaderDone = false; }
+      if (!tableHeaderDone) {
+        out.push('<tr>' + cells.map((c) => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>');
+        tableHeaderDone = true;
+      } else {
+        out.push('<tr>' + cells.map((c) => `<td>${inline(c)}</td>`).join('') + '</tr>');
+      }
+      continue;
+    }
+    closeList(); closeTable();
+    out.push(`<p>${inline(line)}</p>`);
+  }
+  closeList(); closeTable();
+  return out.join('\n');
+}
+
 function fmtTs(s: string | null | undefined): string {
   if (!s) return '';
   const d = new Date(s);
@@ -89,12 +162,18 @@ export default function OperatorDossierPanel({
 
   const router = useRouter();
   const [d, setD] = useState<ClientDossier>(initialDossier);
-  const [busy, setBusy] = useState<'idle' | 'saving' | 'patents' | 'kyc'>('idle');
+  const [busy, setBusy] = useState<'idle' | 'saving' | 'patents' | 'kyc' | 'report'>('idle');
   const [kycReport, setKycReport] = useState<{
     sweptAt: string;
     steps: Array<{ source: string; ran: boolean; hits: number; skipReason?: string; flagLabel?: string }>;
     flagsAdded: number;
   } | null>(null);
+  // (#525) DD Report state
+  const [ddReport, setDdReport] = useState<{
+    markdown: string;
+    meta: { generatedAt: string; subject: string; flagCount: number; recordCount: number; auditScore: number | null };
+  } | null>(null);
+  const [copyOk, setCopyOk] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [patentResult, setPatentResult] = useState<PatentLookupResult | null>(null);
@@ -195,6 +274,67 @@ export default function OperatorDossierPanel({
 
   function removeRedFlag(id: string) {
     setD((cur) => ({ ...cur, redFlags: cur.redFlags.filter((f) => f.id !== id) }));
+  }
+
+  async function generateDdReport() {
+    setBusy('report');
+    setErr(null);
+    setOkMsg(null);
+    setDdReport(null);
+    setCopyOk(false);
+    try {
+      const res = await fetch(`/api/admin/av/clients/${clientId}/dossier/dd-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setDdReport({ markdown: data.markdown, meta: data.meta });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy('idle');
+    }
+  }
+
+  async function copyReport() {
+    if (!ddReport) return;
+    try {
+      await navigator.clipboard.writeText(ddReport.markdown);
+      setCopyOk(true);
+      setTimeout(() => setCopyOk(false), 2000);
+    } catch {
+      setErr('Could not copy to clipboard. Select the text manually instead.');
+    }
+  }
+
+  function printReport() {
+    if (!ddReport) return;
+    // Open a new tab with a styled HTML version, trigger print.
+    const html = `<!DOCTYPE html>
+<html><head><title>DD Report — ${ddReport.meta.subject}</title>
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; max-width: 7in; margin: 0.5in auto; padding: 0 0.5in; color: #1a1a1a; line-height: 1.55; }
+  h1 { font-size: 24pt; border-bottom: 2px solid #CDA434; padding-bottom: 8px; margin-bottom: 4px; }
+  h2 { font-size: 14pt; margin-top: 1.5em; color: #5a4a1a; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  h3 { font-size: 12pt; margin-top: 1em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.5em 0; font-size: 10pt; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+  th { background: #f5f0e0; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 9pt; }
+  blockquote { border-left: 3px solid #CDA434; margin-left: 0; padding-left: 1em; color: #555; font-style: italic; }
+  hr { border: 0; border-top: 1px dashed #ccc; margin: 2em 0; }
+  ul li { margin-bottom: 0.3em; }
+  @media print { body { margin: 0; padding: 0.5in; } }
+</style></head><body>
+${markdownToBasicHtml(ddReport.markdown)}
+<script>setTimeout(() => window.print(), 300);</script>
+</body></html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   async function runKycSweep() {
@@ -484,17 +624,28 @@ export default function OperatorDossierPanel({
           Looks at <code className="bg-black/30 px-1 rounded">{briefCompany || '(no company on brief)'}</code>
           {briefContactName && <> + <code className="bg-black/30 px-1 rounded">{briefContactName}</code></>}.
         </div>
-        {/* (#524) Full KYC sweep button — runs USPTO + queues CourtListener +
-            CFPB manual search URLs as red flags. Stamps last_screened_at. */}
-        <button
-          type="button"
-          onClick={runKycSweep}
-          disabled={busy !== 'idle' || (!briefCompany && !briefContactName)}
-          className="w-full sm:w-auto rounded-md border border-rose-400/50 bg-rose-400/15 hover:bg-rose-400/25 text-rose-100 text-[12.5px] font-medium px-4 py-2 mb-2 disabled:opacity-40"
-          title="One click: runs USPTO + queues CourtListener and CFPB manual searches as red flags with prefilled URLs"
-        >
-          {busy === 'kyc' ? '⚡ Running KYC sweep…' : '⚡ Run Full KYC Sweep'}
-        </button>
+        {/* (#525) DD Report — generates polished markdown report combining
+            dossier + audit + records into an investor-ready deliverable. */}
+        <div className="flex flex-wrap gap-2 mb-2">
+          <button
+            type="button"
+            onClick={runKycSweep}
+            disabled={busy !== 'idle' || (!briefCompany && !briefContactName)}
+            className="flex-1 sm:flex-none rounded-md border border-rose-400/50 bg-rose-400/15 hover:bg-rose-400/25 text-rose-100 text-[12.5px] font-medium px-4 py-2 disabled:opacity-40"
+            title="One click: runs USPTO + queues CourtListener and CFPB manual searches as red flags with prefilled URLs"
+          >
+            {busy === 'kyc' ? '⚡ Running KYC sweep…' : '⚡ Run Full KYC Sweep'}
+          </button>
+          <button
+            type="button"
+            onClick={generateDdReport}
+            disabled={busy !== 'idle'}
+            className="flex-1 sm:flex-none rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_55%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_15%,transparent)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] text-[var(--gold-bright)] text-[12.5px] font-medium px-4 py-2 disabled:opacity-40"
+            title="Generate a polished Pre-Engagement Intelligence Report — markdown ready to copy into an email or print to PDF"
+          >
+            {busy === 'report' ? '📄 Building report…' : '📄 Generate DD Report'}
+          </button>
+        </div>
         {kycReport && (
           <div className="mb-2 rounded-md border border-rose-400/25 bg-rose-400/[0.05] p-2.5 text-[11.5px]">
             <div className="text-[10.5px] uppercase tracking-[0.14em] text-rose-300/90 mb-1">
@@ -585,6 +736,74 @@ export default function OperatorDossierPanel({
           </div>
         )}
       </div>
+
+      {/* (#525) DD Report modal — mobile-first, copy + print actions. */}
+      {ddReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto"
+          onClick={() => setDdReport(null)}
+        >
+          <div
+            className="w-full max-w-3xl my-4 rounded-2xl border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] bg-surface shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-border bg-[color-mix(in_srgb,var(--gold-bright)_8%,transparent)]">
+              <div className="min-w-0">
+                <div className="text-[10.5px] uppercase tracking-[0.14em] text-[var(--gold-bright)]">
+                  Pre-Engagement Intelligence Report
+                </div>
+                <div className="text-sm text-ink/95 truncate font-medium">
+                  {ddReport.meta.subject}
+                </div>
+                <div className="text-[10.5px] text-white/55 mt-0.5">
+                  {ddReport.meta.flagCount} flag{ddReport.meta.flagCount === 1 ? '' : 's'} ·
+                  {' '}{ddReport.meta.recordCount} record{ddReport.meta.recordCount === 1 ? '' : 's'}
+                  {ddReport.meta.auditScore !== null && <> · website {ddReport.meta.auditScore.toFixed(1)}/10</>}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDdReport(null)}
+                className="text-muted hover:text-ink text-lg leading-none shrink-0"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 px-4 py-2 border-b border-border/60 bg-black/15">
+              <button
+                type="button"
+                onClick={copyReport}
+                className="rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_45%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_22%,transparent)] text-[var(--gold-bright)] text-[11.5px] px-3 py-1.5"
+              >
+                {copyOk ? '✓ Copied' : '📋 Copy markdown'}
+              </button>
+              <button
+                type="button"
+                onClick={printReport}
+                className="rounded-md border border-white/20 bg-white/5 hover:bg-white/10 text-ink/85 text-[11.5px] px-3 py-1.5"
+              >
+                🖨 Open as PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setDdReport(null)}
+                className="ml-auto rounded-md border border-white/15 hover:border-white/30 text-muted hover:text-ink text-[11.5px] px-3 py-1.5"
+              >
+                Close
+              </button>
+            </div>
+            <div className="px-4 py-4 overflow-y-auto">
+              <pre className="text-[11.5px] text-ink/90 font-mono whitespace-pre-wrap leading-relaxed">
+                {ddReport.markdown}
+              </pre>
+            </div>
+            <div className="px-4 py-2 border-t border-border/60 text-[10.5px] text-white/55 italic">
+              Tip: paste into Gmail / Outlook directly — markdown bold + tables render cleanly in most email clients. For a formal attachment, click <strong className="text-white/80">Open as PDF</strong> and use your browser&apos;s print dialog.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
