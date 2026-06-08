@@ -83,7 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       redFlags: [...newFlags, ...preserved],
       lastScreenedAtNow: true
     },
-    `user:${guard.actor.userId ?? 'operator'}`
+    { updatedBy: `user:${guard.actor.userId ?? 'operator'}` }
   );
 
   return NextResponse.json({
