@@ -152,8 +152,15 @@ export async function fetchByCompany(
   params.set('company', company);
   params.set('size', String(Math.min(maxResults, 100)));
   params.set('sort', 'created_date_desc');
-  const dateMin = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-  params.set('date_received_min', yyyymmdd(dateMin));
+  // (#535) sinceDays: 0 = all time. CFPB's earliest data is 2011-12, so we
+  // pass that as the floor to honor the "all time" intent without breaking
+  // the API (which requires date_received_min).
+  if (sinceDays > 0) {
+    const dateMin = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+    params.set('date_received_min', yyyymmdd(dateMin));
+  } else {
+    params.set('date_received_min', '2011-12-01');
+  }
   for (const s of states) params.append('state', s.toUpperCase());
 
   const url = `${ENDPOINT}?${params.toString()}`;
@@ -285,8 +292,9 @@ export const cfpbAdapter: PublicIntelAdapter = {
     if (!isLookup && (!c.states || c.states.length === 0)) {
       return 'set at least one state in states[] (or set company to do nationwide lookup)';
     }
-    if (c.sinceDays !== undefined && (c.sinceDays < 1 || c.sinceDays > 1825)) {
-      return 'sinceDays must be between 1 and 1825 (5 years)';
+    // (#535) sinceDays: 0 means "all time" for KYC use cases.
+    if (c.sinceDays !== undefined && (c.sinceDays < 0 || c.sinceDays > 1825)) {
+      return 'sinceDays must be 0 (all time) or between 1 and 1825 (5 years)';
     }
     if (c.maxResults !== undefined && (c.maxResults < 1 || c.maxResults > 100)) {
       return 'maxResults must be between 1 and 100';

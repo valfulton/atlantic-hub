@@ -328,8 +328,11 @@ export const courtListenerAdapter: PublicIntelAdapter = {
     if (c.maxResults !== undefined && (c.maxResults < 1 || c.maxResults > 100)) {
       return 'maxResults must be between 1 and 100';
     }
-    if (c.sinceDays !== undefined && (c.sinceDays < 1 || c.sinceDays > 365)) {
-      return 'sinceDays must be between 1 and 365';
+    // (#535) sinceDays: 0 means "all time" — critical for KYC where the entity
+    // might have dissolved years ago. Allow 0 explicitly; cap at 5 years (1825)
+    // for state-aggregate mode, but name-targeted lookups can go all-time.
+    if (c.sinceDays !== undefined && (c.sinceDays < 0 || c.sinceDays > 1825)) {
+      return 'sinceDays must be 0 (all time) or between 1 and 1825 (5 years)';
     }
     return null;
   },

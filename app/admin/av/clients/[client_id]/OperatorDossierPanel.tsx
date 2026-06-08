@@ -165,7 +165,22 @@ export default function OperatorDossierPanel({
   const [busy, setBusy] = useState<'idle' | 'saving' | 'patents' | 'kyc' | 'report' | 'address'>('idle');
   const [kycReport, setKycReport] = useState<{
     sweptAt: string;
-    steps: Array<{ source: string; ran: boolean; hits: number; skipReason?: string; flagLabel?: string }>;
+    steps: Array<{
+      source: string;
+      ran: boolean;
+      hits: number;
+      skipReason?: string;
+      flagLabel?: string;
+      // (#535) What was queried — surfaced inline so val can verify wiring.
+      query?: {
+        names?: string[];
+        company?: string;
+        states?: string[];
+        sinceDays?: number;
+        rawHits?: number;
+        filteredHits?: number;
+      };
+    }>;
     flagsAdded: number;
   } | null>(null);
   // (#525) DD Report state
@@ -710,14 +725,37 @@ ${markdownToBasicHtml(ddReport.markdown)}
             <div className="text-[10.5px] uppercase tracking-[0.14em] text-rose-300/90 mb-1">
               Sweep ran · {kycReport.flagsAdded} flag{kycReport.flagsAdded === 1 ? '' : 's'} added
             </div>
-            <ul className="space-y-0.5 text-white/75">
+            <ul className="space-y-1.5 text-white/75">
               {kycReport.steps.map((s, i) => (
                 <li key={i}>
-                  <span className={s.ran ? 'text-emerald-300' : 'text-amber-300/85'}>{s.ran ? '✓' : '○'}</span>
-                  <code className="text-white/55 mx-1">{s.source}</code>
-                  {s.ran
-                    ? <span>· {s.hits} hit{s.hits === 1 ? '' : 's'}</span>
-                    : <span>· {s.skipReason}</span>}
+                  <div>
+                    <span className={s.ran ? 'text-emerald-300' : 'text-amber-300/85'}>{s.ran ? '✓' : '○'}</span>
+                    <code className="text-white/55 mx-1">{s.source}</code>
+                    {s.ran
+                      ? <span>· {s.hits} hit{s.hits === 1 ? '' : 's'}</span>
+                      : <span>· {s.skipReason}</span>}
+                  </div>
+                  {/* (#535) Show what was actually queried so val can verify wiring. */}
+                  {s.query && (s.query.names?.length || s.query.company || s.query.states?.length) && (
+                    <div className="text-[10.5px] text-white/45 ml-4 mt-0.5 leading-snug">
+                      Queried:{' '}
+                      {s.query.names && s.query.names.length > 0 && (
+                        <span className="text-white/65">{s.query.names.map((n) => `"${n}"`).join(' + ')}</span>
+                      )}
+                      {s.query.company && (
+                        <span className="text-white/65">"{s.query.company}"</span>
+                      )}
+                      {s.query.states && s.query.states.length > 0 && (
+                        <> in {s.query.states.join('/')}</>
+                      )}
+                      {s.query.sinceDays != null && (
+                        <> · {s.query.sinceDays === 0 ? 'all time' : `last ${s.query.sinceDays}d`}</>
+                      )}
+                      {s.query.rawHits != null && s.query.filteredHits != null && s.query.rawHits !== s.query.filteredHits && (
+                        <> · raw API {s.query.rawHits} → filtered {s.query.filteredHits}</>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

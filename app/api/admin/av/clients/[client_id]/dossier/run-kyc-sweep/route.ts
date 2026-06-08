@@ -44,6 +44,17 @@ interface StepResult {
   skipReason?: string;
   /** Compact summary surfaced as a red flag. */
   flagLabel?: string;
+  /** (#535) What did we query? Surfaced in UI so val can confirm the wiring. */
+  query?: {
+    names?: string[];
+    company?: string;
+    states?: string[];
+    sinceDays?: number;
+    /** Raw API hit count before strict-name filtering. */
+    rawHits?: number;
+    /** Hit count after strict-name filtering. */
+    filteredHits?: number;
+  };
 }
 
 export async function POST(req: NextRequest, { params }: { params: { client_id: string } }) {
@@ -125,7 +136,11 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       hits: totalHits,
       flagLabel: totalHits > 0
         ? `${totalHits} USPTO patent${totalHits === 1 ? '' : 's'} found · ${patents.byAssignee.length} by company, ${patents.byInventor.length} by inventor`
-        : `USPTO: 0 patents found for "${company || contactName}" — clean signal OR filed under different name`
+        : `USPTO: 0 patents found for "${company || contactName}" — clean signal OR filed under different name`,
+      query: {
+        names: [company, contactName].filter((n) => n && n.length > 0),
+        rawHits: totalHits
+      }
     });
 
     // Persist patents to public_intel_records
@@ -206,7 +221,18 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         ? `${hitCount} federal court filing${hitCount === 1 ? '' : 's'} mentioning ${namesToScreen.join(' / ')}`
         : `CourtListener: 0 federal filings naming ${namesToScreen.join(' / ')} — clean signal`;
 
-      steps.push({ source: 'courtlistener', ran: true, hits: hitCount, flagLabel });
+      steps.push({
+        source: 'courtlistener',
+        ran: true,
+        hits: hitCount,
+        flagLabel,
+        query: {
+          names: namesToScreen,
+          states: stateHint,
+          sinceDays: 0,
+          filteredHits: hitCount
+        }
+      });
 
       // Persist each filing as its own record so the Intelligence Feed
       // shows real case names, not state aggregates.
@@ -280,7 +306,14 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         source: 'cfpb',
         ran: true,
         hits,
-        flagLabel
+        flagLabel,
+        query: {
+          company,
+          states: stateHint,
+          sinceDays: 1825,
+          rawHits: hits,
+          filteredHits: hits
+        }
       });
 
       // Persist each complaint to public_intel_records
