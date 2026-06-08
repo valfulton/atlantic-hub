@@ -11,27 +11,26 @@
 --
 -- The good news: brief_store.ts:131 calls snapshotBriefVersion(...) BEFORE
 -- every saveBriefPayload overwrite. So each wipe wrote the PRE-wipe payload
--- into creative_brief_versions with source='web_filler_apply'. That table
--- is the time machine.
+-- into creative_brief_versions. That table is the time machine.
 --
--- This script merges the most-recent pre-wipe snapshot back over each
--- client's current brief. JSON_MERGE_PATCH(pre_wipe, current) means
--- CURRENT wins on key conflict — so any keys val typed AFTER the wipe
--- (re-entries, hand-edits, schema 082's identity backfill) are preserved.
--- Only keys that were ONLY in the pre-wipe snapshot get restored.
+-- This script merges the most-recent snapshot of ANY source back over each
+-- client's current brief. JSON_MERGE_PATCH(snapshot, current) means CURRENT
+-- wins on key conflict — so any keys val typed AFTER the wipe (re-entries,
+-- hand-edits, schema 082's identity backfill) are preserved. Only keys
+-- that were ONLY in the snapshot get restored.
 --
--- Source-label rationale: saveBriefPayload at brief_store.ts:131 records
--- the snapshot's source as the source label of the WRITE that is about to
--- happen. So source='web_filler_apply' marks "this snapshot is the brief
--- state immediately before a prep-all step-1 wipe." The safe fill-intake
--- apply uses source='web_filler' (no underscore-apply suffix), so this
--- filter targets the wipes specifically.
+-- Why no source filter (val 2026-06-08): inspection of the live snapshot
+-- table showed only 1 row with source='web_filler_apply', confirming the
+-- wipe happened essentially once. With one wipe + no subsequent writes on
+-- the affected client, the MOST RECENT snapshot of any source IS that
+-- client's pre-wipe state. For all other clients whose briefs are intact,
+-- the latest snapshot is just an older copy of their current brief —
+-- merging with current-wins is a no-op.
 --
--- If a client was wiped multiple times, MAX(created_at) picks the snapshot
--- from RIGHT BEFORE the most recent wipe — which by induction contains
--- everything val accumulated through all the earlier wipes + any
--- re-entries she made between wipes. So one merge restores the maximum
--- recoverable state.
+-- Clients with ZERO rows in creative_brief_versions cannot be recovered
+-- from this table (as of 2026-06-08 that's at least client_id 1, 5, 13 —
+-- their thin briefs need fresh intake submissions, not snapshot restore).
+-- This script silently skips them via the INNER JOIN.
 --
 -- Safe to run repeatedly. The JSON_MERGE_PATCH is idempotent: running it
 -- twice on a recovered brief produces the same result (current always
@@ -45,59 +44,75 @@
 -- 0b60222 means new prep-all runs are safe, but verify the deploy is
 -- live first.)
 
--- Step 1: For every client with a web_filler_apply snapshot in
+-- Step 1: For every client with at least one snapshot in
 -- creative_brief_versions, merge the most-recent snapshot's payload back
 -- under the current live brief. JSON_MERGE_PATCH(a, b): b's keys override
--- a's. We pass (pre_wipe, current) so current wins on conflict.
+-- a's. We pass (snapshot, current) so current wins on conflict.
 UPDATE creative_briefs cb
 JOIN (
-  SELECT cbv.client_id, cbv.brief_payload AS pre_wipe
+  SELECT cbv.client_id, cbv.brief_payload AS snapshot
     FROM creative_brief_versions cbv
     JOIN (
       SELECT client_id, MAX(created_at) AS max_at
         FROM creative_brief_versions
        WHERE tenant_id = 'av'
-         AND source    = 'web_filler_apply'
        GROUP BY client_id
     ) latest
       ON latest.client_id = cbv.client_id
      AND latest.max_at    = cbv.created_at
    WHERE cbv.tenant_id = 'av'
-     AND cbv.source    = 'web_filler_apply'
 ) ws ON ws.client_id = cb.client_id
-   SET cb.brief_payload = JSON_MERGE_PATCH(ws.pre_wipe, cb.brief_payload),
+   SET cb.brief_payload = JSON_MERGE_PATCH(ws.snapshot, cb.brief_payload),
        cb.updated_at    = NOW()
  WHERE cb.tenant_id = 'av';
 
 -- Step 2 (verify, run BEFORE the UPDATE to preview impact): per-client
--- key counts so val can see who got how much back. Wipe victims show
--- prewipe_key_count >> current_key_count. Run this in phpMyAdmin first;
--- if the diff looks right, run Step 1; then re-run this to confirm
--- current_key_count == prewipe_key_count for every affected client.
+-- key counts so val can see who would gain back what. Wipe victims show
+-- snapshot_key_count >> current_key_count. Healthy clients show roughly
+-- equal counts (or current >= snapshot if val edited after the snapshot
+-- was written). Clients with NO row in creative_brief_versions don't
+-- appear here at all — they need fresh intake, not version-restore.
+-- Run this in phpMyAdmin first; if the diff looks right, run Step 1;
+-- then re-run this to confirm current_key_count >= snapshot_key_count
+-- for every affected client.
 -- SELECT
 --   c.client_id,
 --   c.client_name,
 --   JSON_LENGTH(JSON_KEYS(cb.brief_payload))         AS current_key_count,
---   JSON_LENGTH(JSON_KEYS(latest_snap.pre_wipe))     AS prewipe_key_count,
---   JSON_LENGTH(JSON_KEYS(latest_snap.pre_wipe))
---     - JSON_LENGTH(JSON_KEYS(cb.brief_payload))     AS keys_to_restore,
---   latest_snap.snap_at                              AS prewipe_snapshot_at
+--   JSON_LENGTH(JSON_KEYS(latest_snap.snapshot))     AS snapshot_key_count,
+--   GREATEST(
+--     JSON_LENGTH(JSON_KEYS(latest_snap.snapshot))
+--       - JSON_LENGTH(JSON_KEYS(cb.brief_payload)),
+--     0
+--   )                                                AS keys_to_restore,
+--   latest_snap.source                               AS snapshot_source,
+--   latest_snap.snap_at                              AS snapshot_at
 --   FROM clients c
 --   JOIN creative_briefs cb
 --     ON cb.client_id = c.client_id AND cb.tenant_id = 'av'
 --   JOIN (
 --     SELECT cbv.client_id,
---            cbv.brief_payload AS pre_wipe,
+--            cbv.brief_payload AS snapshot,
+--            cbv.source        AS source,
 --            cbv.created_at    AS snap_at
 --       FROM creative_brief_versions cbv
 --       JOIN (
 --         SELECT client_id, MAX(created_at) AS max_at
 --           FROM creative_brief_versions
---          WHERE tenant_id = 'av' AND source = 'web_filler_apply'
+--          WHERE tenant_id = 'av'
 --          GROUP BY client_id
 --       ) latest
 --         ON latest.client_id = cbv.client_id AND latest.max_at = cbv.created_at
---      WHERE cbv.tenant_id = 'av' AND cbv.source = 'web_filler_apply'
+--      WHERE cbv.tenant_id = 'av'
 --   ) latest_snap ON latest_snap.client_id = c.client_id
 --  WHERE c.tenant_id = 'av'
 --  ORDER BY keys_to_restore DESC, c.client_id ASC;
+--
+-- To see which clients have NO snapshots and therefore can't be restored
+-- by this script (as of 2026-06-08: client_id 1, 5, 13) — run separately:
+-- SELECT c.client_id, c.client_name
+--   FROM clients c
+--   LEFT JOIN creative_brief_versions cbv
+--     ON cbv.client_id = c.client_id AND cbv.tenant_id = 'av'
+--  WHERE c.tenant_id = 'av' AND cbv.id IS NULL
+--  ORDER BY c.client_id ASC;
