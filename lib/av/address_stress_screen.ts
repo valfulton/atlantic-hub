@@ -24,6 +24,8 @@
  */
 import { geocodeAddress, type GeocodeResult } from './address_geocode';
 import { fetchHmdaAggregate, type HmdaAggregate, HMDA_CURRENT_YEAR } from '../public_intel/adapters/hmda';
+import { lookupForsythParcel, type ForsythParcelResult } from '../public_intel/adapters/forsyth_qpublic';
+import { isBrowserlessAvailable } from '../scrape/browserless';
 import { getAvDb } from '../db/av';
 import type { ResultSetHeader } from 'mysql2';
 
@@ -38,10 +40,13 @@ export interface AddressScreenResult {
   state: string | null;
   /** HMDA aggregate for the county, if HMDA returned data. */
   hmda: HmdaAggregate | null;
-  /** Honest stub for per-property records (#422 dependency). */
+  /** Per-property record. status flips to 'ok' when Browserless + a county
+   *  adapter return parsed parcel data; otherwise we surface a clear note. */
   propertyRecord: {
-    status: 'pending_worker' | 'unavailable';
+    status: 'ok' | 'pending_worker' | 'unavailable' | 'search_failed';
     note: string;
+    /** The actual parcel data when status === 'ok'. */
+    forsyth?: ForsythParcelResult;
   };
   /** Did this address geocode and produce useful signal? */
   ok: boolean;
@@ -74,6 +79,29 @@ export async function screenAddress(address: string): Promise<AddressScreenResul
   // HMDA for this county. May return null if FFIEC has no data for the year/county.
   const hmda = await fetchHmdaAggregate(HMDA_CURRENT_YEAR, geo.state, geo.countyFips);
 
+  // (#534) Per-property lookup via Browserless. For now we only have the
+  // Forsyth County GA adapter — other counties get the honest "pending"
+  // stub until adapters land. Picks up automatically as we add them.
+  let propertyRecord: AddressScreenResult['propertyRecord'];
+  if (!isBrowserlessAvailable()) {
+    propertyRecord = {
+      status: 'pending_worker',
+      note: 'Per-property record (owner, assessed value, last sale, mortgage balance) requires the browser-automation worker. Add BROWSERLESS_TOKEN to Netlify env to enable.'
+    };
+  } else if (geo.state === 'GA' && geo.countyName.toLowerCase().includes('forsyth')) {
+    const forsyth = await lookupForsythParcel(geo.matchedAddress);
+    propertyRecord = {
+      status: forsyth.ok ? 'ok' : 'search_failed',
+      note: forsyth.signalLabel,
+      forsyth
+    };
+  } else {
+    propertyRecord = {
+      status: 'pending_worker',
+      note: `Per-property adapter for ${geo.countyName}, ${geo.state} not yet wired. Forsyth County GA is the first online; more counties follow as adapters ship.`
+    };
+  }
+
   const signalLabel = buildSignalLabel(geo, hmda);
   return {
     address,
@@ -81,10 +109,7 @@ export async function screenAddress(address: string): Promise<AddressScreenResul
     county: geo.countyName,
     state: geo.state,
     hmda,
-    propertyRecord: {
-      status: 'pending_worker',
-      note: `Per-property record (owner, assessed value, last sale, mortgage balance) for ${geo.countyName}, ${geo.state} will populate when the Puppeteer worker (#422) is provisioned. Until then this address is in queue.`
-    },
+    propertyRecord,
     ok: true,
     signalLabel
   };

@@ -30,7 +30,8 @@
 import { seedDefaultsForClient, SIGNAL_LIBRARY, type SignalKind } from './distress_engine';
 import { getAvDb } from '@/lib/db/av';
 import type { PublicIntelKind } from './types';
-import type { ResultSetHeader } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
+import { upsertSource } from './store';
 
 export type VerticalPackId =
   | 'collections'              // CBB — collection agencies, legal referrals
@@ -459,6 +460,72 @@ export interface ApplyPackResult {
   nextSteps: string[];
 }
 
+/**
+ * (#533) Read the client's brief and derive name+state for the screening
+ * panels. Returns null if there's no brief or no usable identity.
+ *
+ * Format: courtlistener takes person+company names; cfpb takes the company
+ * name only (consumer-finance complaints are filed against companies).
+ */
+async function deriveClientScreeningConfigs(clientId: number): Promise<{
+  courtlistener: Record<string, unknown>;
+  cfpb: Record<string, unknown> | null;
+} | null> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT brief_payload FROM creative_briefs
+        WHERE tenant_id = 'av' AND client_id = ? LIMIT 1`,
+      [clientId]
+    );
+    const raw = rows[0]?.brief_payload as string | Record<string, unknown> | null;
+    if (!raw) return null;
+    const brief = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown>;
+
+    const contact = typeof brief.contact_name === 'string' ? brief.contact_name.trim() : '';
+    const company = typeof brief.company === 'string' ? brief.company.trim() : '';
+    if (!contact && !company) return null;
+
+    // State hint — same order as KYC sweep deriveStateHint.
+    const stateCandidates: Array<unknown> = [
+      brief.business_state, brief.address_state, brief.state, brief.state_code, brief.billing_state
+    ];
+    let state: string | null = null;
+    for (const c of stateCandidates) {
+      if (typeof c === 'string') {
+        const t = c.trim().toUpperCase();
+        if (/^[A-Z]{2}$/.test(t)) { state = t; break; }
+      }
+    }
+    if (!state) {
+      // Try to parse a "..., GA, 30040" form out of a free-text address field.
+      const addrCands: Array<unknown> = [brief.business_address, brief.address];
+      for (const c of addrCands) {
+        if (typeof c === 'string') {
+          const m = c.match(/,\s*([A-Z]{2})\s*,?\s*\d{5}/);
+          if (m) { state = m[1]; break; }
+        }
+      }
+    }
+
+    const names = [contact, company].filter((n) => n.length > 0);
+    const courtlistener: Record<string, unknown> = {
+      name: names,
+      sinceDays: 0
+    };
+    if (state) courtlistener.states = [state];
+
+    // CFPB: company-only, since complaints are filed against companies.
+    const cfpb: Record<string, unknown> | null = company
+      ? { name: [company], sinceDays: 0, ...(state ? { states: [state] } : {}) }
+      : null;
+
+    return { courtlistener, cfpb };
+  } catch {
+    return null;
+  }
+}
+
 export async function applyVerticalPackToClient(clientId: number, packId: VerticalPackId): Promise<ApplyPackResult> {
   const pack = getPack(packId);
   if (!pack) {
@@ -491,10 +558,43 @@ export async function applyVerticalPackToClient(clientId: number, packId: Vertic
       if (res.affectedRows > 0) disabled++;
     }
   } catch { /* non-fatal — disables can be applied later via pack re-apply */ }
+  // (#533, val 2026-06-08) Auto-populate CourtListener + CFPB panel configs
+  // when client_screening pack is applied. Derives name list (contact + company)
+  // and state hint from the brief so val doesn't have to retype JSON per client.
+  const autoConfigured: string[] = [];
+  if (packId === 'client_screening') {
+    try {
+      const cfg = await deriveClientScreeningConfigs(clientId);
+      if (cfg) {
+        // CourtListener — person + company in one query, state-scoped, all-time
+        await upsertSource({
+          clientId,
+          sourceKind: 'courtlistener',
+          enabled: true,
+          config: cfg.courtlistener
+        });
+        autoConfigured.push('courtlistener');
+        // CFPB — company name only (it's a corporate complaint registry),
+        // state scope, all-time
+        if (cfg.cfpb) {
+          await upsertSource({
+            clientId,
+            sourceKind: 'cfpb',
+            enabled: true,
+            config: cfg.cfpb
+          });
+          autoConfigured.push('cfpb');
+        }
+      }
+    } catch { /* non-fatal — operator can still set the config manually */ }
+  }
+
   const nextSteps: string[] = [
     `Vertical: ${pack.displayName}`,
     `Pitch: ${pack.pitchTemplate}`,
-    `Next: enable adapters → ${pack.recommendedAdapters.join(', ')}`,
+    autoConfigured.length > 0
+      ? `Auto-configured: ${autoConfigured.join(' + ')} with name + state from brief`
+      : `Next: enable adapters → ${pack.recommendedAdapters.join(', ')}`,
     `Then: Run cascades → Rescore distress watchlist`,
     `Pricing: $${pack.suggestedPriceUsd.low}-${pack.suggestedPriceUsd.high}/mo per seat`
   ];
