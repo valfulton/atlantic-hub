@@ -36,6 +36,20 @@ interface PageProps {
  *  record. Keys reference common payload paths each adapter writes. Missing
  *  fields are skipped silently (we never invent data). */
 const STRUCTURED_HINTS: Record<string, Array<{ path: string; label: string }>> = {
+  // (#523, val 2026-06-08) USPTO patent records persisted via lookup-patents.
+  // The PatentHit shape — see lib/av/uspto_patents.ts. Fields match camelCase
+  // exactly; the tolerant pickField() in this file falls back to snake_case
+  // if val ever migrates the shape.
+  uspto_patents: [
+    { path: 'patentTitle', label: 'Title' },
+    { path: 'patentId', label: 'Patent #' },
+    { path: 'patentDate', label: 'Issued' },
+    { path: 'patentType', label: 'Type' },
+    { path: 'assigneeOrg', label: 'Assignee' },
+    { path: 'inventorNames', label: 'Inventors' },
+    { path: 'patentAbstract', label: 'Abstract' },
+    { path: 'publicUrl', label: 'View on Google Patents' }
+  ],
   courtlistener: [
     { path: 'case_name', label: 'Case' },
     { path: 'docket_number', label: 'Docket #' },

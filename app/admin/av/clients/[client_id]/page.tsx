@@ -7,6 +7,7 @@ import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
 import OperatorDossierPanel from './OperatorDossierPanel';
+import RedFlagRibbon from './RedFlagRibbon';
 import { getDossier } from '@/lib/av/client_dossier';
 import AccountTeamPanel from './AccountTeamPanel';
 import { listAccountEmployees, listAssignableEmployees } from '@/lib/av/account_employees';
@@ -281,6 +282,13 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         <span className="mx-1.5">/</span>
         <span className="text-ink">{d.name}</span>
       </div>
+
+      {/* (#523, val 2026-06-08) Due Diligence red flags surface at the top
+          of every operator client page, severity-tinted. Click jumps to the
+          Due Diligence panel. Per the no-duct-tape rule: if we LEARN a risk
+          (manually entered OR auto-added from an adapter run), it shows up
+          everywhere it matters. The component returns null when no flags. */}
+      <RedFlagRibbon redFlags={dossier.redFlags} />
 
       {/* (val 2026-06-07, #494) Mobile-only quick-actions ribbon. On phones
           val can tap any of these to scroll to + auto-expand the target

@@ -32,7 +32,9 @@ const SOURCE_COLOR: Record<string, string> = {
   hmda: 'text-cyan-300 border-cyan-400/30',
   cfpb: 'text-orange-300 border-orange-400/30',
   census_acs: 'text-fuchsia-300 border-fuchsia-400/30',
-  gbp: 'text-yellow-300 border-yellow-400/30'
+  gbp: 'text-yellow-300 border-yellow-400/30',
+  // (#523, val 2026-06-08) Patent lookup persistence — surfaces in this feed
+  uspto_patents: 'text-sky-300 border-sky-400/30'
 };
 
 function sourceChip(kind: string): string {
@@ -140,26 +142,53 @@ export default function IntelligenceFeedPanel({ clientId, clientName }: { client
           )}
           {events && visible.length > 0 && (
             <ul className="grid gap-1.5">
-              {visible.map((e, i) => (
-                <li key={i} className="grid grid-cols-[80px_auto_minmax(0,1fr)_auto] items-baseline gap-2 rounded-md border border-border/60 bg-bg/30 px-3 py-1.5">
-                  <span className="text-[10.5px] text-muted tabular-nums">{relTime(e.at)}</span>
-                  {e.sourceKind ? (
-                    <span className={`text-[10px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border ${sourceChip(e.sourceKind)}`}>
-                      {e.sourceKind}
-                    </span>
-                  ) : e.kind === 'distress_entity' ? (
-                    <span className="text-[10px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border border-red-400/30 text-red-300">
-                      scored
-                    </span>
-                  ) : (
-                    <span className="text-[10px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border border-violet-400/30 text-violet-300">
-                      refresh
-                    </span>
-                  )}
-                  <span className="text-[12px] text-ink/90 truncate">{e.summary}</span>
-                  {e.regionCode && <span className="text-[10px] text-muted shrink-0">{e.regionCode}</span>}
-                </li>
-              ))}
+              {visible.map((e, i) => {
+                // (#523, val 2026-06-08) Row should be CLICKABLE to the record
+                // detail page when there's an entityKey. Without this, val sees
+                // "Bankruptcy Court Virginia · 2029-01-01" but can't drill in
+                // to see the parties / docket / raw JSON. Same fix pattern as
+                // the watchlist row click (#520). Worker-run rows (entityKey
+                // null) stay as plain <li> — there's no detail page for those.
+                const detailHref = e.entityKey
+                  ? `/admin/av/clients/${clientId}/distress/${encodeURIComponent(e.entityKey)}`
+                  : null;
+                const inner = (
+                  <>
+                    <span className="text-[10.5px] text-muted tabular-nums">{relTime(e.at)}</span>
+                    {e.sourceKind ? (
+                      <span className={`text-[10px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border ${sourceChip(e.sourceKind)}`}>
+                        {e.sourceKind}
+                      </span>
+                    ) : e.kind === 'distress_entity' ? (
+                      <span className="text-[10px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border border-red-400/30 text-red-300">
+                        scored
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-[0.1em] rounded px-1.5 py-0.5 border border-violet-400/30 text-violet-300">
+                        refresh
+                      </span>
+                    )}
+                    <span className="text-[12px] text-ink/90 truncate">{e.summary}</span>
+                    {e.regionCode && <span className="text-[10px] text-muted shrink-0">{e.regionCode}</span>}
+                  </>
+                );
+                const rowCls = 'grid grid-cols-[80px_auto_minmax(0,1fr)_auto] items-baseline gap-2 rounded-md border border-border/60 bg-bg/30 px-3 py-1.5';
+                return detailHref ? (
+                  <li key={i}>
+                    <a
+                      href={detailHref}
+                      className={`${rowCls} hover:bg-bg/60 hover:border-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)] transition-colors group cursor-pointer`}
+                      title="See every field we pulled on this entity"
+                    >
+                      {inner}
+                    </a>
+                  </li>
+                ) : (
+                  <li key={i} className={rowCls}>
+                    {inner}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
