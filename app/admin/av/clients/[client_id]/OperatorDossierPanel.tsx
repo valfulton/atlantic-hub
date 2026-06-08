@@ -193,6 +193,7 @@ export default function OperatorDossierPanel({
     briefSnapshot?: {
       company: string | null;
       contact_name: string | null;
+      owner_name?: string | null;
       business_state: string | null;
       address_state: string | null;
       state: string | null;
@@ -750,6 +751,10 @@ ${markdownToBasicHtml(ddReport.markdown)}
                 {' · '}
                 <span className={kycReport.briefSnapshot.contact_name ? 'text-white/75' : 'text-amber-300/80'}>
                   contact_name={kycReport.briefSnapshot.contact_name ? `"${kycReport.briefSnapshot.contact_name}"` : 'EMPTY ⚠️'}
+                </span>
+                {' · '}
+                <span className={kycReport.briefSnapshot.owner_name ? 'text-emerald-200/85' : 'text-amber-300/80'}>
+                  owner_name={kycReport.briefSnapshot.owner_name ? `"${kycReport.briefSnapshot.owner_name}"` : 'EMPTY ⚠️ (KYC target)'}
                 </span>
                 {(kycReport.briefSnapshot.business_state || kycReport.briefSnapshot.state) && (
                   <> · state="{kycReport.briefSnapshot.business_state ?? kycReport.briefSnapshot.state}"</>

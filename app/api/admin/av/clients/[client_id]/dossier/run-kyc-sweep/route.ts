@@ -83,6 +83,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const brief = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
   const company = typeof brief?.company === 'string' ? brief.company.trim() : '';
   const contactName = typeof brief?.contact_name === 'string' ? brief.contact_name.trim() : '';
+  // (#537) owner_name is the LEGAL OWNER — separate from contact_name (who val
+  // talks to day-to-day). For KYC we screen the owner, not the marketing
+  // contact. If owner_name is empty, fall back to contact_name.
+  const ownerName = typeof brief?.owner_name === 'string' ? brief.owner_name.trim() : '';
+  // The primary person to screen (preferred order: owner > contact).
+  const personToScreen = ownerName || contactName;
 
   // (#530) Derive a state hint for CourtListener name lookup. We try several
   // brief fields in order of specificity. If nothing yields a 2-letter state,
@@ -113,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   }
   const stateHint = deriveStateHint();
 
-  if (!company && !contactName) {
+  if (!company && !contactName && !ownerName) {
     return NextResponse.json({
       ok: false,
       error: 'No company name or contact name on the brief. Fill those in first via Account Info.'
@@ -122,9 +128,11 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   // (#535b) Brief snapshot: what we actually pulled from the brief to drive
   // the sweep. Surfaced in the UI so val can spot empty fields immediately.
+  // (#537) owner_name added — the legal owner KYC actually screens.
   const briefSnapshot = {
     company: company || null,
     contact_name: contactName || null,
+    owner_name: ownerName || null,
     business_state: typeof brief?.business_state === 'string' ? brief.business_state : null,
     address_state: typeof brief?.address_state === 'string' ? brief.address_state : null,
     state: typeof brief?.state === 'string' ? brief.state : null
@@ -220,8 +228,17 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   // dedup by docketUrl. Filter is name-strict — fetchByName drops rows where
   // the queried name doesn't appear in caseName or party list.
   const namesToScreen: string[] = [];
-  if (contactName) namesToScreen.push(contactName);
-  if (company && company.toLowerCase() !== contactName.toLowerCase()) namesToScreen.push(company);
+  // (#537) Screen owner first (KYC target), then contact (could be marketing
+  // POC), then company. Dedup case-insensitively.
+  const pushUnique = (n: string) => {
+    if (!n) return;
+    const lc = n.toLowerCase();
+    if (namesToScreen.some((x) => x.toLowerCase() === lc)) return;
+    namesToScreen.push(n);
+  };
+  pushUnique(ownerName);
+  pushUnique(contactName);
+  pushUnique(company);
   if (namesToScreen.length > 0) {
     try {
       const seenDocket = new Set<string>();
@@ -257,10 +274,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
           filteredHits: hitCount
         },
         // (#536) Top 5 cases inline so val sees what matched without navigating.
+        // (#537) Fall back to a CourtListener search URL when docketUrl is null,
+        // so every hit is clickable.
         topHits: allHits.slice(0, 5).map(({ name: matchedQuery, hit }) => ({
           label: hit.caseName ?? 'Unknown case',
           sublabel: [hit.court, hit.filedAt, hit.docketNumber].filter(Boolean).join(' · '),
-          url: hit.docketUrl ?? undefined,
+          url: hit.docketUrl ?? `https://www.courtlistener.com/?q=${encodeURIComponent(`"${matchedQuery}"`)}&type=r`,
           matchedQuery
         }))
       });

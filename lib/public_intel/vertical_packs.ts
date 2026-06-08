@@ -484,7 +484,10 @@ async function deriveClientScreeningConfigs(clientId: number): Promise<{
 
     const contact = typeof brief.contact_name === 'string' ? brief.contact_name.trim() : '';
     const company = typeof brief.company === 'string' ? brief.company.trim() : '';
-    if (!contact && !company) return null;
+    // (#537) owner_name is the LEGAL OWNER (Adriana, Mark Francis). Separate
+    // from contact_name which may be a marketing POC. KYC screens owner first.
+    const owner = typeof brief.owner_name === 'string' ? brief.owner_name.trim() : '';
+    if (!contact && !company && !owner) return null;
 
     // State hint — same order as KYC sweep deriveStateHint.
     const stateCandidates: Array<unknown> = [
@@ -508,7 +511,18 @@ async function deriveClientScreeningConfigs(clientId: number): Promise<{
       }
     }
 
-    const names = [contact, company].filter((n) => n.length > 0);
+    // (#537) Owner first (KYC target), then contact (marketing POC), then company.
+    // Dedup case-insensitively.
+    const seenLc = new Set<string>();
+    const names: string[] = [];
+    for (const n of [owner, contact, company]) {
+      const t = n.trim();
+      if (!t) continue;
+      const lc = t.toLowerCase();
+      if (seenLc.has(lc)) continue;
+      seenLc.add(lc);
+      names.push(t);
+    }
     const courtlistener: Record<string, unknown> = {
       name: names,
       sinceDays: 0
