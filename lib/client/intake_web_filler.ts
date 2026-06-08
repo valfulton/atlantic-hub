@@ -311,3 +311,213 @@ export async function suggestIntakeFromUrl(args: {
     costSource: completion.source
   };
 }
+
+// ---------------------------------------------------------------------------
+// (val 2026-06-07) Multi-page auto-scrape — discover same-origin subpages from
+// the homepage nav, fetch up to N additional pages, concatenate readable text
+// across them, run ONE LLM pass. One click does what previously required val
+// to paste /about, /services, /contact separately.
+// ---------------------------------------------------------------------------
+
+/** Subpath patterns we'll follow if discovered in the homepage. Ordered by
+ *  marketing-page yield — about + services + products historically yield the
+ *  intake fields the homepage alone can't fill (founder story, ICP, proof). */
+const SUBPAGE_PATTERNS = [
+  /^\/?(about|about-us|our-story|story|who-we-are|company|team|leadership)/i,
+  /^\/?(services|what-we-do|solutions|capabilities|offerings|products|work)/i,
+  /^\/?(case-studies|portfolio|results|clients|customers|testimonials|press|news)/i,
+  /^\/?(contact|locations|where-we-work)/i
+];
+
+const MAX_SUBPAGES = 4;     // cap so a sprawling site doesn't burn the whole budget
+const PER_PAGE_TEXT_CAP = 5000;  // chars per page when blending — keeps total under MAX_TEXT_CHARS
+
+/**
+ * Discover same-origin subpage URLs from the homepage HTML. Scans <a href>
+ * targets, keeps href values matching SUBPAGE_PATTERNS, normalizes to absolute
+ * URLs, dedupes, and caps at MAX_SUBPAGES. Returns ordered by pattern priority
+ * so high-yield pages (about, services) win when the cap bites.
+ */
+export function discoverSubpages(html: string, baseUrl: string): string[] {
+  let baseOrigin: string;
+  try {
+    baseOrigin = new URL(baseUrl).origin;
+  } catch {
+    return [];
+  }
+  // Match all <a href="..."> (and 'single quote' or unquoted variants).
+  const hrefMatches = html.matchAll(/<a\b[^>]*?\bhref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi);
+  const byPriority: Array<{ url: string; rank: number }> = [];
+  const seen = new Set<string>();
+  for (const m of hrefMatches) {
+    const raw = (m[1] || m[2] || m[3] || '').trim();
+    if (!raw) continue;
+    if (raw.startsWith('#') || raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.startsWith('javascript:')) continue;
+    let absolute: string;
+    try {
+      absolute = new URL(raw, baseUrl).href;
+    } catch { continue; }
+    if (!absolute.startsWith(baseOrigin)) continue; // same-origin only
+    if (absolute === baseUrl || absolute === baseUrl + '/') continue; // skip homepage self-link
+    if (seen.has(absolute)) continue;
+    let pathOnly: string;
+    try { pathOnly = new URL(absolute).pathname; } catch { continue; }
+    // Skip obvious non-content paths.
+    if (/\.(jpg|jpeg|png|gif|webp|svg|ico|pdf|zip|css|js|xml|json)(\?|$)/i.test(pathOnly)) continue;
+    // Match against priority patterns.
+    for (let i = 0; i < SUBPAGE_PATTERNS.length; i++) {
+      if (SUBPAGE_PATTERNS[i].test(pathOnly)) {
+        byPriority.push({ url: absolute, rank: i });
+        seen.add(absolute);
+        break;
+      }
+    }
+  }
+  byPriority.sort((a, b) => a.rank - b.rank);
+  return byPriority.slice(0, MAX_SUBPAGES).map((x) => x.url);
+}
+
+export interface MultiPageIntakeFillResult extends IntakeFillSuggestion {
+  /** URLs that were actually fetched + included in the LLM blend. */
+  pagesFetched: string[];
+  /** URLs that were discovered but skipped (fetch failed or empty). */
+  pagesSkipped: Array<{ url: string; reason: string }>;
+}
+
+/**
+ * Multi-page version of suggestIntakeFromUrl. Fetches the homepage, discovers
+ * up to MAX_SUBPAGES same-origin marketing subpages, fetches each (best-effort
+ * — one failure doesn't tank the whole run), concatenates readable text, and
+ * runs ONE LLM pass over the blend so the model sees a fuller picture of the
+ * brand. Cost stays at ONE LLM call regardless of page count.
+ *
+ * Operator-typed values still win at merge time downstream — this lib never
+ * writes to the DB.
+ */
+export async function suggestIntakeFromSite(args: {
+  url: string;
+  brandHint?: string | null;
+  clientId?: number | null;
+}): Promise<MultiPageIntakeFillResult> {
+  const homepageUrl = args.url.trim();
+  if (!isHttpUrl(homepageUrl)) {
+    throw new IntakeWebFetchError(400, 'URL must be http(s) and a well-formed origin.');
+  }
+  const started = Date.now();
+
+  // 1. Fetch homepage
+  let home: { html: string; finalUrl: string; bytes: number };
+  try {
+    home = await fetchPage(homepageUrl);
+  } catch (err) {
+    await logEvent({
+      eventType: 'intake.web_fill.fetch_failed',
+      source: 'intake_filler',
+      status: 'failure',
+      errorMessage: (err as Error).message,
+      payload: { url: homepageUrl, multi: true }
+    });
+    throw err;
+  }
+
+  // 2. Discover same-origin subpages
+  const subpageUrls = discoverSubpages(home.html, home.finalUrl);
+
+  // 3. Fetch each subpage. Best-effort: skip the failures, don't abort.
+  const pagesFetched: string[] = [home.finalUrl];
+  const pagesSkipped: Array<{ url: string; reason: string }> = [];
+  const pageTexts: Array<{ url: string; text: string }> = [
+    { url: home.finalUrl, text: htmlToText(home.html).slice(0, PER_PAGE_TEXT_CAP) }
+  ];
+  let totalBytes = home.bytes;
+  for (const subUrl of subpageUrls) {
+    try {
+      const sub = await fetchPage(subUrl);
+      const text = htmlToText(sub.html).slice(0, PER_PAGE_TEXT_CAP);
+      if (text.length < 100) {
+        pagesSkipped.push({ url: subUrl, reason: 'too-thin' });
+        continue;
+      }
+      pagesFetched.push(sub.finalUrl);
+      pageTexts.push({ url: sub.finalUrl, text });
+      totalBytes += sub.bytes;
+    } catch (err) {
+      pagesSkipped.push({ url: subUrl, reason: (err as Error).message.slice(0, 120) });
+    }
+  }
+
+  // 4. Blend into one prompt (page-labeled so the model can attribute statements).
+  let blended = pageTexts.map((p, i) => `[PAGE_${i + 1}] ${p.url}\n${p.text}`).join('\n\n---\n\n');
+  if (blended.length > MAX_TEXT_CHARS) blended = blended.slice(0, MAX_TEXT_CHARS);
+
+  // 5. Single LLM call over the blend.
+  const systemPrompt = await getSystemPrompt('intake_web_filler');
+  const userPrompt = [
+    args.brandHint ? `BRAND_NAME_HINT: ${args.brandHint}` : '',
+    `SOURCE_HOMEPAGE: ${home.finalUrl}`,
+    `PAGES_BLENDED: ${pagesFetched.length} (${pagesFetched.join(', ')})`,
+    ``,
+    `CANONICAL_INTAKE_FIELDS (use these keys exactly; LEAVE BLANK any field the pages do not actually support):`,
+    describeFieldsForPrompt(),
+    `BLENDED_PAGE_TEXT (concatenated across ${pagesFetched.length} pages of the site):`,
+    blended
+  ].filter((s) => s.length > 0).join('\n');
+
+  const sysPromptForKey = systemPrompt.slice(0, 200);
+  const completion = await runLlm({
+    taskKind: 'intake_web_fill',
+    clientId: args.clientId ?? null,
+    note: `intake_web_fill MULTI · ${args.brandHint ?? home.finalUrl.slice(0, 60)} · ${pagesFetched.length} pages`,
+    prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+    cacheKeyExtras: [home.finalUrl, pagesFetched.join('|'), args.brandHint ?? '', sysPromptForKey],
+    temperature: TEMPERATURE,
+    maxTokens: MAX_TOKENS,
+    json: true
+  });
+
+  const parsed = parseOpenAIJson<{ summary?: string; suggestions?: Record<string, unknown> }>(completion.text);
+  if (!parsed || typeof parsed.suggestions !== 'object' || parsed.suggestions === null) {
+    throw new Error('Model returned malformed JSON for multi-page intake suggestions.');
+  }
+
+  const allowed = new Set(INTAKE_KEYS);
+  const suggestions: Record<string, string> = {};
+  for (const [k, raw] of Object.entries(parsed.suggestions)) {
+    if (!allowed.has(k)) continue;
+    if (typeof raw !== 'string') continue;
+    const v = raw.trim();
+    if (!v) continue;
+    suggestions[k] = v.slice(0, 4000);
+  }
+
+  await logEvent({
+    eventType: 'intake.web_fill.suggested_multi',
+    source: 'llm_router',
+    executionTimeMs: Date.now() - started,
+    payload: {
+      homepage: home.finalUrl,
+      pages_fetched: pagesFetched,
+      pages_skipped: pagesSkipped,
+      html_bytes: totalBytes,
+      text_chars: blended.length,
+      suggested_keys: Object.keys(suggestions),
+      tokens: completion.inputTokens + completion.outputTokens,
+      cost_microcents: completion.costMicrocents,
+      cost_source: completion.source
+    }
+  });
+
+  return {
+    suggestions,
+    summary: typeof parsed.summary === 'string' ? parsed.summary.slice(0, 600) : '',
+    fetchedUrl: home.finalUrl,
+    htmlBytes: totalBytes,
+    textChars: blended.length,
+    tokensUsed: completion.inputTokens + completion.outputTokens,
+    model: completion.model,
+    costMicrocents: completion.costMicrocents,
+    costSource: completion.source,
+    pagesFetched,
+    pagesSkipped
+  };
+}

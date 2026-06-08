@@ -21,7 +21,7 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { getBriefPayload, saveBriefPayload } from '@/lib/client/brief_store';
 import { INTAKE_KEYS } from '@/lib/client/intake_fields';
-import { suggestIntakeFromUrl, IntakeWebFetchError } from '@/lib/client/intake_web_filler';
+import { suggestIntakeFromUrl, suggestIntakeFromSite, IntakeWebFetchError } from '@/lib/client/intake_web_filler';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -32,6 +32,11 @@ export const maxDuration = 60;
 interface PreviewBody {
   mode: 'preview';
   url: string;
+  /** (val 2026-06-07) When true, auto-discover same-origin subpages (about,
+   *  services, contact, etc.) from the homepage and blend their text into
+   *  ONE LLM call. One click captures the whole site instead of forcing val
+   *  to paste each URL separately. Defaults to true for new previews. */
+  multiPage?: boolean;
 }
 interface ApplyBody {
   mode: 'apply';
@@ -84,7 +89,13 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     } catch { /* non-fatal */ }
 
     try {
-      const result = await suggestIntakeFromUrl({ url, brandHint });
+      // (val 2026-06-07) Default to multi-page auto-discover. Caller can pass
+      // multiPage:false to force single-page (e.g. when val wants to re-read
+      // ONE specific URL like /blog/specific-post that's not in the nav).
+      const useMultiPage = body.multiPage !== false;
+      const result = useMultiPage
+        ? await suggestIntakeFromSite({ url, brandHint, clientId })
+        : await suggestIntakeFromUrl({ url, brandHint, clientId });
       // Also tell the caller which of the suggested keys are currently blank in
       // the stored payload, so the UI can default-check just those keys.
       const current = (await getBriefPayload('av', clientId)) ?? {};

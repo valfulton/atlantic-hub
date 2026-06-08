@@ -38,6 +38,10 @@ interface PreviewResponse {
   /** Current stored value for each overwrite key (truncated to ~800 chars).
    *  Surfaced inline so val can compare current vs suggested before applying. */
   existing: Record<string, string>;
+  /** (val 2026-06-07) Multi-page run: every URL actually fetched + blended. */
+  pagesFetched?: string[];
+  /** Discovered URLs that fetch-failed or were too thin to include. */
+  pagesSkipped?: Array<{ url: string; reason: string }>;
 }
 
 interface ApplyResponse {
@@ -166,9 +170,10 @@ export default function FillIntakeFromWebPanel({
         Fill {clientName}&apos;s intake from the web
       </div>
       <div className="text-[12.5px] text-white/70 mb-3 leading-relaxed">
-        Paste a public URL — usually their home or about page. We read it, draft as many intake
-        fields as the page actually supports, and show you the suggestions before anything is
-        saved. Blank fields are picked by default; overwrite is opt-in.
+        Paste their homepage URL — we auto-discover same-origin pages (about, services, contact,
+        team, products) and blend their text into one LLM read. One click captures the whole site
+        instead of forcing you to paste each page. Blank intake fields are picked by default;
+        overwrite is opt-in.
       </div>
 
       {/* URL + preview button */}
@@ -211,6 +216,16 @@ export default function FillIntakeFromWebPanel({
               {preview.fetchedUrl} · {Math.round(preview.htmlBytes / 1024)}KB read ·{' '}
               {preview.textChars.toLocaleString()} chars · {preview.tokensUsed.toLocaleString()} tokens
             </div>
+            {preview.pagesFetched && preview.pagesFetched.length > 1 && (
+              <div className="text-[10.5px] text-emerald-300/85 mt-1">
+                Read {preview.pagesFetched.length} pages: {preview.pagesFetched
+                  .map((u) => { try { return new URL(u).pathname || '/'; } catch { return u; } })
+                  .join(' · ')}
+                {preview.pagesSkipped && preview.pagesSkipped.length > 0 && (
+                  <span className="text-white/40"> · {preview.pagesSkipped.length} skipped</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between gap-3 flex-wrap">
