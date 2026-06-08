@@ -6,6 +6,8 @@ import { getClientAccessState } from '@/lib/av/client_access';
 import { getAvDb } from '@/lib/db/av';
 import AccessControls from './AccessControls';
 import AccountInfoEditor from './AccountInfoEditor';
+import OperatorDossierPanel from './OperatorDossierPanel';
+import { getDossier } from '@/lib/av/client_dossier';
 import AccountTeamPanel from './AccountTeamPanel';
 import { listAccountEmployees, listAssignableEmployees } from '@/lib/av/account_employees';
 import ExtractIntelButton from './ExtractIntelButton';
@@ -190,6 +192,19 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // (#514) Default URL for ALL panels that need the client's website. Reads
   // every canonical + legacy key via the single resolver so panels never drift.
   const defaultIntakeUrl: string | null = await resolveClientWebsite('av', clientId);
+
+  // (#521) Operator-only Due Diligence dossier. Empty stub if none exists yet
+  // — the panel renders the form so val can start typing immediately.
+  const dossier = await getDossier(clientId);
+  // Pull contact_name + company from the brief once so the dossier's
+  // patent/trademark screen buttons know what to query.
+  let briefCompany: string | null = null;
+  let briefContactName: string | null = null;
+  try {
+    const bp = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
+    briefCompany = typeof bp?.company === 'string' ? bp.company : null;
+    briefContactName = typeof bp?.contact_name === 'string' ? bp.contact_name : null;
+  } catch { /* non-fatal */ }
 
   // (#216 v2) When was the last successful digest sent to this client?
   // Surfaces in WeeklyDigestPanel as "Last sent X ago" so val knows whether
@@ -511,6 +526,18 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         initialWebsiteUrl={defaultIntakeUrl}
         contactEmail={d.members[0]?.email ?? null}
         initialContactName={d.members[0]?.displayName ?? ''}
+      />
+
+      {/* (#521, val 2026-06-08) Operator-only Due Diligence dossier. Holds
+          personal address, DOB year, prior entities, spouse/co-signer,
+          free-form notes, red-flag log + the patent / trademark screen
+          buttons. NEVER renders on /preview/* mirrors (mode guards). */}
+      <OperatorDossierPanel
+        clientId={clientId}
+        initialDossier={dossier}
+        briefCompany={briefCompany}
+        briefContactName={briefContactName}
+        mode="operator"
       />
 
       {/* Intake gate override: grant full portal access, or require intake first. */}

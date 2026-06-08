@@ -783,6 +783,64 @@ export default function DistressWatchlistPanel({ clientId, clientName, mode = 'o
                         </button>
                       )}
                     </div>
+                    {/* (#520, val 2026-06-08) When the entity name is tapped
+                        the chevron flipped but NOTHING rendered — val: "i need
+                        to see the detail to decide if i need to delete." Now
+                        the expanded section surfaces the contributing signals
+                        in plain English plus a prominent gold button to the
+                        full intel dossier (every raw field we have). Spans
+                        every column on desktop, full-width on mobile. */}
+                    {expandedRow === row.entityKey && (
+                      <div className="sm:col-span-5 rounded-lg border border-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_5%,transparent)] p-3 mt-1 space-y-3">
+                        {mode === 'operator' && (
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div className="min-w-0">
+                              <div className="text-[10px] uppercase tracking-[0.14em] text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">
+                                Full intel dossier
+                              </div>
+                              <div className="text-[11.5px] text-white/65 mt-0.5">
+                                Every field we pulled from every source — case docs, court records, raw API payloads, the signals that fired and why.
+                              </div>
+                            </div>
+                            <a
+                              href={`/admin/av/clients/${clientId}/distress/${encodeURIComponent(row.entityKey)}`}
+                              target="_blank"
+                              rel="noopener"
+                              className="shrink-0 rounded-md border border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] bg-[color-mix(in_srgb,var(--gold-bright)_15%,transparent)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] text-[var(--gold-bright)] text-[12px] font-medium px-3 py-1.5"
+                            >
+                              📂 Open full intel →
+                            </a>
+                          </div>
+                        )}
+                        {row.contributingSignals.length > 0 ? (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                              Why this scored {row.score}
+                            </div>
+                            <ul className="space-y-1.5 text-[12px] text-white/80">
+                              {row.contributingSignals.slice(0, 8).map((s, j) => (
+                                <li key={j} className="flex items-start gap-2">
+                                  <span className="inline-block mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--gold-bright)] shrink-0" />
+                                  <span>
+                                    <strong className="text-[var(--gold-bright)]">{SIGNAL_LABEL[s.signalKind] ?? s.signalKind}</strong>
+                                    <span className="text-white/55"> · {s.source}</span>
+                                  </span>
+                                </li>
+                              ))}
+                              {row.contributingSignals.length > 8 && (
+                                <li className="text-muted text-[11px]">
+                                  +{row.contributingSignals.length - 8} more — see the full dossier
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="text-[11.5px] text-muted italic">
+                            No structured signals yet. Open the full dossier to see the raw records.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ol>
