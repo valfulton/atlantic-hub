@@ -120,6 +120,14 @@ export default function FillIntakeFromWebPanel({
       }
       setEdits(seedEdits);
       setPicked(seedPicks);
+      // (#518, val 2026-06-08) The preview path inserts a new website_audit_
+      // snapshot via lib/client/intake_web_filler.ts line ~781. Without a
+      // router.refresh(), the SiteHealthStrip on the parent server component
+      // stays frozen at the OLD snapshot's timestamp ("5h ago" even though
+      // val just ran a fresh audit). Refresh AFTER setting preview state so
+      // the panel keeps its preview UI while the surrounding page re-renders
+      // with the new snapshot.
+      router.refresh();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -134,6 +142,13 @@ export default function FillIntakeFromWebPanel({
       setErr('Pick at least one field to apply.');
       return;
     }
+    // (#518, val 2026-06-08) If val has checked ANY overwrite row, treat that
+    // as her explicit "yes overwrite" — sending blanksOnly:true here would
+    // silently drop those keys server-side (return 200 OK with skippedNonBlank,
+    // looking to val like "save was rejected"). The opt-in IS the consent.
+    const overwriteSet = new Set(preview.overwriteKeys);
+    const picksContainOverwrite = applyKeys.some((k) => overwriteSet.has(k));
+    const effectiveBlanksOnly = blanksOnly && !picksContainOverwrite;
     setBusy('applying');
     setErr(null);
     try {
@@ -144,7 +159,7 @@ export default function FillIntakeFromWebPanel({
           mode: 'apply',
           suggestions: edits,
           applyKeys,
-          blanksOnly
+          blanksOnly: effectiveBlanksOnly
         })
       });
       const raw = await res.text();
@@ -462,11 +477,24 @@ export default function FillIntakeFromWebPanel({
         </div>
       )}
 
-      {/* Applied state */}
+      {/* Applied state — (#518) when 0 fields landed val needs to see WHY
+          loudly, not as a "Saved 0 fields" line that reads like a glitch. */}
       {applied && (
-        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
-          <div className="text-[12px] text-emerald-200 font-medium">
-            ✓ Saved {applied.writtenKeys.length} field{applied.writtenKeys.length === 1 ? '' : 's'} to {clientName}&apos;s intake.
+        <div className={
+          'rounded-md p-3 space-y-2 ' +
+          (applied.writtenKeys.length > 0
+            ? 'border border-emerald-500/30 bg-emerald-500/5'
+            : 'border border-rose-400/30 bg-rose-500/5')
+        }>
+          <div className={
+            'text-[12px] font-medium ' +
+            (applied.writtenKeys.length > 0 ? 'text-emerald-200' : 'text-rose-200')
+          }>
+            {applied.writtenKeys.length > 0
+              ? <>✓ Saved {applied.writtenKeys.length} field{applied.writtenKeys.length === 1 ? '' : 's'} to {clientName}&apos;s intake.</>
+              : <>Nothing landed. {applied.skippedNonBlank.length > 0
+                  ? `All ${applied.skippedNonBlank.length} fields you picked were already filled and "blanks only" was on.`
+                  : 'No fields were applied.'}</>}
           </div>
           {applied.writtenKeys.length > 0 && (
             <div className="text-[11px] text-white/65 leading-relaxed">
@@ -475,7 +503,10 @@ export default function FillIntakeFromWebPanel({
           )}
           {applied.skippedNonBlank.length > 0 && (
             <div className="text-[11px] text-[color-mix(in_srgb,var(--gold-bright)_80%,transparent)] leading-relaxed">
-              Skipped {applied.skippedNonBlank.length} that already had values (uncheck &ldquo;blanks only&rdquo; above to overwrite).
+              <strong className="text-rose-200">Skipped {applied.skippedNonBlank.length}</strong>: {applied.skippedNonBlank.map((k) => <code key={k} className="bg-black/30 px-1 rounded mr-1">{k}</code>)}
+              <div className="mt-1 text-white/55">
+                These already had values + &ldquo;blanks only&rdquo; was on. Uncheck the blanks-only toggle above OR check the row checkbox again — the panel will auto-allow overwrite for any row you opt in to.
+              </div>
             </div>
           )}
           {applied.note && (
