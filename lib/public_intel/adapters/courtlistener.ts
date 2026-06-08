@@ -138,6 +138,96 @@ async function fetchHits(state: string, sinceDays: number, nature?: string[]): P
 }
 
 /**
+ * (#526, val 2026-06-08) Fetch federal filings that mention a specific
+ * person or company by name. Uses CourtListener's `q=` full-text parameter
+ * (quoted to keep multi-word names intact). Returns up to maxResults hits.
+ *
+ * Per the no-duct-tape rule: this replaces the manual-URL pattern in the
+ * KYC sweep with a real name-targeted lookup. Each hit becomes its own
+ * public_intel_records row in the caller.
+ */
+export async function fetchByName(
+  name: string,
+  maxResults = 25,
+  sinceDays?: number
+): Promise<CourtListenerHit[]> {
+  const params = new URLSearchParams();
+  params.set('type', 'r');
+  // Quoted phrase match — exact "Mark Francis" not "mark" OR "francis"
+  params.set('q', `"${name.replace(/"/g, '\\"')}"`);
+  params.set('order_by', 'dateFiled desc');
+  params.set('page_size', String(Math.min(maxResults, 100)));
+  if (sinceDays && sinceDays > 0) {
+    const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+    params.set('filed_after', yyyymmdd(since));
+  }
+  const url = `${ENDPOINT}?${params.toString()}`;
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 25000);
+  try {
+    const token = process.env.COURTLISTENER_TOKEN;
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': 'AtlanticHub/1.0 (research; contact: PR@api.atlanticandvine.com)'
+    };
+    if (token) headers.Authorization = `Token ${token}`;
+    const res = await fetch(url, { signal: controller.signal, headers });
+    if (!res.ok) return [];
+    const j = (await res.json()) as {
+      results?: Array<{
+        dateFiled?: string;
+        dateTerminated?: string;
+        caseName?: string;
+        caseNameShort?: string;
+        court?: string;
+        court_id?: string;
+        suitNature?: string;
+        absolute_url?: string;
+        docketNumber?: string;
+        docket_number?: string;
+        party?: string[];
+        attorney?: string[];
+        chapter?: string | number;
+        assignedTo?: string;
+        juryDemand?: string;
+        court_state?: string;
+      }>;
+    };
+    // Defense: free-text search can drag in noise. Drop rows where neither
+    // caseName nor party array actually contains the queried name (case-insensitive).
+    const needle = name.toLowerCase();
+    return (j.results ?? [])
+      .map((r) => ({
+        filedAt: r.dateFiled ?? null,
+        caseName: r.caseName ?? null,
+        caseNameShort: r.caseNameShort ?? null,
+        court: r.court ?? null,
+        courtId: r.court_id ?? null,
+        natureOfSuit: r.suitNature ?? null,
+        docketUrl: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : null,
+        docketNumber: r.docketNumber ?? r.docket_number ?? null,
+        party: Array.isArray(r.party) ? r.party.join(' / ') : null,
+        parties: Array.isArray(r.party) ? r.party : null,
+        attorney: Array.isArray(r.attorney) ? r.attorney : null,
+        chapter: r.chapter != null ? String(r.chapter) : null,
+        assignedTo: r.assignedTo ?? null,
+        juryDemand: r.juryDemand ?? null,
+        dateTerminated: r.dateTerminated ?? null,
+        state: r.court_state ?? null
+      }))
+      .filter((h) => {
+        const cn = (h.caseName ?? '').toLowerCase();
+        const pj = (h.party ?? '').toLowerCase();
+        return cn.includes(needle) || pj.includes(needle);
+      });
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+/**
  * Demo entrypoint (#372) — fetch federal filings for a single state directly,
  * bypassing the full adapter run/store pipeline. Used by /api/demo/run, the
  * public ZIP→signals demo. Returns the raw hits; the caller slices + shapes them.

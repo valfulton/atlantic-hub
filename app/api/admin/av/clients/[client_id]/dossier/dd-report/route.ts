@@ -86,7 +86,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     getLatestSnapshot(clientId)
   ]);
 
-  // Recent public_intel_records — last 30 grouped by source
+  // Recent public_intel_records — favor entity-specific rows over state aggregates.
+  // (#526, val 2026-06-08) The DD report was pulling generic "GA · 20 federal
+  // filings / 365d" aggregate rows. Now we filter out state-aggregate keys
+  // (cfpb:state:*, courtlistener:agg:*) and prefer entity-keyed rows.
+  // We also drop rows whose summary_label is clearly an aggregate ("N federal
+  // filings / Nd", "complaints / Nd").
   let records: RecordRow[] = [];
   try {
     const db = getAvDb();
@@ -94,13 +99,45 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       `SELECT record_id, source_kind, entity_key, summary_label, region_code, fetched_at
          FROM public_intel_records
         WHERE client_id = ?
-        ORDER BY fetched_at DESC
-        LIMIT 30`,
+          AND entity_key NOT LIKE 'cfpb:state:%'
+          AND entity_key NOT LIKE 'courtlistener:agg:%'
+          AND COALESCE(summary_label, '') NOT REGEXP '[0-9]+ (federal filings|complaints) / [0-9]+d'
+        ORDER BY
+          /* Entity-keyed rows first (cfpb:complaint:, cfpb:company:,
+             courtlistener:name:, uspto patent IDs, GA SOS rows), then chronological. */
+          CASE
+            WHEN entity_key LIKE 'cfpb:complaint:%' THEN 0
+            WHEN entity_key LIKE 'cfpb:company:%' THEN 1
+            WHEN entity_key LIKE 'courtlistener:name:%' THEN 0
+            WHEN entity_key LIKE 'entity:%' THEN 2
+            ELSE 3
+          END,
+          fetched_at DESC
+        LIMIT 40`,
       [clientId]
     );
     records = rows;
   } catch (err) {
     console.error('[dd-report:records]', (err as Error).message);
+  }
+
+  // Additional in-memory name-relevance filter: for CFPB + CourtListener,
+  // require the row to mention the company OR contact name. Other sources
+  // (uspto_patents, ca_sos, ga_sos, md_land_records) are inherently
+  // name-scoped at fetch time so we trust them.
+  const companyForFilter = typeof brief?.company === 'string' ? brief.company.toLowerCase().trim() : '';
+  const contactForFilter = typeof brief?.contact_name === 'string' ? brief.contact_name.toLowerCase().trim() : '';
+  if (companyForFilter || contactForFilter) {
+    records = records.filter((r) => {
+      if (r.source_kind !== 'cfpb' && r.source_kind !== 'courtlistener') return true;
+      const hay = `${r.entity_key} ${r.summary_label ?? ''}`.toLowerCase();
+      if (companyForFilter && hay.includes(companyForFilter)) return true;
+      if (contactForFilter && hay.includes(contactForFilter)) return true;
+      // For entity-keyed cfpb complaints, allow through (we trust the
+      // adapter's company filter even if the summary doesn't repeat the name).
+      if (r.entity_key.startsWith('cfpb:complaint:') || r.entity_key.startsWith('courtlistener:name:')) return true;
+      return false;
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────────

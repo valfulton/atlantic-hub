@@ -6,11 +6,11 @@
  * trip. Currently runs:
  *
  *   1. USPTO patents (via PatentsView, by company + contact name)
- *   2. CourtListener federal court records — name-based via the API's name_full
- *      parameter (Approach B is queued; for now we use the existing fetch
- *      with a name filter so val gets SOMETHING per-person, not the generic
- *      sweep we caught earlier returning unrelated rows)
- *   3. CFPB consumer complaints — company-name match
+ *   2. CourtListener federal court records — STILL manual-URL until the
+ *      semantic search adapter is wired (#525 follow-up)
+ *   3. CFPB consumer complaints — REAL company-name lookup (#526) via
+ *      cfpbFetchByCompany. Each complaint persists to public_intel_records
+ *      so it shows up in the Intelligence Feed by name, not state aggregate.
  *
  * Each source's findings:
  *   - Persist to public_intel_records (so Intelligence Feed surfaces them)
@@ -29,6 +29,8 @@ import { lookupPatentsForClient, type PatentHit } from '@/lib/av/uspto_patents';
 import { getDossier, saveDossier, newRedFlagId } from '@/lib/av/client_dossier';
 import { getAvDb } from '@/lib/db/av';
 import type { ResultSetHeader } from 'mysql2';
+import { fetchByCompany as cfpbFetchByCompany } from '@/lib/public_intel/adapters/cfpb';
+import { fetchByName as courtListenerFetchByName } from '@/lib/public_intel/adapters/courtlistener';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -143,54 +145,157 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // Step 2: CourtListener name-based check
+  // Step 2: CourtListener — REAL name-targeted lookup (#526)
   // ──────────────────────────────────────────────────────────────────────
-  // The existing CourtListener adapter doesn't support name lookup yet (#525
-  // Approach B). For tonight, we record a "search needed" red flag with a
-  // pre-built CourtListener search URL the operator can run in 2 clicks.
-  // This is honest: we tell val we couldn't run it ourselves, and we make
-  // the manual path one click instead of three.
-  if (contactName) {
-    const courtSearchUrl = `https://www.courtlistener.com/?q=${encodeURIComponent(`"${contactName}"`)}&type=r`;
-    steps.push({
-      source: 'courtlistener_manual',
-      ran: false,
-      hits: 0,
-      skipReason: 'name-lookup adapter not yet wired (#525 queued)',
-      flagLabel: `Manual check needed: search CourtListener for "${contactName}" — ${courtSearchUrl}`
-    });
-    newFlags.push({
-      id: newRedFlagId(),
-      label: `CourtListener manual search ready — open: ${courtSearchUrl}`,
-      source: 'courtlistener_manual',
-      severity: 'low',
-      surfaced_at: fetchedAt
-    });
+  // Query CourtListener's full-text search for the contact AND the company.
+  // We run both queries (people sue people; people also sue companies) and
+  // dedup by docketUrl. Filter is name-strict — fetchByName drops rows where
+  // the queried name doesn't appear in caseName or party list.
+  const namesToScreen: string[] = [];
+  if (contactName) namesToScreen.push(contactName);
+  if (company && company.toLowerCase() !== contactName.toLowerCase()) namesToScreen.push(company);
+  if (namesToScreen.length > 0) {
+    try {
+      const seenDocket = new Set<string>();
+      const allHits: Array<{ name: string; hit: Awaited<ReturnType<typeof courtListenerFetchByName>>[number] }> = [];
+      for (const queryName of namesToScreen) {
+        const hits = await courtListenerFetchByName(queryName, 15);
+        for (const h of hits) {
+          const key = h.docketUrl ?? `${h.court ?? ''}/${h.caseName ?? ''}/${h.docketNumber ?? ''}`;
+          if (seenDocket.has(key)) continue;
+          seenDocket.add(key);
+          allHits.push({ name: queryName, hit: h });
+        }
+      }
+      const hitCount = allHits.length;
+      // Severity ladder: any litigation involving the principal = medium; 5+ = high
+      const severity: 'low' | 'medium' | 'high' =
+        hitCount >= 5 ? 'high' : hitCount >= 1 ? 'medium' : 'low';
+      const flagLabel = hitCount > 0
+        ? `${hitCount} federal court filing${hitCount === 1 ? '' : 's'} mentioning ${namesToScreen.join(' / ')}`
+        : `CourtListener: 0 federal filings naming ${namesToScreen.join(' / ')} — clean signal`;
+
+      steps.push({ source: 'courtlistener', ran: true, hits: hitCount, flagLabel });
+
+      // Persist each filing as its own record so the Intelligence Feed
+      // shows real case names, not state aggregates.
+      if (hitCount > 0) {
+        try {
+          const db = getAvDb();
+          const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          for (const { name: queryName, hit } of allHits) {
+            const docketSlug = (hit.docketUrl ?? `${hit.court ?? ''}/${hit.caseName ?? ''}/${hit.docketNumber ?? ''}`)
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .slice(0, 180);
+            await db.execute<ResultSetHeader>(
+              `INSERT INTO public_intel_records
+                 (source_kind, entity_key, client_id, lead_id, record_json,
+                  summary_label, region_code, fetched_at, expires_at)
+               VALUES ('courtlistener', ?, ?, NULL, CAST(? AS JSON), ?, ?, NOW(), ?)
+               ON DUPLICATE KEY UPDATE
+                 client_id = VALUES(client_id),
+                 record_json = VALUES(record_json),
+                 summary_label = VALUES(summary_label),
+                 fetched_at = NOW(),
+                 expires_at = VALUES(expires_at)`,
+              [
+                `courtlistener:name:${docketSlug}`,
+                clientId,
+                JSON.stringify({ ...hit, matched_query: queryName }),
+                `${hit.caseName ?? 'Unknown case'} · ${hit.court ?? ''} · ${hit.filedAt ?? ''}`.slice(0, 250),
+                hit.state,
+                expiresAt
+              ]
+            );
+          }
+        } catch (err) {
+          console.error('[run-kyc-sweep:courtlistener:persist]', (err as Error).message);
+        }
+      }
+
+      newFlags.push({
+        id: newRedFlagId(),
+        label: flagLabel,
+        source: 'courtlistener',
+        severity,
+        surfaced_at: fetchedAt
+      });
+    } catch (err) {
+      console.error('[run-kyc-sweep:courtlistener]', (err as Error).message);
+      steps.push({ source: 'courtlistener', ran: false, hits: 0, skipReason: (err as Error).message });
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // Step 3: CFPB consumer complaints (company-level)
+  // Step 3: CFPB consumer complaints — REAL company-name lookup (#526)
   // ──────────────────────────────────────────────────────────────────────
-  // CFPB has a public Socrata API — but it expects state-aggregate queries,
-  // not "find complaints with company name X". For now, surface a search URL
-  // (same honest approach as CourtListener) until #525 wires a real name
-  // lookup against the company-name field.
+  // No more manual-URL duct tape. fetchByCompany hits the CFPB search API
+  // with company=<name>, returns up to 25 individual complaints, and we
+  // persist each one as its own public_intel_records row so the Intelligence
+  // Feed shows per-complaint detail (not just a state aggregate).
   if (company) {
-    const cfpbSearchUrl = `https://www.consumerfinance.gov/data-research/consumer-complaints/search/?company=${encodeURIComponent(company)}`;
-    steps.push({
-      source: 'cfpb_manual',
-      ran: false,
-      hits: 0,
-      skipReason: 'company-name lookup adapter not yet wired (#525 queued)',
-      flagLabel: `Manual check needed: search CFPB for "${company}" — ${cfpbSearchUrl}`
-    });
-    newFlags.push({
-      id: newRedFlagId(),
-      label: `CFPB manual search ready — open: ${cfpbSearchUrl}`,
-      source: 'cfpb_manual',
-      severity: 'low',
-      surfaced_at: fetchedAt
-    });
+    try {
+      const complaints = await cfpbFetchByCompany(company, [], 1825, 25);
+      const hits = complaints.length;
+      // Severity ladder: 0 = clean (low/positive), 1-5 = low, 6-20 = medium, 21+ = high
+      const severity: 'low' | 'medium' | 'high' =
+        hits >= 21 ? 'high' : hits >= 6 ? 'medium' : 'low';
+      const flagLabel = hits > 0
+        ? `${hits} CFPB consumer complaint${hits === 1 ? '' : 's'} on file for "${company}" (last 5y)`
+        : `CFPB: 0 consumer complaints on file for "${company}" (last 5y) — clean signal`;
+
+      steps.push({
+        source: 'cfpb',
+        ran: true,
+        hits,
+        flagLabel
+      });
+
+      // Persist each complaint to public_intel_records
+      if (hits > 0) {
+        try {
+          const db = getAvDb();
+          const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+          for (const c of complaints) {
+            if (!c.complaint_id) continue;
+            await db.execute<ResultSetHeader>(
+              `INSERT INTO public_intel_records
+                 (source_kind, entity_key, client_id, lead_id, record_json,
+                  summary_label, region_code, fetched_at, expires_at)
+               VALUES ('cfpb', ?, ?, NULL, CAST(? AS JSON), ?, ?, NOW(), ?)
+               ON DUPLICATE KEY UPDATE
+                 client_id = VALUES(client_id),
+                 record_json = VALUES(record_json),
+                 summary_label = VALUES(summary_label),
+                 fetched_at = NOW(),
+                 expires_at = VALUES(expires_at)`,
+              [
+                `cfpb:complaint:${c.complaint_id}`,
+                clientId,
+                JSON.stringify(c),
+                `${c.product}${c.sub_product ? ' / ' + c.sub_product : ''} — ${c.issue}${c.state ? ' (' + c.state + ')' : ''}`.slice(0, 250),
+                c.state ?? null,
+                expiresAt
+              ]
+            );
+          }
+        } catch (err) {
+          console.error('[run-kyc-sweep:cfpb:persist]', (err as Error).message);
+        }
+      }
+
+      newFlags.push({
+        id: newRedFlagId(),
+        label: flagLabel,
+        source: 'cfpb',
+        severity,
+        surfaced_at: fetchedAt
+      });
+    } catch (err) {
+      console.error('[run-kyc-sweep:cfpb]', (err as Error).message);
+      steps.push({ source: 'cfpb', ran: false, hits: 0, skipReason: (err as Error).message });
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────
@@ -199,7 +304,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const current = await getDossier(clientId);
   // Dedup: drop existing flags with these sources from this sweep, replace
   // with the fresh ones so the timestamp updates.
-  const sweepSources = new Set(['uspto_patents', 'courtlistener_manual', 'cfpb_manual']);
+  // Include legacy '*_manual' so old duct-tape flags from previous sweeps
+  // get cleaned out and replaced with the real flags from #526.
+  const sweepSources = new Set([
+    'uspto_patents', 'courtlistener_manual', 'cfpb_manual',
+    'cfpb', 'courtlistener'
+  ]);
   const preserved = current.redFlags.filter((f) => !sweepSources.has(f.source));
   await saveDossier(
     clientId,

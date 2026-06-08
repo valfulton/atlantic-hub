@@ -29,6 +29,15 @@ interface CfpbConfig {
   products?: string[];
   /** How many days back to aggregate. Default 90. */
   sinceDays?: number;
+  /** (#526, val 2026-06-08) When set, switches from aggregate-state mode to
+   *  company-name-specific lookup. Returns up to maxResults INDIVIDUAL
+   *  complaints filed against the named company in the given state(s).
+   *  Fulfills the KYC use case where val wants "what complaints exist
+   *  against THIS company" not "what's the state-wide aggregate". */
+  company?: string;
+  /** When in company-lookup mode, how many specific complaints to fetch.
+   *  Default 25, max 100. Each complaint becomes its own public_intel_record. */
+  maxResults?: number;
 }
 
 interface CfpbAggregate {
@@ -42,6 +51,24 @@ interface CfpbAggregate {
   fetched_at: string;
 }
 
+/** (#526) Single CFPB complaint, returned when company= filter is set. */
+interface CfpbComplaint {
+  complaint_id: string;
+  company: string;
+  product: string;
+  sub_product: string | null;
+  issue: string;
+  sub_issue: string | null;
+  state: string | null;
+  zip_code: string | null;
+  date_received: string;
+  company_response: string | null;
+  timely_response: string | null;
+  consumer_disputed: string | null;
+  complaint_what_happened: string | null;
+  fetched_at: string;
+}
+
 const CACHE_DAYS = 14;
 const ENDPOINT = 'https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/';
 
@@ -51,7 +78,77 @@ function isCfpbConfig(c: unknown): c is CfpbConfig {
   if (o.states !== undefined && !(Array.isArray(o.states) && o.states.every((s) => typeof s === 'string'))) return false;
   if (o.products !== undefined && !(Array.isArray(o.products) && o.products.every((s) => typeof s === 'string'))) return false;
   if (o.sinceDays !== undefined && typeof o.sinceDays !== 'number') return false;
+  if (o.company !== undefined && typeof o.company !== 'string') return false;
+  if (o.maxResults !== undefined && typeof o.maxResults !== 'number') return false;
   return true;
+}
+
+/**
+ * (#526) Fetch INDIVIDUAL CFPB complaints filtered by company name.
+ * Used when val wants "what complaints exist against THIS company" — the
+ * KYC use case. The CFPB search API supports a `company=` parameter that
+ * does a fuzzy match on the consumer-disclosed company name. Returns up to
+ * maxResults complaints (capped at 100).
+ *
+ * Per the no-duct-tape rule: this is the REAL lookup, not a manual URL.
+ */
+export async function fetchByCompany(
+  company: string,
+  states: string[],
+  sinceDays: number,
+  maxResults: number
+): Promise<CfpbComplaint[]> {
+  const params = new URLSearchParams();
+  params.set('company', company);
+  params.set('size', String(Math.min(maxResults, 100)));
+  params.set('sort', 'created_date_desc');
+  const dateMin = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+  params.set('date_received_min', yyyymmdd(dateMin));
+  for (const s of states) params.append('state', s.toUpperCase());
+
+  const url = `${ENDPOINT}?${params.toString()}`;
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 25000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json', 'User-Agent': 'AtlanticHub/1.0 (research)' }
+    });
+    if (!res.ok) return [];
+    const j = (await res.json()) as {
+      hits?: { hits?: Array<{ _source?: Record<string, unknown>; _id?: string }> };
+    };
+    const hits = j.hits?.hits ?? [];
+    const out: CfpbComplaint[] = [];
+    for (const h of hits) {
+      const s = h._source ?? {};
+      const get = (k: string): string | null => {
+        const v = (s as Record<string, unknown>)[k];
+        return v == null ? null : String(v);
+      };
+      out.push({
+        complaint_id: get('complaint_id') ?? h._id ?? '',
+        company: get('company') ?? company,
+        product: get('product') ?? '',
+        sub_product: get('sub_product'),
+        issue: get('issue') ?? '',
+        sub_issue: get('sub_issue'),
+        state: get('state'),
+        zip_code: get('zip_code'),
+        date_received: get('date_received') ?? '',
+        company_response: get('company_response'),
+        timely_response: get('timely'),
+        consumer_disputed: get('consumer_disputed'),
+        complaint_what_happened: get('complaint_what_happened'),
+        fetched_at: new Date().toISOString()
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(tid);
+  }
 }
 
 function yyyymmdd(d: Date): string {
@@ -128,12 +225,19 @@ export const cfpbAdapter: PublicIntelAdapter = {
   validateConfig(config) {
     if (config == null) return null;
     if (!isCfpbConfig(config)) {
-      return 'config must be { states?: string[], products?: string[], sinceDays?: number }';
+      return 'config must be { states?: string[], products?: string[], sinceDays?: number, company?: string, maxResults?: number }';
     }
     const c: CfpbConfig = config;
-    if (!c.states || c.states.length === 0) return 'set at least one state in states[]';
+    // (#526) Company-lookup mode doesn't require a state — nationwide search.
+    const isLookup = typeof c.company === 'string' && c.company.trim().length > 0;
+    if (!isLookup && (!c.states || c.states.length === 0)) {
+      return 'set at least one state in states[] (or set company to do nationwide lookup)';
+    }
     if (c.sinceDays !== undefined && (c.sinceDays < 1 || c.sinceDays > 1825)) {
       return 'sinceDays must be between 1 and 1825 (5 years)';
+    }
+    if (c.maxResults !== undefined && (c.maxResults < 1 || c.maxResults > 100)) {
+      return 'maxResults must be between 1 and 100';
     }
     return null;
   },
@@ -150,10 +254,55 @@ export const cfpbAdapter: PublicIntelAdapter = {
     const products = cfg.products && cfg.products.length > 0 ? cfg.products : undefined;
     const sinceDays = cfg.sinceDays ?? 90;
     const productKey = products ? products.join(',') : 'all';
+    const companyLookup = (cfg.company ?? '').trim();
+    const maxResults = cfg.maxResults ?? 25;
 
     let written = 0;
     let fromCache = 0;
     const errors: string[] = [];
+
+    // (#526) Company-lookup mode: filter by specific company name + persist
+    // each individual complaint as its own record (not the state aggregate).
+    if (companyLookup) {
+      const entityKeyBase = `cfpb:company:${companyLookup.toLowerCase().replace(/\s+/g, '_').slice(0, 80)}:${sinceDays}d`;
+      const cached = await findCachedRecord<{ complaints: CfpbComplaint[] }>('cfpb', entityKeyBase);
+      if (cached) {
+        fromCache = 1;
+      } else {
+        const complaints = await fetchByCompany(companyLookup, states, sinceDays, maxResults);
+        const expires = new Date(Date.now() + CACHE_DAYS * 24 * 60 * 60 * 1000);
+        // Store one aggregate "lookup roll-up" record so cache works, AND
+        // store each complaint individually so Intelligence Feed shows them.
+        await storeRecord<{ complaints: CfpbComplaint[]; query: string; total: number }>({
+          sourceKind: 'cfpb',
+          entityKey: entityKeyBase,
+          clientId: ctx.clientId ?? ctx.source.clientId,
+          leadId: ctx.leadId ?? null,
+          recordJson: { complaints, query: companyLookup, total: complaints.length },
+          summaryLabel: `${complaints.length} CFPB complaint${complaints.length === 1 ? '' : 's'} against "${companyLookup}" / ${sinceDays}d`.slice(0, 240),
+          regionCode: states[0] ?? null,
+          expiresAt: expires
+        });
+        written++;
+        for (const c of complaints) {
+          if (!c.complaint_id) continue;
+          await storeRecord<CfpbComplaint>({
+            sourceKind: 'cfpb',
+            entityKey: `cfpb:complaint:${c.complaint_id}`,
+            clientId: ctx.clientId ?? ctx.source.clientId,
+            leadId: ctx.leadId ?? null,
+            recordJson: c,
+            summaryLabel: `${c.product}${c.sub_product ? ' / ' + c.sub_product : ''} — ${c.issue}${c.state ? ' (' + c.state + ')' : ''}`.slice(0, 240),
+            regionCode: c.state,
+            expiresAt: expires
+          });
+          written++;
+        }
+      }
+      const detail = `Company "${companyLookup}": ${written} fetched, ${fromCache} from cache`;
+      await noteRun({ sourceId: ctx.source.sourceId, status: 'ok', detail });
+      return { ok: true, written, fromCache, detail };
+    }
 
     for (const state of states) {
       const entityKey = `cfpb:${state}:${productKey}:${sinceDays}d`;
