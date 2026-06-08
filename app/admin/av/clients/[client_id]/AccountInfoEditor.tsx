@@ -27,7 +27,10 @@ export default function AccountInfoEditor({
   initialIndustry,
   initialWebsiteUrl,
   contactEmail,
-  initialContactName
+  initialContactName,
+  initialOwnerName,
+  initialBusinessState,
+  initialBusinessAddress
 }: {
   clientId: number;
   initialClientName: string;
@@ -39,6 +42,11 @@ export default function AccountInfoEditor({
   initialWebsiteUrl?: string | null;
   contactEmail: string | null;
   initialContactName: string;
+  /** (#537) KYC fields surfaced on this form so val doesn't have to find them
+   *  buried in the dossier or guess where to type them. */
+  initialOwnerName?: string;
+  initialBusinessState?: string;
+  initialBusinessAddress?: string;
 }) {
   const router = useRouter();
   const [clientName, setClientName] = useState(initialClientName);
@@ -46,6 +54,11 @@ export default function AccountInfoEditor({
   const [industry, setIndustry] = useState(initialIndustry);
   const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? '');
   const [contactName, setContactName] = useState(initialContactName);
+  // (#537) KYC fields — owner is the legal owner / KYC target; business state
+  // scopes CourtListener; business address drives the address screen.
+  const [ownerName, setOwnerName] = useState(initialOwnerName ?? '');
+  const [businessState, setBusinessState] = useState(initialBusinessState ?? '');
+  const [businessAddress, setBusinessAddress] = useState(initialBusinessAddress ?? '');
   // (val 2026-06-07) Editable email so val can add/update Chip's email when
   // it was missed at client creation. Pre-filled with the current address (if
   // any) so leaving it alone is a no-op.
@@ -69,6 +82,11 @@ export default function AccountInfoEditor({
           industry: industry.trim(),
           websiteUrl: websiteUrl.trim(),
           contactName: contactName.trim(),
+          // (#537) Pass owner_name + business_state + business_address through
+          // to the account-save endpoint so they land in brief_payload.
+          ownerName: ownerName.trim(),
+          businessState: businessState.trim().toUpperCase(),
+          businessAddress: businessAddress.trim(),
           memberEmail: contactEmail ?? undefined,
           newMemberEmail: newEmail.trim().toLowerCase() || undefined
         })
@@ -157,6 +175,55 @@ export default function AccountInfoEditor({
             disabled={busy}
             placeholder="The name they see — e.g. Skip Krause"
           />
+        </label>
+        {/* (#537) KYC fields — owner is the legal owner KYC screens for. The
+            help text explains the difference because val will encounter this
+            with corporate clients where contact != owner. */}
+        <label className="block">
+          <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            Owner name <span style={{ color: '#fbbf24' }}>(KYC target — the legal owner)</span>
+          </span>
+          <input
+            style={input}
+            value={ownerName}
+            onChange={(e) => setOwnerName(e.target.value)}
+            disabled={busy}
+            placeholder="Adriana Candelaria · Mark Francis · etc."
+          />
+          <span style={{ display: 'block', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+            For solo operators this is the same as the contact name. For corporate clients it's the legal owner — separate from the marketing POC. KYC sweep screens this person specifically.
+          </span>
+        </label>
+        <label className="block">
+          <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            Business state (2-letter)
+          </span>
+          <input
+            style={{ ...input, width: 80, textTransform: 'uppercase' }}
+            value={businessState}
+            onChange={(e) => setBusinessState(e.target.value.slice(0, 2))}
+            disabled={busy}
+            placeholder="CA"
+            maxLength={2}
+          />
+          <span style={{ display: 'block', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+            Scopes CourtListener + CFPB searches. Without this, KYC queries nationwide and pulls noise.
+          </span>
+        </label>
+        <label className="block">
+          <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            Business address
+          </span>
+          <input
+            style={input}
+            value={businessAddress}
+            onChange={(e) => setBusinessAddress(e.target.value)}
+            disabled={busy}
+            placeholder="123 Main St, City, ST 12345"
+          />
+          <span style={{ display: 'block', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+            Powers the address-stress screen (HMDA + per-property records). One address per row in Address History under Due Diligence; this is the primary.
+          </span>
         </label>
         <label className="block">
           <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>

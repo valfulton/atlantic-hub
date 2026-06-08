@@ -75,6 +75,14 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const websiteUrl = websiteRaw
     ? (/^https?:\/\//i.test(websiteRaw) ? websiteRaw : `https://${websiteRaw}`)
     : null;
+  // (#537) KYC fields — land in brief_payload alongside the other identity
+  // keys. Distinguish provided-empty (clear) from absent (leave alone).
+  const ownerNameProvided = typeof body.ownerName === 'string';
+  const ownerName = clean(body.ownerName, 255);
+  const businessStateProvided = typeof body.businessState === 'string';
+  const businessState = clean(body.businessState, 2);
+  const businessAddressProvided = typeof body.businessAddress === 'string';
+  const businessAddress = clean(body.businessAddress, 500);
 
   try {
     const db = getAvDb();
@@ -156,6 +164,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     if (contactName) briefUpdates.contact_name = contactName;
     if (industryProvided) briefUpdates.industry = industry ?? '';
     if (websiteProvided) briefUpdates.website_url = websiteUrl ?? '';
+    // (#537) KYC fields → land in the SAME brief_payload the intake form
+    // writes to. owner_name = KYC target, business_state = state hint for
+    // CourtListener, business_address = primary address for the address screen.
+    if (ownerNameProvided) briefUpdates.owner_name = ownerName ?? '';
+    if (businessStateProvided) briefUpdates.business_state = businessState ?? '';
+    if (businessAddressProvided) briefUpdates.business_address = businessAddress ?? '';
     if (Object.keys(briefUpdates).length > 0) {
       try {
         const cur = ((await getBriefPayload('av', clientId)) as Record<string, unknown> | null) ?? {};

@@ -201,10 +201,18 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // patent/trademark screen buttons know what to query.
   let briefCompany: string | null = null;
   let briefContactName: string | null = null;
+  // (#537) Also load owner_name + business_state + business_address so the
+  // AccountInfoEditor can show them as editable fields.
+  let briefOwnerName = '';
+  let briefBusinessState = '';
+  let briefBusinessAddress = '';
   try {
     const bp = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
     briefCompany = typeof bp?.company === 'string' ? bp.company : null;
     briefContactName = typeof bp?.contact_name === 'string' ? bp.contact_name : null;
+    briefOwnerName = typeof bp?.owner_name === 'string' ? bp.owner_name : '';
+    briefBusinessState = typeof bp?.business_state === 'string' ? bp.business_state : '';
+    briefBusinessAddress = typeof bp?.business_address === 'string' ? bp.business_address : '';
   } catch { /* non-fatal */ }
 
   // (#216 v2) When was the last successful digest sent to this client?
@@ -534,6 +542,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         initialWebsiteUrl={defaultIntakeUrl}
         contactEmail={d.members[0]?.email ?? null}
         initialContactName={d.members[0]?.displayName ?? ''}
+        initialOwnerName={briefOwnerName}
+        initialBusinessState={briefBusinessState}
+        initialBusinessAddress={briefBusinessAddress}
       />
 
       {/* (#521, val 2026-06-08) Operator-only Due Diligence dossier. Holds
