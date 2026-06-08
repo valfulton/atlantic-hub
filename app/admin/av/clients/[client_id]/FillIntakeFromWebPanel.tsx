@@ -42,6 +42,20 @@ interface PreviewResponse {
   pagesFetched?: string[];
   /** Discovered URLs that fetch-failed or were too thin to include. */
   pagesSkipped?: Array<{ url: string; reason: string }>;
+  /** Per-page health (status, bytes, ok/thin/redirected/broken). */
+  pageHealth?: Array<{
+    url: string;
+    finalUrl: string;
+    status: number;
+    bytes: number;
+    textChars: number;
+    health: 'ok' | 'thin' | 'redirected' | 'broken';
+    note: string | null;
+  }>;
+  /** Plain-English website readout (weaknesses + opportunities). */
+  websiteNotes?: string;
+  /** How subpages were picked. 'llm' = adaptive, 'regex' = fallback, 'none' = no subpages. */
+  discoveryMode?: 'llm' | 'regex' | 'none';
 }
 
 interface ApplyResponse {
@@ -216,15 +230,45 @@ export default function FillIntakeFromWebPanel({
               {preview.fetchedUrl} · {Math.round(preview.htmlBytes / 1024)}KB read ·{' '}
               {preview.textChars.toLocaleString()} chars · {preview.tokensUsed.toLocaleString()} tokens
             </div>
-            {preview.pagesFetched && preview.pagesFetched.length > 1 && (
-              <div className="text-[10.5px] text-emerald-300/85 mt-1">
-                Read {preview.pagesFetched.length} pages: {preview.pagesFetched
-                  .map((u) => { try { return new URL(u).pathname || '/'; } catch { return u; } })
-                  .join(' · ')}
+            {preview.pageHealth && preview.pageHealth.length > 0 ? (
+              <div className="text-[10.5px] mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                <span className="text-white/55">
+                  Reach: {preview.pageHealth.length} pages
+                  {preview.discoveryMode === 'llm' && <span className="text-emerald-300/85"> · LLM-picked</span>}
+                  {preview.discoveryMode === 'regex' && <span className="text-white/40"> · regex fallback</span>}
+                </span>
+                {preview.pageHealth.map((p, i) => {
+                  const path = (() => { try { return new URL(p.url).pathname || '/'; } catch { return p.url; } })();
+                  const color =
+                    p.health === 'ok' ? 'text-emerald-300/85' :
+                    p.health === 'thin' ? 'text-amber-300/85' :
+                    p.health === 'redirected' ? 'text-sky-300/85' :
+                    'text-rose-300/85';
+                  const tag =
+                    p.health === 'ok' ? '✓' :
+                    p.health === 'thin' ? 'JS-only' :
+                    p.health === 'redirected' ? '→' :
+                    p.status === 404 ? '404' : 'broken';
+                  return (
+                    <span key={i} className={color} title={p.note ?? ''}>
+                      {path} {tag}
+                    </span>
+                  );
+                })}
                 {preview.pagesSkipped && preview.pagesSkipped.length > 0 && (
-                  <span className="text-white/40"> · {preview.pagesSkipped.length} skipped</span>
+                  <span className="text-white/40">· {preview.pagesSkipped.length} skipped</span>
                 )}
               </div>
+            ) : null}
+            {preview.websiteNotes && preview.websiteNotes.trim().length > 0 && (
+              <details className="mt-2 rounded-md border border-emerald-300/20 bg-emerald-300/[0.04] p-2.5" open>
+                <summary className="cursor-pointer text-[10.5px] uppercase tracking-[0.12em] text-emerald-300/85">
+                  Website notes — weaknesses + opportunities
+                </summary>
+                <div className="mt-2 text-[12px] text-white/85 leading-relaxed whitespace-pre-wrap">
+                  {preview.websiteNotes}
+                </div>
+              </details>
             )}
           </div>
 

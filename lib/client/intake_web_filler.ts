@@ -106,6 +106,22 @@ function htmlToText(html: string): string {
   return s;
 }
 
+/** (val 2026-06-07) Per-page health summary returned in suggestIntakeFromSite
+ *  results so val sees what got read vs what was broken. */
+export interface PageFetchHealth {
+  url: string;
+  finalUrl: string;
+  status: number;
+  bytes: number;
+  textChars: number;
+  /** 'ok' = page rendered with meaningful HTML text.
+   *  'thin' = HTML returned but <200 chars of readable text (likely JS-rendered SPA).
+   *  'redirected' = fetch followed redirects to a different origin (suspicious).
+   *  'broken' = non-2xx, network error, timeout. */
+  health: 'ok' | 'thin' | 'redirected' | 'broken';
+  note: string | null;
+}
+
 async function fetchPage(url: string): Promise<{ html: string; finalUrl: string; bytes: number }> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -382,6 +398,188 @@ export interface MultiPageIntakeFillResult extends IntakeFillSuggestion {
   pagesFetched: string[];
   /** URLs that were discovered but skipped (fetch failed or empty). */
   pagesSkipped: Array<{ url: string; reason: string }>;
+  /** (val 2026-06-07) Per-page health: status, bytes, ok/thin/redirected/broken,
+   *  short note. Surfaced in the operator panel so val sees "/contact 404",
+   *  "/about JS-only", etc. without inspecting logs. */
+  pageHealth: PageFetchHealth[];
+  /** Plain-English website audit — weaknesses, missing pages, CTA quality,
+   *  social proof, contact clarity. Drafted by a separate LLM pass over the
+   *  same blended text so it doesn't dilute the intake-fill prompt. Empty
+   *  string when the audit failed or the prompt isn't seeded yet. */
+  websiteNotes: string;
+  /** How the discovery happened: 'llm' = LLM-pick used, 'regex' = hardcoded
+   *  pattern list (LLM-pick failed or returned nothing), 'none' = no
+   *  subpages found at all. */
+  discoveryMode: 'llm' | 'regex' | 'none';
+}
+
+/**
+ * (val 2026-06-07) Extract every same-origin <a href> from the homepage and
+ * return them as { href, text } pairs so the LLM picker has context. Returns
+ * up to 60 pairs ordered by appearance — header / footer / body all included.
+ */
+function extractNavLinks(html: string, baseUrl: string): Array<{ url: string; label: string }> {
+  let origin: string;
+  try { origin = new URL(baseUrl).origin; } catch { return []; }
+  const seen = new Set<string>();
+  const out: Array<{ url: string; label: string }> = [];
+  // Match <a ... href=... > LABEL </a> — robust to attribute order + casing.
+  const matches = html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi);
+  for (const m of matches) {
+    if (out.length >= 60) break;
+    const attrs = m[1] || '';
+    const labelHtml = m[2] || '';
+    const hrefMatch = attrs.match(/\bhref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i);
+    const rawHref = (hrefMatch?.[1] || hrefMatch?.[2] || hrefMatch?.[3] || '').trim();
+    if (!rawHref) continue;
+    if (/^(#|mailto:|tel:|javascript:)/i.test(rawHref)) continue;
+    let absolute: string;
+    try { absolute = new URL(rawHref, baseUrl).href; } catch { continue; }
+    if (!absolute.startsWith(origin)) continue;
+    if (absolute === baseUrl || absolute === baseUrl + '/') continue;
+    let pathOnly: string;
+    try { pathOnly = new URL(absolute).pathname; } catch { continue; }
+    if (/\.(jpg|jpeg|png|gif|webp|svg|ico|pdf|zip|css|js|xml|json)(\?|$)/i.test(pathOnly)) continue;
+    if (seen.has(absolute)) continue;
+    seen.add(absolute);
+    // Strip the label's HTML + collapse whitespace.
+    const label = labelHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    out.push({ url: absolute, label: label || pathOnly });
+  }
+  return out;
+}
+
+/**
+ * (val 2026-06-07) LLM-pick: hand the homepage's nav links to the model and
+ * ask which 3-4 are most likely to carry brand info (about / services /
+ * leadership / contact / case studies). Returns the picked URLs. Falls back
+ * to the hardcoded regex discovery on failure.
+ *
+ * Cost: ~$0.001 extra per scrape. Worth it because clients use non-standard
+ * paths (e.g. circaenergy.com has /residential, /commercial — patterns the
+ * regex doesn't catch).
+ */
+export async function pickSubpagesWithLlm(args: {
+  homepageHtml: string;
+  homepageUrl: string;
+  brandHint?: string | null;
+  clientId?: number | null;
+}): Promise<{ urls: string[]; mode: 'llm' | 'regex' | 'none' }> {
+  const links = extractNavLinks(args.homepageHtml, args.homepageUrl);
+  if (links.length === 0) return { urls: [], mode: 'none' };
+
+  // If we have fewer candidates than the cap, skip the LLM call — just take them all.
+  if (links.length <= MAX_SUBPAGES) {
+    return { urls: links.map((l) => l.url), mode: 'llm' };
+  }
+
+  // Build a compact link table for the LLM.
+  const linkTable = links
+    .map((l, i) => `${i + 1}. ${new URL(l.url).pathname} — "${l.label}"`)
+    .join('\n');
+
+  const systemPrompt =
+    'You are picking which subpages of a marketing website are most likely to contain ' +
+    'concrete business information (founder/team, services/products, case studies, contact, ' +
+    'and any pages whose names imply core capability — e.g. /residential, /commercial, ' +
+    '/how-it-works). Skip blog posts, news items, individual product pages with date-stamped ' +
+    'URLs, login pages, and policy pages (privacy, terms). Return JSON ONLY: ' +
+    '{"picks": [3-4 path strings from the numbered list]}.';
+  const userPrompt = [
+    args.brandHint ? `BRAND: ${args.brandHint}` : '',
+    `HOMEPAGE: ${args.homepageUrl}`,
+    `LINKS (numbered):`,
+    linkTable,
+    ``,
+    `Pick 3-4 path strings (NOT numbers) that are most likely to carry brand info. JSON only.`
+  ].filter(Boolean).join('\n');
+
+  try {
+    const completion = await runLlm({
+      taskKind: 'intake_web_fill',
+      clientId: args.clientId ?? null,
+      note: `subpage_pick · ${args.brandHint ?? args.homepageUrl.slice(0, 60)}`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [args.homepageUrl, 'subpage_pick_v1'],
+      temperature: 0.1,
+      maxTokens: 300,
+      json: true
+    });
+    const parsed = parseOpenAIJson<{ picks?: unknown }>(completion.text);
+    const picks = Array.isArray(parsed?.picks) ? parsed!.picks : [];
+    const wantedPaths = new Set(
+      picks
+        .filter((p): p is string => typeof p === 'string')
+        .map((p) => p.trim())
+        .filter(Boolean)
+    );
+    const matched = links
+      .filter((l) => {
+        try { return wantedPaths.has(new URL(l.url).pathname); } catch { return false; }
+      })
+      .slice(0, MAX_SUBPAGES)
+      .map((l) => l.url);
+    if (matched.length > 0) return { urls: matched, mode: 'llm' };
+  } catch {
+    // Fall through to regex fallback.
+  }
+  // Fallback: the hardcoded SUBPAGE_PATTERNS list.
+  const regexPicks = discoverSubpages(args.homepageHtml, args.homepageUrl);
+  return { urls: regexPicks, mode: regexPicks.length > 0 ? 'regex' : 'none' };
+}
+
+/**
+ * (val 2026-06-07) Website audit pass. Reads the same blended page text and
+ * produces a plain-English readout of weaknesses + opportunities — CTAs, hero
+ * strength, missing pages, social proof, contact clarity, mobile / JS-rendered
+ * concerns. Becomes a tangible deliverable val can hand the client + the
+ * groundwork for selling web-rebuild engagements.
+ *
+ * Runs in parallel with the intake-fill LLM call so total wall time stays the
+ * same. Costs one extra small LLM call. Fails open: empty string on error so
+ * the intake fill keeps working.
+ */
+export async function auditWebsite(args: {
+  blendedText: string;
+  homepageUrl: string;
+  brandHint?: string | null;
+  clientId?: number | null;
+  pageHealth: PageFetchHealth[];
+}): Promise<string> {
+  if (!args.blendedText || args.blendedText.length < 200) return '';
+  const healthLine = args.pageHealth
+    .map((p) => `${new URL(p.url).pathname} (${p.status}, ${p.textChars} chars, ${p.health})`)
+    .join(' · ');
+  const systemPrompt = await getSystemPrompt('website_audit').catch(() =>
+    // Default prompt if the operator hasn't seeded one yet — keeps the lib
+    // working out of the box. val can override at /admin/av/prompts.
+    'You are auditing a small-business marketing website for the agency that runs Atlantic Hub. ' +
+    'Produce a SHORT readout (5-10 bullet points, plain English) covering: ' +
+    '(1) hero clarity — does it say WHO they help in the first 100 words; ' +
+    '(2) CTA quality — vague ("Contact us") vs specific ("Get a free quote"); ' +
+    '(3) missing pages — about/services/contact/case-studies absent; ' +
+    '(4) social proof — testimonials, case studies, logos, awards; ' +
+    '(5) contact clarity — phone above fold, address, hours; ' +
+    '(6) trust signals — credentials, certifications, press; ' +
+    '(7) JS-rendered or thin pages flagged in PAGE_HEALTH; ' +
+    '(8) one paragraph of *opportunities* — concrete things the agency could quote them on. ' +
+    'Keep it brutally specific. No fluff. No buzzwords. The agency uses this to sell.'
+  );
+  try {
+    const completion = await runLlm({
+      taskKind: 'intake_web_fill',
+      clientId: args.clientId ?? null,
+      note: `website_audit · ${args.brandHint ?? args.homepageUrl.slice(0, 60)}`,
+      prompt:
+        `SYSTEM:\n${systemPrompt}\n\nUSER:\nBRAND: ${args.brandHint ?? ''}\nHOMEPAGE: ${args.homepageUrl}\nPAGE_HEALTH: ${healthLine}\n\nBLENDED_PAGE_TEXT:\n${args.blendedText}`,
+      cacheKeyExtras: [args.homepageUrl, 'website_audit_v1', systemPrompt.slice(0, 200)],
+      temperature: 0.3,
+      maxTokens: 700
+    });
+    return completion.text.trim().slice(0, 4000);
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -420,20 +618,48 @@ export async function suggestIntakeFromSite(args: {
     throw err;
   }
 
-  // 2. Discover same-origin subpages
-  const subpageUrls = discoverSubpages(home.html, home.finalUrl);
+  // 2. Pick subpages — LLM-pick (smarter, costs ~$0.001) with regex fallback.
+  const picked = await pickSubpagesWithLlm({
+    homepageHtml: home.html,
+    homepageUrl: home.finalUrl,
+    brandHint: args.brandHint,
+    clientId: args.clientId
+  });
+  const discoveryMode = picked.mode;
+  const subpageUrls = picked.urls;
 
-  // 3. Fetch each subpage. Best-effort: skip the failures, don't abort.
+  // 3. Fetch each subpage with health tracking. Best-effort: skip failures.
+  const homeText = htmlToText(home.html).slice(0, PER_PAGE_TEXT_CAP);
+  const homeHealth: PageFetchHealth = {
+    url: home.finalUrl,
+    finalUrl: home.finalUrl,
+    status: 200,
+    bytes: home.bytes,
+    textChars: homeText.length,
+    health: homeText.length < 200 ? 'thin' : 'ok',
+    note: homeText.length < 200 ? 'Homepage is JS-rendered or unusually thin — operator should check' : null
+  };
   const pagesFetched: string[] = [home.finalUrl];
   const pagesSkipped: Array<{ url: string; reason: string }> = [];
+  const pageHealth: PageFetchHealth[] = [homeHealth];
   const pageTexts: Array<{ url: string; text: string }> = [
-    { url: home.finalUrl, text: htmlToText(home.html).slice(0, PER_PAGE_TEXT_CAP) }
+    { url: home.finalUrl, text: homeText }
   ];
   let totalBytes = home.bytes;
   for (const subUrl of subpageUrls) {
     try {
       const sub = await fetchPage(subUrl);
       const text = htmlToText(sub.html).slice(0, PER_PAGE_TEXT_CAP);
+      const subHealth: PageFetchHealth = {
+        url: subUrl,
+        finalUrl: sub.finalUrl,
+        status: 200,
+        bytes: sub.bytes,
+        textChars: text.length,
+        health: text.length < 100 ? 'thin' : (sub.finalUrl !== subUrl ? 'redirected' : 'ok'),
+        note: text.length < 100 ? 'JS-rendered or empty body' : (sub.finalUrl !== subUrl ? `Redirected to ${sub.finalUrl}` : null)
+      };
+      pageHealth.push(subHealth);
       if (text.length < 100) {
         pagesSkipped.push({ url: subUrl, reason: 'too-thin' });
         continue;
@@ -442,7 +668,18 @@ export async function suggestIntakeFromSite(args: {
       pageTexts.push({ url: sub.finalUrl, text });
       totalBytes += sub.bytes;
     } catch (err) {
-      pagesSkipped.push({ url: subUrl, reason: (err as Error).message.slice(0, 120) });
+      const msg = (err as Error).message.slice(0, 120);
+      const status = err instanceof IntakeWebFetchError ? err.statusCode : 0;
+      pageHealth.push({
+        url: subUrl,
+        finalUrl: subUrl,
+        status,
+        bytes: 0,
+        textChars: 0,
+        health: 'broken',
+        note: msg
+      });
+      pagesSkipped.push({ url: subUrl, reason: msg });
     }
   }
 
@@ -450,7 +687,9 @@ export async function suggestIntakeFromSite(args: {
   let blended = pageTexts.map((p, i) => `[PAGE_${i + 1}] ${p.url}\n${p.text}`).join('\n\n---\n\n');
   if (blended.length > MAX_TEXT_CHARS) blended = blended.slice(0, MAX_TEXT_CHARS);
 
-  // 5. Single LLM call over the blend.
+  // 5. Run intake fill + website audit in PARALLEL. One blends the intake
+  // fields; the other produces the plain-English website readout. Cost is
+  // 2 LLM calls but wall time stays at 1 call's duration.
   const systemPrompt = await getSystemPrompt('intake_web_filler');
   const userPrompt = [
     args.brandHint ? `BRAND_NAME_HINT: ${args.brandHint}` : '',
@@ -464,16 +703,25 @@ export async function suggestIntakeFromSite(args: {
   ].filter((s) => s.length > 0).join('\n');
 
   const sysPromptForKey = systemPrompt.slice(0, 200);
-  const completion = await runLlm({
-    taskKind: 'intake_web_fill',
-    clientId: args.clientId ?? null,
-    note: `intake_web_fill MULTI · ${args.brandHint ?? home.finalUrl.slice(0, 60)} · ${pagesFetched.length} pages`,
-    prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
-    cacheKeyExtras: [home.finalUrl, pagesFetched.join('|'), args.brandHint ?? '', sysPromptForKey],
-    temperature: TEMPERATURE,
-    maxTokens: MAX_TOKENS,
-    json: true
-  });
+  const [completion, websiteNotes] = await Promise.all([
+    runLlm({
+      taskKind: 'intake_web_fill',
+      clientId: args.clientId ?? null,
+      note: `intake_web_fill MULTI · ${args.brandHint ?? home.finalUrl.slice(0, 60)} · ${pagesFetched.length} pages`,
+      prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+      cacheKeyExtras: [home.finalUrl, pagesFetched.join('|'), args.brandHint ?? '', sysPromptForKey],
+      temperature: TEMPERATURE,
+      maxTokens: MAX_TOKENS,
+      json: true
+    }),
+    auditWebsite({
+      blendedText: blended,
+      homepageUrl: home.finalUrl,
+      brandHint: args.brandHint,
+      clientId: args.clientId,
+      pageHealth
+    })
+  ]);
 
   const parsed = parseOpenAIJson<{ summary?: string; suggestions?: Record<string, unknown> }>(completion.text);
   if (!parsed || typeof parsed.suggestions !== 'object' || parsed.suggestions === null) {
@@ -518,6 +766,9 @@ export async function suggestIntakeFromSite(args: {
     costMicrocents: completion.costMicrocents,
     costSource: completion.source,
     pagesFetched,
-    pagesSkipped
+    pagesSkipped,
+    pageHealth,
+    websiteNotes,
+    discoveryMode
   };
 }
