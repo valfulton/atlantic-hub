@@ -30,6 +30,8 @@ interface PreflightReport {
   brief: {
     filledCount: number;
     enoughForLlm: boolean;
+    missingKeys?: string[];
+    totalKeys?: number;
   };
   hasIntake: boolean;
   steps: {
@@ -107,7 +109,7 @@ export default function PrepPreflightButton({ clientId }: { clientId: number }) 
                 ? <span className="text-emerald-300">HTTP {report.web.httpStatus} · {report.web.wordCount} words</span>
                 : <span className="text-danger">{report.web?.failureReason ?? 'unreachable'}</span>}</span>
             ) : <span className="text-muted">no website on brief</span>}
-            <span>brief: <span className={report.brief.enoughForLlm ? 'text-emerald-300' : 'text-[var(--gold-bright)]'}>{report.brief.filledCount} field{report.brief.filledCount === 1 ? '' : 's'} filled</span></span>
+            <span>brief: <span className={report.brief.enoughForLlm ? 'text-emerald-300' : 'text-[var(--gold-bright)]'}>{report.brief.filledCount}{report.brief.totalKeys ? ` / ${report.brief.totalKeys}` : ''} field{report.brief.filledCount === 1 ? '' : 's'} filled</span></span>
           </div>
           <ul className="grid gap-1 mt-1">
             {Object.entries(report.steps).map(([key, s]) => (
@@ -120,6 +122,30 @@ export default function PrepPreflightButton({ clientId }: { clientId: number }) 
               </li>
             ))}
           </ul>
+          {/* (#516, val 2026-06-08) val: "how will i know from the screen what
+              else is empty in the intake form?" — surface the missing canonical
+              keys right here in the pre-flight readout. Click any chip jumps to
+              Edit Full Intake. */}
+          {report.brief.missingKeys && report.brief.missingKeys.length > 0 && (
+            <details className="mt-3 rounded-md border border-white/10 bg-black/15 p-2.5">
+              <summary className="cursor-pointer text-[11px] text-muted hover:text-ink">
+                <span className="text-[var(--gold-bright)]">{report.brief.missingKeys.length}</span> intake field{report.brief.missingKeys.length === 1 ? '' : 's'} still blank
+                <span className="text-white/40"> · click to expand</span>
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {report.brief.missingKeys.map((k) => (
+                  <a
+                    key={k}
+                    href="edit-intake"
+                    className="text-[10.5px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/70 hover:text-[var(--gold-bright)] hover:border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)]"
+                    title={`Field "${k}" is empty in this brief — click to edit`}
+                  >
+                    {k}
+                  </a>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </div>

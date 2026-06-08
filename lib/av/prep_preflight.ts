@@ -42,6 +42,11 @@ export interface PreflightReport {
   brief: {
     filledCount: number;
     enoughForLlm: boolean;
+    /** (#516) Canonical-intake keys NOT yet filled. Surfaced in the UI so val
+     *  can see at a glance which intake fields still need attention without
+     *  clicking into Edit Full Intake. Capped to keep the response sane. */
+    missingKeys: string[];
+    totalKeys: number;
   };
   /** Has-intake check — are there any client_users with a real intake_payload? */
   hasIntake: boolean;
@@ -152,15 +157,23 @@ async function probeWeb(url: string): Promise<PreflightReport['web']> {
  * and never matched the snake_case keys the intake form actually writes,
  * so the count was almost always 0-1.
  */
-function countSubstantiveBriefFields(payload: Record<string, unknown> | null): number {
-  if (!payload) return 0;
-  let n = 0;
+function countSubstantiveBriefFields(payload: Record<string, unknown> | null): {
+  filledCount: number;
+  missingKeys: string[];
+} {
+  if (!payload) {
+    return { filledCount: 0, missingKeys: [...INTAKE_KEYS] };
+  }
+  let filledCount = 0;
+  const missingKeys: string[] = [];
   for (const k of INTAKE_KEYS) {
     const v = (payload as Record<string, unknown>)[k];
-    if (typeof v === 'string' && v.trim().length > 0) n += 1;
-    else if (Array.isArray(v) && v.length > 0) n += 1;
+    const filled = (typeof v === 'string' && v.trim().length > 0)
+      || (Array.isArray(v) && v.length > 0);
+    if (filled) filledCount += 1;
+    else missingKeys.push(k);
   }
-  return n;
+  return { filledCount, missingKeys };
 }
 
 /**
@@ -182,7 +195,7 @@ export async function runPrepPreflight(args: {
   socialsOnFile?: number;
 }): Promise<PreflightReport> {
   const web = args.url ? await probeWeb(args.url) : null;
-  const filledCount = countSubstantiveBriefFields(args.briefPayload);
+  const { filledCount, missingKeys } = countSubstantiveBriefFields(args.briefPayload);
   const enoughForLlm = filledCount >= MIN_BRIEF_FIELDS;
 
   const webOk = !!web && web.reached && !web.failureReason && web.wordCount >= MIN_WORDS_FOR_LLM;
@@ -214,7 +227,12 @@ export async function runPrepPreflight(args: {
   return {
     url: args.url,
     web,
-    brief: { filledCount, enoughForLlm },
+    brief: {
+      filledCount,
+      enoughForLlm,
+      missingKeys: missingKeys.slice(0, 60), // cap response size
+      totalKeys: INTAKE_KEYS.length
+    },
     hasIntake: args.hasIntakePayload,
     steps
   };
