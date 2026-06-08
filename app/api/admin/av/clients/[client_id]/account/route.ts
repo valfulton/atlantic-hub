@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
+import { getBriefPayload, saveBriefPayload } from '@/lib/client/brief_store';
 import type { ResultSetHeader } from 'mysql2';
 
 export const runtime = 'nodejs';
@@ -64,6 +65,16 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   // we UPDATE its email; if none exists, we INSERT one so subsequent magic
   // link / password / prefilled-intake actions have a target.
   const newMemberEmail = clean(body.newMemberEmail, 320)?.toLowerCase() ?? null;
+  // (#514, val 2026-06-08) Website URL — when val needs to add or correct the
+  // website on an existing client. Lands in creative_briefs.brief_payload as
+  // website_url (canonical key) so every panel that reads the website via
+  // resolveClientWebsite() sees it immediately.
+  const websiteProvided = typeof body.websiteUrl === 'string';
+  const websiteRaw = clean(body.websiteUrl, 500);
+  // Normalize: tolerate "circaenergy.com" without scheme — store as https://.
+  const websiteUrl = websiteRaw
+    ? (/^https?:\/\//i.test(websiteRaw) ? websiteRaw : `https://${websiteRaw}`)
+    : null;
 
   try {
     const db = getAvDb();
@@ -125,6 +136,25 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
     }
 
+    // (#514) Website URL save — merge into creative_briefs.brief_payload
+    // under the canonical website_url key. resolveClientWebsite() reads from
+    // the same place so every panel (FillIntake, BrandKit, Socials, prep
+    // preflight) picks up the change on the next page load.
+    let websiteSaved = false;
+    if (websiteProvided) {
+      try {
+        const cur = ((await getBriefPayload('av', clientId)) as Record<string, unknown> | null) ?? {};
+        const merged: Record<string, unknown> = { ...cur, website_url: websiteUrl ?? '' };
+        const ok = await saveBriefPayload('av', clientId, merged, {
+          changedBy: guard.actor.userId ? `user:${guard.actor.userId}` : 'operator',
+          source: 'account_editor'
+        });
+        websiteSaved = ok;
+      } catch (err) {
+        console.error('[account:websiteSave]', clientId, (err as Error).message);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       clientName,
@@ -132,7 +162,9 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       shortName: shortNameProvided ? shortName : undefined,
       contactName,
       emailUpdated,
-      contactEmail: newMemberEmail ?? memberEmail
+      contactEmail: newMemberEmail ?? memberEmail,
+      websiteSaved,
+      websiteUrl: websiteProvided ? websiteUrl : undefined
     });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });

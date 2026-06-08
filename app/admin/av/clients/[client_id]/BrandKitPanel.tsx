@@ -311,23 +311,27 @@ export default function BrandKitPanel({
             </label>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap pt-1">
+          {/* (#514, val 2026-06-08) Save button bedazzled — was 11.5px thin
+              outline that val didn't recognize as a save. Now: filled gold
+              pill, larger, with the action prefix "Save →" so it's
+              unambiguously the click-to-persist control. */}
+          <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-white/10 mt-1">
             <button
               onClick={runApply}
               disabled={busy !== 'idle'}
               className={
-                'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
+                'rounded-lg px-5 py-2 text-[13px] font-semibold transition shadow-[0_0_0_1px_color-mix(in_srgb,var(--gold-bright)_60%,transparent)] ' +
                 (busy !== 'idle'
-                  ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
+                  ? 'bg-white/10 text-white/40 cursor-not-allowed shadow-none'
+                  : 'bg-[var(--gold-bright)] text-black hover:brightness-110 hover:shadow-[0_0_22px_color-mix(in_srgb,var(--gold-bright)_45%,transparent)]')
               }
             >
-              {busy === 'applying' ? 'Saving…' : 'Apply brand kit'}
+              {busy === 'applying' ? 'Saving…' : '✓ Save brand kit to brief'}
             </button>
             <button
               onClick={discard}
               disabled={busy !== 'idle'}
-              className="text-[10.5px] uppercase tracking-wider text-white/50 hover:text-white/85 px-2"
+              className="text-[11px] uppercase tracking-wider text-white/45 hover:text-white/80 px-2"
             >
               Discard
             </button>

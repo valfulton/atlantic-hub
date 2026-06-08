@@ -397,23 +397,29 @@ export default function FillIntakeFromWebPanel({
             })}
           </ul>
 
-          <div className="flex items-center gap-2 pt-2 border-t border-white/5 flex-wrap">
+          {/* (#514) Save button bedazzled — was a thin outline pill that
+              val missed. Now: solid gold filled, larger, prefixed with ✓
+              and the active verb "Save". Pulses with gold glow on hover so
+              it reads unambiguously as the save control. */}
+          <div className="flex items-center gap-3 pt-3 border-t border-white/10 flex-wrap mt-1">
             <button
               onClick={runApply}
               disabled={busy !== 'idle' || pickedCount === 0}
               className={
-                'rounded-md px-3 py-1 text-[11.5px] font-medium transition ' +
+                'rounded-lg px-5 py-2 text-[13px] font-semibold transition shadow-[0_0_0_1px_color-mix(in_srgb,var(--gold-bright)_60%,transparent)] ' +
                 (busy !== 'idle' || pickedCount === 0
-                  ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
+                  ? 'bg-white/10 text-white/40 cursor-not-allowed shadow-none'
+                  : 'bg-[var(--gold-bright)] text-black hover:brightness-110 hover:shadow-[0_0_22px_color-mix(in_srgb,var(--gold-bright)_45%,transparent)]')
               }
             >
-              {busy === 'applying' ? 'Saving…' : `Apply ${pickedCount} field${pickedCount === 1 ? '' : 's'}`}
+              {busy === 'applying'
+                ? 'Saving…'
+                : `✓ Save ${pickedCount} field${pickedCount === 1 ? '' : 's'} to intake`}
             </button>
             <button
               onClick={discard}
               disabled={busy !== 'idle'}
-              className="text-[10.5px] uppercase tracking-wider text-white/50 hover:text-white/85 px-2"
+              className="text-[11px] uppercase tracking-wider text-white/45 hover:text-white/80 px-2"
             >
               Discard
             </button>

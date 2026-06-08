@@ -66,16 +66,16 @@ const STEP_TO_TASK_KIND: Record<string, string> = {
   // socials_scrape: no LLM call (pure HTML scrape)
 };
 
+// (#514) Uses the canonical website resolver so every entry point — preflight,
+// prep-all, page.tsx, autopilot — agrees on what this client's website is.
+import { pickWebsiteFromBrief } from '@/lib/client/website_resolver';
+
 function pickWebsiteUrl(
   bodyUrl: string | null | undefined,
   briefPayload: Record<string, unknown> | null
 ): string | null {
-  const raw =
-    (typeof bodyUrl === 'string' && bodyUrl.trim()) ||
-    (briefPayload && typeof briefPayload.website_url === 'string' && (briefPayload.website_url as string).trim()) ||
-    (briefPayload && typeof briefPayload.websiteUrl === 'string' && (briefPayload.websiteUrl as string).trim()) ||
-    (briefPayload && typeof briefPayload.website === 'string' && (briefPayload.website as string).trim()) ||
-    '';
+  const explicit = typeof bodyUrl === 'string' && bodyUrl.trim();
+  const raw = explicit || pickWebsiteFromBrief(briefPayload) || '';
   if (!raw) return null;
   // Tolerate "cldaservices.com" without scheme.
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;

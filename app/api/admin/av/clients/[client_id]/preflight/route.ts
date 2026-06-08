@@ -13,22 +13,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { getBriefPayload } from '@/lib/client/brief_store';
+import { pickWebsiteFromBrief } from '@/lib/client/website_resolver';
 import { runPrepPreflight } from '@/lib/av/prep_preflight';
 import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
 export const maxDuration = 10;
 
+/**
+ * (#514) Resolve the website URL for the preflight probe. Operator can pass
+ * an explicit override in the request body (e.g. when re-running for a
+ * different URL); otherwise we read the brief through the canonical resolver
+ * so EVERY surface that needs the website sees the same answer.
+ */
 function pickWebsiteUrl(
   bodyUrl: string | null | undefined,
   briefPayload: Record<string, unknown> | null
 ): string | null {
-  const raw =
-    (typeof bodyUrl === 'string' && bodyUrl.trim()) ||
-    (briefPayload && typeof briefPayload.website_url === 'string' && (briefPayload.website_url as string).trim()) ||
-    (briefPayload && typeof briefPayload.websiteUrl === 'string' && (briefPayload.websiteUrl as string).trim()) ||
-    (briefPayload && typeof briefPayload.website === 'string' && (briefPayload.website as string).trim()) ||
-    '';
+  const explicit = typeof bodyUrl === 'string' && bodyUrl.trim();
+  const raw = explicit || pickWebsiteFromBrief(briefPayload) || '';
   if (!raw) return null;
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 }

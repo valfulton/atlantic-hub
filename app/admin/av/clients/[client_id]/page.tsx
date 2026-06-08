@@ -45,6 +45,7 @@ import { getInboxRecord } from '@/lib/clients/pr_inbox';
 import PrSourcesPanel from './PrSourcesPanel';
 import { listSourcesForClient } from '@/lib/pr/client_sources';
 import { getBriefPayload } from '@/lib/client/brief_store';
+import { resolveClientWebsite } from '@/lib/client/website_resolver';
 import { getClientIcpWithProvenance } from '@/lib/client/icp';
 import { signIntakeShareToken, signOwnerIntakeShareToken } from '@/lib/auth/intake-share';
 import { listBrandsForUser } from '@/lib/client/membership';
@@ -186,14 +187,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // Both null when val hasn't picked any yet.
   const intelCfg = await getIntelConfig('av', clientId);
 
-  // (#235) Default URL for the "Fill intake from web" panel: prefer the
-  // client's saved website_url, else fall back to nothing (operator types).
-  let defaultIntakeUrl: string | null = null;
-  try {
-    const bp2 = (await getBriefPayload('av', clientId)) as Record<string, unknown> | null;
-    const w = bp2?.website_url;
-    if (typeof w === 'string' && w.trim()) defaultIntakeUrl = w.trim();
-  } catch { /* non-fatal */ }
+  // (#514) Default URL for ALL panels that need the client's website. Reads
+  // every canonical + legacy key via the single resolver so panels never drift.
+  const defaultIntakeUrl: string | null = await resolveClientWebsite('av', clientId);
 
   // (#216 v2) When was the last successful digest sent to this client?
   // Surfaces in WeeklyDigestPanel as "Last sent X ago" so val knows whether
@@ -512,6 +508,7 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         initialClientName={d.name}
         initialShortName={d.shortName ?? ''}
         initialIndustry={d.industry ?? ''}
+        initialWebsiteUrl={defaultIntakeUrl}
         contactEmail={d.members[0]?.email ?? null}
         initialContactName={d.members[0]?.displayName ?? ''}
       />

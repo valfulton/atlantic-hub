@@ -25,6 +25,7 @@ export default function AccountInfoEditor({
   initialClientName,
   initialShortName,
   initialIndustry,
+  initialWebsiteUrl,
   contactEmail,
   initialContactName
 }: {
@@ -33,6 +34,9 @@ export default function AccountInfoEditor({
   /** (#406) Operator-set nickname (CBB, CLDA…). Empty string when unset. */
   initialShortName?: string;
   initialIndustry: string;
+  /** (#514) Current website URL from brief_payload.website_url — pre-fills the
+   *  editable field so val sees what's there and can correct it. */
+  initialWebsiteUrl?: string | null;
   contactEmail: string | null;
   initialContactName: string;
 }) {
@@ -40,6 +44,7 @@ export default function AccountInfoEditor({
   const [clientName, setClientName] = useState(initialClientName);
   const [shortName, setShortName] = useState(initialShortName ?? '');
   const [industry, setIndustry] = useState(initialIndustry);
+  const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? '');
   const [contactName, setContactName] = useState(initialContactName);
   // (val 2026-06-07) Editable email so val can add/update Chip's email when
   // it was missed at client creation. Pre-filled with the current address (if
@@ -62,6 +67,7 @@ export default function AccountInfoEditor({
           clientName: clientName.trim(),
           shortName: shortName.trim(), // empty string is valid (clears the nickname)
           industry: industry.trim(),
+          websiteUrl: websiteUrl.trim(),
           contactName: contactName.trim(),
           memberEmail: contactEmail ?? undefined,
           newMemberEmail: newEmail.trim().toLowerCase() || undefined
@@ -122,6 +128,23 @@ export default function AccountInfoEditor({
         <label className="block">
           <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Industry</span>
           <input style={input} value={industry} onChange={(e) => setIndustry(e.target.value)} disabled={busy} placeholder="e.g. Health Insurance" />
+        </label>
+        <label className="block">
+          <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+            Website URL
+          </span>
+          <input
+            style={input}
+            type="url"
+            value={websiteUrl}
+            onChange={(e) => setWebsiteUrl(e.target.value)}
+            disabled={busy}
+            placeholder="https://circaenergy.com"
+            autoComplete="url"
+          />
+          <span style={{ display: 'block', fontSize: 10, color: '#64748b', marginTop: 4 }}>
+            (#514) Single source of truth — feeds the intake scrape, brand-kit extractor, pre-flight, and social discovery.
+          </span>
         </label>
         <label className="block">
           <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
