@@ -136,22 +136,38 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
     }
 
-    // (#514) Website URL save — merge into creative_briefs.brief_payload
-    // under the canonical website_url key. resolveClientWebsite() reads from
-    // the same place so every panel (FillIntake, BrandKit, Socials, prep
-    // preflight) picks up the change on the next page load.
+    // (#519, val 2026-06-08) Mirror account fields into brief_payload under
+    // their canonical keys. The clients.* and client_users.* writes above are
+    // the operational source of truth, but every prompt / preview / dossier /
+    // intake-editor surface reads brief_payload.{company,contact_name,industry,
+    // website_url}. Without this mirror, val types Skip Krause + the brief
+    // still shows "blank contact_name" everywhere it's consumed.
+    //
+    // ONE bundled write -> ONE snapshot + ONE autopilot fire. Always-overwrite-
+    // when-provided semantics (mirrors the #514 website behavior): the form
+    // pre-fills initial values, so an "unchanged" save just re-writes the same
+    // value. clientName / contactName only write when non-blank (form omits
+    // empty); industry / website_url write when the field was in the body even
+    // if cleared (use '' to clear the brief value).
+    let briefSaved = false;
     let websiteSaved = false;
-    if (websiteProvided) {
+    const briefUpdates: Record<string, unknown> = {};
+    if (clientName) briefUpdates.company = clientName;
+    if (contactName) briefUpdates.contact_name = contactName;
+    if (industryProvided) briefUpdates.industry = industry ?? '';
+    if (websiteProvided) briefUpdates.website_url = websiteUrl ?? '';
+    if (Object.keys(briefUpdates).length > 0) {
       try {
         const cur = ((await getBriefPayload('av', clientId)) as Record<string, unknown> | null) ?? {};
-        const merged: Record<string, unknown> = { ...cur, website_url: websiteUrl ?? '' };
+        const merged: Record<string, unknown> = { ...cur, ...briefUpdates };
         const ok = await saveBriefPayload('av', clientId, merged, {
           changedBy: guard.actor.userId ? `user:${guard.actor.userId}` : 'operator',
           source: 'account_editor'
         });
-        websiteSaved = ok;
+        briefSaved = ok;
+        websiteSaved = ok && websiteProvided;
       } catch (err) {
-        console.error('[account:websiteSave]', clientId, (err as Error).message);
+        console.error('[account:briefSave]', clientId, (err as Error).message);
       }
     }
 

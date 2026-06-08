@@ -150,7 +150,10 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
       const keysWritten = Object.keys(patch);
       if (keysWritten.length > 0) {
-        await saveBriefPayload('av', clientId, patch, {
+        // saveBriefPayload does a full column replacement (brief_store.ts:141),
+        // so we must merge over the existing brief — otherwise the patch wipes
+        // every other key. briefPayload was loaded at route entry (line 107).
+        await saveBriefPayload('av', clientId, { ...briefPayload, ...patch }, {
           changedBy: guard.actor.userId ? String(guard.actor.userId) : null,
           source: 'web_filler_apply'
         });
