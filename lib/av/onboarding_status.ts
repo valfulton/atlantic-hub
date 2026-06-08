@@ -295,7 +295,12 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       return {
         id: 2,
         key: 'intake_sent',
-        label: 'Intake sent',
+        // (val 2026-06-08) Was "Intake sent" — which lied when login row
+        // existed but val hadn't shared the link yet. The actual step is
+        // "make sure the client has the access link they need to sign in",
+        // so the label now matches the action and the in-progress detail
+        // is no longer a contradiction.
+        label: 'Send access',
         status: stat,
         detail,
         anchor: 'access-group'

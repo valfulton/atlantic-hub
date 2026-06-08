@@ -70,6 +70,19 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     }
   } catch { /* non-fatal */ }
 
-  const report = await runPrepPreflight({ url, briefPayload, hasIntakePayload });
+  // (#510 followup) Count social_targets already on file so scrape_socials
+  // doesn't mark itself "no website on brief" when the URLs are already there.
+  let socialsOnFile = 0;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { n: number })[]>(
+      `SELECT COUNT(*) AS n FROM social_targets
+        WHERE client_id = ? AND status IN ('suggested','confirmed','connected')`,
+      [clientId]
+    );
+    socialsOnFile = Number(rows[0]?.n ?? 0);
+  } catch { /* non-fatal — falls back to URL-based gate */ }
+
+  const report = await runPrepPreflight({ url, briefPayload, hasIntakePayload, socialsOnFile });
   return NextResponse.json({ ok: true, report });
 }

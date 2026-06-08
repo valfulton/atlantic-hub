@@ -17,6 +17,8 @@
  *   - Never logs response bodies
  */
 
+import { INTAKE_KEYS } from '@/lib/client/intake_fields';
+
 const PROBE_TIMEOUT_MS = 4000;
 const MAX_BYTES = 200 * 1024;
 const MIN_WORDS_FOR_LLM = 80;   // anything less is a near-empty page; LLM call wasted
@@ -143,20 +145,17 @@ async function probeWeb(url: string): Promise<PreflightReport['web']> {
   }
 }
 
-/** Mirrors lib/av/onboarding_status.ts canonical key set, lightweight. */
+/**
+ * Count canonical intake fields with a non-empty value. Reads against the
+ * single source of truth in lib/client/intake_fields.ts — same fix as the
+ * onboarding counter (#501): the old hardcoded camelCase list was fictional
+ * and never matched the snake_case keys the intake form actually writes,
+ * so the count was almost always 0-1.
+ */
 function countSubstantiveBriefFields(payload: Record<string, unknown> | null): number {
   if (!payload) return 0;
-  const KEYS = [
-    'companyName', 'company_name', 'business_name',
-    'companyDescription', 'company_description',
-    'website', 'website_url', 'industry',
-    'oneLiner', 'tagline',
-    'whoIsCustomer', 'idealCustomerNotes', 'whyAdvertise', 'whatAccomplish',
-    'singleMessage', 'supportingProof', 'currentChallenges',
-    'services', 'pricing'
-  ];
   let n = 0;
-  for (const k of KEYS) {
+  for (const k of INTAKE_KEYS) {
     const v = (payload as Record<string, unknown>)[k];
     if (typeof v === 'string' && v.trim().length > 0) n += 1;
     else if (Array.isArray(v) && v.length > 0) n += 1;
@@ -176,6 +175,11 @@ export async function runPrepPreflight(args: {
   url: string | null;
   briefPayload: Record<string, unknown> | null;
   hasIntakePayload: boolean;
+  /** (#510 followup, val 2026-06-08) Count of social_targets already on file
+   *  for this client. When > 0, scrape_socials is "already covered" — we no
+   *  longer skip it for "no website on brief", since the work product (URLs)
+   *  is already there. */
+  socialsOnFile?: number;
 }): Promise<PreflightReport> {
   const web = args.url ? await probeWeb(args.url) : null;
   const filledCount = countSubstantiveBriefFields(args.briefPayload);
@@ -196,10 +200,15 @@ export async function runPrepPreflight(args: {
     extract_intel: args.hasIntakePayload || enoughForLlm
       ? { ok: true }
       : { ok: false, reason: 'no intake payload yet' },
-    // Scrape socials is free (regex only, no LLM) -- only blocked by URL.
-    scrape_socials: web && web.reached
+    // Scrape socials is free (regex only, no LLM). Already-on-file socials
+    // count as "covered" — don't skip if val pre-populated them by hand or
+    // they came in via an earlier scrape. URL only matters when 0 socials
+    // are on file (we'd need to find some from somewhere).
+    scrape_socials: (args.socialsOnFile && args.socialsOnFile > 0)
       ? { ok: true }
-      : { ok: false, reason: web == null ? 'no website on brief' : web.failureReason ?? 'unreachable' }
+      : web && web.reached
+        ? { ok: true }
+        : { ok: false, reason: web == null ? 'no website on brief' : web.failureReason ?? 'unreachable' }
   };
 
   return {

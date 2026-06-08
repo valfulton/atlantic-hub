@@ -79,22 +79,21 @@ export function safeFirstName(
   const first = d.split(/[\s,]+/).filter(Boolean)[0] ?? '';
   if (!first) return null;
 
-  // (val 2026-06-07) The "Central" red flag: if display_name IS the brand name
-  // (the company was stuffed into the contact field), it is NEVER a person —
-  // even a 3-word company like "Central Business Bureau" that fools the person
-  // heuristic and rendered the greeting as "Central". Veto here, BEFORE the
-  // trust-the-person override below.
-  if (brandName && d.toLowerCase() === brandName.trim().toLowerCase()) return null;
-
-  // Trust-the-person override: if displayName clearly looks like a personal
-  // name (2-4 properly-capitalized tokens with no company suffixes), believe
-  // it even when it matches the brand. This catches the Tim Helfrey case
-  // where the client was onboarded with the contact's name as the brand and
-  // safeFirstName otherwise vetoes it as "brand stuffed in display_name".
+  // Trust-the-person override RUNS FIRST (val 2026-06-08): if displayName
+  // clearly looks like a personal name (2-4 properly-capitalized tokens with
+  // no company suffixes), believe it. This catches the Chip Zenke / Tim
+  // Helfrey case where the client was onboarded with the contact's name as
+  // the brand and the brand-veto below would otherwise return "there".
+  //
   // The Central-Bottle-Brunch bug remains caught for single-token displayNames
-  // and for multi-token display_names containing clear company markers.
+  // (looksLikePersonName requires 2+ tokens) and for multi-token displayNames
+  // with company markers (Inc, LLC, etc — see COMPANY_TOKENS).
   if (looksLikePersonName(d)) return first;
 
+  // The "Central" red flag: if display_name IS the brand name (the company
+  // was stuffed into the contact field), it is NEVER a person — even a
+  // 3-word company like "Central Business Bureau" that fools the person
+  // heuristic. Veto AFTER the trust-the-person check has had its chance.
   const brand = (brandName ?? '').trim();
   if (brand) {
     const dNorm = d.toLowerCase();

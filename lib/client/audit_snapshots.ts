@@ -53,7 +53,35 @@ const AXIS_ROW_PATTERNS: Record<AuditAxis, RegExp[]> = {
   industry_fit: [/industry\s*fit/i, /industry\s*norms?/i, /vertical\s*fit/i]
 };
 
-const SCORE_PATTERN = /(\b(?:10|[0-9])(?:\.[0-9])?)\s*\/\s*10\b/;
+// Strict "5/10" form — preferred when the prompt produces it.
+const SCORE_PATTERN_STRICT = /(\b(?:10|[0-9])(?:\.[0-9])?)\s*\/\s*10\b/;
+
+/**
+ * Tolerate the LLM dropping "/10" — markdown table rows usually look like:
+ *   | Hero clarity | 5 | The hero mentions ... |
+ * We pull the SECOND cell (the score column) when the line is a table row,
+ * and accept a bare 0-10 number there. Falls back to strict /10 elsewhere.
+ */
+function extractScoreFromLine(line: string): number | null {
+  const strict = SCORE_PATTERN_STRICT.exec(line);
+  if (strict) {
+    const n = Number.parseFloat(strict[1]);
+    if (Number.isFinite(n) && n >= 0 && n <= 10) return n;
+  }
+  // Table-row fallback: | label | score | one-liner |
+  const trimmed = line.trim();
+  if (trimmed.startsWith('|')) {
+    const cells = trimmed.split('|').map((c) => c.trim()).filter((c) => c.length > 0);
+    if (cells.length >= 2) {
+      const cellMatch = /^(\d+(?:\.\d+)?)\s*(?:\/\s*10)?$/.exec(cells[1]);
+      if (cellMatch) {
+        const n = Number.parseFloat(cellMatch[1]);
+        if (Number.isFinite(n) && n >= 0 && n <= 10) return n;
+      }
+    }
+  }
+  return null;
+}
 
 export interface AuditScores {
   hero: number | null;
@@ -90,17 +118,13 @@ export function parseAuditScores(markdown: string | null | undefined): AuditScor
     const line = raw.toLowerCase();
     // Heuristic: only consider lines that look like markdown table rows
     // (start with | or look like "axis: 5/10"). Skip section headers/prose.
-    if (!line.includes('/10') && !line.includes('| ')) continue;
+    if (!line.includes('/10') && !line.includes('|')) continue;
     for (const axis of AUDIT_AXES) {
       if (out[axis] !== null) continue;
       const labelHit = AXIS_ROW_PATTERNS[axis].some((re) => re.test(line));
       if (!labelHit) continue;
-      const m = SCORE_PATTERN.exec(line);
-      if (!m) continue;
-      const n = Number.parseFloat(m[1]);
-      if (Number.isFinite(n) && n >= 0 && n <= 10) {
-        out[axis] = n;
-      }
+      const n = extractScoreFromLine(raw); // raw, not lowercased — table cells parsed off original spacing
+      if (n !== null) out[axis] = n;
     }
   }
   const present = AUDIT_AXES.map((a) => out[a]).filter((v): v is number => v !== null);
