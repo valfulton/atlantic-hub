@@ -162,7 +162,7 @@ export default function OperatorDossierPanel({
 
   const router = useRouter();
   const [d, setD] = useState<ClientDossier>(initialDossier);
-  const [busy, setBusy] = useState<'idle' | 'saving' | 'patents' | 'kyc' | 'report'>('idle');
+  const [busy, setBusy] = useState<'idle' | 'saving' | 'patents' | 'kyc' | 'report' | 'address'>('idle');
   const [kycReport, setKycReport] = useState<{
     sweptAt: string;
     steps: Array<{ source: string; ran: boolean; hits: number; skipReason?: string; flagLabel?: string }>;
@@ -177,6 +177,27 @@ export default function OperatorDossierPanel({
   const [err, setErr] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [patentResult, setPatentResult] = useState<PatentLookupResult | null>(null);
+  // (#529) Address-stress screen result state
+  const [addressScreenResult, setAddressScreenResult] = useState<{
+    addresses_screened: number;
+    geocoded: number;
+    results: Array<{
+      address: string;
+      matchedAddress: string | null;
+      county: string | null;
+      state: string | null;
+      ok: boolean;
+      signalLabel: string;
+      hmda: {
+        total_applications?: number;
+        total_originated?: number;
+        total_denied?: number;
+        median_loan_amount?: number | null;
+        denial_rate?: number | null;
+      } | null;
+      propertyRecord: { status: string; note: string };
+    }>;
+  } | null>(null);
 
   // Inline add-red-flag form state
   const [newFlagLabel, setNewFlagLabel] = useState('');
@@ -356,6 +377,31 @@ ${markdownToBasicHtml(ddReport.markdown)}
         flagsAdded: data.flagsAdded
       });
       setOkMsg(`KYC sweep ran · ${data.flagsAdded} flag${data.flagsAdded === 1 ? '' : 's'} added`);
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy('idle');
+    }
+  }
+
+  async function runAddressScreen() {
+    setBusy('address');
+    setErr(null);
+    setOkMsg(null);
+    setAddressScreenResult(null);
+    try {
+      const res = await fetch(`/api/admin/av/clients/${clientId}/dossier/address-screen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setAddressScreenResult(data);
+      setOkMsg(
+        `Address screen ran · ${data.geocoded}/${data.addresses_screened} geocoded · market-stress signal saved per address`
+      );
       router.refresh();
     } catch (e) {
       setErr((e as Error).message);
@@ -632,9 +678,22 @@ ${markdownToBasicHtml(ddReport.markdown)}
             onClick={runKycSweep}
             disabled={busy !== 'idle' || (!briefCompany && !briefContactName)}
             className="flex-1 sm:flex-none rounded-md border border-rose-400/50 bg-rose-400/15 hover:bg-rose-400/25 text-rose-100 text-[12.5px] font-medium px-4 py-2 disabled:opacity-40"
-            title="One click: runs USPTO + queues CourtListener and CFPB manual searches as red flags with prefilled URLs"
+            title="One click: runs USPTO + CourtListener (name-targeted) + CFPB (company-targeted)"
           >
             {busy === 'kyc' ? '⚡ Running KYC sweep…' : '⚡ Run Full KYC Sweep'}
+          </button>
+          {/* (#529) Address-stress screen — geocodes every dossier address +
+              pulls HMDA county-level mortgage stress signal. Per-property
+              record lookups (assessor, deeds, mortgage balance) are queued
+              behind the Puppeteer worker (#422) and stub-labeled honestly. */}
+          <button
+            type="button"
+            onClick={runAddressScreen}
+            disabled={busy !== 'idle'}
+            className="flex-1 sm:flex-none rounded-md border border-sky-400/50 bg-sky-400/15 hover:bg-sky-400/25 text-sky-100 text-[12.5px] font-medium px-4 py-2 disabled:opacity-40"
+            title="For every address on the dossier: geocode + HMDA market stress + queued per-property records"
+          >
+            {busy === 'address' ? '🏠 Screening addresses…' : '🏠 Screen each address'}
           </button>
           <button
             type="button"
@@ -662,6 +721,48 @@ ${markdownToBasicHtml(ddReport.markdown)}
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+        {/* (#529) Address-stress screen results */}
+        {addressScreenResult && (
+          <div className="mt-3 rounded-md border border-sky-400/30 bg-sky-400/[0.05] p-3">
+            <div className="text-[11px] uppercase tracking-[0.14em] text-sky-300 mb-1.5">
+              Address screen · {addressScreenResult.geocoded}/{addressScreenResult.addresses_screened} geocoded
+            </div>
+            <div className="space-y-2.5">
+              {addressScreenResult.results.map((r, idx) => (
+                <div key={idx} className="border-l-2 border-sky-400/40 pl-2.5">
+                  <div className="text-[12px] text-white/90 font-medium">
+                    {r.matchedAddress ?? r.address}
+                  </div>
+                  {r.ok ? (
+                    <>
+                      <div className="text-[11.5px] text-white/70 mt-0.5">{r.signalLabel}</div>
+                      {r.hmda && (
+                        <div className="text-[10.5px] text-white/55 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                          <span>Apps: {r.hmda.total_applications?.toLocaleString() ?? '?'}</span>
+                          <span>Originated: {r.hmda.total_originated?.toLocaleString() ?? '?'}</span>
+                          <span>Denied: {r.hmda.total_denied?.toLocaleString() ?? '?'}</span>
+                          {r.hmda.median_loan_amount != null && (
+                            <span>Median: ${Math.round(r.hmda.median_loan_amount).toLocaleString()}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="text-[10.5px] text-amber-200/70 mt-1 italic">
+                        📋 {r.propertyRecord.note}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-[11.5px] text-rose-300 mt-0.5">{r.signalLabel}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="text-[10.5px] text-white/45 mt-2.5 italic">
+              HMDA is county-level mortgage market data — it shows the lending environment around each address,
+              not the property's own balance. Per-property records (owner, assessed value, last sale, mortgage)
+              come online when the records worker (#422) is provisioned.
+            </div>
           </div>
         )}
         <div className="flex flex-wrap gap-2">

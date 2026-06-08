@@ -42,7 +42,9 @@ interface HmdaAggregate {
   fetched_at: string;
 }
 
-const CURRENT_YEAR = 2024;
+export const HMDA_CURRENT_YEAR = 2024;
+const CURRENT_YEAR = HMDA_CURRENT_YEAR;
+export type { HmdaAggregate };
 const CACHE_DAYS = 90;
 
 function isHmdaConfig(c: unknown): c is HmdaConfig {
@@ -53,7 +55,7 @@ function isHmdaConfig(c: unknown): c is HmdaConfig {
   return true;
 }
 
-async function fetchHmdaAggregate(year: number, state: string, county?: string): Promise<HmdaAggregate | null> {
+export async function fetchHmdaAggregate(year: number, state: string, county?: string): Promise<HmdaAggregate | null> {
   // FFIEC public data browser — aggregated counts endpoint. We ask for a
   // tract-level summary then aggregate ourselves to keep response sizes sane.
   // Endpoint shape per FFIEC docs:
