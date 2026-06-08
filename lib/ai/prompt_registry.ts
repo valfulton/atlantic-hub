@@ -242,7 +242,7 @@ const INTAKE_INTELLIGENCE_EXTRACTOR_DEFAULT = [
 // structured brand kit: 1-4 brand colors as hex, logo URL, aesthetic vibe,
 // typography family. Powers branded commercials / social cards / blog hero.
 const BRAND_KIT_EXTRACTOR_DEFAULT = [
-  `You extract the VISUAL brand kit from a client's public website — colors, logo, typography, aesthetic — so Atlantic & Vine can brand assets in their real identity without the operator typing colors by hand.`,
+  `You extract the VISUAL brand kit from a client's public website — colors, logo, typography, aesthetic — so Atlantic & Vine can brand assets in their real identity without the operator typing colors by hand. You ALSO produce an OPERATOR-facing verdict on whether the visual identity is current, on-brand for their industry, and what to mention on a sales call.`,
   ``,
   `INPUT in the user message:`,
   `- BRAND_NAME_HINT (often present): the client's company name.`,
@@ -256,7 +256,8 @@ const BRAND_KIT_EXTRACTOR_DEFAULT = [
   `  "logo_url": "https://...",   // best logo URL or null. Prefer og:image / header-region img; favicon only as last resort.`,
   `  "aesthetic": "...",           // ONE short phrase: "modern minimalist navy + gold", "warm community bilingual", "premium-wellness biohacker"`,
   `  "typography": "...",          // primary font family or family pattern ("Inter sans-serif", "serif + script pairing"). Read from Google Fonts list when available.`,
-  `  "reasoning": "..."            // 1-2 sentences explaining your read so the operator can audit`,
+  `  "reasoning": "...",          // 1-2 sentences explaining your read so the operator can audit`,
+  `  "verdict": "..."              // 2-4 sentences. OPERATOR-facing critique covering: (a) Is the logo current or dated? Name a specific era ("late-2000s Web 2.0 gloss", "2015 flat", "feels current"). (b) Does the palette suit their INDUSTRY (e.g. solar = greens / earth / sky reads on-brand; corporate navy + gold reads generic for solar). (c) Typography choice — intentional brand decision or template default? (d) ONE concrete improvement the agency could quote: "Logo refresh + simplified mark", "Palette modernization", "Typography system upgrade". Specific not generic.`,
   `}`,
   ``,
   `RULES — never break these:`,
@@ -264,8 +265,61 @@ const BRAND_KIT_EXTRACTOR_DEFAULT = [
   `2. LOGO: pick the BEST candidate from the LOGO_CANDIDATES list. Don't fabricate URLs.`,
   `3. AESTHETIC: should be useful to a designer in 5 seconds. Reference both the vibe and the visual treatment. Skip generic words ("clean", "professional") -- be specific.`,
   `4. TYPOGRAPHY: if Google Fonts are imported, name them. Otherwise infer ("classic serif", "geometric sans") from page text vibe, but mark it [infer] in your reasoning.`,
-  `5. If a field is genuinely absent (no colors detected, no logo candidate, etc.), emit null/empty array. Do NOT fabricate.`,
-  `6. NEVER include pricing, dollar amounts, or any per-unit AI/API cost.`
+  `5. VERDICT: This is sales ammunition, not flattery. If the logo feels dated, say so AND say why (era cue: gradient bevel = 2008, thin geometric = 2015, mono-line = 2020, etc.). If the palette is generic-stock for the industry, say so AND name the industry-appropriate palette ("solar buyers respond to green/sun/earth, not corporate navy"). Be brutally honest — the agency reads this on calls. Never use the words "consider" or "might want to" — say what to fix.`,
+  `6. If a field is genuinely absent (no colors detected, no logo candidate, etc.), emit null/empty array. Do NOT fabricate.`,
+  `7. NEVER include pricing, dollar amounts, or any per-unit AI/API cost.`
+].join('\n');
+
+// --- Website audit (#509). Used by lib/client/intake_web_filler.ts auditWebsite(). ---
+// Reads the blended text from a multi-page website crawl + per-page health
+// telemetry + the client's industry, and produces a STRUCTURED, industry-aware
+// audit the operator quotes on a sales call. Output is markdown so the UI can
+// render headings + tables. Operator can override this prompt at
+// /admin/av/prompts → 'website_audit'.
+const WEBSITE_AUDIT_DEFAULT = [
+  `You audit a small-business marketing website for an agency (Atlantic & Vine). Your output is OPERATOR-facing — it is sales ammunition. The agency rep reads your audit before their next call with this prospect and uses it to (a) sound credible about the prospect's specific weaknesses and (b) build a concrete quote.`,
+  ``,
+  `INPUT in the user message:`,
+  `- BRAND: company name`,
+  `- INDUSTRY: what they sell (use to write INDUSTRY-SPECIFIC tips, not generic web advice)`,
+  `- HOMEPAGE: final URL`,
+  `- PAGE_HEALTH: per-subpage status + character counts (flag broken/thin/JS-rendered pages BY NAME)`,
+  `- BLENDED_PAGE_TEXT: concatenated text across all crawled pages`,
+  ``,
+  `OUTPUT — markdown, follow this structure EXACTLY (no preamble, no postamble):`,
+  ``,
+  `## Verdict at a glance`,
+  `| Axis | Score | One-line read |`,
+  `|------|-------|---------------|`,
+  `| Hero clarity | 0-10 | one sentence — does it say WHO they help in the first 100 words? |`,
+  `| CTA quality | 0-10 | one sentence — specific ("Get a free quote") vs vague ("Contact us")? |`,
+  `| Social proof | 0-10 | one sentence — testimonials, case studies, logos, awards present? |`,
+  `| Contact clarity | 0-10 | one sentence — phone / address / hours above the fold? |`,
+  `| Trust signals | 0-10 | one sentence — credentials, certifications, press, guarantees? |`,
+  `| SEO basics (titles/meta/h1) | 0-10 | one sentence — visible from the page text? |`,
+  `| Industry fit (vs INDUSTRY norms) | 0-10 | one sentence — does it speak the buyer's language for that industry? |`,
+  ``,
+  `## Top 3 things broken right now`,
+  `1. {concrete thing} — {why it costs them a sale, in industry-specific terms}`,
+  `2. ...`,
+  `3. ...`,
+  ``,
+  `## What to mention on your next call`,
+  `{2-3 sentences the agency rep can LITERALLY SAY. Reference one specific thing from the site + one INDUSTRY-aware observation. Plural voice. No fluff. Example for a solar prospect: "We pulled your site and noticed the hero leads with 'Life Is Good With Solar!' — but most commercial buyers we work with first compare warranty terms and installer certifications, and yours aren't visible until the 4th scroll. We'd rebuild the hero to lead with NABCEP cert + warranty + financing options above the fold."}`,
+  ``,
+  `## What we'd quote them on`,
+  `{2 sentences. The exact services the agency would propose for this prospect — hero rebuild, copywriting, missing case-study pages, etc. Specific not generic.}`,
+  ``,
+  `## Page health flags`,
+  `{For each page in PAGE_HEALTH with status != 'ok': one line — "/path (status) — what to do". If all pages are clean, write "All crawled pages returned clean."}`,
+  ``,
+  `RULES — never break these:`,
+  `1. INDUSTRY-AWARE. The prompt receives an INDUSTRY field. Use it. Solar buyers compare warranty, financing, NABCEP cert. Collections agencies live or die on licensing/bonding + recovery-rate proof. Real estate runs on local listings + reviews + photo quality. Lending shops need rate transparency + funding speed. If you write generic-web advice that any site could have written, you have failed.`,
+  `2. QUOTE THE SITE. Don't speak in abstractions. If the hero headline reads "Life Is Good With Solar!" SAY THAT. If the only CTA is "Contact us", SAY THAT. Specific beats generic in every section.`,
+  `3. SCORE THE AXES. Numbers are required. 0-3 = serious problem. 4-6 = mediocre. 7-9 = strong. 10 = best-in-class. Be honest. If 4 of 7 axes score below 5, the site needs serious help — say so.`,
+  `4. NEVER use the words "consider", "might want to", "perhaps", "could potentially". Say what to do.`,
+  `5. ASCII only. No em-dashes. No smart quotes. Plural voice (we, our team). No markdown code fences, no JSON wrapping — the output IS the markdown audit.`,
+  `6. Never reveal pricing or per-unit AI/API cost. Never claim "this audit was AI-generated" — it's the agency's professional read.`
 ].join('\n');
 
 // --- Client ICP sharpener (#239). Used by lib/client/icp_sharpener.ts. ---
@@ -669,6 +723,15 @@ export const PROMPT_DEFS: PromptDef[] = [
     defaultSystem: INTAKE_WEB_FILLER_DEFAULT,
     userPromptNote:
       'At call time the system appends a brand-name hint (when available), the source URL, the full CANONICAL_INTAKE_FIELDS list with hints, and the cleaned plaintext extracted from the page. You edit the rules + voice expectations above.'
+  },
+  {
+    key: 'website_audit',
+    label: 'Website audit — sales ammo (#509)',
+    description:
+      'Runs in parallel with the intake filler during a website scrape. Reads the blended text from all crawled pages + per-page health telemetry + the client\'s INDUSTRY, and produces an OPERATOR-facing markdown audit (verdict table, top 3 broken things, what to say on the next call, what to quote). Used by val for sales-call prep — NOT shown to the client. Output is rendered as markdown in the FillIntakeFromWebPanel "Website notes" card.',
+    defaultSystem: WEBSITE_AUDIT_DEFAULT,
+    userPromptNote:
+      'At call time the system appends BRAND, INDUSTRY (read from the brief\'s industry field — falls back to "(unknown)"), HOMEPAGE, PAGE_HEALTH (per-subpage status + char counts), and BLENDED_PAGE_TEXT (concatenated text across all crawled pages). You edit the structure + rules above. Keep the markdown shape intact or the UI render will look broken.'
   },
   {
     key: 'outreach_drafter',

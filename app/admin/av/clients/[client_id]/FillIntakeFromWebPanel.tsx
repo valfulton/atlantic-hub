@@ -219,6 +219,71 @@ export default function FillIntakeFromWebPanel({
       {/* Preview state */}
       {preview && !applied && (
         <div className="space-y-3">
+          {/* (#509) Pages-read card — lifted out of the meta line so it's
+              impossible to miss. Counts good/flagged pages, lists each page
+              by path with a color-coded status tag, and shows a top banner
+              when any page is broken/thin/redirected. */}
+          {preview.pageHealth && preview.pageHealth.length > 0 && (() => {
+            const flagged = preview.pageHealth.filter((p) => p.health !== 'ok');
+            const okCount = preview.pageHealth.length - flagged.length;
+            return (
+              <div className="rounded-md border border-white/10 bg-black/15 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-[10px] uppercase tracking-[0.12em] text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)]">
+                    Pages read · {preview.pageHealth.length} reached
+                    {okCount === preview.pageHealth.length
+                      ? <span className="text-emerald-300/85"> · all clean</span>
+                      : <span className="text-amber-300/85"> · {flagged.length} flagged</span>}
+                  </div>
+                  <div className="text-[10px] text-white/40">
+                    {preview.discoveryMode === 'llm' && 'discovery: LLM-picked'}
+                    {preview.discoveryMode === 'regex' && 'discovery: regex fallback'}
+                    {preview.discoveryMode === 'none' && 'discovery: homepage only'}
+                  </div>
+                </div>
+                {flagged.length > 0 && (
+                  <div className="rounded-md border border-amber-300/30 bg-amber-300/[0.06] px-2.5 py-1.5 text-[11px] text-amber-100/95 leading-snug">
+                    <span className="font-medium">Heads up:</span> {flagged.length} page
+                    {flagged.length === 1 ? '' : 's'} returned with issues — your audit will be
+                    weaker for these. Worth mentioning on the call (they may not know).
+                  </div>
+                )}
+                <ul className="space-y-0.5 text-[11.5px] font-mono leading-snug">
+                  {preview.pageHealth.map((p, i) => {
+                    const path = (() => { try { return new URL(p.url).pathname || '/'; } catch { return p.url; } })();
+                    const color =
+                      p.health === 'ok' ? 'text-emerald-300/90' :
+                      p.health === 'thin' ? 'text-amber-300/90' :
+                      p.health === 'redirected' ? 'text-sky-300/90' :
+                      'text-rose-300/90';
+                    const tag =
+                      p.health === 'ok' ? '✓ clean read' :
+                      p.health === 'thin' ? 'JS-only / thin body' :
+                      p.health === 'redirected' ? `→ redirected` :
+                      p.status === 404 ? '404 not found' : `broken (HTTP ${p.status})`;
+                    return (
+                      <li key={i} className="flex items-baseline gap-2">
+                        <span className={`${color} w-[150px] truncate`} title={p.url}>{path}</span>
+                        <span className={`${color}`}>{tag}</span>
+                        {p.textChars > 0 && (
+                          <span className="text-white/35">· {p.textChars.toLocaleString()} chars</span>
+                        )}
+                        {p.note && (
+                          <span className="text-white/45 truncate" title={p.note}>· {p.note}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {preview.pagesSkipped && preview.pagesSkipped.length > 0 && (
+                  <div className="text-[10.5px] text-white/45">
+                    {preview.pagesSkipped.length} subpage{preview.pagesSkipped.length === 1 ? '' : 's'} skipped (too thin or unreachable).
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="rounded-md border border-white/10 bg-black/15 p-3">
             <div className="text-[10px] uppercase tracking-[0.12em] text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)] mb-1">
               What this page is about
@@ -230,42 +295,13 @@ export default function FillIntakeFromWebPanel({
               {preview.fetchedUrl} · {Math.round(preview.htmlBytes / 1024)}KB read ·{' '}
               {preview.textChars.toLocaleString()} chars · {preview.tokensUsed.toLocaleString()} tokens
             </div>
-            {preview.pageHealth && preview.pageHealth.length > 0 ? (
-              <div className="text-[10.5px] mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-                <span className="text-white/55">
-                  Reach: {preview.pageHealth.length} pages
-                  {preview.discoveryMode === 'llm' && <span className="text-emerald-300/85"> · LLM-picked</span>}
-                  {preview.discoveryMode === 'regex' && <span className="text-white/40"> · regex fallback</span>}
-                </span>
-                {preview.pageHealth.map((p, i) => {
-                  const path = (() => { try { return new URL(p.url).pathname || '/'; } catch { return p.url; } })();
-                  const color =
-                    p.health === 'ok' ? 'text-emerald-300/85' :
-                    p.health === 'thin' ? 'text-amber-300/85' :
-                    p.health === 'redirected' ? 'text-sky-300/85' :
-                    'text-rose-300/85';
-                  const tag =
-                    p.health === 'ok' ? '✓' :
-                    p.health === 'thin' ? 'JS-only' :
-                    p.health === 'redirected' ? '→' :
-                    p.status === 404 ? '404' : 'broken';
-                  return (
-                    <span key={i} className={color} title={p.note ?? ''}>
-                      {path} {tag}
-                    </span>
-                  );
-                })}
-                {preview.pagesSkipped && preview.pagesSkipped.length > 0 && (
-                  <span className="text-white/40">· {preview.pagesSkipped.length} skipped</span>
-                )}
-              </div>
-            ) : null}
             {preview.websiteNotes && preview.websiteNotes.trim().length > 0 && (
-              <details className="mt-2 rounded-md border border-emerald-300/20 bg-emerald-300/[0.04] p-2.5" open>
-                <summary className="cursor-pointer text-[10.5px] uppercase tracking-[0.12em] text-emerald-300/85">
-                  Website notes — weaknesses + opportunities
+              <details className="mt-3 rounded-md border border-emerald-300/30 bg-emerald-300/[0.05] p-2.5" open>
+                <summary className="cursor-pointer text-[10.5px] uppercase tracking-[0.12em] text-emerald-300/85 flex items-center gap-2">
+                  <span>Website audit — sales ammo</span>
+                  <span className="text-white/40 italic normal-case tracking-normal text-[10px]">(operator-only · markdown · industry-aware)</span>
                 </summary>
-                <div className="mt-2 text-[12px] text-white/85 leading-relaxed whitespace-pre-wrap">
+                <div className="mt-2 text-[12px] text-white/90 leading-relaxed whitespace-pre-wrap font-[var(--font-sans,inherit)]">
                   {preview.websiteNotes}
                 </div>
               </details>

@@ -59,6 +59,12 @@ export interface BrandKitSuggestion {
   typography: string | null;
   /** Operator-facing summary of how the read went. */
   reasoning: string;
+  /** (#509) Operator-facing VERDICT — opinionated read on whether the logo
+   *  is dated, palette is on-brand for the industry, typography is intentional
+   *  vs default. Used as sales ammo on calls ("Their logo reads 2008 Web 2.0
+   *  gloss — we'd refresh the mark and modernize the palette."). Empty string
+   *  if the LLM didn't produce one. */
+  verdict: string;
   /** Bookkeeping. */
   fetchedUrl: string;
   htmlBytes: number;
@@ -324,6 +330,7 @@ export async function extractBrandKitFromUrl(args: {
     aesthetic?: string | null;
     typography?: string | null;
     reasoning?: string;
+    verdict?: string;
   }>(completion.text);
 
   if (!parsed) {
@@ -356,6 +363,7 @@ export async function extractBrandKitFromUrl(args: {
       ? parsed.typography.trim().slice(0, 200)
       : (signals.googleFonts[0] ?? null),
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning.slice(0, 800) : '',
+    verdict: typeof parsed.verdict === 'string' ? parsed.verdict.slice(0, 1200) : '',
     fetchedUrl: page.finalUrl,
     htmlBytes: page.bytes,
     tokensUsed: completion.inputTokens + completion.outputTokens,

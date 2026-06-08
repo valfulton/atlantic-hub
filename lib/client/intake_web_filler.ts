@@ -27,6 +27,7 @@ import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { INTAKE_KEYS, INTAKE_GROUPS } from '@/lib/client/intake_fields';
+import { getBriefPayload } from '@/lib/client/brief_store';
 import { logEvent } from '@/lib/events/log';
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -543,40 +544,38 @@ export async function auditWebsite(args: {
   blendedText: string;
   homepageUrl: string;
   brandHint?: string | null;
+  industryHint?: string | null;
   clientId?: number | null;
   pageHealth: PageFetchHealth[];
 }): Promise<string> {
   if (!args.blendedText || args.blendedText.length < 200) return '';
   const healthLine = args.pageHealth
-    .map((p) => `${new URL(p.url).pathname} (${p.status}, ${p.textChars} chars, ${p.health})`)
-    .join(' · ');
-  const systemPrompt = await getSystemPrompt('website_audit').catch(() =>
-    // Default prompt if the operator hasn't seeded one yet — keeps the lib
-    // working out of the box. val can override at /admin/av/prompts.
-    'You are auditing a small-business marketing website for the agency that runs Atlantic Hub. ' +
-    'Produce a SHORT readout (5-10 bullet points, plain English) covering: ' +
-    '(1) hero clarity — does it say WHO they help in the first 100 words; ' +
-    '(2) CTA quality — vague ("Contact us") vs specific ("Get a free quote"); ' +
-    '(3) missing pages — about/services/contact/case-studies absent; ' +
-    '(4) social proof — testimonials, case studies, logos, awards; ' +
-    '(5) contact clarity — phone above fold, address, hours; ' +
-    '(6) trust signals — credentials, certifications, press; ' +
-    '(7) JS-rendered or thin pages flagged in PAGE_HEALTH; ' +
-    '(8) one paragraph of *opportunities* — concrete things the agency could quote them on. ' +
-    'Keep it brutally specific. No fluff. No buzzwords. The agency uses this to sell.'
-  );
+    .map((p) => `${new URL(p.url).pathname} (HTTP ${p.status}, ${p.textChars} chars, health=${p.health}${p.note ? `, note=${p.note}` : ''})`)
+    .join('\n  ');
+  // (#509) Registered prompt at /admin/av/prompts → 'website_audit'. The lib
+  // calls getSystemPrompt() which returns the editable version when present
+  // and falls back to WEBSITE_AUDIT_DEFAULT inside the registry. We no longer
+  // carry an inline default here — single source of truth in prompt_registry.
+  const systemPrompt = await getSystemPrompt('website_audit');
   try {
     const completion = await runLlm({
       taskKind: 'intake_web_fill',
       clientId: args.clientId ?? null,
       note: `website_audit · ${args.brandHint ?? args.homepageUrl.slice(0, 60)}`,
       prompt:
-        `SYSTEM:\n${systemPrompt}\n\nUSER:\nBRAND: ${args.brandHint ?? ''}\nHOMEPAGE: ${args.homepageUrl}\nPAGE_HEALTH: ${healthLine}\n\nBLENDED_PAGE_TEXT:\n${args.blendedText}`,
-      cacheKeyExtras: [args.homepageUrl, 'website_audit_v1', systemPrompt.slice(0, 200)],
+        `SYSTEM:\n${systemPrompt}\n\nUSER:\nBRAND: ${args.brandHint ?? '(unknown)'}\n` +
+        `INDUSTRY: ${args.industryHint ?? '(unknown — write industry-neutral but flag this gap)'}\n` +
+        `HOMEPAGE: ${args.homepageUrl}\nPAGE_HEALTH:\n  ${healthLine}\n\nBLENDED_PAGE_TEXT:\n${args.blendedText}`,
+      cacheKeyExtras: [
+        args.homepageUrl,
+        'website_audit_v2',
+        args.industryHint ?? '',
+        systemPrompt.slice(0, 200)
+      ],
       temperature: 0.3,
-      maxTokens: 700
+      maxTokens: 1400
     });
-    return completion.text.trim().slice(0, 4000);
+    return completion.text.trim().slice(0, 6000);
   } catch {
     return '';
   }
@@ -687,6 +686,21 @@ export async function suggestIntakeFromSite(args: {
   let blended = pageTexts.map((p, i) => `[PAGE_${i + 1}] ${p.url}\n${p.text}`).join('\n\n---\n\n');
   if (blended.length > MAX_TEXT_CHARS) blended = blended.slice(0, MAX_TEXT_CHARS);
 
+  // 4b. Pull INDUSTRY from the brief if we have a clientId. Threaded into the
+  // audit prompt so feedback is industry-specific (solar buyers vs collections
+  // creditors vs real estate vs lending) instead of generic web-design advice.
+  // (#509)
+  let industryHint: string | null = null;
+  if (args.clientId) {
+    try {
+      const brief = (await getBriefPayload('av', args.clientId)) ?? {};
+      const candidate = (brief as Record<string, unknown>).industry;
+      if (typeof candidate === 'string' && candidate.trim()) {
+        industryHint = candidate.trim().slice(0, 200);
+      }
+    } catch { /* non-fatal — audit still runs, just without industry context */ }
+  }
+
   // 5. Run intake fill + website audit in PARALLEL. One blends the intake
   // fields; the other produces the plain-English website readout. Cost is
   // 2 LLM calls but wall time stays at 1 call's duration.
@@ -718,6 +732,7 @@ export async function suggestIntakeFromSite(args: {
       blendedText: blended,
       homepageUrl: home.finalUrl,
       brandHint: args.brandHint,
+      industryHint,
       clientId: args.clientId,
       pageHealth
     })
@@ -751,7 +766,10 @@ export async function suggestIntakeFromSite(args: {
       suggested_keys: Object.keys(suggestions),
       tokens: completion.inputTokens + completion.outputTokens,
       cost_microcents: completion.costMicrocents,
-      cost_source: completion.source
+      cost_source: completion.source,
+      industry_hint: industryHint,
+      audit_chars: websiteNotes.length,
+      page_health_summary: pageHealth.map((p) => ({ url: p.url, health: p.health, chars: p.textChars }))
     }
   });
 

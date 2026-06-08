@@ -24,6 +24,9 @@ interface PreviewResponse {
   aesthetic: string | null;
   typography: string | null;
   reasoning: string;
+  /** (#509) Opinionated operator-facing verdict — empty string if the LLM
+   *  didn't produce one (e.g. older preview before the prompt update). */
+  verdict?: string;
   fetchedUrl: string;
   htmlBytes: number;
   tokensUsed: number;
@@ -185,6 +188,18 @@ export default function BrandKitPanel({
                 How I read it
               </span>
               {preview.reasoning}
+            </div>
+          )}
+
+          {preview.verdict && (
+            <div className="rounded-md border border-rose-400/30 bg-rose-500/[0.06] p-3 text-[12px] text-white/90 leading-relaxed">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] uppercase tracking-wider text-rose-200">
+                  Verdict — sales ammo
+                </span>
+                <span className="text-[10px] text-white/40 italic">(operator-only · not shown to client)</span>
+              </div>
+              <div className="whitespace-pre-line">{preview.verdict}</div>
             </div>
           )}
 
