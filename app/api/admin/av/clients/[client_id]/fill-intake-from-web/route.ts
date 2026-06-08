@@ -22,6 +22,7 @@ import { getAvDb } from '@/lib/db/av';
 import { getBriefPayload, saveBriefPayload } from '@/lib/client/brief_store';
 import { INTAKE_KEYS } from '@/lib/client/intake_fields';
 import { suggestIntakeFromUrl, suggestIntakeFromSite, IntakeWebFetchError } from '@/lib/client/intake_web_filler';
+import { stampWebsiteOnBrief } from '@/lib/client/website_resolver';
 import { logEvent } from '@/lib/events/log';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -96,6 +97,18 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       const result = useMultiPage
         ? await suggestIntakeFromSite({ url, brandHint, clientId })
         : await suggestIntakeFromUrl({ url, brandHint, clientId });
+
+      // (#517, val 2026-06-08) The fetch succeeded — that URL IS the client's
+      // website. Persist it to brief_payload.website_url if currently blank so
+      // pre-flight, brand-kit, audit, social-scrape all see the same website
+      // (no more "ran the scrape but pre-flight still says no website on brief").
+      // Blanks-only: never overwrites a hand-curated value. Uses result.fetchedUrl
+      // (post-redirect canonical) when available; falls back to the pasted URL.
+      void stampWebsiteOnBrief('av', clientId, result.fetchedUrl || url, {
+        changedBy: guard.actor.userId ? `user:${guard.actor.userId}` : 'operator',
+        source: 'intake_web_filler:preview'
+      });
+
       // Also tell the caller which of the suggested keys are currently blank in
       // the stored payload, so the UI can default-check just those keys.
       const current = (await getBriefPayload('av', clientId)) ?? {};

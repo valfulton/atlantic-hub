@@ -17,6 +17,7 @@ import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { getBriefPayload, saveBriefPayload } from '@/lib/client/brief_store';
 import { extractBrandKitFromUrl, BrandKitFetchError } from '@/lib/client/brand_kit_extractor';
+import { stampWebsiteOnBrief } from '@/lib/client/website_resolver';
 import { logEvent } from '@/lib/events/log';
 import type { RowDataPacket } from 'mysql2';
 
@@ -79,6 +80,14 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     const brandHint = await loadClientName(clientId);
     try {
       const result = await extractBrandKitFromUrl({ url, brandHint });
+      // (#517, val 2026-06-08) Successful brand-kit fetch = that URL IS the
+      // client's website. Stamp brief.website_url if currently blank so
+      // pre-flight + audit + social-scrape see it. Blanks-only — never
+      // overwrites a hand-curated value.
+      void stampWebsiteOnBrief('av', clientId, url, {
+        changedBy: guard.actor.userId ? `user:${guard.actor.userId}` : 'operator',
+        source: 'brand_kit:preview'
+      });
       return NextResponse.json({ ok: true, ...result });
     } catch (err) {
       if (err instanceof BrandKitFetchError) {

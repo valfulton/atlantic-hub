@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { scrapeAndSuggestForBrand } from '@/lib/social/targets';
+import { stampWebsiteOnBrief } from '@/lib/client/website_resolver';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,12 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
 
   try {
     const result = await scrapeAndSuggestForBrand(clientId, websiteUrl, guard.actor.userId ?? null);
+    // (#517, val 2026-06-08) Successful scrape = that URL IS the client's
+    // website. Stamp brief.website_url if currently blank.
+    void stampWebsiteOnBrief('av', clientId, websiteUrl, {
+      changedBy: guard.actor.userId ? `user:${guard.actor.userId}` : 'operator',
+      source: 'social_scrape'
+    });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'scrape failed';

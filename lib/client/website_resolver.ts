@@ -24,7 +24,7 @@
  * here. No more drift. Update this list ONLY if a new key emerges from
  * data inspection.
  */
-import { getBriefPayload } from '@/lib/client/brief_store';
+import { getBriefPayload, saveBriefPayload } from '@/lib/client/brief_store';
 
 /** Keys checked in priority order. Canonical (website_url) first. */
 const WEBSITE_KEYS = ['website_url', 'websiteUrl', 'website', 'companyWebsite'] as const;
@@ -60,5 +60,69 @@ export async function resolveClientWebsite(
     return pickWebsiteFromBrief(brief);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Normalize a URL the operator/LLM pasted: trim, add https:// if missing,
+ * strip whitespace. Returns null if the input doesn't look like a URL after
+ * normalization. Mirrors the normalization in
+ * app/api/admin/av/clients/[client_id]/account/route.ts so all entry points
+ * write the same value.
+ */
+export function normalizeWebsiteUrl(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') return null;
+  let s = raw.trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  // Quick sanity: must parse as a URL with a hostname containing a dot.
+  try {
+    const u = new URL(s);
+    if (!u.hostname || !u.hostname.includes('.')) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * (#517) Stamp the website URL into brief_payload.website_url IF the brief
+ * doesn't already have a website on any of the historical keys.
+ *
+ * Why this exists (val 2026-06-08): the fill-intake-from-web, brand-kit, and
+ * social-scrape endpoints all take a URL, fetch it, and run their work — but
+ * none of them write the URL back to the brief. So a client could have a
+ * successful audit (homepage_url on the snapshot), brand-kit colors, and
+ * intake fill — and the pre-flight check still says "no website on brief"
+ * because nobody persisted the URL into the canonical location.
+ *
+ * This helper makes any successful scrape an authoritative source for the
+ * website: if you pasted a URL and the fetch worked, that IS the website.
+ *
+ * SAFETY: blanks-only. If brief_payload already has a website under ANY of
+ * the historical keys, this is a no-op — we don't overwrite a hand-curated
+ * value. Returns true if the brief was updated, false otherwise.
+ */
+export async function stampWebsiteOnBrief(
+  tenantId: string,
+  clientId: number | null | undefined,
+  rawUrl: string | null | undefined,
+  opts: { changedBy?: string | null; source?: string } = {}
+): Promise<boolean> {
+  if (!clientId) return false;
+  const url = normalizeWebsiteUrl(rawUrl);
+  if (!url) return false;
+  try {
+    const brief = ((await getBriefPayload(tenantId, clientId)) ?? {}) as Record<string, unknown>;
+    // If any historical key is already set, don't overwrite. The brief wins.
+    if (pickWebsiteFromBrief(brief)) return false;
+    const merged = { ...brief, website_url: url };
+    const ok = await saveBriefPayload(tenantId, clientId, merged, {
+      changedBy: opts.changedBy ?? null,
+      source: opts.source ?? 'website_resolver'
+    });
+    return !!ok;
+  } catch {
+    return false;
   }
 }
