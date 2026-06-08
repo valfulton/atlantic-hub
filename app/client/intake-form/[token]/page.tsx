@@ -87,8 +87,12 @@ export default async function PublicIntakeFormPage({ params }: { params: { token
     }
     return null;
   }
+  // (val 2026-06-07) Canonical intake key is 'company' (see lib/client/intake_fields.ts),
+  // NOT companyName/company_name — those were never written. Same family as
+  // the CBB/Central naming issue: prefer the COMPANY name from intake first
+  // because the operator label can be a person (Chip Zenke → Circa Energy).
   let brandName =
-    pickFromInitial('companyName', 'company_name', 'business_name', 'brandName', 'brand_name')
+    pickFromInitial('company', 'companyName', 'company_name', 'business_name', 'brandName', 'brand_name', 'business')
     || 'your business';
   if (brandName === 'your business') {
     try {

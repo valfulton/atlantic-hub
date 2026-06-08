@@ -49,7 +49,20 @@ export default async function ClientIntakePage() {
     }
   }
 
-  const brandName = user.display_name?.trim() || 'your business';
+  // (val 2026-06-07) Prefer COMPANY name from intake first — display_name is
+  // the signed-in person, not their brand. We want "Let's make Circa Energy
+  // shine", not "Let's make Chip Zenke shine".
+  function pickFromInitial(...keys: string[]): string | null {
+    for (const k of keys) {
+      const v = (initial as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return null;
+  }
+  const brandName =
+    pickFromInitial('company', 'companyName', 'company_name', 'business_name', 'brandName', 'brand_name', 'business')
+    || user.display_name?.trim()
+    || 'your business';
   const copy = await getCopyMap(['intake.eyebrow', 'intake.h1', 'intake.lede'], { clientId: clientId ?? undefined });
 
   return (

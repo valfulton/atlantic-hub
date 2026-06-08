@@ -64,7 +64,23 @@ export default async function ClientIntakePreview({ params }: { params: { client
     initial = {};
   }
 
-  const brandName = member?.display_name?.trim() || clientName;
+  // (val 2026-06-07) Prefer the COMPANY name from intake first — display_name is
+  // the contact person (e.g. 'Chip Zenke') and clientName can be the operator
+  // label which is often a person too. We want "Let's make Circa Energy shine",
+  // not "Let's make Chip Zenke shine". Same fix pattern as the CBB/Central
+  // resolver, applied across every brandName surface.
+  function pickFromInitial(...keys: string[]): string | null {
+    for (const k of keys) {
+      const v = (initial as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return null;
+  }
+  const brandName =
+    pickFromInitial('company', 'companyName', 'company_name', 'business_name', 'brandName', 'brand_name', 'business')
+    || clientName
+    || member?.display_name?.trim()
+    || 'your business';
 
   return (
     <div>
