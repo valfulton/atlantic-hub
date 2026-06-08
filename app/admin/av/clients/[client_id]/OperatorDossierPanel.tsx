@@ -182,6 +182,14 @@ export default function OperatorDossierPanel({
       };
     }>;
     flagsAdded: number;
+    // (#535b) What brief fields the sweep read — surfaces empty fields fast.
+    briefSnapshot?: {
+      company: string | null;
+      contact_name: string | null;
+      business_state: string | null;
+      address_state: string | null;
+      state: string | null;
+    };
   } | null>(null);
   // (#525) DD Report state
   const [ddReport, setDdReport] = useState<{
@@ -725,6 +733,22 @@ ${markdownToBasicHtml(ddReport.markdown)}
             <div className="text-[10.5px] uppercase tracking-[0.14em] text-rose-300/90 mb-1">
               Sweep ran · {kycReport.flagsAdded} flag{kycReport.flagsAdded === 1 ? '' : 's'} added
             </div>
+            {/* (#535b) Brief snapshot — surfaces empty fields fast. */}
+            {kycReport.briefSnapshot && (
+              <div className="mb-1.5 text-[10.5px] text-white/55 leading-snug">
+                Read from brief:{' '}
+                <span className={kycReport.briefSnapshot.company ? 'text-white/75' : 'text-amber-300/80'}>
+                  company={kycReport.briefSnapshot.company ? `"${kycReport.briefSnapshot.company}"` : 'EMPTY ⚠️'}
+                </span>
+                {' · '}
+                <span className={kycReport.briefSnapshot.contact_name ? 'text-white/75' : 'text-amber-300/80'}>
+                  contact_name={kycReport.briefSnapshot.contact_name ? `"${kycReport.briefSnapshot.contact_name}"` : 'EMPTY ⚠️'}
+                </span>
+                {(kycReport.briefSnapshot.business_state || kycReport.briefSnapshot.state) && (
+                  <> · state="{kycReport.briefSnapshot.business_state ?? kycReport.briefSnapshot.state}"</>
+                )}
+              </div>
+            )}
             <ul className="space-y-1.5 text-white/75">
               {kycReport.steps.map((s, i) => (
                 <li key={i}>

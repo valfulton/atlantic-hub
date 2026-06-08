@@ -112,6 +112,16 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     }, { status: 400 });
   }
 
+  // (#535b) Brief snapshot: what we actually pulled from the brief to drive
+  // the sweep. Surfaced in the UI so val can spot empty fields immediately.
+  const briefSnapshot = {
+    company: company || null,
+    contact_name: contactName || null,
+    business_state: typeof brief?.business_state === 'string' ? brief.business_state : null,
+    address_state: typeof brief?.address_state === 'string' ? brief.address_state : null,
+    state: typeof brief?.state === 'string' ? brief.state : null
+  };
+
   const steps: StepResult[] = [];
   const newFlags: ReturnType<typeof newRedFlagId> extends string ? Array<{
     id: string;
@@ -388,6 +398,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
     ok: true,
     sweptAt: fetchedAt,
     steps,
-    flagsAdded: newFlags.length
+    flagsAdded: newFlags.length,
+    briefSnapshot
   });
 }
