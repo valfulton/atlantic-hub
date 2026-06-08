@@ -14,6 +14,7 @@
  * One pass per page render. Calls run in parallel via Promise.all where possible.
  */
 import { getAvDb } from '@/lib/db/av';
+import { INTAKE_KEYS } from '@/lib/client/intake_fields';
 import type { RowDataPacket } from 'mysql2';
 
 export type StageStatus = 'done' | 'inProgress' | 'notStarted';
@@ -78,29 +79,29 @@ async function safeOne<T extends RowDataPacket>(sql: string, params: unknown[] =
 /**
  * Count "substantively populated" fields in the brief payload.
  * A field counts if it's a non-empty string, a non-zero number, or a non-empty array.
- * Same logic the intake form's "X of 51 answered" indicator uses; mirrored here so
- * the strip and the form agree.
+ *
+ * (val 2026-06-07) MAJOR FIX. Previously this function counted against a
+ * hardcoded list of 51 camelCase keys (`companyName`, `companyDescription`,
+ * `whyAdvertise`, ...) — keys the intake form NEVER WRITES. The intake form
+ * uses canonical snake_case keys (`company`, `business_description`,
+ * `why_advertise`, `ideal_client`) defined in lib/client/intake_fields.ts.
+ *
+ * So every client looked '0/51' even with a fully populated intake, because
+ * the counter was reading from a fictional key set that no part of the system
+ * ever populated. NewClientForm wrote `company` → counter looked for
+ * `companyName` → reported 0. Multi-page scrape wrote 11 fields → counter
+ * found only the 2 that happened to match (industry, brand_voice). That's
+ * why val saw '2/51' after applying 11 suggestions — the data WAS saved,
+ * the counter was just reading the wrong column names.
+ *
+ * Fix: import INTAKE_KEYS from intake_fields and count against the actual
+ * canonical key list. Total auto-updates when fields are added (e.g. the
+ * 6 KPI fields added in commit f25d747 → total goes 51 → 57).
  */
 function countFilledBriefFields(payload: Record<string, unknown> | null): { filled: number; total: number } {
-  // The canonical brief has ~51 keys today; we count generously so the chip
-  // moves green at "mostly done" rather than 100% complete.
-  const CANONICAL_KEYS = [
-    'companyName', 'companyDescription', 'website', 'industry', 'companySize',
-    'oneLiner', 'tagline', 'hasLogo', 'logoChangeNotes', 'traditionalOrModern',
-    'friendlyOrCorporate', 'highEndOrCost', 'brandColors', 'brandVoice', 'brandAesthetic',
-    'brandTypography', 'logoUrl', 'whoIsCustomer', 'idealCustomerNotes', 'whyAdvertise',
-    'whatAccomplish', 'singleMessage', 'supportingProof', 'customerInsights',
-    'currentChallenges', 'currentMarketing', 'whatsWorking', 'whatsNot', 'budgetMonthly',
-    'services', 'pricing', 'caseStudies', 'testimonials', 'pressMentions',
-    'competitors', 'differentiators', 'objections', 'guarantees',
-    'targetIndustries', 'targetTitles', 'targetGeographies', 'excludedIndustries',
-    'audiencePsychographics', 'audienceJobs', 'audiencePains',
-    'preferredChannels', 'callToAction', 'leadDestination',
-    'salesCycle', 'dealSize', 'currentRevenue'
-  ];
   let filled = 0;
   if (payload) {
-    for (const k of CANONICAL_KEYS) {
+    for (const k of INTAKE_KEYS) {
       const v = (payload as Record<string, unknown>)[k];
       if (v == null) continue;
       if (typeof v === 'string' && v.trim().length > 0) filled += 1;
@@ -109,7 +110,7 @@ function countFilledBriefFields(payload: Record<string, unknown> | null): { fill
       else if (typeof v === 'object' && v && Object.keys(v as object).length > 0) filled += 1;
     }
   }
-  return { filled, total: CANONICAL_KEYS.length };
+  return { filled, total: INTAKE_KEYS.length };
 }
 
 export async function loadOnboardingStatus(clientId: number): Promise<OnboardingStatus> {
