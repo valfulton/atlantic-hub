@@ -569,7 +569,7 @@ export async function auditWebsite(args: {
         `HOMEPAGE: ${args.homepageUrl}\nPAGE_HEALTH:\n  ${healthLine}\n\nBLENDED_PAGE_TEXT:\n${args.blendedText}`,
       cacheKeyExtras: [
         args.homepageUrl,
-        'website_audit_v2',
+        'website_audit_v3',
         args.industryHint ?? '',
         systemPrompt.slice(0, 200)
       ],

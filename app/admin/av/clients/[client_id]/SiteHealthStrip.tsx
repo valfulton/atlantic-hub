@@ -102,7 +102,7 @@ export default function SiteHealthStrip({
           <span>· {relTime(lastAuditAt)}</span>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
         {AUDIT_AXES.map((axis) => {
           const v = scores[axis];
           return (

@@ -370,10 +370,37 @@ export default function FillIntakeFromWebPanel({
                       card so it can't be missed. */}
                   {!isBlank && (
                     <div className="mb-2 rounded-md border border-rose-400/30 bg-rose-500/[0.12] px-2.5 py-2">
-                      <div className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.14em] text-rose-200/80 mb-1 font-medium">
-                        <span>Currently</span>
-                        <span className="text-rose-200/50">→</span>
-                        <span className="text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">replaced with the value below</span>
+                      <div className="flex items-center justify-between gap-2 flex-wrap text-[9.5px] uppercase tracking-[0.14em] text-rose-200/80 mb-1 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <span>Currently</span>
+                          <span className="text-rose-200/50">→</span>
+                          <span className="text-[color-mix(in_srgb,var(--gold-bright)_85%,transparent)]">replaced with the value below</span>
+                        </div>
+                        {/* (#515, val 2026-06-08) One-click merge — appends the
+                            current value into the new-value textarea so val can
+                            keep both phrases and edit the combined result before
+                            saving. Solves the "OPHORA Water has 4 patents on
+                            oxygenating water" + "We help health-conscious consumers
+                            achieve optimal hydration" dilemma where both phrases
+                            are valuable for the ICP. */}
+                        {currentValue && (
+                          <button
+                            type="button"
+                            onClick={() => setEdits((p) => {
+                              const cur = (currentValue || '').trim();
+                              const incoming = (p[k] ?? '').trim();
+                              if (!cur) return p;
+                              const merged = incoming
+                                ? `${cur}\n\n${incoming}`
+                                : cur;
+                              return { ...p, [k]: merged };
+                            })}
+                            className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] tracking-wider text-emerald-200/95 hover:bg-emerald-500/20 transition normal-case"
+                            title="Prepends the current value above the new one in the editable box below — combine, edit, then save."
+                          >
+                            ← Keep current + add this
+                          </button>
+                        )}
                       </div>
                       {currentValue ? (
                         <div className="text-[11.5px] text-rose-100/85 leading-snug whitespace-pre-wrap break-words line-through decoration-rose-300/60">
@@ -386,11 +413,16 @@ export default function FillIntakeFromWebPanel({
                       )}
                     </div>
                   )}
+                  {/* (#515) Hint that the textarea is editable — val didn't realize
+                      she could type into it directly to merge / rephrase. */}
+                  <div className="text-[10px] text-white/40 italic mb-1 leading-tight">
+                    Type to edit before saving. Combine, rephrase, or move text to a different field — operator wins, always.
+                  </div>
                   <textarea
                     value={edits[k] ?? ''}
                     onChange={(e) => setEdits((p) => ({ ...p, [k]: e.target.value }))}
-                    rows={Math.min(4, Math.max(1, Math.ceil((edits[k] || '').length / 70)))}
-                    className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)]"
+                    rows={Math.min(6, Math.max(2, Math.ceil((edits[k] || '').length / 70)))}
+                    className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-[12px] text-white/90 placeholder-white/30 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_35%,transparent)] resize-y"
                   />
                 </li>
               );
@@ -413,8 +445,8 @@ export default function FillIntakeFromWebPanel({
               }
             >
               {busy === 'applying'
-                ? 'Saving…'
-                : `✓ Save ${pickedCount} field${pickedCount === 1 ? '' : 's'} to intake`}
+                ? 'Applying…'
+                : `✓ Apply ${pickedCount} field${pickedCount === 1 ? '' : 's'} to intake`}
             </button>
             <button
               onClick={discard}

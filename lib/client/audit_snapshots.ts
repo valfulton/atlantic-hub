@@ -24,7 +24,12 @@ export const AUDIT_AXES = [
   'contact',
   'trust',
   'seo',
-  'industry_fit'
+  'industry_fit',
+  // (#515) Two operator-requested axes — pricing transparency and conversion
+  // path. The audit prompt scores them; parser picks them up automatically.
+  // Old audits without these axes will show "—" for these cells until re-run.
+  'pricing_transparency',
+  'conversion_path'
 ] as const;
 export type AuditAxis = (typeof AUDIT_AXES)[number];
 
@@ -36,7 +41,9 @@ export const AXIS_LABEL: Record<AuditAxis, string> = {
   contact: 'Contact clarity',
   trust: 'Trust signals',
   seo: 'SEO basics',
-  industry_fit: 'Industry fit'
+  industry_fit: 'Industry fit',
+  pricing_transparency: 'Pricing visibility',
+  conversion_path: 'Conversion path'
 };
 
 /** A row in the verdict table looks like:
@@ -50,7 +57,9 @@ const AXIS_ROW_PATTERNS: Record<AuditAxis, RegExp[]> = {
   contact: [/contact\s*clarity/i, /contact/i],
   trust: [/trust\s*signals?/i, /credentials/i],
   seo: [/seo\s*basics?/i, /\bseo\b/i],
-  industry_fit: [/industry\s*fit/i, /industry\s*norms?/i, /vertical\s*fit/i]
+  industry_fit: [/industry\s*fit/i, /industry\s*norms?/i, /vertical\s*fit/i],
+  pricing_transparency: [/pricing\s*(transparency|visibility|clarity)/i, /\bpricing\b/i],
+  conversion_path: [/conversion\s*path/i, /conversion\s*flow/i, /funnel/i]
 };
 
 // Strict "5/10" form — preferred when the prompt produces it.
@@ -91,6 +100,8 @@ export interface AuditScores {
   trust: number | null;
   seo: number | null;
   industry_fit: number | null;
+  pricing_transparency: number | null;
+  conversion_path: number | null;
   /** Average of non-null axes, rounded to 1 decimal. Null when nothing parsed. */
   overall_avg: number | null;
 }
@@ -103,6 +114,8 @@ const EMPTY_SCORES: AuditScores = {
   trust: null,
   seo: null,
   industry_fit: null,
+  pricing_transparency: null,
+  conversion_path: null,
   overall_avg: null
 };
 

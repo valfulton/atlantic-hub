@@ -326,7 +326,7 @@ export default function BrandKitPanel({
                   : 'bg-[var(--gold-bright)] text-black hover:brightness-110 hover:shadow-[0_0_22px_color-mix(in_srgb,var(--gold-bright)_45%,transparent)]')
               }
             >
-              {busy === 'applying' ? 'Saving…' : '✓ Save brand kit to brief'}
+              {busy === 'applying' ? 'Applying…' : '✓ Apply brand kit to brief'}
             </button>
             <button
               onClick={discard}
