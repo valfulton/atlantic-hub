@@ -108,6 +108,17 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
     }
 
+    // (#511) Mark "intake link sent" so the onboarding badge reflects reality.
+    // Setting on any regenerate (send=true OR copy-to-clipboard) — both mean
+    // val intends to share, otherwise she wouldn't have hit this endpoint.
+    // Non-fatal if the column doesn't exist (schema 078 pending).
+    try {
+      await db.execute(
+        `UPDATE client_users SET intake_link_sent_at = NOW() WHERE client_user_id = ?`,
+        [user.client_user_id]
+      );
+    } catch { /* non-fatal */ }
+
     return NextResponse.json({
       ok: true,
       link,

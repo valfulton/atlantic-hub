@@ -65,12 +65,23 @@ const STATUS_TONE: Record<Status, string> = {
   error: 'text-danger'
 };
 
+// (#510, val 2026-06-08) Status labels rewritten in OPERATOR voice — the
+// previous "Confirmed by client" was a lie since operator marks set this state.
+// Real client-confirmation requires a separate intake action (future bundle).
 const STATUS_LABEL: Record<Status, string> = {
-  suggested: 'Awaiting confirmation',
-  confirmed: 'Confirmed by client',
+  suggested: 'Found · needs verifying',
+  confirmed: 'Operator-vetted · awaiting client',
   connected: 'Connected · ready to post',
-  rejected: 'Marked "not me"',
+  rejected: 'Marked "doesn\'t match"',
   error: 'Needs attention'
+};
+
+// (#510) Source labels so val can tell at a glance how each row got here.
+const SOURCE_LABEL: Record<SocialTarget['source'], string> = {
+  val_intake: 'Added by operator',
+  client_intake: 'Confirmed by client',
+  scraper: 'Found by scraper',
+  manual_add: 'Added by hand'
 };
 
 export default function SocialChannelsPanel({
@@ -203,7 +214,8 @@ export default function SocialChannelsPanel({
         <div>
           <div className="text-[11px] uppercase tracking-[0.12em] text-muted">Social channels</div>
           <div className="text-sm text-ink mt-0.5">
-            Drop the URLs you have for this brand. The client confirms in their intake.
+            URLs the scraper found, you added, or the client confirmed. Operator-vetting saves
+            your sanity check; final &ldquo;is this me&rdquo; comes from the client in their intake.
           </div>
         </div>
         <div className="text-[10px] uppercase tracking-[0.14em] text-muted">
@@ -212,10 +224,13 @@ export default function SocialChannelsPanel({
       </div>
 
       <div className="grid gap-2 mb-3">
+        <div className="text-[10px] uppercase tracking-[0.12em] text-muted -mb-1">
+          Add a URL by hand
+        </div>
         <textarea
           value={paste}
           onChange={(e) => setPaste(e.target.value)}
-          placeholder={'One URL per line — LinkedIn / Facebook / Instagram / X / TikTok / YouTube. Personal and company pages both supported.'}
+          placeholder={'Paste any social URLs you have (one per line, commas OK) — LinkedIn / Facebook / Instagram / X / TikTok / YouTube. Personal and company pages both supported.'}
           rows={4}
           className="w-full rounded-lg border border-border bg-black/30 px-3 py-2 text-xs text-ink placeholder-muted/50 italic focus:outline-none focus:border-brand focus:placeholder-muted/30 focus:not-italic font-sans"
           disabled={busy}
@@ -230,7 +245,7 @@ export default function SocialChannelsPanel({
             disabled={busy || !paste.trim()}
             className="shrink-0 rounded-lg border border-border bg-brand text-black font-medium text-sm px-4 py-2 disabled:opacity-50"
           >
-            {busy ? 'Saving…' : 'Save URLs'}
+            {busy ? 'Saving…' : 'Add to brand'}
           </button>
         </div>
 
@@ -270,6 +285,25 @@ export default function SocialChannelsPanel({
           Nothing saved yet for this brand. Paste URLs above, or click &ldquo;Pull from website&rdquo; to let the scraper find them.
         </div>
       )}
+
+      {targets && targets.length > 0 && (() => {
+        const operatorVetted = targets.filter((t) => t.status === 'confirmed' || t.status === 'connected').length;
+        const awaiting = targets.filter((t) => t.status === 'suggested').length;
+        const clientConfirmed = targets.filter((t) => t.source === 'client_intake').length;
+        if (operatorVetted + awaiting + clientConfirmed === 0) return null;
+        return (
+          <div className="rounded-md border border-border bg-black/15 px-3 py-2 mb-3 text-[11px] text-muted flex items-center justify-between gap-3 flex-wrap">
+            <span>
+              <span className="text-ink">{operatorVetted}</span> operator-vetted
+              {awaiting > 0 && <> · <span className="text-amber-300/85">{awaiting}</span> awaiting your verify</>}
+              {clientConfirmed > 0 && <> · <span className="text-emerald-300">{clientConfirmed}</span> client-confirmed</>}
+            </span>
+            <span className="text-muted/80 italic">
+              Client confirms in their intake — share the prefilled intake link above.
+            </span>
+          </div>
+        );
+      })()}
 
       {targets && targets.length > 0 && (
         <div className="grid gap-4 border-t border-border pt-3">
@@ -316,20 +350,25 @@ export default function SocialChannelsPanel({
                       </a>
                       <div className={`text-[11px] mt-1 ${STATUS_TONE[t.status]}`}>
                         {STATUS_LABEL[t.status]}
+                        <span className="text-muted/80"> · {SOURCE_LABEL[t.source]}</span>
                         {t.lastError ? ` — ${t.lastError}` : ''}
                       </div>
                     </div>
 
-                    {/* Actions */}
+                    {/* Actions — operator voice (#510). 'Confirm' was misleading
+                        because operator can't confirm "this is me" on behalf of
+                        the client; only the client can. So operator marks
+                        operator-vetted (URL is real + correct), then the client
+                        does the final claim in their intake. */}
                     <div className="shrink-0 flex flex-col gap-1">
                       {t.status !== 'confirmed' && t.status !== 'connected' && (
                         <button
                           type="button"
                           onClick={() => act(t.id, 'confirm')}
                           className="text-[11px] rounded border border-border bg-black/30 hover:bg-white/5 px-2 py-1 text-ink"
-                          title="Mark confirmed (operator override; client will still see it in their intake)"
+                          title="Operator-vetted: this URL goes with this brand. Client still confirms 'is this me' in their intake."
                         >
-                          Confirm
+                          Looks right
                         </button>
                       )}
                       {t.status !== 'rejected' && (
@@ -337,8 +376,9 @@ export default function SocialChannelsPanel({
                           type="button"
                           onClick={() => act(t.id, 'reject')}
                           className="text-[11px] rounded border border-border bg-black/30 hover:bg-white/5 px-2 py-1 text-muted"
+                          title="This URL doesn't belong to this brand."
                         >
-                          Not me
+                          Doesn&apos;t match
                         </button>
                       )}
                       <button

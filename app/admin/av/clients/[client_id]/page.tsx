@@ -24,6 +24,8 @@ import PrInboxPanel from './PrInboxPanel';
 import PrVoicePicker from './PrVoicePicker';
 import FillIntakeFromWebPanel from './FillIntakeFromWebPanel';
 import BrandKitPanel from './BrandKitPanel';
+import SiteHealthStrip from './SiteHealthStrip';
+import { getLatestSnapshot } from '@/lib/client/audit_snapshots';
 import SocialChannelsPanel from './SocialChannelsPanel';
 import OwnerIntakeLink from './OwnerIntakeLink';
 import SendPasswordButton from './SendPasswordButton';
@@ -125,6 +127,9 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // (#347 + #355) Stage strip + per-action statuses — "lights turning on" view.
   // Single batched read; tolerant of missing tables (returns notStarted).
   const onboarding = await loadOnboardingStatus(clientId);
+  // (#512) Latest website-audit snapshot powers the Site Health KPI strip.
+  // Null when no scrape has ever run — strip auto-hides in that case.
+  const siteSnapshot = await getLatestSnapshot(clientId);
 
   // (#45 Phase B) If the primary client_user attached to this brand also owns
   // OTHER brands, surface the all-brands intake link so val can send ONE URL
@@ -383,6 +388,18 @@ export default async function ClientDetailPage({ params }: { params: { client_id
         }
       />
       </MobileAccordion>
+
+      {/* (#512) Site Health KPI strip — last audit's 7-axis scores at a glance.
+          Auto-hides until the first scrape runs. Anchor #site-health is linked
+          from the audit's Re-audit button. */}
+      <SiteHealthStrip
+        scores={siteSnapshot?.scores ?? null}
+        lastAuditAt={siteSnapshot?.created_at ?? null}
+        homepageUrl={siteSnapshot?.homepage_url ?? null}
+        industryHint={siteSnapshot?.industry_hint ?? null}
+        pagesReached={siteSnapshot?.pages_reached ?? null}
+        pagesFlagged={siteSnapshot?.pages_flagged ?? null}
+      />
 
       {/* (#235) Fill intake from public web — paste their site, get suggested
           intake fields drafted from the page. Eliminates the SQL-paste

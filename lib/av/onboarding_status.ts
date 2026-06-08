@@ -138,10 +138,17 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       password_hash: string | null;
       magic_token: string | null;
       magic_token_expires_at: Date | null;
+      intake_link_sent_at: Date | null;
+      last_login_at: Date | null;
       created_at: Date | null;
       updated_at: Date | null;
     }>(
-      `SELECT client_user_id, password_hash, magic_token, magic_token_expires_at, created_at, updated_at
+      // (#511) intake_link_sent_at lights up the badge ONLY after val actually
+      // sent the access link (send-password or magic-link endpoints set it).
+      // Auto-generated magic_token at create-time no longer counts as "sent".
+      // Wrapped in COALESCE so the query keeps working before schema 078 applies.
+      `SELECT client_user_id, password_hash, magic_token, magic_token_expires_at,
+              intake_link_sent_at, last_login_at, created_at, updated_at
          FROM client_users WHERE client_id = ? ORDER BY client_user_id ASC LIMIT 1`,
       [clientId]
     ),
@@ -262,14 +269,38 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       status: 'done',
       anchor: 'account'
     },
-    {
-      id: 2,
-      key: 'intake_sent',
-      label: 'Intake sent',
-      status: userRow ? 'done' : 'notStarted',
-      detail: userRow?.magic_token ? 'magic link live' : (userRow ? 'login ready' : undefined),
-      anchor: 'access-group'
-    },
+    (() => {
+      // (#511) Step 2 must reflect ACTUAL send, not just the presence of an
+      // auto-generated magic_token. 'done' requires either an explicit send
+      // (intake_link_sent_at, set by send-password / magic-link endpoints) OR
+      // the client has already signed in once (last_login_at). 'inProgress'
+      // covers the in-between state where a user row exists but val hasn't
+      // shared the link with the client yet.
+      const sentAt = userRow?.intake_link_sent_at ?? null;
+      const loggedAt = userRow?.last_login_at ?? null;
+      let stat: StageStatus = 'notStarted';
+      let detail: string | undefined;
+      if (!userRow) {
+        stat = 'notStarted';
+      } else if (loggedAt) {
+        stat = 'done';
+        detail = 'client has signed in';
+      } else if (sentAt) {
+        stat = 'done';
+        detail = 'link sent · awaiting first sign-in';
+      } else {
+        stat = 'inProgress';
+        detail = 'login ready · not yet shared';
+      }
+      return {
+        id: 2,
+        key: 'intake_sent',
+        label: 'Intake sent',
+        status: stat,
+        detail,
+        anchor: 'access-group'
+      } as StageState;
+    })(),
     {
       id: 3,
       key: 'intake_filled',

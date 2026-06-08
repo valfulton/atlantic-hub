@@ -163,6 +163,17 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
       }
     }
 
+    // (#511) Mark "intake link sent" so the onboarding badge reflects reality.
+    // We set this on any explicit send attempt (even shouldSend=false counts
+    // as "val knows the password and is about to share it manually"). Wrapped
+    // in try so missing column (schema 078 not yet applied) doesn't 500.
+    try {
+      await db.execute(
+        `UPDATE client_users SET intake_link_sent_at = NOW() WHERE client_user_id = ?`,
+        [user.client_user_id]
+      );
+    } catch { /* column may not exist yet; non-fatal */ }
+
     // plaintext returned ONCE for val to copy. Never logged anywhere.
     return NextResponse.json({
       ok: true,

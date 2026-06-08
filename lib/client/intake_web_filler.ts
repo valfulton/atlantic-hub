@@ -28,6 +28,7 @@ import { runLlm } from '@/lib/llm/router';
 import { getSystemPrompt } from '@/lib/ai/prompt_registry';
 import { INTAKE_KEYS, INTAKE_GROUPS } from '@/lib/client/intake_fields';
 import { getBriefPayload } from '@/lib/client/brief_store';
+import { insertAuditSnapshot } from '@/lib/client/audit_snapshots';
 import { logEvent } from '@/lib/events/log';
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -772,6 +773,22 @@ export async function suggestIntakeFromSite(args: {
       page_health_summary: pageHealth.map((p) => ({ url: p.url, health: p.health, chars: p.textChars }))
     }
   });
+
+  // (#512) Persist a snapshot of the audit + parsed scores so the operator
+  // client page can render a KPI strip and the cross-client roll-up can
+  // surface weakest sites. Non-fatal: insert returns null on any DB error.
+  if (websiteNotes && websiteNotes.length > 100) {
+    void insertAuditSnapshot({
+      clientId: args.clientId ?? null,
+      homepageUrl: home.finalUrl,
+      industryHint,
+      auditMarkdown: websiteNotes,
+      pagesReached: pageHealth.length,
+      pagesFlagged: pageHealth.filter((p) => p.health !== 'ok').length,
+      discoveryMode,
+      costMicrocents: completion.costMicrocents
+    });
+  }
 
   return {
     suggestions,
