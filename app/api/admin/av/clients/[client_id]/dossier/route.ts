@@ -20,13 +20,16 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { getDossier, saveDossier, type RedFlag } from '@/lib/av/client_dossier';
+import { getDossier, saveDossier, type RedFlag, type DossierAddress } from '@/lib/av/client_dossier';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 interface SaveBody {
   personalAddress?: string | null;
+  /** (#524) Full history replacement. The panel sends the updated list after
+   *  an add/remove. Newer entries unshift to position 0. */
+  addressHistory?: DossierAddress[];
   dobYear?: number | null;
   priorEntities?: string | null;
   spouseOrCosignerName?: string | null;
@@ -76,10 +79,32 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   const clamp = (s: string | null | undefined, n: number) =>
     typeof s === 'string' ? s.slice(0, n) : s === null ? null : undefined;
 
+  // (#524) Address history: trust the panel-supplied array but clamp + dedup
+  // before persistence.
+  const cleanHistory = Array.isArray(body.addressHistory)
+    ? body.addressHistory
+        .filter((a): a is DossierAddress =>
+          a != null && typeof a === 'object'
+          && typeof a.id === 'string'
+          && typeof a.address === 'string'
+          && typeof a.source === 'string'
+          && a.address.trim().length > 0)
+        .map((a) => ({
+          id: a.id,
+          address: a.address.slice(0, 500),
+          source: a.source.slice(0, 64),
+          captured_at: typeof a.captured_at === 'string' ? a.captured_at : new Date().toISOString(),
+          label: a.label ? String(a.label).slice(0, 200) : null,
+          notes: a.notes ? String(a.notes).slice(0, 1000) : null
+        }))
+        .slice(0, 50)
+    : undefined;
+
   const ok = await saveDossier(
     clientId,
     {
       personalAddress: clamp(body.personalAddress, 500),
+      addressHistory: cleanHistory,
       dobYear: typeof body.dobYear === 'number' && body.dobYear >= 1900 && body.dobYear <= 2030 ? body.dobYear : (body.dobYear === null ? null : undefined),
       priorEntities: clamp(body.priorEntities, 2000),
       spouseOrCosignerName: clamp(body.spouseOrCosignerName, 200),

@@ -32,9 +32,23 @@ export interface RedFlag {
   dossier_url?: string;
 }
 
+/** (#524) Address learned from any source — manual entry, GA/CA SOS, Apollo
+ *  Places, etc. We APPEND new ones, never overwrite, so val keeps a history
+ *  of where the client has been registered / lived / operated from. */
+export interface DossierAddress {
+  id: string;
+  address: string;
+  source: string;
+  captured_at: string;
+  label?: string | null;
+  notes?: string | null;
+}
+
 export interface ClientDossier {
   clientId: number;
   personalAddress: string | null;
+  /** (#524) Append-only history. New addresses unshift to position 0. */
+  addressHistory: DossierAddress[];
   dobYear: number | null;
   priorEntities: string | null;
   spouseOrCosignerName: string | null;
@@ -48,6 +62,7 @@ export interface ClientDossier {
 const EMPTY_DOSSIER = (clientId: number): ClientDossier => ({
   clientId,
   personalAddress: null,
+  addressHistory: [],
   dobYear: null,
   priorEntities: null,
   spouseOrCosignerName: null,
@@ -61,6 +76,7 @@ const EMPTY_DOSSIER = (clientId: number): ClientDossier => ({
 interface Row extends RowDataPacket {
   client_id: number;
   personal_address: string | null;
+  address_history: unknown;
   dob_year: number | null;
   prior_entities: string | null;
   spouse_or_cosigner_name: string | null;
@@ -88,13 +104,30 @@ function parseRedFlags(raw: unknown): RedFlag[] {
   });
 }
 
+function parseAddressHistory(raw: unknown): DossierAddress[] {
+  if (!raw) return [];
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try { parsed = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((x): x is DossierAddress => {
+    return (
+      x != null && typeof x === 'object'
+      && typeof (x as DossierAddress).id === 'string'
+      && typeof (x as DossierAddress).address === 'string'
+      && typeof (x as DossierAddress).source === 'string'
+    );
+  });
+}
+
 export async function getDossier(clientId: number): Promise<ClientDossier> {
   if (!Number.isFinite(clientId) || clientId <= 0) return EMPTY_DOSSIER(clientId);
   try {
     const db = getAvDb();
     const [rows] = await db.execute<Row[]>(
-      `SELECT client_id, personal_address, dob_year, prior_entities,
-              spouse_or_cosigner_name, notes_md, red_flags_json,
+      `SELECT client_id, personal_address, address_history, dob_year,
+              prior_entities, spouse_or_cosigner_name, notes_md, red_flags_json,
               last_screened_at, updated_by, updated_at
          FROM client_dossier
         WHERE client_id = ? LIMIT 1`,
@@ -105,6 +138,7 @@ export async function getDossier(clientId: number): Promise<ClientDossier> {
     return {
       clientId,
       personalAddress: r.personal_address,
+      addressHistory: parseAddressHistory(r.address_history),
       dobYear: r.dob_year,
       priorEntities: r.prior_entities,
       spouseOrCosignerName: r.spouse_or_cosigner_name,
@@ -122,6 +156,10 @@ export async function getDossier(clientId: number): Promise<ClientDossier> {
 
 export interface DossierPatch {
   personalAddress?: string | null;
+  /** (#524) Full replacement of address history. Use appendAddress for the
+   *  common "I just learned a new address, add it" case so callers don't have
+   *  to re-fetch + merge themselves. */
+  addressHistory?: DossierAddress[];
   dobYear?: number | null;
   priorEntities?: string | null;
   spouseOrCosignerName?: string | null;
@@ -145,6 +183,7 @@ export async function saveDossier(
     const next: ClientDossier = {
       ...current,
       personalAddress: patch.personalAddress !== undefined ? patch.personalAddress : current.personalAddress,
+      addressHistory: patch.addressHistory !== undefined ? patch.addressHistory : current.addressHistory,
       dobYear: patch.dobYear !== undefined ? patch.dobYear : current.dobYear,
       priorEntities: patch.priorEntities !== undefined ? patch.priorEntities : current.priorEntities,
       spouseOrCosignerName: patch.spouseOrCosignerName !== undefined ? patch.spouseOrCosignerName : current.spouseOrCosignerName,
@@ -153,12 +192,13 @@ export async function saveDossier(
     };
     await db.execute<ResultSetHeader>(
       `INSERT INTO client_dossier
-         (client_id, personal_address, dob_year, prior_entities,
+         (client_id, personal_address, address_history, dob_year, prior_entities,
           spouse_or_cosigner_name, notes_md, red_flags_json,
           last_screened_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON), ${patch.lastScreenedAtNow ? 'NOW()' : '?'}, ?)
+       VALUES (?, ?, CAST(? AS JSON), ?, ?, ?, ?, CAST(? AS JSON), ${patch.lastScreenedAtNow ? 'NOW()' : '?'}, ?)
        ON DUPLICATE KEY UPDATE
          personal_address = VALUES(personal_address),
+         address_history = VALUES(address_history),
          dob_year = VALUES(dob_year),
          prior_entities = VALUES(prior_entities),
          spouse_or_cosigner_name = VALUES(spouse_or_cosigner_name),
@@ -170,6 +210,7 @@ export async function saveDossier(
         ? [
             clientId,
             next.personalAddress,
+            JSON.stringify(next.addressHistory ?? []),
             next.dobYear,
             next.priorEntities,
             next.spouseOrCosignerName,
@@ -180,6 +221,7 @@ export async function saveDossier(
         : [
             clientId,
             next.personalAddress,
+            JSON.stringify(next.addressHistory ?? []),
             next.dobYear,
             next.priorEntities,
             next.spouseOrCosignerName,
@@ -194,6 +236,66 @@ export async function saveDossier(
     console.error('[client_dossier:save]', (err as Error).message);
     return false;
   }
+}
+
+/**
+ * (#524, val 2026-06-08) Append a newly-learned address to the dossier's
+ * address history. Server-side helper for adapters (GA SOS, CA SOS, Apollo,
+ * Google Places, etc.) that learn an address and want to preserve it without
+ * clobbering history.
+ *
+ * Dedup: if the same address from the same source already exists, no-op.
+ * Otherwise prepend to position 0. Also mirrors to personal_address so the
+ * single-field surfaces (intake-fill, prompts) still see something.
+ *
+ * Returns the new address entry on success, null if it was a dedup hit / error.
+ */
+export async function appendDossierAddress(
+  clientId: number,
+  args: {
+    address: string;
+    source: string;
+    label?: string | null;
+    notes?: string | null;
+  },
+  opts: { updatedBy?: string | null } = {}
+): Promise<DossierAddress | null> {
+  if (!Number.isFinite(clientId) || clientId <= 0) return null;
+  const cleanAddr = args.address.trim();
+  if (!cleanAddr) return null;
+  try {
+    const current = await getDossier(clientId);
+    // Dedup: address + source already exists?
+    const dup = current.addressHistory.find(
+      (a) => a.address.trim().toLowerCase() === cleanAddr.toLowerCase()
+          && a.source === args.source
+    );
+    if (dup) return null;
+    const newEntry: DossierAddress = {
+      id: newAddressId(),
+      address: cleanAddr.slice(0, 500),
+      source: args.source,
+      captured_at: new Date().toISOString(),
+      label: args.label ?? null,
+      notes: args.notes ?? null
+    };
+    const nextHistory = [newEntry, ...current.addressHistory].slice(0, 50);
+    const ok = await saveDossier(clientId, {
+      addressHistory: nextHistory,
+      // Keep personal_address mirrored to the latest known so legacy readers
+      // (intake-fill, prompts that read brief.personal_address) see something.
+      personalAddress: cleanAddr
+    }, opts);
+    return ok ? newEntry : null;
+  } catch (err) {
+    console.error('[client_dossier:appendAddress]', (err as Error).message);
+    return null;
+  }
+}
+
+/** Generate a short client-side id for an address entry. */
+export function newAddressId(): string {
+  return 'addr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
 /** Generate a short client-side id for a red flag entry. Not a UUID, just

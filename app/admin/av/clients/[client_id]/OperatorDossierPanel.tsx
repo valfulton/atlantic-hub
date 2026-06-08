@@ -21,7 +21,7 @@
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ClientDossier, RedFlag } from '@/lib/av/client_dossier';
+import type { ClientDossier, RedFlag, DossierAddress } from '@/lib/av/client_dossier';
 
 interface Props {
   clientId: number;
@@ -89,7 +89,12 @@ export default function OperatorDossierPanel({
 
   const router = useRouter();
   const [d, setD] = useState<ClientDossier>(initialDossier);
-  const [busy, setBusy] = useState<'idle' | 'saving' | 'patents'>('idle');
+  const [busy, setBusy] = useState<'idle' | 'saving' | 'patents' | 'kyc'>('idle');
+  const [kycReport, setKycReport] = useState<{
+    sweptAt: string;
+    steps: Array<{ source: string; ran: boolean; hits: number; skipReason?: string; flagLabel?: string }>;
+    flagsAdded: number;
+  } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [patentResult, setPatentResult] = useState<PatentLookupResult | null>(null);
@@ -97,6 +102,52 @@ export default function OperatorDossierPanel({
   // Inline add-red-flag form state
   const [newFlagLabel, setNewFlagLabel] = useState('');
   const [newFlagSeverity, setNewFlagSeverity] = useState<RedFlag['severity']>('medium');
+
+  // (#524) Inline add-address form state
+  const [newAddrText, setNewAddrText] = useState('');
+  const [newAddrSource, setNewAddrSource] = useState('manual');
+  const [newAddrLabel, setNewAddrLabel] = useState('');
+
+  function newAddressId(): string {
+    return 'addr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function addAddress() {
+    const text = newAddrText.trim();
+    if (!text) return;
+    // Dedup: same address + source?
+    const exists = d.addressHistory.find(
+      (a) => a.address.trim().toLowerCase() === text.toLowerCase() && a.source === newAddrSource
+    );
+    if (exists) {
+      setErr('That address is already on file from that source.');
+      return;
+    }
+    const next: DossierAddress = {
+      id: newAddressId(),
+      address: text,
+      source: newAddrSource,
+      captured_at: new Date().toISOString(),
+      label: newAddrLabel.trim() || null,
+      notes: null
+    };
+    setD((cur) => ({
+      ...cur,
+      addressHistory: [next, ...cur.addressHistory],
+      // Mirror to personal_address so legacy readers see the latest.
+      personalAddress: text
+    }));
+    setNewAddrText('');
+    setNewAddrLabel('');
+    setErr(null);
+  }
+  function removeAddress(id: string) {
+    setD((cur) => {
+      const filtered = cur.addressHistory.filter((a) => a.id !== id);
+      // If we removed the one mirrored to personalAddress, update the mirror.
+      const newPrimary = filtered[0]?.address ?? null;
+      return { ...cur, addressHistory: filtered, personalAddress: newPrimary };
+    });
+  }
 
   async function save() {
     setBusy('saving');
@@ -108,6 +159,7 @@ export default function OperatorDossierPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           personalAddress: d.personalAddress,
+          addressHistory: d.addressHistory,
           dobYear: d.dobYear,
           priorEntities: d.priorEntities,
           spouseOrCosignerName: d.spouseOrCosignerName,
@@ -143,6 +195,33 @@ export default function OperatorDossierPanel({
 
   function removeRedFlag(id: string) {
     setD((cur) => ({ ...cur, redFlags: cur.redFlags.filter((f) => f.id !== id) }));
+  }
+
+  async function runKycSweep() {
+    setBusy('kyc');
+    setErr(null);
+    setOkMsg(null);
+    setKycReport(null);
+    try {
+      const res = await fetch(`/api/admin/av/clients/${clientId}/dossier/run-kyc-sweep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setKycReport({
+        sweptAt: data.sweptAt,
+        steps: data.steps,
+        flagsAdded: data.flagsAdded
+      });
+      setOkMsg(`KYC sweep ran · ${data.flagsAdded} flag${data.flagsAdded === 1 ? '' : 's'} added`);
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy('idle');
+    }
   }
 
   async function lookupPatents() {
@@ -259,15 +338,84 @@ export default function OperatorDossierPanel({
 
       {/* PII fields */}
       <div className="grid sm:grid-cols-2 gap-3 mb-4">
+        {/* (#524, val 2026-06-08) Address history. Every adapter (GA SOS, CA
+            SOS, Apollo, manual) appends a new entry. Old addresses stay so
+            val can verify identity across time and spot parallel entities. */}
         <div className="sm:col-span-2">
-          <label className={labelCls}>Personal / mailing address</label>
-          <textarea
-            value={d.personalAddress ?? ''}
-            onChange={(e) => setD({ ...d, personalAddress: e.target.value })}
-            rows={2}
-            className={inputCls}
-            placeholder="Home or mailing addr. Operator only — never on the brief, never to the client."
-          />
+          <label className={labelCls}>Addresses ({d.addressHistory.length})</label>
+          {d.addressHistory.length === 0 ? (
+            <div className="text-[11.5px] text-muted italic rounded-md border border-dashed border-white/10 px-2.5 py-2">
+              No addresses on file. Add one below — every adapter that learns an address from now on (GA SOS, CA SOS, Apollo, etc.) will append here automatically.
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {d.addressHistory.map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded-md border border-white/10 bg-black/15 px-2.5 py-1.5 flex items-start justify-between gap-2 text-[12px]"
+                >
+                  <div className="min-w-0">
+                    <div className="text-white/90">{a.address}</div>
+                    <div className="text-[10.5px] opacity-65 mt-0.5 flex flex-wrap gap-1.5 items-center">
+                      <code className="bg-white/5 px-1 py-0.5 rounded text-white/70">{a.source}</code>
+                      {a.label && <span className="text-white/55">· {a.label}</span>}
+                      <span className="text-white/45">· {fmtTs(a.captured_at)}</span>
+                      {a.notes && <span className="text-white/55 italic">· {a.notes}</span>}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAddress(a.id)}
+                    className="shrink-0 text-[10.5px] uppercase tracking-wider opacity-60 hover:opacity-100"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* Inline add-address form */}
+          <div className="mt-2 rounded-md border border-white/10 bg-black/15 p-2 space-y-2">
+            <textarea
+              value={newAddrText}
+              onChange={(e) => setNewAddrText(e.target.value)}
+              rows={2}
+              className={inputCls}
+              placeholder="Add an address (paste from GA SOS, LinkedIn, business card, etc.)"
+            />
+            <div className="flex flex-wrap gap-2 items-center">
+              <select
+                value={newAddrSource}
+                onChange={(e) => setNewAddrSource(e.target.value)}
+                className="rounded-md bg-black/30 border border-white/10 px-2 py-1.5 text-[11.5px] text-white/85"
+                title="Where this address came from"
+              >
+                <option value="manual">manual</option>
+                <option value="ga_sos">ga_sos</option>
+                <option value="ca_sos">ca_sos</option>
+                <option value="apollo">apollo</option>
+                <option value="linkedin">linkedin</option>
+                <option value="google_places">google_places</option>
+                <option value="business_card">business_card</option>
+                <option value="referral">referral</option>
+              </select>
+              <input
+                type="text"
+                value={newAddrLabel}
+                onChange={(e) => setNewAddrLabel(e.target.value)}
+                placeholder="Label (e.g. Principal office, Home)"
+                className={inputCls + ' flex-1 min-w-[160px]'}
+              />
+              <button
+                type="button"
+                onClick={addAddress}
+                disabled={!newAddrText.trim()}
+                className="rounded-md border border-rose-400/40 bg-rose-400/10 hover:bg-rose-400/20 text-rose-200 text-[11.5px] px-3 py-1.5 disabled:opacity-40"
+              >
+                + Add address
+              </button>
+            </div>
+          </div>
         </div>
         <div>
           <label className={labelCls}>Birth year</label>
@@ -329,13 +477,42 @@ export default function OperatorDossierPanel({
         </div>
       </div>
 
-      {/* Screen buttons — patent + trademark */}
+      {/* Screen buttons — KYC sweep (one-click) + individual sources */}
       <div className="border-t border-white/10 pt-3">
         <div className={labelCls}>Run a quick screen</div>
         <div className="text-[11.5px] text-white/65 mb-2">
           Looks at <code className="bg-black/30 px-1 rounded">{briefCompany || '(no company on brief)'}</code>
           {briefContactName && <> + <code className="bg-black/30 px-1 rounded">{briefContactName}</code></>}.
         </div>
+        {/* (#524) Full KYC sweep button — runs USPTO + queues CourtListener +
+            CFPB manual search URLs as red flags. Stamps last_screened_at. */}
+        <button
+          type="button"
+          onClick={runKycSweep}
+          disabled={busy !== 'idle' || (!briefCompany && !briefContactName)}
+          className="w-full sm:w-auto rounded-md border border-rose-400/50 bg-rose-400/15 hover:bg-rose-400/25 text-rose-100 text-[12.5px] font-medium px-4 py-2 mb-2 disabled:opacity-40"
+          title="One click: runs USPTO + queues CourtListener and CFPB manual searches as red flags with prefilled URLs"
+        >
+          {busy === 'kyc' ? '⚡ Running KYC sweep…' : '⚡ Run Full KYC Sweep'}
+        </button>
+        {kycReport && (
+          <div className="mb-2 rounded-md border border-rose-400/25 bg-rose-400/[0.05] p-2.5 text-[11.5px]">
+            <div className="text-[10.5px] uppercase tracking-[0.14em] text-rose-300/90 mb-1">
+              Sweep ran · {kycReport.flagsAdded} flag{kycReport.flagsAdded === 1 ? '' : 's'} added
+            </div>
+            <ul className="space-y-0.5 text-white/75">
+              {kycReport.steps.map((s, i) => (
+                <li key={i}>
+                  <span className={s.ran ? 'text-emerald-300' : 'text-amber-300/85'}>{s.ran ? '✓' : '○'}</span>
+                  <code className="text-white/55 mx-1">{s.source}</code>
+                  {s.ran
+                    ? <span>· {s.hits} hit{s.hits === 1 ? '' : 's'}</span>
+                    : <span>· {s.skipReason}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
