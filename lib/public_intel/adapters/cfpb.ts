@@ -22,6 +22,40 @@
 import type { PublicIntelAdapter, RunContext, RunResult } from '../types';
 import { storeRecord, findCachedRecord, noteRun } from '../store';
 
+/**
+ * (#530b) Heuristic: does this string look like a person's name (e.g.
+ * "Mark Francis") rather than a company name ("NDVIP Inc")?
+ *
+ * The rule: 2-3 capitalized words AND none of them is a known corporate
+ * suffix like Inc/LLC/Corp/Ltd/Co/Group. We accept false positives (a
+ * 2-word company without a suffix like "Tesla") as the cost of catching
+ * the common case ("Mark Francis"). Used by CFPB to reject person-name
+ * input that would silently return 0 complaints.
+ */
+function looksLikePersonName(s: string): boolean {
+  const trimmed = s.trim();
+  if (!trimmed) return false;
+  // If it has any corporate suffix → company. Cheap exit.
+  if (/\b(inc|llc|llp|ltd|corp|corporation|co|company|group|holdings|partners|associates|services|systems|technologies|solutions|consulting|enterprises|bank|capital|fund|trust|university|college|hospital|clinic|center)\.?\b/i.test(trimmed)) {
+    return false;
+  }
+  // Has digits → likely a company (e.g. "7-Eleven", "3M").
+  if (/\d/.test(trimmed)) return false;
+  // Has an ampersand or "and" → likely a firm ("Smith & Jones").
+  if (/\s(&|and)\s/i.test(trimmed)) return false;
+  // 2-3 words, each starting Capital letter, no all-caps acronym.
+  const words = trimmed.split(/\s+/);
+  if (words.length < 2 || words.length > 3) return false;
+  for (const w of words) {
+    if (w.length < 2) return false;
+    // Must start with a letter and have at least one lowercase letter (rules out
+    // ALLCAPS acronyms like "IBM" which are companies).
+    if (!/^[A-Z][a-zA-Z'.-]+$/.test(w)) return false;
+    if (!/[a-z]/.test(w)) return false;
+  }
+  return true;
+}
+
 interface CfpbConfig {
   /** US state postal codes ("FL", "CA"). */
   states?: string[];
@@ -220,9 +254,9 @@ async function fetchAggregate(state: string, products: string[] | undefined, sin
 
 export const cfpbAdapter: PublicIntelAdapter = {
   kind: 'cfpb',
-  displayName: 'CFPB consumer complaints',
+  displayName: 'Consumer Financial Protection Bureau (CFPB) — complaints against companies',
   description:
-    'Every complaint a US consumer has filed against a bank, lender, or credit reporter, by state + product + issue. Gold companion to HMDA — tells you which lenders are under fire in which markets.',
+    'Consumer Financial Protection Bureau (CFPB) complaint database — every complaint a US consumer has filed against a financial-services COMPANY (bank, lender, debt collector, credit reporter, payday/title operator). Searches by company name only — individual people are not complaint targets. Source: https://www.consumerfinance.gov/data-research/consumer-complaints/',
   requiresKey: false,
   costNote: 'Free · CFPB public Socrata API · no rate limit issues at SMB scale',
   // (val 2026-06-06, honesty pass) CFPB surfaces complaints AGAINST financial
@@ -249,6 +283,16 @@ export const cfpbAdapter: PublicIntelAdapter = {
     }
     if (c.maxResults !== undefined && (c.maxResults < 1 || c.maxResults > 100)) {
       return 'maxResults must be between 1 and 100';
+    }
+    // (#530b, val 2026-06-08) CFPB tracks complaints against COMPANIES (banks,
+    // lenders, debt collectors, credit reporters). It does NOT track complaints
+    // against individuals. If val typed "Mark Francis" (or anything that looks
+    // like First+Last with no corporate suffix), we want to reject loudly so
+    // she switches to the actual company name like "NDVIP Inc" — otherwise
+    // CFPB silently returns 0 and we mis-label it a "clean signal."
+    const candidate = (c.name ?? c.company ?? '').trim();
+    if (candidate && looksLikePersonName(candidate)) {
+      return `"${candidate}" looks like a person name. CFPB (Consumer Financial Protection Bureau) tracks complaints against COMPANIES, not individuals. Use the COMPANY name here (e.g. "NDVIP Inc" not "Mark Francis"). CFPB website: https://www.consumerfinance.gov/data-research/consumer-complaints/`;
     }
     return null;
   },

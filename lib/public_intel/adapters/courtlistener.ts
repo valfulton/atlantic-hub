@@ -296,9 +296,9 @@ export async function runCourtListenerForDemo(
 
 export const courtListenerAdapter: PublicIntelAdapter = {
   kind: 'courtlistener', // not yet in PublicIntelKind union; cast for now
-  displayName: 'CourtListener (federal courts + bankruptcy)',
+  displayName: 'CourtListener — US federal courts + bankruptcy filings',
   description:
-    'Federal district + appellate + bankruptcy filings, geocoded by court state. The gold for collections / litigation prospecting. Free via free.law; optional token raises daily quota.',
+    'CourtListener (operated by Free Law Project, free.law) — federal district courts, appellate courts, and US Bankruptcy Court filings, geocoded by court state. Accepts a PERSON name or a COMPANY name. The gold for collections / litigation prospecting + KYC screening. Source: https://www.courtlistener.com',
   requiresKey: false,
   apiKeyEnv: 'COURTLISTENER_TOKEN',
   costNote: 'Free · CourtListener / free.law · optional token raises quota',

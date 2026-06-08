@@ -1,99 +1,102 @@
-# Puppeteer Worker Setup (#422 / #531)
+# Browser-Automation Worker Setup (#422 / #531)
 
-**What this is:** a one-time setup to bring a headless Chromium-driven worker
-online on the HostGator account. Once it's running, every county-records,
-state-recorder, and assessor adapter that's been queued can ship — including
-the Forsyth County qPublic property lookup that turns Mark's address into
-real owner / assessed-value / mortgage data.
+**Status update 2026-06-08:** val confirmed she's on HostGator **Business
+Plan** (shared hosting), SSH IP 50.6.19.240 / username shhdbite, shell
+access enabled. Shared hosting **blocks native Chromium install** (no root,
+no `apt install`). Pivoting from "self-host Puppeteer on HostGator" to a
+**managed browser pool** — same outcome, $0/mo, no HostGator changes.
 
-**What it costs:** $0 in new fees. Uses the HostGator we already pay for.
-The only "cost" is one-time setup time.
+## The new path: Browserless.io
 
----
+**Browserless** (https://www.browserless.io) runs the headless Chromium for
+us. The hub stays on Netlify, calls Browserless via a WebSocket URL, and
+gets back rendered page contents. We never have to install or maintain
+Chromium ourselves.
 
-## What I need from val to begin
+### Why this is better than the original HostGator plan
 
-These three answers unblock the whole rollout. Reply with them when ready.
+- **$0** on the free tier (1,000 scrape requests per month, plenty for
+  early KYC + per-property lookups).
+- **No HostGator changes** — Business Plan is fine as-is.
+- **Anti-detection built in** — Browserless rotates User-Agents, manages
+  cookies, handles common bot-detection. Better scrape success than
+  bare Chromium.
+- **Scales the day we outgrow free** — paid tiers are $50-200/mo for
+  10K-50K requests, still cheaper than upgrading to HostGator VPS ($30/mo
+  for the host + we'd still have to maintain the worker).
 
-1. **HostGator plan tier.** Log in at `portal.hostgator.com` → click the
-   account → there'll be a plan label. We need **VPS** (any size) or
-   **Dedicated**. If it says **Shared / Hatchling / Baby / Business**, we have
-   to upgrade before Puppeteer will run — shared plans block the system-level
-   `apt install` that Chromium needs.
+### Setup checklist (~30 min total, 0 of it on HostGator)
 
-2. **SSH access.** On VPS/Dedicated plans this is enabled by default but
-   sometimes needs a one-click toggle in the portal under "Security → SSH
-   Access." Confirm it's on; share the hostname (looks like `1.2.3.4` or
-   `gatorXXXX.hostgator.com`). I don't need the password — when we provision
-   I'll have you paste a public SSH key instead.
+1. **Sign up** at https://www.browserless.io/sign-up. Free tier, no credit
+   card required. Save the API token they generate.
 
-3. **A subdirectory I can write to.** I suggest `/home/<user>/workers/puppeteer/`.
-   This is where the worker code, the queue, and the cached scrapes live.
-   Anywhere outside `public_html` is fine.
+2. **Add the token to Netlify** environment variables:
+   - Site → Site configuration → Environment variables
+   - Add `BROWSERLESS_TOKEN` = the value from step 1
+   - Trigger a rebuild
 
----
+3. **I drop in the client lib + first adapter.** Single PR:
+   - `lib/scrape/browserless.ts` — connects via Puppeteer's standard
+     `connect()` API to the Browserless WebSocket URL
+   - `lib/public_intel/adapters/forsyth_qpublic.ts` — first county adapter,
+     drives qpublic.schneidercorp.com search box, scrapes parcel + owner +
+     assessed value + last sale + mortgage history
+   - Hook into the address-screen route: when val clicks "Screen each
+     address", the route enqueues the per-address property job
 
-## What I'll do once those answers are in (one session, ~half a day)
+4. **Smoke test with Mark's address.** First job: 6105 Polo Club Drive,
+   Cumming GA 30040. If qPublic returns the parcel, the pattern is proven
+   and I roll the rest of the county/state adapters out.
 
-1. **System packages.** SSH in, install Node 20 + Chromium + the X-server
-   stubs Chromium needs. Single command on Ubuntu: `apt install chromium-browser
-   libgbm1 libnss3` plus the Node 20 setup script. About 4-5 minutes.
+### What lights up the moment Browserless is wired
 
-2. **Worker scaffold.** Drop a small Node service at `/workers/puppeteer/`
-   that polls a queue table in the hub's MySQL (`puppeteer_jobs`). On each job
-   it opens Chromium headless, drives the target site, scrapes the result,
-   writes back to `public_intel_records` keyed by job. ~80 lines of code,
-   I've done this before.
+- **#430** Anne Arundel County (MD) tax assessor — parcel cross-reference
+- **#431** Anne Arundel Circuit Court (MD) — no-login county route
+- **#424** Maryland Judiciary Case Search — foreclosure court proceedings
+- **#425** California Acclaim platform — Nevada County + ~15 sister
+  counties
+- **#426** Virginia statewide via Virginia Judicial System Online + circuit
+  court portals
+- **#427** Remaining California platforms — Tyler/Eagle (Los Angeles County
+  et al), Granicus / Laserfiche counties
+- **Georgia Secretary of State (GA SOS)** automated lookups — entity status
+  no longer requires manual paste
+- **Forsyth County qPublic** — the actual per-property loan-to-value
+  signal that fills out the address-stress screen for Mark
+- **Georgia Composite Medical Board** — license status + board actions on
+  GA doctors (per the healthcare-source memo, this is the gold for KYC on
+  clinicians like Mark)
+- **DEA Diversion** — practitioner registration / revocation lookups
 
-3. **Queue protection.** Concurrency cap of 1 at first so we don't burn
-   bandwidth. Rate-limit per target site (e.g. don't hit qPublic more than
-   once every 3 seconds — they don't publish a rate but I've never gotten
-   blocked at that pace). User-Agent string identifies as research traffic.
+### The DD Report's property records section
 
-4. **First adapter: Forsyth County qPublic.** Test with Mark's address as the
-   first job. If it returns owner + assessed value + last sale, the pattern
-   is proven and we can roll out the other county adapters that are queued
-   (#430, #431, #424, #425, #426, #427).
+Currently a `"📋 pending worker"` stub. Once Browserless is connected and
+the first county adapter (Forsyth qPublic) runs successfully, the report
+gets a real "Property Records" block showing owner + assessed value +
+last sale price + open mortgage balance for each address.
 
-5. **Hook into the address-screen route.** When val hits "Screen each address"
-   the route now also enqueues a per-address property-record job. The
-   "📋 pending worker" stub note flips off the moment the job completes.
+### Fallback if Browserless free tier isn't enough
 
----
-
-## What's blocked behind this
-
-- **#430** Anne Arundel Assessor adapter
-- **#431** Anne Arundel Circuit Court adapter
-- **#424** Maryland Judiciary Case Search adapter
-- **#425** CA Acclaim platform adapter (Nevada County + ~15 sister counties)
-- **#426** VA statewide adapter via Virginia Judicial System
-- **#427** Remaining CA platforms (Tyler/Eagle for LA, Granicus/Laserfiche)
-- **GA SOS adapter** — automated entity status lookups (right now you manually
-  paste the GA SOS payload into the dossier)
-- **Forsyth County qPublic** — the actual per-property LTV signal that fills
-  out the address-screen result
-- **The DD Report's property records section** — once any of the above ships,
-  the report gets a real "Property Records" block instead of the manual notes
-
----
-
-## If the HostGator plan is shared and we don't want to upgrade
-
-Two fallback paths, both still free:
-
-- **Render.com free tier** — 750 hours/month free, supports Puppeteer
-  natively, deploys from the same GitHub repo. The catch: free tier sleeps
-  after 15 min of no requests, so jobs that get queued during the sleep
-  wait until the next poll wakes it. Fine for KYC sweeps; not ideal for
-  high-volume distress watchlists.
-
-- **Fly.io free tier** — 3 shared VMs free, no sleep, Puppeteer works.
-  Slightly more setup than Render. Best of the free options.
-
-Either of these is a 1-2 hour pivot if the HostGator path is blocked.
+- **Render.com free worker** (750 hours/month free, deploys from GitHub,
+  Chromium runs natively) — 1-2 hour pivot if we ever outgrow Browserless.
+- **Fly.io free tier** (3 shared VMs, no sleep) — same idea, slightly more
+  setup, same $0 price.
+- **HostGator VPS upgrade** — only worth it if we end up running 10K+
+  scrapes/month and want everything on one bill. $30-50/mo.
 
 ---
 
-**Status:** waiting on plan-tier + SSH confirmation from val (questions 1-3
-above). Ping me here when ready.
+## What I need from val to actually start
+
+Just one thing: a **Browserless.io account + API token**. Sign up at
+https://www.browserless.io/sign-up (takes ~2 minutes, no credit card),
+paste the token to me here OR add it directly to Netlify as
+`BROWSERLESS_TOKEN`. I'll do the rest — drop the client lib, build the
+Forsyth adapter, smoke-test with Mark's address.
+
+---
+
+**Original HostGator-VPS path:** retired. Business Plan won't support
+native install. If we ever want everything self-hosted, we can revisit
+with a VPS upgrade — but for the foreseeable future, Browserless is the
+right call.
