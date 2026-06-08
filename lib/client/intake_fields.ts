@@ -196,6 +196,39 @@ export const INTAKE_GROUPS: IntakeGroup[] = [
     ]
   },
   {
+    // (val + UX/UI 2026-06-07) "Your numbers" — the inputs that turn the
+    // Marketing Intelligence Portfolio from activity wall into ROI math.
+    // These six fields feed deal_model.ts directly + are the same inputs
+    // Won/Lost logging needs, so capture is one coherent build. Anchoring
+    // at intake also makes "what closed?" later feel like finishing a
+    // sentence the client already started.
+    group: 'Your numbers',
+    fields: [
+      { key: 'avg_deal_value', label: 'What is a typical customer or sale worth to you?', clientFacing: true,
+        example: 'e.g. $4,200 / $25,000 / $150 per month',
+        hint: 'Average revenue per closed deal — flat fee or first-period value. We use this to size proposals + prove ROI against real numbers.',
+        why: 'Powers per-lead ROI math + sizes your custom proposal to your real economics.' },
+      { key: 'deal_type', label: 'How do you bill — flat fee or per-unit / per-head?', clientFacing: true,
+        hint: 'Flat fee (one number per deal) / Per-unit (price × units) / Hybrid',
+        why: 'Determines whether we model revenue as deal_count × price OR units × price.' },
+      { key: 'revenue_baseline', label: 'Roughly, what is your current MONTHLY revenue?', clientFacing: true,
+        example: 'e.g. $35K / $120K / $8K',
+        hint: 'A rough number is fine. This is the starting line we compare growth against.',
+        why: 'The ROI starting line. Without it, the Revenue layer of your portfolio stays locked.' },
+      { key: 'close_rate', label: 'Of the qualified leads you talk to, about what % become customers?', clientFacing: true,
+        example: 'e.g. 15% / 30% / 5%',
+        hint: 'Best guess is fine — we will tighten the number as you log Won/Lost outcomes.',
+        why: 'Lets the engine forecast pipeline → revenue and shows reps how each conversation matters.' },
+      { key: 'sales_cycle', label: 'From first contact to closed deal, how long does it usually take?', clientFacing: true,
+        hint: 'Days / weeks / months — pick the unit. e.g. "21 days" or "3 months" or "1 quarter"',
+        why: 'Times the cadence of follow-ups + when your portfolio should expect to show revenue lift.' },
+      { key: 'customer_ltv', label: 'What is a customer worth over the WHOLE relationship, not just the first sale?', clientFacing: true,
+        example: 'e.g. $14,000 / $300K / $1,800',
+        hint: 'Lifetime revenue if you keep them — counts renewals, repeats, upsells.',
+        why: 'Justifies higher acquisition cost on the right prospects + tells the renewal/retention story.' }
+    ]
+  },
+  {
     group: 'Logistics',
     fields: [
       { key: 'busy_seasons', label: 'When is your busy season?', clientFacing: true,
