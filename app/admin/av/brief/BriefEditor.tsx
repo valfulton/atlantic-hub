@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import BriefRevenueTriptych from './BriefRevenueTriptych';
 
 interface Customer {
   key: string;
@@ -225,7 +226,12 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
       {loading ? (
         <div className="text-sm text-white/40">Loading brief…</div>
       ) : (
-        <>
+        // (#544 val 2026-06-08) Two-column layout — form rides the left rail,
+        // the Revenue Triptych rides the right rail on wide screens and stacks
+        // below the form on mobile. min-w-0 on the left col is critical: without
+        // it the textareas refuse to shrink and overflow the grid.
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+          <div className="space-y-6 min-w-0">
           {/* The 6 canonical questions */}
           <div className="space-y-4">
             {QUESTIONS.map((qq) => (
@@ -358,7 +364,18 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
               )}
             </div>
           </details>
-        </>
+          </div>
+
+          {/* RIGHT RAIL — Revenue Triptych. Refreshes as val types Q3-Q6 +
+              brand colors. The triptych accepts the merged payload (full
+              stored brief + current edits) so cards reflect what's on-screen,
+              not just what's saved. Below lg breakpoint this stacks under the
+              form, keeping mobile reachability. */}
+          <BriefRevenueTriptych
+            brandName={brandName}
+            payload={{ ...rawPayload, ...payload }}
+          />
+        </div>
       )}
     </div>
   );
