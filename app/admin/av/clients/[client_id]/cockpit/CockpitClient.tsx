@@ -109,10 +109,26 @@ const KIND_RING: Record<string, string> = {
   lead_gen: '#3B6D11'            // green-600
 };
 
-export default function CockpitClient({ data, clientId }: { data: CockpitData; clientId: number }) {
+export default function CockpitClient({
+  data,
+  clientId,
+  initialApprovals
+}: {
+  data: CockpitData;
+  clientId: number;
+  /** (#568, Tier 1) Brief-grounded approval titles passed in from the server
+   *  component. Replaces the previous hardcoded KIND_DEFAULT_APPROVALS lookup
+   *  so every defense_pr client sees drafts about THEIR case, not Ron's.
+   *  Falls back to the legacy hardcoded set only if the server didn't supply. */
+  initialApprovals?: Approval[];
+}) {
   const hero = HERO[data.kind] ?? HERO.lead_gen;
   const ring = KIND_RING[data.kind] ?? KIND_RING.lead_gen;
-  const [approvals, setApprovals] = useState<Approval[]>(KIND_DEFAULT_APPROVALS[data.kind] ?? KIND_DEFAULT_APPROVALS.lead_gen);
+  const [approvals, setApprovals] = useState<Approval[]>(
+    initialApprovals && initialApprovals.length > 0
+      ? initialApprovals
+      : (KIND_DEFAULT_APPROVALS[data.kind] ?? KIND_DEFAULT_APPROVALS.lead_gen)
+  );
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const pendingCount = approvals.filter((a) => !a.state).length;

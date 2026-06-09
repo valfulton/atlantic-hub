@@ -31,6 +31,7 @@ import { getAvDb } from '@/lib/db/av';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import type { RowDataPacket } from 'mysql2';
 import CockpitClient from './CockpitClient';
+import { cockpitTitlesFor } from '@/lib/av/cockpit_asset_titles';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +95,13 @@ export default async function CockpitPage({ params }: CockpitProps) {
     client.client_name.split(/\s+/)[0] ||
     'there';
 
+  // (#568, Tier 1) Brief-grounded approval titles. Replaces the per-kind
+  // hardcoded KIND_DEFAULT_APPROVALS that gave every defense_pr client the
+  // same "doctor who said yes" card. Each client now sees draft titles built
+  // from THEIR brief.key_message / message_support / audience_insights /
+  // differentiators / district / principals etc.
+  const approvalTitles = cockpitTitlesFor(kind, brief as Record<string, unknown>);
+
   // v1 mock data — REPLACED by live cascade reads in #550 v2.
   const cockpitData = {
     kind,
@@ -105,5 +113,5 @@ export default async function CockpitPage({ params }: CockpitProps) {
     pulse: { signalsThisWeek: 17, narrativesRunning: 3, pendingApprovals: 3, pressTouches: 9 }
   };
 
-  return <CockpitClient data={cockpitData} clientId={clientId} />;
+  return <CockpitClient data={cockpitData} clientId={clientId} initialApprovals={approvalTitles} />;
 }
