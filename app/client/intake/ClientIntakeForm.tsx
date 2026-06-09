@@ -27,22 +27,32 @@
  *     all 51 questions to find the 5 we couldn't infer.
  */
 import { useMemo, useState, useRef, useCallback } from 'react';
-import { CLIENT_INTAKE_GROUPS, CLIENT_INTAKE_KEYS } from '@/lib/client/intake_fields';
+import { CLIENT_INTAKE_GROUPS, groupsForEngagementKind } from '@/lib/client/intake_fields';
+import type { EngagementKind } from '@/lib/client/engagement_kind';
 
 export default function ClientIntakeForm({
   initial,
   brandName,
-  shareToken
+  shareToken,
+  engagementKind
 }: {
   initial: Record<string, unknown>;
   brandName: string;
   /** When set, this is the no-login SHARE flow: submit via the public token
    *  endpoint and show a thank-you (no session, no set-password redirect). */
   shareToken?: string;
+  /** (#551) Active engagement kind — filters which intake fields are asked.
+   *  Fixed for the life of the form (server-resolved), so the field set is
+   *  stable. Omit/undefined = ask every field (today's behavior). */
+  engagementKind?: EngagementKind;
 }) {
+  // (#551) Kind-filtered field set. Fields without `kinds` are kept for every
+  // kind, so an untagged config is identical to before for all kinds.
+  const groups = groupsForEngagementKind(CLIENT_INTAKE_GROUPS, engagementKind);
+  const keys = groups.flatMap((g) => g.fields.map((f) => f.key));
   const seeded = useMemo(() => {
     const o: Record<string, string> = {};
-    for (const k of CLIENT_INTAKE_KEYS) o[k] = typeof initial[k] === 'string' ? (initial[k] as string) : '';
+    for (const k of keys) o[k] = typeof initial[k] === 'string' ? (initial[k] as string) : '';
     return o;
   }, [initial]);
 
@@ -63,16 +73,16 @@ export default function ClientIntakeForm({
   const totals = useMemo(() => {
     let filled = 0;
     let blank = 0;
-    for (const k of CLIENT_INTAKE_KEYS) {
+    for (const k of keys) {
       if ((fields[k] || '').trim()) filled += 1;
       else blank += 1;
     }
-    return { filled, blank, total: CLIENT_INTAKE_KEYS.length };
+    return { filled, blank, total: keys.length };
   }, [fields]);
 
   const groupCounts = useMemo(() => {
     const out: Record<string, { blank: number; total: number }> = {};
-    for (const g of CLIENT_INTAKE_GROUPS) {
+    for (const g of groups) {
       let b = 0;
       for (const f of g.fields) if (!(fields[f.key] || '').trim()) b += 1;
       out[g.group] = { blank: b, total: g.fields.length };
@@ -87,7 +97,7 @@ export default function ClientIntakeForm({
    */
   function jumpToNextBlank(scopeGroup?: string) {
     const ordered: string[] = [];
-    for (const g of CLIENT_INTAKE_GROUPS) {
+    for (const g of groups) {
       if (scopeGroup && g.group !== scopeGroup) continue;
       for (const f of g.fields) ordered.push(f.key);
     }
@@ -188,7 +198,7 @@ export default function ClientIntakeForm({
         </div>
       </div>
 
-      {CLIENT_INTAKE_GROUPS.map((grp) => {
+      {groups.map((grp) => {
         const count = groupCounts[grp.group];
         const groupBlank = count?.blank ?? 0;
         return (

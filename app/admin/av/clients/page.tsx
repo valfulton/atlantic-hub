@@ -10,6 +10,7 @@ import MiniStageStrip from './MiniStageStrip';
 import { loadOnboardingStatus, type OnboardingStatus } from '@/lib/av/onboarding_status';
 import { spendByClientLastDays, totalSpendLastDays } from '@/lib/llm/spend';
 import { CostBadge } from '@/app/_components/CostBadge';
+import { unreadByClientForOperator } from '@/lib/client/notes';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +67,9 @@ export default async function ClientsPage() {
     spendByClientLastDays(30),
     totalSpendLastDays(30)
   ]);
+
+  // (#489) Unread client->operator notes per brand → roster badge.
+  const unreadNotes = await unreadByClientForOperator();
 
   // Active leads available to convert into a client (no retyping — their info carries over).
   let convertible: { auditId: string; company: string; contactName: string | null; email: string; industry: string | null; score: number | null; band: string | null }[] = [];
@@ -159,6 +163,19 @@ export default async function ClientsPage() {
                     <Link href={`/admin/av/clients/${c.clientId}/preview`} className="text-[11px] text-brand hover:underline">
                       Preview their dashboard →
                     </Link>
+                    <div>
+                      <Link href={`/admin/av/clients/${c.clientId}/notes`} className="text-[11px] text-brand hover:underline">
+                        Notes →
+                      </Link>
+                      {unreadNotes[c.clientId] > 0 && (
+                        <span
+                          className="ml-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-brand text-[10px] font-semibold text-white align-middle"
+                          title={`${unreadNotes[c.clientId]} unread`}
+                        >
+                          {unreadNotes[c.clientId]}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* (val 2026-06-02) Mini stage strip — 13 dots showing

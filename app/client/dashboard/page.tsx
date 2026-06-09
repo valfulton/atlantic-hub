@@ -20,7 +20,7 @@ import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
-import { getWelcomePopupSlides } from '@/lib/welcome/copy';
+import { getWelcomePopupSlides, getWelcomeSlidesForEngagement } from '@/lib/welcome/copy';
 import AdrianaDashboard from './AdrianaDashboard';
 
 export const dynamic = 'force-dynamic';
@@ -67,8 +67,12 @@ export default async function ClientDashboardPage() {
     brandPill: 'Client'
   });
 
-  // (#408) Pull editor-managed slide copy. Falls back to baked-in defaults.
-  const welcomeSlides = await getWelcomePopupSlides();
+  // (#408/#551) Welcome slides. lead_gen keeps the legacy /admin/av/popups
+  // popover (unchanged). Non-lead_gen engagements get kind-specific slides
+  // whose titles are editable per client at /admin/av/copy.
+  const welcomeSlides = props.engagementKind === 'lead_gen'
+    ? await getWelcomePopupSlides()
+    : await getWelcomeSlidesForEngagement({ clientId, kind: props.engagementKind });
 
   return (
     <>

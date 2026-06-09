@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 type Key = { key: string; group: string; def: string; value: string };
 type Client = { id: number; name: string };
 const STAGES = ['', 'onboarding', 'intake_done', 'first_signal', 'active'];
-const GROUP_ORDER = ['Newsroom', 'Channel', 'Dashboard', 'Leads', 'Watchlist', 'Press', 'Audit', 'Intake', 'Login', 'Footer', 'Other'];
+const GROUP_ORDER = ['Newsroom', 'Channel', 'Dashboard', 'Welcome', 'Leads', 'Watchlist', 'Press', 'Audit', 'Intake', 'Login', 'Footer', 'Other'];
 
 function friendly(key: string): string {
   const parts = key.split('.');

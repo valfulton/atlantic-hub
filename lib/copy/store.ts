@@ -78,6 +78,30 @@ export const DEFAULTS: Record<string, string> = {
   'intake.eyebrow': 'Your details',
   'intake.h1': 'Tell us about *your business.*',
   'intake.lede': "Review and perfect what we've prefilled for you. Every save keeps a restore point.",
+  // ---- welcome popover, per engagement kind (#551) ----
+  // Each welcome.<kind>.sN is the TITLE (the prominent emerald headline) of
+  // welcome slide N for that kind. The eyebrow + supporting body + any link
+  // are fixed frames in lib/welcome/copy.ts. Tokens {firstName}/{brandName}
+  // are substituted at render. Edit per client at /admin/av/copy (pick the
+  // client) to personalize, e.g. Ron's s1 → "Hi Ron — we're ready for the
+  // Banner call." Global edits set the kind default. NOTE: lead_gen still uses
+  // the legacy /admin/av/popups popover at runtime; its keys are seeded here
+  // for symmetry and future migration.
+  'welcome.lead_gen.s1': 'Hi {firstName}.',
+  'welcome.lead_gen.s2': 'Prospects, scored for fit.',
+  'welcome.lead_gen.s3': "You'll hear from us each Friday.",
+  'welcome.defense_pr.s1': 'Hi {firstName}.',
+  'welcome.defense_pr.s2': 'Your case has a story.',
+  'welcome.defense_pr.s3': 'We move when the news moves.',
+  'welcome.political.s1': 'Hi {firstName}.',
+  'welcome.political.s2': 'Your district. Your message.',
+  'welcome.political.s3': 'Nothing ships without your green-light.',
+  'welcome.hospitality.s1': 'Hi {firstName}.',
+  'welcome.hospitality.s2': 'Each port is a chapter.',
+  'welcome.hospitality.s3': 'Stories from the next stop.',
+  'welcome.book_pr.s1': 'Hi {firstName}.',
+  'welcome.book_pr.s2': 'Your book has a story arc.',
+  'welcome.book_pr.s3': 'Media wins for the launch.',
   // ---- Velvet Royale invitation gates ----
   // All three surfaces share the RoyaleGateFrame layout (eyebrow / headline /
   // lede / button). Wrap accent words in *asterisks* — the accent() helper

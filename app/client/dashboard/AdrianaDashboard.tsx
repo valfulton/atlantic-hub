@@ -23,6 +23,8 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { accent } from '@/lib/copy/accent';
 import ClientHero from '@/app/client/_components/ClientHero';
+import type { EngagementKind, EngagementKindConfig } from '@/lib/client/engagement_kind';
+import { KindHero, KindPanels } from './KindPanels';
 
 export interface BrandChip {
   id: number;
@@ -129,6 +131,12 @@ export interface AdrianaDashboardProps {
     moreHref: string;
     cards: SignalCard[];
   };
+  /** (#551) Active engagement kind + its resolved config, from the loader
+   *  (brand_members.engagement_kind). lead_gen keeps every existing surface
+   *  untouched; other kinds swap in a kind hero, hide leads/watchlist per the
+   *  config flags, and mount kind-specific stub panels. */
+  engagementKind: EngagementKind;
+  kindConfig: EngagementKindConfig;
 }
 
 function timeWord(t: AdrianaDashboardProps['greetingTime']): string {
@@ -384,6 +392,15 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           </Link>
         </div>
 
+        {/* (#551) Engagement-kind hero — only for non-lead_gen kinds. lead_gen
+            keeps the greeting-as-summary + Featured Signal below, unchanged. */}
+        {p.engagementKind !== 'lead_gen' && <KindHero config={p.kindConfig} />}
+
+        {/* (#551) Kind-specific stub panels (Press touches / Case brief /
+            District heat map / Itinerary). Each is gated inside by a config
+            flag, so lead_gen mounts none of them and renders nothing here. */}
+        <KindPanels config={p.kindConfig} kind={p.engagementKind} />
+
         {/* (val 2026-06-06) The ClientHero white pipeline card was duplicating
             the greeting subhead ("Your pipeline is steady. Keep working the
             ones in play below.") and stacking above the green Featured Signal
@@ -412,7 +429,9 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           </Link>
         )}
 
-        {/* Watchlist */}
+        {/* (#551) Watchlist — gated by kind (lead_gen + political_campaign show
+            it as district pulse; defense_pr / hospitality / book_pr hide it). */}
+        {p.kindConfig.showWatchlistPanel && (<>
         <div className="app-sh">
           <h3>{accent(p.copy?.['dashboard.sec.watchlist'] ?? 'Your *watchlist*')}</h3>
           {p.watchlist.activeCountLabel && <span className="ct">{p.watchlist.activeCountLabel}</span>}
@@ -428,8 +447,11 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             {p.watchlist.cards.map((c) => <Card key={c.id} card={c} />)}
           </div>
         )}
+        </>)}
 
-        {/* Fresh leads */}
+        {/* (#551) Fresh leads — lead_gen only. Non-lead-gen kinds show their
+            kind panels (above) instead of a prospect pipeline. */}
+        {p.kindConfig.showLeadsPanel && (<>
         <div className="app-sh">
           <h3>{accent(p.copy?.['dashboard.sec.leads'] ?? 'Fresh *leads*')}</h3>
           {p.freshLeads.sublabel && <span className="ct">{p.freshLeads.sublabel}</span>}
@@ -445,6 +467,7 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             {p.freshLeads.cards.map((c) => <Card key={c.id} card={c} />)}
           </div>
         )}
+        </>)}
 
         {/* (#377, val 2026-06-05) Account team — moved to the footer position;
             employee assignment is supporting cast, never the headline.

@@ -26,6 +26,8 @@
  * skip self-reflection.
  */
 
+import type { EngagementKind } from './engagement_kind';
+
 export interface IntakeField {
   key: string;
   label: string;
@@ -38,6 +40,11 @@ export interface IntakeField {
   area?: boolean;
   /** When true, render on the client-portal intake form. (#200) */
   clientFacing?: boolean;
+  /** (#551) Restrict this field to specific engagement kinds. Omit = ask for
+   *  every kind (today's behavior — all current fields are kind-agnostic).
+   *  e.g. tag deal-economics fields kinds:['lead_gen'] so a defense_pr intake
+   *  doesn't ask Ron about close rates. */
+  kinds?: EngagementKind[];
 }
 
 export interface IntakeGroup {
@@ -275,3 +282,19 @@ export const CLIENT_INTAKE_KEYS: string[] = INTAKE_GROUPS.flatMap((g) =>
 export const CLIENT_INTAKE_GROUPS: IntakeGroup[] = INTAKE_GROUPS
   .map((g) => ({ group: g.group, fields: g.fields.filter((f) => f.clientFacing) }))
   .filter((g) => g.fields.length > 0);
+
+/**
+ * (#551) Filter groups to the fields relevant to an engagement kind. A field
+ * with no `kinds` is kept for every kind (so an untagged config — today's —
+ * is unchanged for all kinds). Empty groups are dropped. Pure; safe to call
+ * from a client component. Pass null/undefined to get the groups untouched.
+ */
+export function groupsForEngagementKind(
+  groups: IntakeGroup[],
+  kind: EngagementKind | null | undefined
+): IntakeGroup[] {
+  if (!kind) return groups;
+  return groups
+    .map((g) => ({ group: g.group, fields: g.fields.filter((f) => !f.kinds || f.kinds.includes(kind)) }))
+    .filter((g) => g.fields.length > 0);
+}
