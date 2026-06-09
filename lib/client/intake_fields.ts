@@ -60,7 +60,20 @@ export const INTAKE_GROUPS: IntakeGroup[] = [
         why: 'Helps us match you to prospects of comparable size.' },
       { key: 'business_description', label: 'In one sentence, what do you actually do?', area: true, clientFacing: true,
         hint: 'Plain English. Skip the buzzwords. Pattern: "We help [who] achieve [outcome] through [how]."',
-        why: 'Anchors every lead audit, call script, and outreach email so they reflect what you really sell.' }
+        why: 'Anchors every lead audit, call script, and outreach email so they reflect what you really sell.' },
+      // (#540, val 2026-06-08) KYC + identity fields — were operator-only
+      // before; now first-class intake questions so they get captured during
+      // intake instead of forcing val to retype them on Account Info.
+      // clientFacing: true so they appear on the intake form Adriana fills out.
+      { key: 'owner_name', label: 'Legal owner name', clientFacing: true,
+        hint: 'The name on incorporation docs / tax returns. May be same as contact name.',
+        why: 'Public-record screens (court filings, business registrations) search the legal owner, not always the day-to-day contact.' },
+      { key: 'business_state', label: 'Business state (2-letter)', clientFacing: true,
+        hint: 'e.g. CA, GA, NY — where the entity is registered.',
+        why: 'Scopes federal court + consumer complaint searches to your jurisdiction.' },
+      { key: 'business_address', label: 'Business address', clientFacing: true,
+        hint: 'Street + city + state + ZIP. Principal office.',
+        why: 'Drives the market-stress screen (HMDA mortgage data, county records) and per-property lookups.' }
     ]
   },
   {
