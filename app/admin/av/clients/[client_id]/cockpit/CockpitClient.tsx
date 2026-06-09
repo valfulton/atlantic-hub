@@ -141,14 +141,23 @@ export default function CockpitClient({
       return;
     }
     setBusyId(id);
+    // (#569, Tier 1.2) For in-memory cockpit cards (id starts with 'a'),
+    // send the full payload so the server can create the cockpit_approvals
+    // row + dispatch in one POST. For real DB-backed approvals (numeric id),
+    // send the approvalId.
+    const card = approvals.find((a) => a.id === id);
+    const isInline = !!card && /^a\d+/.test(id);
+    const body = isInline && card
+      ? { clientId, action, approval: { kind: card.kind, title: card.title, source: card.source, angle: card.angle } }
+      : { clientId, approvalId: Number(id) || id, action };
     try {
       await fetch(`/api/admin/av/cockpit/greenlight`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ clientId, approvalId: id, action })
+        body: JSON.stringify(body)
       });
     } catch {
-      /* swallow; v1 stub */
+      /* swallow; UI optimistically flips below */
     }
     setApprovals((prev) => prev.map((a) => a.id === id ? { ...a, state: action === 'green' ? 'live' : 'killed' } : a));
     setBusyId(null);
