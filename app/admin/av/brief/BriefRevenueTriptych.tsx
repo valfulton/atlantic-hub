@@ -46,10 +46,15 @@ interface BriefPayload {
 
 export default function BriefRevenueTriptych({
   brandName,
-  payload
+  payload,
+  wide = false
 }: {
   brandName: string;
   payload: BriefPayload;
+  /** (#545) When the parent BriefEditor's "Drafting table" mode is on, the
+   *  cards take the full width of the page and render 3-across at full size.
+   *  Inline preview of presentation mode, no overlay needed. */
+  wide?: boolean;
 }) {
   const [presenting, setPresenting] = useState(false);
 
@@ -94,21 +99,25 @@ export default function BriefRevenueTriptych({
 
   return (
     <>
-      {/* Right-rail panel (or stacked when narrow). Header + three cards. */}
-      <aside className="rounded-2xl border border-white/10 bg-black/30 p-3 sm:p-4 space-y-3">
+      {/* Right-rail panel (or stacked when narrow). Header + three cards.
+          (#545 val 2026-06-08) FLIPPED from dark surface → cream. The dark
+          card felt like a black surface against the rest of the page (which
+          IS still dark, sigh — that's #545's other half). For NOW: rail is
+          cream w/ dark ink so the cards read as luxe gallery objects. */}
+      <aside className="rounded-2xl border border-[color-mix(in_srgb,var(--gold-bright)_22%,transparent)] bg-[#FFFDF5] text-[#0A0A0A] p-3 sm:p-4 space-y-3 shadow-[0_2px_24px_rgba(0,0,0,0.18)]">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)]">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-[#7A5A18]">
               Revenue story
             </div>
-            <div className="text-[13px] text-white/85 mt-0.5">
+            <div className="text-[13px] text-[#0A0A0A]/80 mt-0.5">
               Three social-ready cards from this brief.
             </div>
           </div>
           <button
             type="button"
             onClick={() => setPresenting(true)}
-            className="shrink-0 rounded-md border border-white/15 bg-white/5 hover:bg-white/10 text-white/85 text-[11px] px-2.5 py-1 inline-flex items-center gap-1.5"
+            className="shrink-0 rounded-md border border-[#0A0A0A]/15 bg-white hover:bg-[#FFF8DC] text-[#0A0A0A] text-[11px] px-2.5 py-1 inline-flex items-center gap-1.5 transition"
             title="Pop out for screen share / presentation"
             aria-label="Open presentation mode"
           >
@@ -118,13 +127,18 @@ export default function BriefRevenueTriptych({
           </button>
         </div>
 
-        <div className="space-y-3">
+        {/* (#545) In wide/drafting-table mode the cards lay out 3-across at
+            full size (compact=false). Otherwise they stack in the rail. */}
+        <div className={wide
+          ? 'grid grid-cols-1 md:grid-cols-3 gap-4'
+          : 'space-y-3'
+        }>
           {cards.map((c, i) => (
-            <Card key={i} brand={brandName} card={c} compact />
+            <Card key={i} brand={brandName} card={c} compact={!wide} />
           ))}
         </div>
 
-        <div className="text-[10px] text-white/35 leading-snug">
+        <div className="text-[10px] text-[#0A0A0A]/55 leading-snug">
           Built from this brief. Edit Q3–Q6 + brand colors on the left and the cards refresh.
           {' '}When a VIP client signs in, this gallery is theirs.
         </div>

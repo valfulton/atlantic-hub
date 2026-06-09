@@ -177,13 +177,22 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
     }
   };
 
+  // (#545 val 2026-06-08) Flipped from dark→light. Inputs sit on cream cards
+  // with dark ink, focus ring in champagne. legibility = brand law.
   const ta =
-    'w-full rounded-md bg-black/20 border border-white/10 px-3 py-2 text-sm ' +
-    'text-white/90 placeholder-white/30 focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)]';
+    'w-full rounded-md bg-white border border-[#0A0A0A]/15 px-3 py-2 text-sm ' +
+    'text-[#0A0A0A] placeholder-[#0A0A0A]/35 ' +
+    'focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_70%,transparent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--gold-bright)_30%,transparent)]';
+
+  // (#545) Drafting-table toggle — when ON, the left form collapses and the
+  // triptych takes the full canvas at desktop scale. For 15in MBP @1680x1050.
+  // Hidden until val opens it; never default-on so first paint stays normal.
+  const [drafting, setDrafting] = useState(false);
 
   return (
     <div className="space-y-6">
-      {/* Scope picker */}
+      {/* Scope picker — pills sit on the page (still dark for now); cream
+          form surface below holds the actual editing. */}
       <div className="flex flex-wrap gap-2">
         {scopes.map((s) => {
           const on = s.key === activeKey;
@@ -205,22 +214,37 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
         })}
       </div>
 
-      {/* Header line */}
-      <div className="flex items-center justify-between">
+      {/* Header line + drafting-table toggle. (#545) */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="text-sm text-white/70">
           Editing brief for <span className="font-semibold text-white/90">{brandName}</span>
           {active?.kind === 'brand' && <span className="ml-2 text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)]">(your house brand)</span>}
         </div>
-        <span
-          className={
-            'text-[11px] rounded-full px-2 py-0.5 border ' +
-            (grounded
-              ? 'border-emerald-400/40 text-emerald-300 bg-emerald-400/10'
-              : 'border-white/15 text-white/40')
-          }
-        >
-          {grounded ? 'grounded' : 'no brief yet'}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDrafting((v) => !v)}
+            className={
+              'rounded-full px-3 py-1 text-[11px] border transition ' +
+              (drafting
+                ? 'bg-[color-mix(in_srgb,var(--gold-bright)_25%,transparent)] border-[color-mix(in_srgb,var(--gold-bright)_60%,transparent)] text-[var(--gold-bright)]'
+                : 'bg-white/5 border-white/15 text-white/70 hover:text-white/90')
+            }
+            title="Hide the form and give the cards the full canvas"
+          >
+            {drafting ? '⤡ Exit drafting table' : '⤢ Drafting table'}
+          </button>
+          <span
+            className={
+              'text-[11px] rounded-full px-2 py-0.5 border ' +
+              (grounded
+                ? 'border-emerald-400/40 text-emerald-300 bg-emerald-400/10'
+                : 'border-white/15 text-white/40')
+            }
+          >
+            {grounded ? 'grounded' : 'no brief yet'}
+          </span>
+        </div>
       </div>
 
       {loading ? (
@@ -230,13 +254,23 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
         // the Revenue Triptych rides the right rail on wide screens and stacks
         // below the form on mobile. min-w-0 on the left col is critical: without
         // it the textareas refuse to shrink and overflow the grid.
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
-          <div className="space-y-6 min-w-0">
+        // (#545) When drafting=true the form column hides and the right takes
+        // the full canvas — desktop "drafting table" mode for screen share.
+        <div
+          className={
+            'grid gap-6 items-start ' +
+            (drafting
+              ? 'grid-cols-1'
+              : 'grid-cols-1 lg:grid-cols-[1fr_360px]')
+          }
+        >
+          {!drafting && (
+          <div className="space-y-6 min-w-0 rounded-2xl bg-[#FFFDF5] text-[#0A0A0A] border border-[color-mix(in_srgb,var(--gold-bright)_15%,transparent)] p-5 sm:p-6 shadow-[0_2px_24px_rgba(0,0,0,0.18)]">
           {/* The 6 canonical questions */}
           <div className="space-y-4">
             {QUESTIONS.map((qq) => (
               <label key={qq.key} className="block">
-                <span className="text-xs uppercase tracking-wide text-white/50">
+                <span className="text-xs uppercase tracking-wide text-[#0A0A0A]/65">
                   <span className="text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)]">{qq.q}</span> · {qq.label}
                 </span>
                 <textarea
@@ -254,7 +288,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {EXTRAS.map((ex) => (
               <label key={ex.key} className="block">
-                <span className="text-xs uppercase tracking-wide text-white/50">{ex.label}</span>
+                <span className="text-xs uppercase tracking-wide text-[#0A0A0A]/65">{ex.label}</span>
                 <input
                   className={ta + ' mt-1'}
                   value={payload[ex.key] ?? ''}
@@ -274,7 +308,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
-                <span className="text-xs uppercase tracking-wide text-white/50">Intel posture</span>
+                <span className="text-xs uppercase tracking-wide text-[#0A0A0A]/65">Intel posture</span>
                 <select
                   className={ta + ' mt-1'}
                   value={posture}
@@ -286,7 +320,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs uppercase tracking-wide text-white/50">Default PR voice</span>
+                <span className="text-xs uppercase tracking-wide text-[#0A0A0A]/65">Default PR voice</span>
                 <select
                   className={ta + ' mt-1'}
                   value={voice}
@@ -365,15 +399,18 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
             </div>
           </details>
           </div>
+          )}
 
           {/* RIGHT RAIL — Revenue Triptych. Refreshes as val types Q3-Q6 +
               brand colors. The triptych accepts the merged payload (full
               stored brief + current edits) so cards reflect what's on-screen,
               not just what's saved. Below lg breakpoint this stacks under the
-              form, keeping mobile reachability. */}
+              form, keeping mobile reachability. (#545) In drafting=true mode
+              the form column is hidden and the triptych spans the page. */}
           <BriefRevenueTriptych
             brandName={brandName}
             payload={{ ...rawPayload, ...payload }}
+            wide={drafting}
           />
         </div>
       )}
