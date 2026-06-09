@@ -18,6 +18,11 @@
 'use client';
 
 import type { EngagementKind, EngagementKindConfig } from '@/lib/client/engagement_kind';
+import type { KindData } from './AdrianaDashboard';
+import PressTouchesPanel from './PressTouchesPanel';
+import CaseBriefPanel from './CaseBriefPanel';
+import DistrictHeatMapPanel from './DistrictHeatMapPanel';
+import ItineraryPanel from './ItineraryPanel';
 
 /** The kind hero — replaces the distress Featured Signal for non-lead_gen kinds.
  *  heroLabel is the headline; pipelineLabel is the "what you'll see" sub. */
@@ -96,41 +101,79 @@ function StubPanel({
   );
 }
 
-/** The configured stub panels for this engagement kind, in reading order.
+/** The configured panels for this engagement kind, in reading order.
  *  Each is gated by its EngagementKindConfig flag, so a kind only mounts the
  *  panels it enables. lead_gen enables none of these (it renders the existing
- *  watchlist + leads instead). */
-export function KindPanels({ config }: { config: EngagementKindConfig; kind?: EngagementKind }) {
+ *  watchlist + leads instead).
+ *
+ *  (#557) When `data` carries a panel's payload, the REAL panel renders.
+ *  When it doesn't (e.g. brief lacks the field, or loader degraded to []),
+ *  the on-brand stub still shows — so the surface is never blank and val
+ *  always has a deep-link to fill in the missing brief field. */
+export function KindPanels({
+  config,
+  data
+}: {
+  config: EngagementKindConfig;
+  kind?: EngagementKind;
+  data?: KindData;
+}) {
   return (
     <>
       {config.showPressTouchesPanel && (
-        <StubPanel
-          title="Press touches"
-          count="this week"
-          eyebrow="— Outreach desk —"
-          body="Every journalist touch we make on your behalf will land here as we log it. Live counts arrive with the cockpit build."
-        />
+        data?.pressTouches !== undefined ? (
+          <PressTouchesPanel
+            touches={data.pressTouches}
+            weekCount={data.pressWeekCount ?? 0}
+          />
+        ) : (
+          <StubPanel
+            title="Press touches"
+            count="this week"
+            eyebrow="— Outreach desk —"
+            body="Every journalist touch we make on your behalf will land here as we log it."
+          />
+        )
       )}
       {config.showCaseBriefPanel && (
-        <StubPanel
-          title="Case brief"
-          eyebrow="— The story behind the case —"
-          body="The narrative your defense desk is telling the press — the through-line, the proof points, the counsel-approved lines — will live here."
-        />
+        data?.caseBrief !== undefined ? (
+          <CaseBriefPanel
+            messageSupport={data.caseBrief.messageSupport}
+            audienceInsights={data.caseBrief.audienceInsights}
+            timeline={data.caseBrief.timeline}
+          />
+        ) : (
+          <StubPanel
+            title="Case brief"
+            eyebrow="— The story behind the case —"
+            body="The narrative your defense desk is telling the press — the through-line, the proof points, the counsel-approved lines — will live here."
+          />
+        )
       )}
       {config.showDistrictHeatMap && (
-        <StubPanel
-          title="District heat map"
-          eyebrow="— Your district —"
-          body="A read on where your district is moving — the pulse behind your talking points — will appear here as we wire the live feed."
-        />
+        data?.districtSignals !== undefined ? (
+          <DistrictHeatMapPanel
+            signals={data.districtSignals}
+            hasDistrictConfig={data.hasDistrictConfig ?? false}
+          />
+        ) : (
+          <StubPanel
+            title="District pulse"
+            eyebrow="— Your district —"
+            body="A read on where your district is moving — the pulse behind your talking points — will appear here as we wire the live feed."
+          />
+        )
       )}
       {config.showItineraryPanel && (
-        <StubPanel
-          title="Itinerary"
-          eyebrow="— The next stop —"
-          body="Each port is a chapter. The next stop and the press hit waiting there will appear here as the tour unfolds."
-        />
+        data?.itineraryStops !== undefined ? (
+          <ItineraryPanel stops={data.itineraryStops} />
+        ) : (
+          <StubPanel
+            title="Itinerary"
+            eyebrow="— The next stop —"
+            body="Each port is a chapter. The next stop and the press hit waiting there will appear here as the tour unfolds."
+          />
+        )
       )}
     </>
   );

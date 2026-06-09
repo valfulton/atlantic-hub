@@ -25,6 +25,26 @@ import { accent } from '@/lib/copy/accent';
 import ClientHero from '@/app/client/_components/ClientHero';
 import type { EngagementKind, EngagementKindConfig } from '@/lib/client/engagement_kind';
 import { KindHero, KindPanels } from './KindPanels';
+import type { PressTouch } from '@/lib/client/press_touches';
+import type { DistrictSignal } from '@/lib/client/district_heatmap';
+import type { ItineraryStop } from '@/lib/client/itinerary';
+
+/** (#557) Live data for the kind-specific dashboard panels. Every field is
+ *  optional — only panels enabled by the active engagement_kind get populated;
+ *  lead_gen brands ship every field undefined. KindPanels falls back to its
+ *  on-brand stub when a field is undefined, so the dashboard never errors. */
+export interface KindData {
+  pressTouches?: PressTouch[];
+  pressWeekCount?: number;
+  caseBrief?: {
+    messageSupport: string | null;
+    audienceInsights: string | null;
+    timeline: string | null;
+  };
+  districtSignals?: DistrictSignal[];
+  hasDistrictConfig?: boolean;
+  itineraryStops?: ItineraryStop[];
+}
 
 export interface BrandChip {
   id: number;
@@ -137,6 +157,10 @@ export interface AdrianaDashboardProps {
    *  config flags, and mount kind-specific stub panels. */
   engagementKind: EngagementKind;
   kindConfig: EngagementKindConfig;
+  /** (#557) Live data for kind-specific panels. Optional fields per panel —
+   *  KindPanels mounts the real panel when data is present, the stub when
+   *  it's not. Lead_gen never uses this. */
+  kindData?: KindData;
 }
 
 function timeWord(t: AdrianaDashboardProps['greetingTime']): string {
@@ -396,10 +420,12 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             keeps the greeting-as-summary + Featured Signal below, unchanged. */}
         {p.engagementKind !== 'lead_gen' && <KindHero config={p.kindConfig} />}
 
-        {/* (#551) Kind-specific stub panels (Press touches / Case brief /
+        {/* (#551 + #557) Kind-specific panels (Press touches / Case brief /
             District heat map / Itinerary). Each is gated inside by a config
-            flag, so lead_gen mounts none of them and renders nothing here. */}
-        <KindPanels config={p.kindConfig} kind={p.engagementKind} />
+            flag, so lead_gen mounts none of them and renders nothing here.
+            Real panels render when kindData carries their payload; otherwise
+            the on-brand stub still shows so the surface is never blank. */}
+        <KindPanels config={p.kindConfig} kind={p.engagementKind} data={p.kindData} />
 
         {/* (val 2026-06-06) The ClientHero white pipeline card was duplicating
             the greeting subhead ("Your pipeline is steady. Keep working the

@@ -15,8 +15,28 @@ import { getAvDb } from '@/lib/db/av';
 import { getCopyMap } from '@/lib/copy/store';
 import { getClientDealModel, leadMonthlyCents } from '@/lib/sales/deal_model';
 import { getEngagementKind, configForKind } from '@/lib/client/engagement_kind';
+import { getBriefPayload } from '@/lib/client/brief_store';
+import { listPressTouches, countPressTouchesThisWeek, type PressTouch } from '@/lib/client/press_touches';
+import { getDistrictHeatMap, parseDistrictZips, type DistrictSignal } from '@/lib/client/district_heatmap';
+import { parseItinerary, nextStops, type ItineraryStop } from '@/lib/client/itinerary';
 import type { RowDataPacket } from 'mysql2';
 import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember } from '@/app/client/dashboard/AdrianaDashboard';
+
+/** (#550 v2) Kind-specific live data the dashboard panels render. Every field
+ *  is optional — only the panels enabled by the active engagement_kind get
+ *  populated; lead_gen brands ship every field undefined and pay nothing. */
+export interface KindData {
+  pressTouches?: PressTouch[];
+  pressWeekCount?: number;
+  caseBrief?: {
+    messageSupport: string | null;
+    audienceInsights: string | null;
+    timeline: string | null;
+  };
+  districtSignals?: DistrictSignal[];
+  hasDistrictConfig?: boolean;
+  itineraryStops?: ItineraryStop[];
+}
 
 interface LoaderArgs {
   clientUserId: number;
@@ -522,6 +542,57 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     { clientId: activeClientId ?? undefined }
   );
 
+  // (#550 v2 + #557) Kind-specific live data. Only fetch what the active
+  // engagement kind enables — lead_gen brands skip this whole block. Every
+  // call degrades to empty/null on miss; the panels render honest empty states.
+  const kindData: KindData = {};
+  if (activeClientId && engagementKind !== 'lead_gen') {
+    const brief = await getBriefPayload('av', activeClientId);
+    const briefObj = (brief && typeof brief === 'object' ? (brief as unknown as Record<string, unknown>) : {});
+    const tasks: Promise<void>[] = [];
+
+    if (kindConfig.showPressTouchesPanel) {
+      tasks.push(
+        Promise.all([
+          listPressTouches(activeClientId, 8),
+          countPressTouchesThisWeek(activeClientId)
+        ]).then(([touches, weekCount]) => {
+          kindData.pressTouches = touches;
+          kindData.pressWeekCount = weekCount;
+        }).catch(() => { kindData.pressTouches = []; kindData.pressWeekCount = 0; })
+      );
+    }
+
+    if (kindConfig.showCaseBriefPanel) {
+      const pick = (k: string): string | null => {
+        const v = briefObj[k];
+        return typeof v === 'string' && v.trim() ? v : null;
+      };
+      kindData.caseBrief = {
+        messageSupport: pick('message_support'),
+        audienceInsights: pick('audience_insights'),
+        timeline: pick('timeline')
+      };
+    }
+
+    if (kindConfig.showDistrictHeatMap) {
+      const zips = parseDistrictZips(briefObj);
+      kindData.hasDistrictConfig = zips.length > 0;
+      tasks.push(
+        getDistrictHeatMap(briefObj, { limit: 8 })
+          .then((signals) => { kindData.districtSignals = signals; })
+          .catch(() => { kindData.districtSignals = []; })
+      );
+    }
+
+    if (kindConfig.showItineraryPanel) {
+      const stops = parseItinerary(briefObj);
+      kindData.itineraryStops = nextStops(stops, 3);
+    }
+
+    if (tasks.length > 0) await Promise.all(tasks);
+  }
+
   return {
     brandName,
     brandPill,
@@ -553,6 +624,8 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
       sublabel: 'enriched today',
       moreHref: '/client/leads',
       cards: leadCards
-    }
+    },
+    // (#557) Live data for kind-specific panels. Empty object for lead_gen.
+    kindData
   };
 }
