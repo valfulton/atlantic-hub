@@ -14,6 +14,7 @@ import { listEmployeesForClient } from '@/lib/client/employees_on_account';
 import { getAvDb } from '@/lib/db/av';
 import { getCopyMap } from '@/lib/copy/store';
 import { getClientDealModel, leadMonthlyCents } from '@/lib/sales/deal_model';
+import { getEngagementKind, configForKind } from '@/lib/client/engagement_kind';
 import type { RowDataPacket } from 'mysql2';
 import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember } from '@/app/client/dashboard/AdrianaDashboard';
 
@@ -387,6 +388,13 @@ async function clientShortNameOf(clientId: number): Promise<string | null> {
 export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDashboardProps> {
   const { clientUserId, activeClientId, firstName, brandName, brandPill } = args;
 
+  // (#551) Engagement kind drives hero copy + which panels mount. Resolved from
+  // brand_members.engagement_kind for the active engagement; degrades to
+  // 'lead_gen' (today's behavior) on any miss. The operator preview calls this
+  // same loader, so the mirror inherits kind-awareness for free.
+  const engagementKind = await getEngagementKind({ clientId: activeClientId, clientUserId });
+  const kindConfig = configForKind(engagementKind);
+
   // Brands the user is a member of → switcher chips.
   let brands: BrandChip[] = [];
   try {
@@ -522,6 +530,8 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     greetingTime: greetingTime(),
     subhead,
     copy,
+    engagementKind,
+    kindConfig,
     brands,
     team,
     // (SPEC §1) Outcome-hero payload — pipeline buckets, forecast potential,

@@ -14,6 +14,7 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getBriefPayload } from '@/lib/client/brief_store';
+import { getEngagementKind } from '@/lib/client/engagement_kind';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import ClientIntakeForm from './ClientIntakeForm';
 import { getCopyMap } from '@/lib/copy/store';
@@ -64,6 +65,8 @@ export default async function ClientIntakePage() {
     || user.display_name?.trim()
     || 'your business';
   const copy = await getCopyMap(['intake.eyebrow', 'intake.h1', 'intake.lede'], { clientId: clientId ?? undefined });
+  // (#551) Active engagement kind → filters which intake questions are asked.
+  const engagementKind = await getEngagementKind({ clientId, clientUserId: actor.clientUserId });
 
   return (
     <main className="v3-wrap">
@@ -75,7 +78,7 @@ export default async function ClientIntakePage() {
           {copy['intake.lede']}
         </p>
       </section>
-      <ClientIntakeForm initial={initial} brandName={brandName} />
+      <ClientIntakeForm initial={initial} brandName={brandName} engagementKind={engagementKind} />
       <p className="v3-foot" style={{ textAlign: 'left', marginTop: 28 }}>
         Signed in as {user.email}
       </p>

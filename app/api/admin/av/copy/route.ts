@@ -14,6 +14,7 @@ import { headers } from 'next/headers';
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
 import { DEFAULTS, COPY_KEYS, saveCopy, clearCopy } from '@/lib/copy/store';
+import { getEngagementKind, ENGAGEMENT_KIND_CONFIG } from '@/lib/client/engagement_kind';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,7 +32,7 @@ function actor(): string {
 
 const GROUP_LABEL: Record<string, string> = {
   newsroom: 'Newsroom', channel: 'Channel', dashboard: 'Dashboard', leads: 'Leads',
-  watchlist: 'Watchlist', pr: 'Press', audit: 'Audit', intake: 'Intake', login: 'Login', footer: 'Footer',
+  watchlist: 'Watchlist', pr: 'Press', welcome: 'Welcome', audit: 'Audit', intake: 'Intake', login: 'Login', footer: 'Footer',
 };
 const groupOf = (key: string) => {
   if (key.startsWith('newsroom.footer')) return 'Footer';
@@ -67,12 +68,27 @@ export async function GET(req: NextRequest) {
     clients = cl.map((c) => ({ id: c.id, name: c.client_name }));
   } catch { /* clients table shape differs → editor still works on global */ }
 
-  const keys = COPY_KEYS.map((key) => ({
-    key,
-    group: groupOf(key),
-    def: DEFAULTS[key] ?? '',
-    value: overrides.get(key) ?? '',     // '' = no override at this context
-  }));
+  // (#551) Welcome popover keys are kind-namespaced (welcome.<kind>.sN). When a
+  // specific client is picked, show ONLY that client's engagement-kind welcome
+  // keys (plus all the non-welcome keys). On global defaults (clientId 0) show
+  // every welcome key so val can edit each kind's default.
+  let allowedWelcome: Set<string> | null = null;
+  if (clientId !== 0) {
+    const kind = await getEngagementKind({ clientId });
+    allowedWelcome = new Set(ENGAGEMENT_KIND_CONFIG[kind].welcomePopoverKeys);
+  }
+
+  const keys = COPY_KEYS
+    .filter((key) => {
+      if (!key.startsWith('welcome.')) return true;
+      return allowedWelcome ? allowedWelcome.has(key) : true;
+    })
+    .map((key) => ({
+      key,
+      group: groupOf(key),
+      def: DEFAULTS[key] ?? '',
+      value: overrides.get(key) ?? '',     // '' = no override at this context
+    }));
 
   return NextResponse.json({ ok: true, context: { clientId, stage }, clients, keys });
 }

@@ -38,6 +38,10 @@
 import { parseOpenAIJson } from '@/lib/llm/parse';
 import { runLlm } from '@/lib/llm/router';
 import { logEvent } from '@/lib/events/log';
+// (#553) Ground every artifact in the brand's own creative brief — voice,
+// audience, key message — so client_voice content sounds like THIS brand and
+// not a generic Atlantic & Vine voice. Mirrors lib/pr/drafter.ts.
+import { getBriefForPrompt, getVoiceLockBlock } from '@/lib/client/brief_store';
 import {
   loadClientIntelligence,
   buildIntelligenceBlock,
@@ -124,13 +128,27 @@ export async function draftArtifact(args: {
   const started = Date.now();
   const isPost = args.artifactType === 'own_brand_post';
 
+  // (#553) Pull the brand's creative brief + voice lock so the artifact is
+  // grounded in the client's own intake, not a generic A&V voice. Scoped to
+  // the lead's client_id (null for prospect/own-brand pieces — then the brief
+  // resolver returns the tenant/house brief or an empty block, unchanged).
+  const briefClientId = intel.lead?.client_id ?? null;
+  const brand = await getBriefForPrompt({
+    tenantId,
+    clientId: briefClientId,
+    fallbackName: intel.lead?.company ?? null
+  });
+  const voiceLockBlock = await getVoiceLockBlock(tenantId, briefClientId);
+
   const systemPrompt = buildArtifactSystemPrompt(args.artifactType, voiceMode);
   const userPrompt = buildArtifactUserPrompt({
     artifactType: args.artifactType,
     intel,
     tenantId,
     topic: args.topic ?? null,
-    narrativeContext: args.narrativeContext ?? null
+    narrativeContext: args.narrativeContext ?? null,
+    brandBlock: brand.block,
+    voiceLockBlock
   });
 
   let completion;
@@ -353,8 +371,22 @@ function buildArtifactUserPrompt(args: {
   tenantId: string;
   topic: string | null;
   narrativeContext?: string | null;
+  /** (#553) The brand's creative-brief identity block (getBriefForPrompt). */
+  brandBlock?: string | null;
+  /** (#553) The brand's VOICE_LOCK block (voice + key_message + spokesperson). */
+  voiceLockBlock?: string | null;
 }): string {
   const parts: string[] = [];
+  // (#553) Brand identity FIRST and binding: voice lock, then the brief block,
+  // so the model grounds the piece in this client's brief before anything else.
+  if (args.voiceLockBlock && args.voiceLockBlock.trim()) {
+    parts.push(args.voiceLockBlock.trim());
+    parts.push('');
+  }
+  if (args.brandBlock && args.brandBlock.trim()) {
+    parts.push(args.brandBlock.trim());
+    parts.push('');
+  }
   parts.push(`ARTIFACT_TYPE: ${args.artifactType}`);
   if (args.artifactType === 'own_brand_post') {
     parts.push(`OWN_BRAND_TENANT: ${args.tenantId} (this content is published by this brand on its own channel)`);

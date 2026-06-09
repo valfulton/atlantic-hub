@@ -66,7 +66,17 @@ const EBW_NAV = [
   { href: '/admin/ebw/activity', label: 'Marketing activity', section: 'sub' as const }
 ];
 
-export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean; showEbw?: boolean }) {
+export function Sidebar({
+  showAv = false,
+  showEbw = false,
+  notesUnread = 0
+}: {
+  showAv?: boolean;
+  showEbw?: boolean;
+  /** (#489) Unread client->operator notes across all brands. Badges the
+   *  "Clients" entry, Slack-style — the roster shows which client. */
+  notesUnread?: number;
+}) {
   const pathname = usePathname();
   // #406 — Collapsible sidebar so operator preview pages can use the full
   // viewport. Persists across reloads via localStorage. When collapsed, the
@@ -212,6 +222,14 @@ export function Sidebar({ showAv = false, showEbw = false }: { showAv?: boolean;
                 />
               )}
               {n.label}
+              {n.href === '/admin/av/clients' && notesUnread > 0 && (
+                <span
+                  className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-[10px] font-semibold text-white align-middle"
+                  title={`${notesUnread} unread client note${notesUnread === 1 ? '' : 's'}`}
+                >
+                  {notesUnread}
+                </span>
+              )}
             </Link>
           );
         })}

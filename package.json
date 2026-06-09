@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "generate-owner-hash": "node scripts/generate-owner-hash.js",
-    "smoke": "bash tests/smoke.sh"
+    "smoke": "bash tests/smoke.sh",
+    "audit:brief": "node scripts/audit_brief_payload_usage.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
