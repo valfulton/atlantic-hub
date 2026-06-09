@@ -299,10 +299,12 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
             ))}
           </div>
 
-          {/* How this brand uses PR — drives matching + default pitch voice. */}
-          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
-            <div className="text-xs uppercase tracking-wide text-[color-mix(in_srgb,var(--gold-bright)_75%,transparent)]">How this brand uses PR / news intel</div>
-            <p className="text-[11px] text-white/45">
+          {/* How this brand uses PR — drives matching + default pitch voice.
+              (#545) Inner panel now reads as a recessed cream card with a
+              subtle hairline border instead of the old dark-on-cream ghost. */}
+          <div className="rounded-md border border-[#0A0A0A]/10 bg-[#F7F1E1] p-3 space-y-3">
+            <div className="text-xs uppercase tracking-wide text-[#7A5A18]">How this brand uses PR / news intel</div>
+            <p className="text-[11px] text-[#0A0A0A]/60">
               Sets the default for matched opportunities. You can change it any time, and still
               override the voice on an individual pitch.
             </p>
@@ -334,54 +336,56 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
             </div>
           </div>
 
-          {/* Save + inline feedback (kept next to the button on purpose) */}
+          {/* Save + inline feedback (kept next to the button on purpose).
+              (#545) Solid-gold-fill primary on cream — earned action moment. */}
           <div className="flex items-center gap-3">
             <button
               onClick={save}
               disabled={saving || !dirty}
               className={
-                'rounded-md px-4 py-2 text-sm font-medium transition ' +
+                'rounded-md px-4 py-2 text-sm font-semibold transition ' +
                 (saving || !dirty
-                  ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'border border-[color-mix(in_srgb,var(--gold-bright)_40%,transparent)] text-[var(--gold-bright)] hover:bg-[color-mix(in_srgb,var(--gold-bright)_10%,transparent)]')
+                  ? 'bg-[#0A0A0A]/10 text-[#0A0A0A]/40 cursor-not-allowed'
+                  : 'bg-[var(--gold-bright)] text-[#0A0A0A] border border-[#0A0A0A]/15 shadow-sm hover:shadow-md hover:brightness-105')
               }
             >
               {saving ? 'Saving…' : dirty ? 'Save brief' : 'Saved'}
             </button>
             {msg && (
-              <span className={'text-xs ' + (msg.ok ? 'text-emerald-300' : 'text-rose-300')}>{msg.text}</span>
+              <span className={'text-xs ' + (msg.ok ? 'text-emerald-700' : 'text-rose-700')}>{msg.text}</span>
             )}
           </div>
 
-          {/* The grounding block the prompts actually see — prompt visibility. */}
-          <details className="rounded-md border border-white/10 bg-black/20">
-            <summary className="cursor-pointer select-none px-3 py-2 text-xs text-white/60">
+          {/* The grounding block the prompts actually see — prompt visibility.
+              (#545) Recessed cream-on-cream with dark ink. */}
+          <details className="rounded-md border border-[#0A0A0A]/10 bg-[#F7F1E1]">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs text-[#0A0A0A]/70">
               What the AI prompts will see (the grounding block) — click to inspect
             </summary>
-            <pre className="px-3 pb-3 text-[11px] leading-relaxed text-white/70 whitespace-pre-wrap break-words">
+            <pre className="px-3 pb-3 text-[11px] leading-relaxed text-[#0A0A0A]/75 whitespace-pre-wrap break-words">
               {promptBlock || '(nothing yet — fill the brief above and save)'}
             </pre>
           </details>
 
-          {/* Version history — restore points. Nothing is ever overwritten beyond recovery. */}
+          {/* Version history — restore points. (#545) Same cream-on-cream. */}
           <details
-            className="rounded-md border border-white/10 bg-black/20"
+            className="rounded-md border border-[#0A0A0A]/10 bg-[#F7F1E1]"
             onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) loadHistory(); }}
           >
-            <summary className="cursor-pointer select-none px-3 py-2 text-xs text-white/60">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs text-[#0A0A0A]/70">
               Version history &amp; restore points — open to view
             </summary>
             <div className="px-3 pb-3 space-y-2">
               {historyLoading ? (
-                <div className="text-[11px] text-white/40">Loading history…</div>
+                <div className="text-[11px] text-[#0A0A0A]/50">Loading history…</div>
               ) : versions.length === 0 ? (
-                <div className="text-[11px] text-white/40">No earlier versions yet. The first save here creates your first restore point.</div>
+                <div className="text-[11px] text-[#0A0A0A]/50">No earlier versions yet. The first save here creates your first restore point.</div>
               ) : (
                 versions.map((v) => (
-                  <div key={v.id} className="flex items-center justify-between gap-3 rounded border border-white/10 px-3 py-2">
-                    <div className="text-[11px] text-white/70">
-                      <span className="text-white/90">{new Date(v.createdAt).toLocaleString()}</span>
-                      <span className="ml-2 text-white/40">
+                  <div key={v.id} className="flex items-center justify-between gap-3 rounded border border-[#0A0A0A]/10 bg-white px-3 py-2">
+                    <div className="text-[11px] text-[#0A0A0A]/70">
+                      <span className="text-[#0A0A0A]">{new Date(v.createdAt).toLocaleString()}</span>
+                      <span className="ml-2 text-[#0A0A0A]/45">
                         {v.source === 'client_intake' ? 'client edit' : v.source === 'restore' ? 'restore' : 'you'}
                         {v.changedBy ? ` · ${v.changedBy}` : ''}
                       </span>
@@ -389,7 +393,7 @@ export function BriefEditor({ customers, initialKey }: { customers: Customer[]; 
                     <button
                       onClick={() => restoreVersion(v.id)}
                       disabled={saving}
-                      className="shrink-0 rounded border border-white/20 px-2.5 py-1 text-[11px] text-white/80 hover:text-white hover:border-white/40 disabled:opacity-50"
+                      className="shrink-0 rounded border border-[#0A0A0A]/20 px-2.5 py-1 text-[11px] text-[#0A0A0A] hover:border-[#0A0A0A]/40 disabled:opacity-50"
                     >
                       Restore
                     </button>

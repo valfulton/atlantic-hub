@@ -34,8 +34,12 @@ export default async function BriefPage({
   const cid = searchParams?.clientId && /^\d+$/.test(searchParams.clientId) ? searchParams.clientId : null;
   const initialKey = cid ? `${tenant}:${cid}` : undefined;
 
+  // (#545 val 2026-06-08) Removed max-w-3xl (768px) wrapper that was squishing
+  // BriefEditor into a narrow column on val's 15in MBP @ 1680x1050. The
+  // editor + triptych need the page's full content width to breathe; the
+  // header copy still caps at 2xl for readability.
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-[1440px]">
       <h1 className="text-3xl font-semibold tracking-tight mb-1">
         Creative{' '}
         <span
