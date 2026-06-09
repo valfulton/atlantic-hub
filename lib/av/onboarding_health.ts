@@ -37,7 +37,12 @@ const PLACEHOLDER_DOMAINS = new Set([
   'example.com', 'example.org', 'example.net', 'test.com', 'placeholder.com'
 ]);
 const PLACEHOLDER_TLDS = ['.local', '.invalid', '.test', '.example'];
-const PLACEHOLDER_MARKERS = ['placeholder', 'noemail', 'no-reply', 'noreply', 'donotreply'];
+// val's hand-run SQL onboarding conventions (matched case-insensitively):
+//   PLACEHOLDER_*@example.com   (e.g. PLACEHOLDER_ron@example.com)
+//   REPLACE_WITH_*@example.com  (e.g. REPLACE_WITH_KEVIN_OR_MAILE_EMAIL@example.com)
+// Both always end @example.com (already in PLACEHOLDER_DOMAINS); the prefix
+// markers below catch them even if the domain ever differs.
+const PLACEHOLDER_MARKERS = ['placeholder_', 'replace_with', 'placeholder', 'noemail', 'no-reply', 'noreply', 'donotreply'];
 
 export function isPlaceholderEmail(email: string | null | undefined): boolean {
   if (!email) return false;
