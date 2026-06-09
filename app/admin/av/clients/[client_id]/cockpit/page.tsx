@@ -32,6 +32,9 @@ import { getBriefPayload } from '@/lib/client/brief_store';
 import type { RowDataPacket } from 'mysql2';
 import CockpitClient from './CockpitClient';
 import { cockpitTitlesFor } from '@/lib/av/cockpit_asset_titles';
+// (#571, Tier 2.1) Real cockpit counters — replace the mock pulse numbers.
+import { countPendingApprovals, listApprovalsForClient } from '@/lib/av/cockpit_approvals';
+import { countPressTouchesThisWeek } from '@/lib/client/press_touches';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,23 +98,112 @@ export default async function CockpitPage({ params }: CockpitProps) {
     client.client_name.split(/\s+/)[0] ||
     'there';
 
-  // (#568, Tier 1) Brief-grounded approval titles. Replaces the per-kind
-  // hardcoded KIND_DEFAULT_APPROVALS that gave every defense_pr client the
-  // same "doctor who said yes" card. Each client now sees draft titles built
-  // from THEIR brief.key_message / message_support / audience_insights /
-  // differentiators / district / principals etc.
-  const approvalTitles = cockpitTitlesFor(kind, brief as Record<string, unknown>);
+  // (#571, Tier 2.1) Real counters — parallel reads, soft-fail to 0.
+  //   narrativesRunning → narrative_lanes WHERE client_id + state active/reinforcing
+  //   pendingApprovals  → cockpit_approvals WHERE status='pending'
+  //   pressTouches      → press_touches in the last 7 days
+  //   signalsThisWeek   → public_intel_records.seen_at >= NOW() - INTERVAL 7 DAY,
+  //                       scoped via brief.district_zips or brief.business_state.
+  // (#568) Brief-grounded approval titles (still per-kind; persisted approvals
+  //         take precedence below so edits aren't overwritten).
+  // (#569/#570) Existing approvals from cockpit_approvals — persisted edits
+  //         + greenlit rows merge ahead of the inline brief-generated slots.
+  const [narrativesRunning, pendingApprovals, pressTouches, signalsThisWeek, persistedApprovals] = await Promise.all([
+    countNarrativesRunningForClient(clientId),
+    countPendingApprovals(clientId),
+    countPressTouchesThisWeek(clientId),
+    countSignalsThisWeekForBrief(brief as Record<string, unknown>),
+    listApprovalsForClient(clientId, { status: 'pending', limit: 8 })
+  ]);
 
-  // v1 mock data — REPLACED by live cascade reads in #550 v2.
+  const briefTitles = cockpitTitlesFor(kind, brief as Record<string, unknown>);
+  const persistedAsApprovals = persistedApprovals.map((a) => ({
+    id: String(a.id),
+    kind: a.kind,
+    title: a.title,
+    angle: a.angle ?? '—',
+    source: a.source ?? ''
+  }));
+  // De-dupe by (kind, angle) so we don't double-show the same slot once an
+  // operator's edit has been persisted.
+  const seen = new Set(persistedAsApprovals.map((p) => `${p.kind}:${p.angle}`));
+  const merged = [
+    ...persistedAsApprovals,
+    ...briefTitles.filter((t) => !seen.has(`${t.kind}:${t.angle}`))
+  ];
+
   const cockpitData = {
     kind,
     firstName,
     displayName: client.client_name,
     shortName: client.short_name ?? '',
     brief,
-    // Mock counts — real version pulls from public_intel_records + narrative_lines
-    pulse: { signalsThisWeek: 17, narrativesRunning: 3, pendingApprovals: 3, pressTouches: 9 }
+    pulse: {
+      signalsThisWeek,
+      narrativesRunning,
+      pendingApprovals,
+      pressTouches
+    }
   };
 
-  return <CockpitClient data={cockpitData} clientId={clientId} initialApprovals={approvalTitles} />;
+  return <CockpitClient data={cockpitData} clientId={clientId} initialApprovals={merged} />;
+}
+
+/** (#571) Count active narrative lines owned by this client. Soft-fail to 0. */
+async function countNarrativesRunningForClient(clientId: number): Promise<number> {
+  if (!Number.isInteger(clientId) || clientId <= 0) return 0;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<(RowDataPacket & { n: number })[]>(
+      `SELECT COUNT(*) AS n FROM narrative_lanes
+        WHERE tenant_id = 'av' AND client_id = ?
+          AND state IN ('active','reinforcing')`,
+      [clientId]
+    );
+    return Number(rows[0]?.n ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+/** (#571) Count public_intel_records seen in the last 7 days, scoped to the
+ *  brief's district_zips when present, otherwise the business_state.
+ *  Soft-fail to 0. */
+async function countSignalsThisWeekForBrief(brief: Record<string, unknown> | null): Promise<number> {
+  if (!brief) return 0;
+  const zipsRaw = brief['district_zips'];
+  const state = typeof brief['business_state'] === 'string' ? (brief['business_state'] as string).trim().toUpperCase() : '';
+  let zips: string[] = [];
+  if (Array.isArray(zipsRaw)) zips = zipsRaw.map(String);
+  else if (typeof zipsRaw === 'string') {
+    try { const arr = JSON.parse(zipsRaw); if (Array.isArray(arr)) zips = arr.map(String); }
+    catch { zips = zipsRaw.split(/[\s,]+/); }
+  }
+  zips = zips.map((z) => z.match(/\d{5}/)?.[0]).filter((z): z is string => !!z).slice(0, 30);
+  try {
+    const db = getAvDb();
+    if (zips.length > 0) {
+      const placeholders = zips.map(() => '?').join(',');
+      const [rows] = await db.execute<(RowDataPacket & { n: number })[]>(
+        `SELECT COUNT(*) AS n FROM public_intel_records
+          WHERE seen_at >= NOW() - INTERVAL 7 DAY
+            AND (zip IN (${placeholders})
+                 OR JSON_UNQUOTE(JSON_EXTRACT(metadata,'$.zip')) IN (${placeholders}))`,
+        [...zips, ...zips]
+      );
+      return Number(rows[0]?.n ?? 0);
+    }
+    if (state && state.length === 2) {
+      const [rows] = await db.execute<(RowDataPacket & { n: number })[]>(
+        `SELECT COUNT(*) AS n FROM public_intel_records
+          WHERE seen_at >= NOW() - INTERVAL 7 DAY
+            AND state = ?`,
+        [state]
+      );
+      return Number(rows[0]?.n ?? 0);
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
 }

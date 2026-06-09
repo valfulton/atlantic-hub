@@ -8,6 +8,7 @@
  * approved on /admin/av/brief. NO black surfaces; this is brand-aligned.
  */
 import { useState } from 'react';
+import EditAssetModal, { type EditableAsset } from './EditAssetModal';
 
 type Kind = 'lead_gen' | 'defense_pr' | 'political_campaign' | 'luxury_hospitality' | 'book_pr' | string;
 
@@ -130,14 +131,24 @@ export default function CockpitClient({
       : (KIND_DEFAULT_APPROVALS[data.kind] ?? KIND_DEFAULT_APPROVALS.lead_gen)
   );
   const [busyId, setBusyId] = useState<string | null>(null);
+  // (#570, Tier 1.3) Edit modal state. null = closed.
+  const [editing, setEditing] = useState<EditableAsset | null>(null);
 
   const pendingCount = approvals.filter((a) => !a.state).length;
 
   async function act(id: string, action: 'green' | 'kill' | 'edit') {
     if (action === 'edit') {
-      // Future: deep-link into the editor for that asset type.
-      // v1: bump to a stub edit page that won't blow up.
-      window.alert('Editor for individual assets ships in #550 v2.');
+      // (#570) Real editor. Opens a modal seeded with the current title/body.
+      const card = approvals.find((a) => a.id === id);
+      if (!card) return;
+      setEditing({
+        id: card.id,
+        kind: card.kind,
+        title: card.title,
+        body: null, // v1: cockpit doesn't yet round-trip body — modal starts blank, save persists it.
+        source: card.source,
+        angle: card.angle
+      });
       return;
     }
     setBusyId(id);
@@ -179,6 +190,22 @@ export default function CockpitClient({
 
   return (
     <div className="max-w-[1440px]" style={{ background: cream, color: dark, padding: '1.5rem 1.75rem', borderRadius: 16 }}>
+      {editing && (
+        <EditAssetModal
+          clientId={clientId}
+          asset={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(saved) => {
+            // After save, replace the in-memory row with the persisted version
+            // (new id from DB so subsequent Green Light updates the same row
+            // instead of creating a second one). Keep order/state intact.
+            setApprovals((prev) =>
+              prev.map((a) => (a.id === editing.id ? { ...a, id: saved.id, title: saved.title } : a))
+            );
+            setEditing(null);
+          }}
+        />
+      )}
       {/* Header — kind-aware greeting */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7A5A18' }}>
