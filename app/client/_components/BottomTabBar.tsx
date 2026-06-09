@@ -25,8 +25,9 @@ const MORE: Item[] = [
   { href: '/client/calendar',  label: 'Calendar',  icon: 'M5 4h14v16H5z M5 10h14 M9 4v4 M15 4v4' },
   { href: '/client/pr',        label: 'Press',     icon: 'M4 4h16v12H7l-3 3V4z' },
   { href: '/client/notes',     label: 'Notes',     icon: 'M4 4h16v12H7l-3 3V4z M8 8h8 M8 12h5' },
-  { href: '/newsroom',         label: 'Newsroom',  icon: 'M4 5h16v14H4z M4 9h16 M8 5v14' },
-  { href: '/client/intake',    label: 'You',       icon: 'M8 8a4 4 0 1 0 8 0 4 4 0 0 0-8 0 M4 21c0-4 4-6 8-6s8 2 8 6' }
+  { href: '/newsroom',         label: 'Newsroom',  icon: 'M4 5h16v14H4z M4 9h16 M8 5v14' }
+  // (val 2026-06-09) "You" / /client/intake hidden from client-facing nav.
+  // Page stays in code for operator backend editing only. Do not re-add.
 ];
 
 function Icon({ d }: { d: string }) {

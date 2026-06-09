@@ -26,8 +26,10 @@ const NAV = [
   { href: '/client/pr', label: 'Press' },
   // Newsroom — the public Wire surfacing published work. Same URL for client and
   // operator (public route), so the mirror discipline is satisfied by the URL itself.
-  { href: '/newsroom', label: 'Newsroom' },
-  { href: '/client/intake', label: 'You' }
+  { href: '/newsroom', label: 'Newsroom' }
+  // (val 2026-06-09) "You" / /client/intake hidden from client-facing nav.
+  // Page stays in code for operator backend editing only; new client intake
+  // system pending separate design pass. DO NOT re-add without val's say-so.
 ];
 
 export default function ClientV3TopNav({
