@@ -28,6 +28,10 @@ const TABS = [
   { id: 'audit', label: 'Audit', path: '/audit' },
   { id: 'intake', label: 'Intake / brief', path: '/intake' },
   { id: 'pr', label: 'Press queue', path: '/pr' },
+  // (val 2026-06-09) Notes — operator mirror of /client/notes. Required by
+  // the mirror-every-client-surface rule. Read-only preview here; the
+  // operator posts AS val from the client detail page notes editor.
+  { id: 'notes', label: 'Notes', path: '/notes' },
   // Newsroom — public route. `absolute: true` flag tells the renderer below
   // to use the path directly instead of nesting under /preview/<path>.
   { id: 'newsroom', label: 'Newsroom', path: '/newsroom', absolute: true }
