@@ -36,8 +36,10 @@ export async function POST(req: NextRequest) {
   }
 
   // v1 intent log. Replace with publish dispatch in v2.
+  // (actor type is { userId, role, sessionId } — no email field; use userId.)
   console.log('[cockpit:greenlight]', {
-    actor: guard.actor.email ?? guard.actor.userId,
+    actorUserId: guard.actor.userId,
+    actorRole: guard.actor.role,
     clientId,
     approvalId,
     action,
