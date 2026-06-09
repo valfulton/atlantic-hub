@@ -11,6 +11,7 @@ import { loadOnboardingStatus, type OnboardingStatus } from '@/lib/av/onboarding
 import { spendByClientLastDays, totalSpendLastDays } from '@/lib/llm/spend';
 import { CostBadge } from '@/app/_components/CostBadge';
 import { unreadByClientForOperator } from '@/lib/client/notes';
+import { onboardingHealthByClient } from '@/lib/av/onboarding_health';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +71,10 @@ export default async function ClientsPage() {
 
   // (#489) Unread client->operator notes per brand → roster badge.
   const unreadNotes = await unreadByClientForOperator();
+
+  // Onboarding health → roster warning for brands created incomplete (no
+  // brand_members row, e.g. SQL-onboarded, or a placeholder login email).
+  const health = await onboardingHealthByClient();
 
   // Active leads available to convert into a client (no retyping — their info carries over).
   let convertible: { auditId: string; company: string; contactName: string | null; email: string; industry: string | null; score: number | null; band: string | null }[] = [];
@@ -160,6 +165,27 @@ export default async function ClientsPage() {
                       {c.industry ? ` · ${c.industry}` : ''}
                       {!c.enabled && <span style={{ color: '#fca5a5' }}> · disabled</span>}
                     </div>
+                    {health[c.clientId] && (
+                      <div className="mt-0.5">
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                          style={{ background: 'rgba(251,191,36,0.14)', color: '#d97706', border: '1px solid rgba(251,191,36,0.45)' }}
+                          title={[
+                            health[c.clientId].noMembership
+                              ? 'No brand_members row — this login is not scoped to its brand (onboarded outside the create form). Backfill a membership row so kind-routing + login work.'
+                              : '',
+                            health[c.clientId].placeholderEmail
+                              ? `Placeholder login email (${health[c.clientId].placeholderEmail}) — the magic link / login can't reach the client until a real email is set.`
+                              : ''
+                          ].filter(Boolean).join(' ')}
+                        >
+                          ⚠ {[
+                            health[c.clientId].noMembership ? 'no login' : '',
+                            health[c.clientId].placeholderEmail ? 'placeholder email' : ''
+                          ].filter(Boolean).join(' · ')}
+                        </span>
+                      </div>
+                    )}
                     <Link href={`/admin/av/clients/${c.clientId}/preview`} className="text-[11px] text-brand hover:underline">
                       Preview their dashboard →
                     </Link>
