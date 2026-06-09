@@ -46,6 +46,17 @@ const COMPANY_TOKENS = new Set([
   'studio', 'studios', 'collective', 'lab', 'labs', 'works', 'media'
 ]);
 
+// (val 2026-06-09) Honorifics / titles that must not become the greeting first
+// name. "Dr. Ron Elfenbein" → "Ron", not "Dr.". Without skipping these the
+// dashboard greeted "Good evening, Dr." (and the brand-prefix veto below kicked
+// the whole resolution to "there" because brand_name STARTS with "Dr. Ron…").
+const TITLE_TOKENS = new Set([
+  'dr', 'dr.', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', 'mx', 'mx.',
+  'prof', 'prof.', 'professor', 'hon', 'hon.', 'rev', 'rev.', 'fr', 'fr.',
+  'sr', 'sr.', 'jr', 'jr.', 'sen', 'sen.', 'rep', 'rep.', 'gov', 'gov.',
+  'capt', 'capt.', 'lt', 'lt.', 'maj', 'maj.', 'col', 'col.'
+]);
+
 /**
  * Heuristic: does displayName clearly look like a real person's name?
  * Person names are 2-4 tokens, each starts with a capital letter, no obvious
@@ -55,14 +66,29 @@ const COMPANY_TOKENS = new Set([
  */
 function looksLikePersonName(s: string): boolean {
   const tokens = s.split(/[\s,]+/).filter(Boolean);
-  if (tokens.length < 2 || tokens.length > 4) return false;
+  if (tokens.length < 2 || tokens.length > 5) return false; // 5 = "Dr. Ron Elfenbein Jr."
   for (const t of tokens) {
     const stripped = t.toLowerCase().replace(/\.$/, '');
     if (COMPANY_TOKENS.has(stripped)) return false;
-    // Must look like a name part: leading capital, then letters/apostrophes/hyphens.
-    if (!/^[A-Z][a-zA-Z'’-]+$/.test(t)) return false;
+    // Titles and suffixes (Dr., Jr., Sr., etc.) are part of valid person names.
+    if (TITLE_TOKENS.has(stripped) || TITLE_TOKENS.has(t.toLowerCase())) continue;
+    // Otherwise must look like a name part: leading capital, then letters/
+    // apostrophes/hyphens. Trailing period allowed for initials ("J. K. Rowling").
+    if (!/^[A-Z][a-zA-Z'’.-]*$/.test(t)) return false;
   }
   return true;
+}
+
+/** Pick the greeting first name from a display string, skipping leading titles.
+ *  "Dr. Ron Elfenbein" → "Ron". "Hon. John White" → "John". "Adriana" → "Adriana". */
+function firstNameSkippingTitles(d: string): string | null {
+  const tokens = d.split(/[\s,]+/).filter(Boolean);
+  for (const t of tokens) {
+    const low = t.toLowerCase();
+    if (TITLE_TOKENS.has(low) || TITLE_TOKENS.has(low.replace(/\.$/, ''))) continue;
+    return t;
+  }
+  return null;
 }
 
 export function safeFirstName(
@@ -76,7 +102,7 @@ export function safeFirstName(
   const LOWER_SENTINELS = new Set(['there', 'friend', 'client', 'unknown', '-', 'n/a']);
   if (LOWER_SENTINELS.has(d.toLowerCase())) return null;
 
-  const first = d.split(/[\s,]+/).filter(Boolean)[0] ?? '';
+  const first = firstNameSkippingTitles(d) ?? '';
   if (!first) return null;
 
   // Trust-the-person override RUNS FIRST (val 2026-06-08): if displayName
@@ -84,6 +110,11 @@ export function safeFirstName(
   // no company suffixes), believe it. This catches the Chip Zenke / Tim
   // Helfrey case where the client was onboarded with the contact's name as
   // the brand and the brand-veto below would otherwise return "there".
+  //
+  // val 2026-06-09 extension: titles like "Dr." / "Hon." / "Mr." are now
+  // accepted as person tokens (TITLE_TOKENS), and firstNameSkippingTitles
+  // skips them when picking the greeting word — so "Dr. Ron Elfenbein" →
+  // "Ron", not "Dr." and not "there".
   //
   // The Central-Bottle-Brunch bug remains caught for single-token displayNames
   // (looksLikePersonName requires 2+ tokens) and for multi-token displayNames
