@@ -29,6 +29,10 @@ export default function NewClientForm() {
 
   const [f, setF] = useState({
     email: '', name: '', company: '', industry: '', website_url: '',
+    // (val 2026-06-09 / #567) Field-parity with AccountInfoEditor so val never
+    // has to create-then-edit. short_name = brand nickname on clients table;
+    // owner_name/business_state/business_address = KYC fields on brief_payload.
+    short_name: '', owner_name: '', business_state: '', business_address: '',
     tier: 'scale' as Tier, trialDays: '30',
     // (#428) Vertical pack applied right after creation — no second step
     // required. Blank = no pack (legacy marketing-only clients).
@@ -68,6 +72,13 @@ export default function NewClientForm() {
           // (#415) never fired, and the intake form showed up empty. This is
           // the field that "I already entered this" referred to.
           website_url: f.website_url.trim() || undefined,
+          // (#567) Parity-with-edit fields. short_name handled in the route
+          // (clients column); owner_name/business_state/business_address are
+          // canonical INTAKE_KEYS so they flow straight into the brief.
+          short_name: f.short_name.trim() || undefined,
+          owner_name: f.owner_name.trim() || undefined,
+          business_state: f.business_state.trim().toUpperCase() || undefined,
+          business_address: f.business_address.trim() || undefined,
           key_message: f.key_message.trim() || undefined, target_audience: f.target_audience.trim() || undefined,
           why_advertise: f.why_advertise.trim() || undefined, goals: f.goals.trim() || undefined,
           audience_insights: f.audience_insights.trim() || undefined, message_support: f.message_support.trim() || undefined,
@@ -107,7 +118,9 @@ export default function NewClientForm() {
   function reset() {
     setDone(null); setErr(null);
     setF({
-      email: '', name: '', company: '', industry: '', website_url: '', tier: 'scale', trialDays: '30',
+      email: '', name: '', company: '', industry: '', website_url: '',
+      short_name: '', owner_name: '', business_state: '', business_address: '',
+      tier: 'scale', trialDays: '30',
       verticalPack: '',
       key_message: '', target_audience: '', why_advertise: '', goals: '', audience_insights: '',
       message_support: '', differentiators: '', competitors: '', brand_voice: '', brand_colors: '',
@@ -150,8 +163,21 @@ export default function NewClientForm() {
         <div>
           <div className="grid sm:grid-cols-2 gap-3">
             <div><label className={labelCls}>Email *</label><input className={inputCls} type="email" value={f.email} onChange={(e) => set('email', e.target.value)} /></div>
-            <div><label className={labelCls}>Contact name</label><input className={inputCls} value={f.name} onChange={(e) => set('name', e.target.value)} /></div>
-            <div><label className={labelCls}>Company</label><input className={inputCls} value={f.company} onChange={(e) => set('company', e.target.value)} /></div>
+            <div><label className={labelCls}>Contact name</label><input className={inputCls} value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="The name they see — e.g. Skip Krause" /></div>
+            <div><label className={labelCls}>Account name (Company)</label><input className={inputCls} value={f.company} onChange={(e) => set('company', e.target.value)} placeholder="Shown everywhere — e.g. Atlantic and Vine" /></div>
+            <div>
+              <label className={labelCls}>Short name / nickname (max 20 chars)</label>
+              <input
+                className={inputCls}
+                value={f.short_name}
+                onChange={(e) => set('short_name', e.target.value)}
+                maxLength={20}
+                placeholder="e.g. CBB, CLDA, EBW — blank = first-two-letters"
+              />
+              <div className="text-[10px] text-muted mt-1">
+                Renders in brand chips, watchlist label, dashboard pill.
+              </div>
+            </div>
             <div>
               <label className={labelCls}>Website</label>
               <input
@@ -166,6 +192,46 @@ export default function NewClientForm() {
               </div>
             </div>
             <div><label className={labelCls}>Industry</label><input className={inputCls} value={f.industry} onChange={(e) => set('industry', e.target.value)} /></div>
+            {/* (#567) KYC fields — same set as AccountInfoEditor so creating a
+                client is field-parity with editing one. */}
+            <div>
+              <label className={labelCls}>Owner name <span style={{ color: '#fbbf24' }}>(KYC target — legal owner)</span></label>
+              <input
+                className={inputCls}
+                value={f.owner_name}
+                onChange={(e) => set('owner_name', e.target.value)}
+                placeholder="Adriana Candelaria · Mark Francis · etc."
+              />
+              <div className="text-[10px] text-muted mt-1">
+                For solo operators, same as contact name. For corporate clients, the legal owner the KYC sweep screens.
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Business state (2-letter)</label>
+              <input
+                className={inputCls}
+                style={{ width: 80, textTransform: 'uppercase' }}
+                value={f.business_state}
+                onChange={(e) => set('business_state', e.target.value.slice(0, 2))}
+                maxLength={2}
+                placeholder="MD"
+              />
+              <div className="text-[10px] text-muted mt-1">
+                Scopes CourtListener + CFPB searches. Without this, KYC queries nationwide.
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Business address</label>
+              <input
+                className={inputCls}
+                value={f.business_address}
+                onChange={(e) => set('business_address', e.target.value)}
+                placeholder="123 Main St, City, ST 12345"
+              />
+              <div className="text-[10px] text-muted mt-1">
+                Powers the address-stress screen (HMDA + per-property records).
+              </div>
+            </div>
             <div>
               <label className={labelCls}>Tier</label>
               <select className={inputCls} value={f.tier} onChange={(e) => set('tier', e.target.value as Tier)}>

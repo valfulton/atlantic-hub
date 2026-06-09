@@ -169,6 +169,24 @@ export async function POST(req: NextRequest) {
       sendInvite: body.sendInvite === true,
       intake
     });
+
+    // (#567) Persist short_name onto the new clients row. owner_name,
+    // business_state, and business_address are canonical INTAKE_KEYS and
+    // already flow through `intake` into brief_payload via the create flow —
+    // short_name is the only one that lives on the clients table, so it
+    // needs an explicit follow-up UPDATE here. Best-effort: client exists
+    // even if this fails; val can set it from AccountInfoEditor.
+    const shortNameRaw = typeof body.short_name === 'string' ? body.short_name.trim().slice(0, 20) : '';
+    if (shortNameRaw && result.clientId) {
+      try {
+        const db = getAvDb();
+        await db.execute(
+          `UPDATE clients SET short_name = ? WHERE client_id = ?`,
+          [shortNameRaw, result.clientId]
+        );
+      } catch { /* non-fatal */ }
+    }
+
     // (#253) Surface the carryover counts on the response so the UI can
     // show val "Carried over 7 fields from this lead's smart-scrape draft"
     // and she knows the auto-fill happened.
