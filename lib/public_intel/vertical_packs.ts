@@ -483,11 +483,75 @@ async function deriveClientScreeningConfigs(clientId: number): Promise<{
     const brief = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown>;
 
     const contact = typeof brief.contact_name === 'string' ? brief.contact_name.trim() : '';
-    const company = typeof brief.company === 'string' ? brief.company.trim() : '';
+    const companyRaw = typeof brief.company === 'string' ? brief.company.trim() : '';
     // (#537) owner_name is the LEGAL OWNER (Adriana, Mark Francis). Separate
     // from contact_name which may be a marketing POC. KYC screens owner first.
     const owner = typeof brief.owner_name === 'string' ? brief.owner_name.trim() : '';
-    if (!contact && !company && !owner) return null;
+    // (val 2026-06-10) Political-campaign: candidate_name + sitting_incumbent
+    // + opponents[] feed additional KYC sweeps so the operator sees the
+    // competitive landscape — not just the candidate's own record.
+    const candidate = typeof brief.candidate_name === 'string' ? brief.candidate_name.trim() : '';
+    const sittingIncumbent = typeof brief.sitting_incumbent === 'string' ? brief.sitting_incumbent.trim() : '';
+    const opponentsRaw = typeof brief.opponents === 'string' ? brief.opponents.trim() : '';
+    if (!contact && !companyRaw && !owner && !candidate) return null;
+
+    // (val 2026-06-10) Court records list people as "Ronald Elfenbein", not
+    // "Dr. Ron Elfenbein — Defense Press". Sanitize every name candidate before
+    // it hits the search:
+    //   - Strip leading honorifics: Dr. Mr. Mrs. Ms. Prof. Hon. Rev. Sen. Rep.
+    //   - Strip trailing degrees: , MD , PhD , JD , Esq. , DDS , DO
+    //   - For company labels: drop everything after " — " " - " or " | "
+    //     (those are brand kickers like " — Defense Press", not legal names).
+    //   - Add a LAST-NAME fallback per person — high-recall safety net for
+    //     CourtListener that the docket-URL dedupe makes cheap.
+    const HONORIFICS_RX = /^(?:dr|mr|mrs|ms|prof|hon|rev|sen|rep)\.?\s+/i;
+    const DEGREES_RX = /\s*,\s*(?:M\.?D\.?|Ph\.?D\.?|J\.?D\.?|Esq\.?|D\.?D\.?S\.?|D\.?O\.?)\s*$/i;
+    const BRAND_KICKER_RX = /\s+[—\-|]\s+.+$/;
+    function sanitizePersonName(rawN: string): string {
+      let n = rawN.trim();
+      while (HONORIFICS_RX.test(n)) n = n.replace(HONORIFICS_RX, '');
+      n = n.replace(DEGREES_RX, '');
+      return n.trim();
+    }
+    function sanitizeCompanyName(rawN: string): string {
+      let n = rawN.trim();
+      n = n.replace(BRAND_KICKER_RX, '');
+      n = sanitizePersonName(n);
+      return n.trim();
+    }
+    function lastNameOnly(rawN: string): string {
+      const parts = rawN.trim().split(/\s+/);
+      while (parts.length > 1 && /^(?:M\.?D\.?|Ph\.?D\.?|J\.?D\.?|Esq\.?|D\.?D\.?S\.?|D\.?O\.?|Sr\.?|Jr\.?|II|III|IV)$/i.test(parts[parts.length - 1])) {
+        parts.pop();
+      }
+      return parts[parts.length - 1] ?? '';
+    }
+    function addPersonName(out: string[], seen: Set<string>, rawN: string): void {
+      const cleaned = sanitizePersonName(rawN);
+      if (cleaned) {
+        const lc = cleaned.toLowerCase();
+        if (!seen.has(lc)) { seen.add(lc); out.push(cleaned); }
+        const ln = lastNameOnly(cleaned);
+        if (ln && ln.toLowerCase() !== lc && ln.length > 2) {
+          const lcLn = ln.toLowerCase();
+          if (!seen.has(lcLn)) { seen.add(lcLn); out.push(ln); }
+        }
+      }
+    }
+    function addCompanyName(out: string[], seen: Set<string>, rawN: string): void {
+      const cleaned = sanitizeCompanyName(rawN);
+      if (cleaned) {
+        const lc = cleaned.toLowerCase();
+        if (!seen.has(lc)) { seen.add(lc); out.push(cleaned); }
+      }
+    }
+    // Parse opponents block (intake stores one per line). Each line is
+    //   "Name · party · description" — keep just the name (up to first delimiter).
+    const opponentNames: string[] = opponentsRaw
+      .split(/[\r\n]+/)
+      .map((line) => line.trim().split(/\s*[·\|—\-]\s*/)[0]?.trim() ?? '')
+      .filter((n) => n.length > 1);
+    const company = sanitizeCompanyName(companyRaw);
 
     // State hint — same order as KYC sweep deriveStateHint.
     const stateCandidates: Array<unknown> = [
@@ -511,18 +575,20 @@ async function deriveClientScreeningConfigs(clientId: number): Promise<{
       }
     }
 
-    // (#537) Owner first (KYC target), then contact (marketing POC), then company.
-    // Dedup case-insensitively.
+    // (#537 + val 2026-06-10) Names go through sanitizers: candidate first
+    // when present (political_campaign target), then owner (KYC target), then
+    // contact (marketing POC), then company, then sitting incumbent + each
+    // opponent. Last-name fallback added per person name. Dedup case-
+    // insensitively.
     const seenLc = new Set<string>();
     const names: string[] = [];
-    for (const n of [owner, contact, company]) {
-      const t = n.trim();
-      if (!t) continue;
-      const lc = t.toLowerCase();
-      if (seenLc.has(lc)) continue;
-      seenLc.add(lc);
-      names.push(t);
-    }
+    if (candidate) addPersonName(names, seenLc, candidate);
+    if (owner)     addPersonName(names, seenLc, owner);
+    if (contact)   addPersonName(names, seenLc, contact);
+    if (company)   addCompanyName(names, seenLc, company);
+    if (sittingIncumbent) addPersonName(names, seenLc, sittingIncumbent);
+    for (const op of opponentNames) addPersonName(names, seenLc, op);
+
     const courtlistener: Record<string, unknown> = {
       name: names,
       sinceDays: 0

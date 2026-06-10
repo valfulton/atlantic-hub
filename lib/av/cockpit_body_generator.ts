@@ -100,6 +100,24 @@ function buildBriefBlock(brief: BriefBag, clientName: string): string {
   push('Timeline / urgency', fieldOr(brief, 'timeline') || fieldOr(brief, 'urgency'));
   push('Do-not-say / red lines', fieldOr(brief, 'red_lines') || listOr(brief, 'red_lines_list'));
   push('Website', fieldOr(brief, 'website_url') || fieldOr(brief, 'website'));
+  // (val 2026-06-10) Political-campaign-specific fields. Picked up only when
+  // the brief carries them, so non-political clients see no extra noise.
+  push('Candidate', fieldOr(brief, 'candidate_name'));
+  push('Office sought', fieldOr(brief, 'office_sought'));
+  push('District', fieldOr(brief, 'district_code') || fieldOr(brief, 'district'));
+  push('District counties', fieldOr(brief, 'district_counties'));
+  push('Party', fieldOr(brief, 'party'));
+  push('Primary date', fieldOr(brief, 'primary_date'));
+  push('General date', fieldOr(brief, 'general_date'));
+  push('Sitting incumbent', fieldOr(brief, 'sitting_incumbent'));
+  push('Opponents', fieldOr(brief, 'opponents'));
+  push('Stump speech', fieldOr(brief, 'stump_speech'));
+  push('Three planks', fieldOr(brief, 'three_planks'));
+  push('Local-issue positions', fieldOr(brief, 'positions_local_issues'));
+  push('No-go topics', fieldOr(brief, 'no_go_topics'));
+  push('Campaign hashtag', fieldOr(brief, 'campaign_hashtag'));
+  push('Campaign sign-off', fieldOr(brief, 'campaign_signoff'));
+  push('Campaign website', fieldOr(brief, 'campaign_website'));
   return lines.join('\n');
 }
 
@@ -121,7 +139,15 @@ function pressReleasePrompt(a: PromptArgs): string {
     a.engagementKind === 'defense_pr'
       ? 'Frame: a federal-prosecution defense story. Lead with the court record fact (acquittal, judge opinion length, procedural posture). Quote the principal sparingly. Voice: an experienced criminal-defense communications director.'
       : a.engagementKind === 'political_campaign'
-        ? 'Frame: a congressional-campaign press release. Lead with the district stake. Quote the candidate. Voice: a campaign comms director writing for local print + national wire.'
+        ? `Frame: a campaign press release written for LOCAL DISTRICT PRESS. Hard requirements:
+  - Name the district in the FIRST sentence (e.g. "Maryland's Third Congressional District")
+  - Lead with what THIS WEEK in the district demanded — a school board vote, a plant closure, a court filing, a county council move — not generic campaign rhetoric
+  - Quote the candidate by their FULL NAME on first reference, last name after
+  - Use "we" when speaking for the district ("we deserve", "our families"), "I" only for the candidate's own commitment
+  - End with a clear, simple call to action (visit the campaign website, attend an event, register to vote)
+  - Sign off with the campaign disclaimer from brief.campaign_signoff if present
+  - NEVER use legalese, NEVER use beltway buzzwords, NEVER reference national party leaders unless the brief explicitly authorizes it
+  - Voice: a campaign comms director writing for local print, NOT the candidate's lawyer`
         : a.engagementKind === 'luxury_hospitality'
           ? 'Frame: a luxury-hospitality press release for local press at the next port. Lead with the unique experience the vessel + crew bring. Voice: a luxury-travel PR director.'
           : a.engagementKind === 'book_pr'
@@ -150,7 +176,15 @@ function opEdPrompt(a: PromptArgs): string {
     a.engagementKind === 'defense_pr'
       ? "Voice: the principal's first-person voice — a physician/professional defending the public record of their conduct. Calm, factual, signed by the principal."
       : a.engagementKind === 'political_campaign'
-        ? "Voice: the candidate's first-person voice — a congressional candidate connecting a national/legal story to their district. Plain spoken, no jargon, signed by the candidate."
+        ? `Voice: the candidate's first-person voice. Hard requirements:
+  - Open with a SPECIFIC moment in the district (a porch conversation, a county council meeting, a specific local fact), not a national headline
+  - The district name appears in the first paragraph
+  - Use "I" for the candidate's commitments, "we" when speaking for the district
+  - One paragraph (mid-piece) connects the local moment to the national context — never the other way around
+  - End with a forward-looking commitment in plain words ("when I'm elected I will…")
+  - Sign-off includes the campaign disclaimer if brief.campaign_signoff is present
+  - NEVER legalese, NEVER beltway jargon, NEVER mention the opposing party by name unless brief authorizes it
+  - Author bio: name + office sought + district. Nothing else.`
         : a.engagementKind === 'book_pr'
           ? "Voice: the author's first-person voice — drawing one specific lesson from the manuscript and connecting it to current events."
           : "Voice: the principal's first-person voice — measured, authoritative.";

@@ -45,11 +45,22 @@ export interface IntakeField {
    *  e.g. tag deal-economics fields kinds:['lead_gen'] so a defense_pr intake
    *  doesn't ask Ron about close rates. */
   kinds?: EngagementKind[];
+  /** (val 2026-06-10) Exclude this field for specific kinds. Mirror of `kinds`
+   *  for the common case where a field should be asked for MOST kinds but NOT
+   *  one. e.g. business-brand color questions are asked for every kind except
+   *  political_campaign, which has its own separate campaign-brand fields. */
+  excludeKinds?: EngagementKind[];
 }
 
 export interface IntakeGroup {
   group: string;
   fields: IntakeField[];
+  /** (val 2026-06-10) Hide the entire group for these engagement kinds. Cleaner
+   *  than tagging excludeKinds on every field. Used to hide business-economics
+   *  groups from political_campaign clients without having to tag each field. */
+  excludeKinds?: EngagementKind[];
+  /** Mirror — show the entire group ONLY for these kinds. */
+  kinds?: EngagementKind[];
 }
 
 export const INTAKE_GROUPS: IntakeGroup[] = [
@@ -85,6 +96,10 @@ export const INTAKE_GROUPS: IntakeGroup[] = [
   },
   {
     group: 'Brand & identity',
+    // (val 2026-06-10) Business brand has nothing to do with political brand.
+    // John's Compass Marketing brand ≠ his campaign brand. Hide this whole
+    // group for political_campaign; they get the Campaign brand group instead.
+    excludeKinds: ['political_campaign'],
     fields: [
       { key: 'slogan', label: 'Your one-line tagline (if you have one)', clientFacing: true,
         hint: 'A sentence a stranger could repeat to a friend.',
@@ -108,6 +123,9 @@ export const INTAKE_GROUPS: IntakeGroup[] = [
   },
   {
     group: 'Audience & ideal client',
+    // (val 2026-06-10) Political campaign has voters, not ICP customers. The
+    // district + planks fields cover the political equivalent.
+    excludeKinds: ['political_campaign'],
     fields: [
       { key: 'ideal_client', label: 'Describe your IDEAL customer in one sentence.', area: true, clientFacing: true,
         hint: 'A specific person, not a category. Title, company size, industry, situation.',
@@ -223,6 +241,9 @@ export const INTAKE_GROUPS: IntakeGroup[] = [
     // at intake also makes "what closed?" later feel like finishing a
     // sentence the client already started.
     group: 'Your numbers',
+    // (val 2026-06-10) Deal economics don't apply to a political campaign —
+    // they don't have close rates or LTV. Hide the whole group for political.
+    excludeKinds: ['political_campaign'],
     fields: [
       { key: 'avg_deal_value', label: 'What is a typical customer or sale worth to you?', clientFacing: true,
         example: 'e.g. $4,200 / $25,000 / $150 per month',
@@ -246,6 +267,153 @@ export const INTAKE_GROUPS: IntakeGroup[] = [
         example: 'e.g. $14,000 / $300K / $1,800',
         hint: 'Lifetime revenue if you keep them — counts renewals, repeats, upsells.',
         why: 'Justifies higher acquisition cost on the right prospects + tells the renewal/retention story.' }
+    ]
+  },
+  {
+    // (val 2026-06-10) Political campaign intake — only renders when the
+    // active engagement is political_campaign. Asks the questions the cockpit
+    // body generator, district heat map, opposition KYC, and campaign calendar
+    // need to actually function. Replaces the brand-color / industry questions
+    // that don't apply to a candidate. This is the political_campaign template
+    // for ANY future political client, not just John White.
+    group: 'Campaign basics',
+    fields: [
+      { key: 'candidate_name', label: 'Candidate full name (as it will appear on the ballot)', clientFacing: true,
+        example: 'e.g. John C. White',
+        hint: 'Legal name plus middle initial if used on filings.',
+        why: 'Anchors press releases, op-eds, and ballot-correct social posts. Public-record screens use this.',
+        kinds: ['political_campaign'] },
+      { key: 'office_sought', label: 'Office sought', clientFacing: true,
+        example: 'U.S. House · State Senate · County Council · Mayor',
+        hint: 'The seat as it appears on the ballot.',
+        why: 'Decides the level of press list and the talking-point register (federal vs state vs local).',
+        kinds: ['political_campaign'] },
+      { key: 'district_code', label: 'District code', clientFacing: true,
+        example: 'MD-3 · NY-14 · TX-15',
+        hint: 'Canonical short code. State abbrev + district number.',
+        why: 'Drives the district heat map, the local-outlets press list, and #hashtag.',
+        kinds: ['political_campaign'] },
+      { key: 'party', label: 'Party', clientFacing: true,
+        hint: 'Republican / Democrat / Independent / Libertarian / Green / Other',
+        kinds: ['political_campaign'] },
+      { key: 'district_counties', label: 'Counties in the district', clientFacing: true,
+        example: 'Anne Arundel, Howard, Carroll',
+        hint: 'Comma-separated. Used for press list + signal scoping.',
+        why: 'Distress signals filed at any of these courthouses surface on the district pulse.',
+        kinds: ['political_campaign'] },
+      { key: 'district_zips', label: 'District zip codes', area: true, clientFacing: true,
+        example: 'e.g. 21401, 21146, 21061, 21054 ...',
+        hint: 'Comma-separated list of every zip the district covers. Pull from FCC mapping if needed.',
+        why: 'Filters public-record signals to your district so the district pulse stops showing noise from outside.',
+        kinds: ['political_campaign'] }
+    ]
+  },
+  {
+    group: 'Campaign calendar',
+    fields: [
+      { key: 'filing_deadline', label: 'Filing deadline', clientFacing: true,
+        example: 'YYYY-MM-DD',
+        why: 'Auto-seeds the campaign calendar with the deadline + reminders.',
+        kinds: ['political_campaign'] },
+      { key: 'primary_date', label: 'Primary election date', clientFacing: true,
+        example: 'YYYY-MM-DD',
+        why: 'Drives the primary press cycle + GOTV cadence.',
+        kinds: ['political_campaign'] },
+      { key: 'general_date', label: 'General election date', clientFacing: true,
+        example: 'YYYY-MM-DD',
+        why: 'Drives the general press cycle + debate window.',
+        kinds: ['political_campaign'] },
+      { key: 'debate_dates', label: 'Scheduled debate dates (if known)', area: true, clientFacing: true,
+        hint: 'One per line: date · venue · format.',
+        kinds: ['political_campaign'] },
+      { key: 'fec_filing_dates', label: 'FEC quarterly filing dates', clientFacing: true,
+        hint: 'For federal campaigns. State campaigns: state board of elections filing dates.',
+        kinds: ['political_campaign'] }
+    ]
+  },
+  {
+    group: 'Opponents + competitive field',
+    fields: [
+      { key: 'sitting_incumbent', label: 'Sitting incumbent name + party', clientFacing: true,
+        example: 'e.g. Andy Harris (R)',
+        why: 'KYC screen runs on incumbent. Op-eds reference them by full name.',
+        kinds: ['political_campaign'] },
+      { key: 'opponents', label: 'Other candidates running (your primary + general)', area: true, clientFacing: true,
+        hint: 'One per line: name · party · brief one-liner (challenger / establishment / single-issue).',
+        why: 'Each line triggers a public-record screen on that opponent and feeds the differentiator generator.',
+        kinds: ['political_campaign'] },
+      { key: 'fec_committee_id', label: 'FEC committee ID (if registered)', clientFacing: true,
+        example: 'e.g. C00123456',
+        why: 'Unlocks FEC API pulls for fundraising landscape + opponent receipts.',
+        kinds: ['political_campaign'] }
+    ]
+  },
+  {
+    group: 'Message + position',
+    fields: [
+      { key: 'stump_speech', label: 'Your two-line stump speech', area: true, clientFacing: true,
+        hint: 'How you describe yourself when you have ten seconds at a door. Plain words.',
+        why: 'Every press release opener + every social caption pulls from this — never use buzzwords.',
+        kinds: ['political_campaign'] },
+      { key: 'three_planks', label: 'Your three planks', area: true, clientFacing: true,
+        hint: 'One per line. Issue you will run on. Be specific.',
+        why: 'Drives the three campaign narrative lines + the talking points the cascade engine matches to district signals.',
+        kinds: ['political_campaign'] },
+      { key: 'positions_local_issues', label: 'Positions on the three biggest local issues', area: true, clientFacing: true,
+        hint: 'One per line. Issue · your position · the one-line reason.',
+        why: 'Local press will ask. The op-ed and door-card generators use these verbatim.',
+        kinds: ['political_campaign'] },
+      { key: 'no_go_topics', label: 'Topics you will NOT take a public position on this cycle', area: true, clientFacing: true,
+        hint: 'One per line. Used as a hard guardrail — never appears in drafts.',
+        why: 'The press kit generator and op-ed prompts read this as a do-not-say list.',
+        kinds: ['political_campaign'] }
+    ]
+  },
+  {
+    group: 'Campaign team',
+    fields: [
+      { key: 'campaign_manager', label: 'Campaign manager · name + email', clientFacing: true,
+        kinds: ['political_campaign'] },
+      { key: 'comms_director', label: 'Communications director · name + email', clientFacing: true,
+        why: 'Press kit drafts route to them before the candidate sees them.',
+        kinds: ['political_campaign'] },
+      { key: 'field_director', label: 'Field director · name + email', clientFacing: true,
+        kinds: ['political_campaign'] },
+      { key: 'treasurer', label: 'Treasurer · name + email', clientFacing: true,
+        why: 'Required for FEC + state filings; gate on all financial-claim copy.',
+        kinds: ['political_campaign'] },
+      { key: 'press_contacts', label: 'Local reporters you have a relationship with', area: true, clientFacing: true,
+        hint: 'One per line: name · outlet · beat · last contact.',
+        why: 'These become the first row of the press_touches log — warm leads pitched first.',
+        kinds: ['political_campaign'] }
+    ]
+  },
+  {
+    group: 'Campaign brand',
+    fields: [
+      // (val 2026-06-10) Political brand is SEPARATE from any other business
+      // the candidate runs. John has Compass Marketing; that brand has nothing
+      // to do with the political campaign brand. Fields here OVERRIDE the
+      // generic Brand & identity group above for political_campaign clients.
+      { key: 'campaign_primary_color', label: 'Campaign primary color', clientFacing: true,
+        hint: 'Hex value or color name. The dominant color on signs and ads.',
+        why: 'Drives every social card + commercial frame — distinct from any business brand color.',
+        kinds: ['political_campaign'] },
+      { key: 'campaign_secondary_color', label: 'Campaign secondary color', clientFacing: true,
+        kinds: ['political_campaign'] },
+      { key: 'campaign_hashtag', label: 'Campaign hashtag', clientFacing: true,
+        example: '#WhiteForMD3 · #Vote4White',
+        kinds: ['political_campaign'] },
+      { key: 'campaign_signoff', label: 'Campaign sign-off line', clientFacing: true,
+        example: 'I\'m John White and I approved this message.',
+        hint: 'The legally required disclaimer + any optional tagline.',
+        kinds: ['political_campaign'] },
+      { key: 'campaign_logo_url', label: 'Campaign logo URL', clientFacing: true,
+        hint: 'Public link to PNG/SVG. Will be applied to every commercial + social card.',
+        kinds: ['political_campaign'] },
+      { key: 'campaign_website', label: 'Campaign website', clientFacing: true,
+        example: 'whiteformd3.com',
+        kinds: ['political_campaign'] }
     ]
   },
   {
@@ -295,6 +463,18 @@ export function groupsForEngagementKind(
 ): IntakeGroup[] {
   if (!kind) return groups;
   return groups
-    .map((g) => ({ group: g.group, fields: g.fields.filter((f) => !f.kinds || f.kinds.includes(kind)) }))
+    // Group-level kinds/excludeKinds gate first.
+    .filter((g) => !g.kinds || g.kinds.includes(kind))
+    .filter((g) => !g.excludeKinds || !g.excludeKinds.includes(kind))
+    .map((g) => ({
+      group: g.group,
+      fields: g.fields.filter((f) => {
+        // kinds: keep ONLY for these kinds (if present)
+        if (f.kinds && !f.kinds.includes(kind)) return false;
+        // excludeKinds: drop for these kinds (if present)
+        if (f.excludeKinds && f.excludeKinds.includes(kind)) return false;
+        return true;
+      })
+    }))
     .filter((g) => g.fields.length > 0);
 }
