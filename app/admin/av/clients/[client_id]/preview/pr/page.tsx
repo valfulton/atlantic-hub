@@ -29,8 +29,6 @@ import {
 } from '@/lib/pr/client_pr_actions';
 import ClientPrView from '@/app/client/pr/ClientPrView';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
-import { evaluatePressDeskAccess } from '@/lib/client/pr_access';
-import { getEngagementKind } from '@/lib/client/engagement_kind';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
@@ -72,14 +70,7 @@ export default async function ClientPrPreview({ params }: { params: { client_id:
   const member = memberUserId ? await findClientUserById(memberUserId) : null;
 
   const tier = member?.tier ?? 'sprint';
-  // (#579 val 2026-06-10) Shared press-desk access logic — defense_pr /
-  // political_campaign / luxury_hospitality / book_pr engagements never gate
-  // press regardless of tier (their product IS press).
-  const engagementKind = await getEngagementKind({
-    clientId,
-    clientUserId: memberUserId ?? undefined
-  });
-  const { locked } = evaluatePressDeskAccess({ tier, engagementKind });
+  const locked = tier === 'audit_only' || tier === 'sprint';
   const headline = member?.display_name?.split(/[ ,]/)[0] || clientName.split(/[ ,]/)[0] || 'there';
 
   let opps: ClientFacingPrOpportunity[] = [];

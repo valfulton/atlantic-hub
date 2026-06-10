@@ -98,13 +98,7 @@ export const TIER_MATRIX: Record<TierId, TierPriceForPack[]> = {
     { packId: 'law_firm',             monthlyUsd: 799,  stripeEnvVar: 'STRIPE_PRICE_STARTER_LAW',                  limits: STARTER_LIMITS, highlights: ['Practice-tuned signals', 'CourtListener + CA SOS', '4 cascades configured', '1 seat'] },
     { packId: 'recruiting',           monthlyUsd: 399,  stripeEnvVar: 'STRIPE_PRICE_STARTER_RECRUITING',           limits: STARTER_LIMITS, highlights: ['Hiring + growth signals', 'new_llc cascade live', '25 companies/week', '1 seat'] },
     { packId: 'marketing_agency',     monthlyUsd: 299,  stripeEnvVar: 'STRIPE_PRICE_STARTER_MARKETING',            limits: STARTER_LIMITS, highlights: ['CA SOS + review-trend (pending GBP)', '2 cascades', '25 brands/week', '1 seat'] },
-    { packId: 'luxury_hospitality',   monthlyUsd: 999,  stripeEnvVar: 'STRIPE_PRICE_STARTER_LUXURY',               limits: STARTER_LIMITS, highlights: ['Specialized luxury intelligence', 'Nautical / event / hospitality signals', '25 opportunities/week', '1 seat'] },
-    // (#583 val 2026-06-10) Chip Zenke / Circa Energy — solar operator pack.
-    // Phase-shaped engagements (content engine, contract automation, ops
-    // backbone) sold via separate Stripe products; this matrix row is the
-    // baseline subscription for a solo solar operator running the content
-    // engine alone.
-    { packId: 'commercial_solar',     monthlyUsd: 3500, stripeEnvVar: 'STRIPE_PRICE_STARTER_SOLAR',                limits: STARTER_LIMITS, highlights: ['Solar Content Phase 1', 'Auto-generated press kit + social + blog', 'Brand-grounded LLM drafts', '1 seat'] }
+    { packId: 'luxury_hospitality',   monthlyUsd: 999,  stripeEnvVar: 'STRIPE_PRICE_STARTER_LUXURY',               limits: STARTER_LIMITS, highlights: ['Specialized luxury intelligence', 'Nautical / event / hospitality signals', '25 opportunities/week', '1 seat'] }
   ],
   growth: [
     { packId: 'collections',          monthlyUsd: 999,  stripeEnvVar: 'STRIPE_PRICE_GROWTH_COLLECTIONS',           limits: GROWTH_LIMITS,  highlights: ['Everything in Starter', '+ UCC + PACER adapters when shipped', '100 entities/week', '5 seats', 'Daily refresh'] },
@@ -115,10 +109,7 @@ export const TIER_MATRIX: Record<TierId, TierPriceForPack[]> = {
     { packId: 'law_firm',             monthlyUsd: 1799, stripeEnvVar: 'STRIPE_PRICE_GROWTH_LAW',                   limits: GROWTH_LIMITS,  highlights: ['Everything in Starter', '+ PACER docket scraping for bankruptcy', '100 case alerts/week', '5 seats', 'Daily refresh'] },
     { packId: 'recruiting',           monthlyUsd: 799,  stripeEnvVar: 'STRIPE_PRICE_GROWTH_RECRUITING',            limits: GROWTH_LIMITS,  highlights: ['Everything in Starter', '+ funding-event signals when shipped', '100 companies/week', '5 seats', 'Daily refresh'] },
     { packId: 'marketing_agency',     monthlyUsd: 799,  stripeEnvVar: 'STRIPE_PRICE_GROWTH_MARKETING',             limits: GROWTH_LIMITS,  highlights: ['Everything in Starter', '+ Google Business Profile when shipped', '100 brands/week', '5 seats', 'Daily refresh'] },
-    { packId: 'luxury_hospitality',   monthlyUsd: 2499, stripeEnvVar: 'STRIPE_PRICE_GROWTH_LUXURY',                limits: GROWTH_LIMITS,  highlights: ['Everything in Starter', '+ yacht / marina / luxury-hotel specialized adapters as they ship', '100 opportunities/week', '5 seats', 'Daily refresh'] },
-    // (#583) Solar Growth — bundles content engine + Aurora→DocuSign contract
-    // automation (the Phase 2 win). Per-deal close speed-up is the value driver.
-    { packId: 'commercial_solar',     monthlyUsd: 5000, stripeEnvVar: 'STRIPE_PRICE_GROWTH_SOLAR',                 limits: GROWTH_LIMITS,  highlights: ['Solar Content + Contract Automation', 'Aurora → DocuSign one-click', 'Sales-rep onboarding accelerator', '5 seats'] }
+    { packId: 'luxury_hospitality',   monthlyUsd: 2499, stripeEnvVar: 'STRIPE_PRICE_GROWTH_LUXURY',                limits: GROWTH_LIMITS,  highlights: ['Everything in Starter', '+ yacht / marina / luxury-hotel specialized adapters as they ship', '100 opportunities/week', '5 seats', 'Daily refresh'] }
   ],
   pro: [
     { packId: 'collections',          monthlyUsd: 1499, stripeEnvVar: 'STRIPE_PRICE_PRO_COLLECTIONS',              limits: PRO_LIMITS,     highlights: ['Everything in Growth', 'Unlimited watchlist', 'Unlimited seats', 'Hourly refresh', 'White-label / pack resale option'] },
@@ -129,11 +120,7 @@ export const TIER_MATRIX: Record<TierId, TierPriceForPack[]> = {
     { packId: 'law_firm',             monthlyUsd: 2999, stripeEnvVar: 'STRIPE_PRICE_PRO_LAW',                      limits: PRO_LIMITS,     highlights: ['Everything in Growth', 'Per-practice-group seats', 'Hourly refresh', 'White-label / firm-branded'] },
     { packId: 'recruiting',           monthlyUsd: 1299, stripeEnvVar: 'STRIPE_PRICE_PRO_RECRUITING',               limits: PRO_LIMITS,     highlights: ['Everything in Growth', 'Unlimited companies + recruiters', 'Hourly refresh', 'White-label'] },
     { packId: 'marketing_agency',     monthlyUsd: 1499, stripeEnvVar: 'STRIPE_PRICE_PRO_MARKETING',                limits: PRO_LIMITS,     highlights: ['Everything in Growth', 'Unlimited brands + producers', 'Hourly refresh', 'White-label'] },
-    { packId: 'luxury_hospitality',   monthlyUsd: 4999, stripeEnvVar: 'STRIPE_PRICE_PRO_LUXURY',                   limits: PRO_LIMITS,     highlights: ['Everything in Growth', 'Unlimited opportunities + concierges', 'Hourly refresh', 'White-label / brand-licensed'] },
-    // (#583) Solar Pro — full Operations Backbone (Phase 3): Aurora + QuickBooks
-    // + inventory reconciliation. The "operating system" tier — Chip stops
-    // paying for a marketing service and starts paying for the OS he runs on.
-    { packId: 'commercial_solar',     monthlyUsd: 7500, stripeEnvVar: 'STRIPE_PRICE_PRO_SOLAR',                    limits: PRO_LIMITS,     highlights: ['Solar Content + Contract Automation + Ops Backbone', 'Aurora + QuickBooks + inventory sync', 'Hourly refresh', 'Unlimited seats'] }
+    { packId: 'luxury_hospitality',   monthlyUsd: 4999, stripeEnvVar: 'STRIPE_PRICE_PRO_LUXURY',                   limits: PRO_LIMITS,     highlights: ['Everything in Growth', 'Unlimited opportunities + concierges', 'Hourly refresh', 'White-label / brand-licensed'] }
   ]
 };
 
