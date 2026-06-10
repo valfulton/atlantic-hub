@@ -31,7 +31,7 @@ import { getAvDb } from '@/lib/db/av';
 import type { ResultSetHeader } from 'mysql2';
 import { fetchByCompany as cfpbFetchByCompany } from '@/lib/public_intel/adapters/cfpb';
 import { fetchByName as courtListenerFetchByName } from '@/lib/public_intel/adapters/courtlistener';
-import { addPersonName, addCompanyName, sanitizeCompanyName } from '@/lib/public_intel/name_sanitize';
+import { addCompanyName, sanitizeCompanyName, sanitizePersonName, lastNameOnly } from '@/lib/public_intel/name_sanitize';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -230,31 +230,50 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   // the queried name doesn't appear in caseName or party list.
   // (val 2026-06-10) Sanitize EVERY name before it hits CourtListener.
   // "Dr. Ron Elfenbein — Defense Press" returns 0 hits; "Ron Elfenbein"
-  // (and last-name fallback "Elfenbein") returns the real cases. Shared
-  // helpers in lib/public_intel/name_sanitize.ts — identical logic to the
-  // pack-apply path so the two code paths can't drift.
+  // returns the real cases. Shared helpers in lib/public_intel/name_sanitize.ts.
+  //
+  // (val 2026-06-10 v2) Last-name fallback is NOW LAZY:
+  //   - Primary names = full sanitized person names + company. Always run.
+  //   - Fallback names = last-name-only. ONLY run if the primary loop returned
+  //     ZERO hits. Otherwise short common surnames (Zenke, Smith) flood the
+  //     results with 60 unrelated cases of every person with that surname.
+  //
   // (#537) Owner first (KYC target), then contact (could be marketing POC),
-  // then company. addPersonName also pushes last-name fallback when distinct;
-  // dedup is case-insensitive across the full set.
-  const namesToScreen: string[] = [];
+  // then company. Dedup case-insensitive.
+  const primaryNames: string[] = [];
+  const fallbackNames: string[] = [];
   const seenLcKyc = new Set<string>();
-  addPersonName(namesToScreen, seenLcKyc, ownerName);
-  addPersonName(namesToScreen, seenLcKyc, contactName);
-  addCompanyName(namesToScreen, seenLcKyc, company);
-  // Also include a clean company variant in case the company IS the brand
-  // label minus the kicker (e.g. "Dr. Ron Elfenbein — Defense Press" →
-  // "Ron Elfenbein" already covered above; "ACME Corp — A Brand" →
-  // "ACME Corp" caught here).
+
+  const addPrimaryPerson = (raw: string | null | undefined) => {
+    const clean = sanitizePersonName(raw ?? '');
+    if (!clean) return;
+    const lc = clean.toLowerCase();
+    if (!seenLcKyc.has(lc)) { seenLcKyc.add(lc); primaryNames.push(clean); }
+    // Stage the last name as a fallback — only used if primary returns 0 hits.
+    const ln = lastNameOnly(clean);
+    if (ln && ln.length > 2) {
+      const lcLn = ln.toLowerCase();
+      if (lcLn !== lc && !seenLcKyc.has(lcLn) && !fallbackNames.some((n) => n.toLowerCase() === lcLn)) {
+        fallbackNames.push(ln);
+      }
+    }
+  };
+  addPrimaryPerson(ownerName);
+  addPrimaryPerson(contactName);
+  addCompanyName(primaryNames, seenLcKyc, company);
+  // Also include a clean company variant in case the company is a brand label.
   const cleanCompany = sanitizeCompanyName(company);
   if (cleanCompany && !seenLcKyc.has(cleanCompany.toLowerCase())) {
     seenLcKyc.add(cleanCompany.toLowerCase());
-    namesToScreen.push(cleanCompany);
+    primaryNames.push(cleanCompany);
   }
-  if (namesToScreen.length > 0) {
+  if (primaryNames.length > 0) {
     try {
       const seenDocket = new Set<string>();
       const allHits: Array<{ name: string; hit: Awaited<ReturnType<typeof courtListenerFetchByName>>[number] }> = [];
-      for (const queryName of namesToScreen) {
+
+      // Primary loop — always runs.
+      for (const queryName of primaryNames) {
         // (#530) Scope to the brief's state when known — drops the cross-country
         // false positives (Mark Francis Dumas in RI, Zmuda in AZ, etc.)
         const hits = await courtListenerFetchByName(queryName, 15, undefined, stateHint);
@@ -265,13 +284,31 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
           allHits.push({ name: queryName, hit: h });
         }
       }
+
+      // Fallback loop — ONLY if primary found nothing. Last-name alone is
+      // too noisy when used as a default broadener (Zenke returns Julie,
+      // Mark, Roshanna in Illinois etc.); only fire when primary is empty.
+      const usedFallback = allHits.length === 0 && fallbackNames.length > 0;
+      if (usedFallback) {
+        for (const queryName of fallbackNames) {
+          const hits = await courtListenerFetchByName(queryName, 15, undefined, stateHint);
+          for (const h of hits) {
+            const key = h.docketUrl ?? `${h.court ?? ''}/${h.caseName ?? ''}/${h.docketNumber ?? ''}`;
+            if (seenDocket.has(key)) continue;
+            seenDocket.add(key);
+            allHits.push({ name: queryName, hit: h });
+          }
+        }
+      }
+
+      const namesQueried = usedFallback ? [...primaryNames, ...fallbackNames] : primaryNames;
       const hitCount = allHits.length;
       // Severity ladder: any litigation involving the principal = medium; 5+ = high
       const severity: 'low' | 'medium' | 'high' =
         hitCount >= 5 ? 'high' : hitCount >= 1 ? 'medium' : 'low';
       const flagLabel = hitCount > 0
-        ? `${hitCount} federal court filing${hitCount === 1 ? '' : 's'} mentioning ${namesToScreen.join(' / ')}`
-        : `CourtListener: 0 federal filings naming ${namesToScreen.join(' / ')} — clean signal`;
+        ? `${hitCount} federal court filing${hitCount === 1 ? '' : 's'} mentioning ${namesQueried.join(' / ')}`
+        : `CourtListener: 0 federal filings naming ${namesQueried.join(' / ')} — clean signal`;
 
       steps.push({
         source: 'courtlistener',
@@ -279,7 +316,7 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
         hits: hitCount,
         flagLabel,
         query: {
-          names: namesToScreen,
+          names: namesQueried,
           states: stateHint,
           sinceDays: 0,
           filteredHits: hitCount
