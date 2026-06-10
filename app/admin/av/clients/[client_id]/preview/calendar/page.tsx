@@ -144,16 +144,14 @@ export default async function PreviewCalendarMirror({ params }: { params: { clie
           </p>
         </section>
 
-        {items.length === 0 ? (
-          <article className="v3-card">
-            <h3 className="v3-card__h">Calendar&apos;s clear.</h3>
-            <p className="v3-card__p">
-              When your campaigns spawn content, it lands here for your review before anything goes out.
-            </p>
-          </article>
-        ) : (
-          <ClientCalendar items={items} importantDates={importantDates} preview />
+        {/* (val 2026-06-10) Grid renders ALWAYS — empty state becomes a thin
+            line above the calendar instead of hiding the grid entirely. */}
+        {items.length === 0 && (
+          <p className="v3-lede" style={{ marginTop: '0.5rem', marginBottom: '0.75rem', fontStyle: 'italic', opacity: 0.85 }}>
+            Nothing scheduled yet. When your campaigns spawn content, it lands on the calendar below for your review.
+          </p>
         )}
+        <ClientCalendar items={items} importantDates={importantDates} preview />
 
         <p className="v3-foot">QUIET · LEGIBLE · VERIFIABLE</p>
       </main>

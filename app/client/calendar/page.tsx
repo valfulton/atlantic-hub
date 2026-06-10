@@ -177,17 +177,22 @@ export default async function ClientCalendarPage() {
         </p>
       </section>
 
-      {items.length === 0 ? (
-        <article className="v3-card">
-          <h3 className="v3-card__h">Calendar&apos;s clear.</h3>
-          <p className="v3-card__p">
-            When your campaigns spawn content — a brief, a post, a press piece — it lands here
-            for your review before anything goes out. Quiet today, building tomorrow.
-          </p>
-        </article>
-      ) : (
-        <ClientCalendar items={items} importantDates={importantDates} />
+      {/*
+        (val 2026-06-10) The calendar grid renders ALWAYS now — even when
+        there are no posts yet. An empty calendar still shows the month,
+        the week-day headers, today's cell, holidays, and any important
+        dates that ARE seeded (busy seasons, launches, birthdays). Hiding
+        the grid behind an empty-state card was the "calendar never shows
+        up" bug. When items is empty, we just render a thin "nothing
+        scheduled yet" line above the grid; the calendar still does its
+        job as a navigable surface.
+      */}
+      {items.length === 0 && (
+        <p className="v3-lede" style={{ marginTop: '0.5rem', marginBottom: '0.75rem', fontStyle: 'italic', opacity: 0.85 }}>
+          Nothing scheduled yet. When your campaigns spawn content — a brief, a post, a press piece — it lands on the calendar below for your review. The grid stays here so you can plan.
+        </p>
       )}
+      <ClientCalendar items={items} importantDates={importantDates} />
 
       <p className="v3-foot">QUIET · LEGIBLE · VERIFIABLE</p>
     </main>
