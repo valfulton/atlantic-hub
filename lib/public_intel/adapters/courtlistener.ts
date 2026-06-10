@@ -274,6 +274,15 @@ export async function fetchByName(
       .filter((h) => {
         // Reference tokenCount to keep the symbol live for future tuning.
         void tokenCount;
+        // (val 2026-06-10) Strict post-filter on court_state. CL's API
+        // sometimes returns hits from other states when q= phrase search is
+        // used — e.g. a CourtListener search scoped to MD returned a
+        // Bankruptcy Court M.D. North Carolina case for "Zenke". Drop any
+        // hit whose court_state doesn't match the requested states.
+        if (states && states.length > 0) {
+          const allowed = new Set(states.map((s) => s.toUpperCase()));
+          if (!h.state || !allowed.has(h.state.toUpperCase())) return false;
+        }
         if (tightMatch(h.caseName ?? '')) return true;
         if (tightMatch(h.party ?? '')) return true;
         // Also check individual party array entries (caseName may strip middle names).
