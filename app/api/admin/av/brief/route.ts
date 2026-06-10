@@ -11,9 +11,16 @@
  * via lib/client/brief_store.getBriefForPrompt().
  */
 import { NextRequest, NextResponse } from 'next/server';
+import type { RowDataPacket } from 'mysql2';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { isFlagEnabled } from '@/lib/feature-flags';
 import { getBriefPayload, saveBriefPayload, getBriefForPrompt, listBriefVersions, restoreBriefVersion, type BriefPayload } from '@/lib/client/brief_store';
+
+/** (#577) Row shape for the client_name lookup inside spawnCockpitPressKit.
+ *  Must extend RowDataPacket so mysql2's typed `db.execute<T[]>` accepts it. */
+interface ClientNameRow extends RowDataPacket {
+  client_name: string;
+}
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -168,7 +175,7 @@ async function spawnCockpitPressKit(clientId: number, payload: Record<string, un
       : `Client #${clientId}`;
     try {
       const db = getAvDb();
-      const [rows] = await db.execute<Array<{ client_name: string } & Record<string, unknown>>>(
+      const [rows] = await db.execute<ClientNameRow[]>(
         `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
         [clientId]
       );
