@@ -28,6 +28,12 @@ export interface CockpitApproval {
   angle: string | null;
   status: ApprovalStatus;
   narrativeLineId: number | null;
+  /** (#581 val 2026-06-10) The campaign / narrative line name, LEFT JOIN'd from
+   *  narrative_lanes.name. Used by the cockpit cards + the client-side drafts
+   *  panel to show "Campaign · Procedural Justice · A Doctor I Know" inline so
+   *  every card visibly ties back to a campaign. NULL when no narrative line is
+   *  attached or the row is orphaned. */
+  campaignName: string | null;
   scheduledAt: string | null;
   approvedAt: string | null;
   killedAt: string | null;
@@ -49,6 +55,7 @@ interface RawRow extends RowDataPacket {
   angle: string | null;
   status: ApprovalStatus;
   narrative_line_id: number | null;
+  campaign_name: string | null;
   scheduled_at: string | null;
   approved_at: string | null;
   killed_at: string | null;
@@ -71,6 +78,7 @@ function fromRow(r: RawRow): CockpitApproval {
     angle: r.angle,
     status: r.status,
     narrativeLineId: r.narrative_line_id,
+    campaignName: r.campaign_name?.trim() || null,
     scheduledAt: r.scheduled_at,
     approvedAt: r.approved_at,
     killedAt: r.killed_at,
@@ -101,11 +109,20 @@ export async function listApprovalsForClient(
       where += ` AND status = ?`;
       params.push(opts.status);
     }
+    // (#581) LEFT JOIN narrative_lanes so every returned row carries the
+    // campaign name. The cockpit cards + client-side drafts panel render the
+    // name inline so the spine connection is visible. Scoped on client_id
+    // matching as well — never cross-bleed a campaign from another client.
     const [rows] = await db.execute<RawRow[]>(
-      `SELECT * FROM cockpit_approvals
-        WHERE ${where}
-        ORDER BY (status='pending') DESC, created_at DESC
-        LIMIT ${limit}`,
+      `SELECT
+         a.*,
+         n.name AS campaign_name
+       FROM cockpit_approvals a
+       LEFT JOIN narrative_lanes n
+         ON n.id = a.narrative_line_id AND n.client_id = a.client_id
+       WHERE ${where.replace(/client_id/g, 'a.client_id').replace(/status/g, 'a.status')}
+       ORDER BY (a.status='pending') DESC, a.created_at DESC
+       LIMIT ${limit}`,
       params
     );
     return rows.map(fromRow);

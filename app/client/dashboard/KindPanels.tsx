@@ -23,6 +23,7 @@ import PressTouchesPanel from './PressTouchesPanel';
 import CaseBriefPanel from './CaseBriefPanel';
 import DistrictHeatMapPanel from './DistrictHeatMapPanel';
 import ItineraryPanel from './ItineraryPanel';
+import DraftsInQueuePanel from './DraftsInQueuePanel';
 
 /** The kind hero — replaces the distress Featured Signal for non-lead_gen kinds.
  *  heroLabel is the headline; pipelineLabel is the "what you'll see" sub. */
@@ -120,6 +121,19 @@ export function KindPanels({
 }) {
   return (
     <>
+      {/* (#578) Drafts in your queue — visible-content fix.
+       *
+       * Every non-lead_gen engagement gets this panel: clients see exactly
+       * what their team has drafted for them, can read the body inline,
+       * and can write notes back via deep-link to /client/notes. This is
+       * the fix for "I can't see any of the content we added yesterday
+       * to the client dashboards." */}
+      {data?.cockpitDrafts !== undefined && (
+        <DraftsInQueuePanel
+          drafts={data.cockpitDrafts}
+          pendingCount={data.cockpitDraftsPending ?? 0}
+        />
+      )}
       {config.showPressTouchesPanel && (
         data?.pressTouches !== undefined ? (
           <PressTouchesPanel

@@ -28,6 +28,9 @@ const TABS = [
   { id: 'audit', label: 'Audit', path: '/audit' },
   { id: 'intake', label: 'Intake / brief', path: '/intake' },
   { id: 'pr', label: 'Press queue', path: '/pr' },
+  // (val 2026-06-10, #580) Intelligence — Created → Activated → Revenue panel
+  // the client sees. Mirror exists; just surfacing in the operator tab strip.
+  { id: 'intelligence', label: 'Intelligence', path: '/intelligence' },
   // (val 2026-06-09) Notes — operator mirror of /client/notes. Required by
   // the mirror-every-client-surface rule. Read-only preview here; the
   // operator posts AS val from the client detail page notes editor.

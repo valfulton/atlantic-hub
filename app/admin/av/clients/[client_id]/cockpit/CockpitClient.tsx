@@ -46,6 +46,14 @@ interface Approval {
   title: string;
   angle: string;
   source: string;
+  /** (#581) Campaign name from narrative_lanes — shown inline as
+   *  "Campaign · Procedural Justice · A Doctor I Know" so val sees which
+   *  campaign feeds the draft without clicking through. NULL when unset. */
+  campaignName?: string | null;
+  /** (#581) Word count of body_text. Drives the "Draft · 247 words" preview
+   *  line so val knows whether there's content to review. 0/undefined = no
+   *  draft yet (renders "No draft yet — click Edit"). */
+  bodyWordCount?: number;
   state?: 'live' | 'killed';
 }
 
@@ -299,6 +307,15 @@ function ApprovalRow({ approval, busy, onAct }: { approval: Approval; busy: bool
   const live = approval.state === 'live';
   const killed = approval.state === 'killed';
   const kindLabel: Record<string, string> = { commercial: 'Commercial', press_release: 'Press release', op_ed: 'Op-ed', social: 'Social' };
+  // (#581 val 2026-06-10) Body preview line + Campaign name. These give val
+  // an at-a-glance answer to two questions she shouldn't have to click to ask:
+  //   - "is there a draft to read, or am I greenlighting a title-only stub?"
+  //   - "which campaign feeds this draft?"
+  const wordCount = approval.bodyWordCount ?? 0;
+  const bodyPreview = wordCount > 0
+    ? `Draft · ${wordCount.toLocaleString()} words`
+    : 'No draft yet — click Edit to write or wait for the generator';
+  const campaignName = approval.campaignName?.trim() || null;
   return (
     <div style={{
       background: '#FFFFFF', border: '0.5px solid rgba(10,10,10,0.12)', borderRadius: 10,
@@ -310,7 +327,17 @@ function ApprovalRow({ approval, busy, onAct }: { approval: Approval; busy: bool
           {live && <span style={{ background: '#E1F5EE', color: '#085041', fontSize: 10, padding: '2px 6px', borderRadius: 6 }}>LIVE</span>}
           {killed && <span style={{ background: '#F1EFE8', color: '#444441', fontSize: 10, padding: '2px 6px', borderRadius: 6 }}>killed</span>}
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(10,10,10,0.55)', marginTop: 2 }}>
+        {/* Campaign name — plain text, shows which campaign feeds the draft. */}
+        {campaignName ? (
+          <div style={{ fontSize: 11, color: '#0A4D3C', marginTop: 3 }}>
+            Campaign · <em style={{ fontStyle: 'italic' }}>{campaignName}</em>
+          </div>
+        ) : null}
+        {/* Body preview line — answers "is there content to greenlight yet?" */}
+        <div style={{ fontSize: 11, color: wordCount > 0 ? 'rgba(10,10,10,0.7)' : 'rgba(10,10,10,0.45)', marginTop: 3, fontStyle: wordCount === 0 ? 'italic' : 'normal' }}>
+          {bodyPreview}
+        </div>
+        <div style={{ fontSize: 10, color: 'rgba(10,10,10,0.45)', marginTop: 3 }}>
           {kindLabel[approval.kind]} · angle {approval.angle} · {approval.source}
         </div>
       </div>

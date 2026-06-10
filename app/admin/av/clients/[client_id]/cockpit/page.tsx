@@ -117,12 +117,18 @@ export default async function CockpitPage({ params }: CockpitProps) {
   ]);
 
   const briefTitles = cockpitTitlesFor(kind, brief as Record<string, unknown>);
+  // (#581) Carry campaignName + bodyWordCount through so the cockpit cards can
+  // render "Campaign · {name}" and "Draft · 247 words" inline. Inline (brief-
+  // grounded) titles have no body or campaign yet; the body generator fills
+  // them on the next brief save.
   const persistedAsApprovals = persistedApprovals.map((a) => ({
     id: String(a.id),
     kind: a.kind,
     title: a.title,
     angle: a.angle ?? '—',
-    source: a.source ?? ''
+    source: a.source ?? '',
+    campaignName: a.campaignName,
+    bodyWordCount: a.body ? a.body.trim().split(/\s+/).filter(Boolean).length : 0
   }));
   // De-dupe by (kind, angle) so we don't double-show the same slot once an
   // operator's edit has been persisted.

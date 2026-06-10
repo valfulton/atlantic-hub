@@ -25,6 +25,8 @@ import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import ClientPrView from './ClientPrView';
 import { getCopyMap } from '@/lib/copy/store';
 import { accent } from '@/lib/copy/accent';
+import { evaluatePressDeskAccess } from '@/lib/client/pr_access';
+import { getEngagementKind } from '@/lib/client/engagement_kind';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -60,7 +62,15 @@ export default async function ClientPrPage() {
   }
 
   const headline = user.display_name?.split(/[ ,]/)[0] || 'there';
-  const locked = user.tier === 'audit_only' || user.tier === 'sprint';
+  // (#579 val 2026-06-10) Press desk gating is no longer just a tier check —
+  // engagement_kind matters. defense_pr / political_campaign / luxury_hospitality
+  // / book_pr clients NEVER see the upgrade gate because press IS their product.
+  // Shared with the operator preview mirror via lib/client/pr_access.ts.
+  const engagementKind = await getEngagementKind({
+    clientId: clientId ?? null,
+    clientUserId: user.client_user_id
+  });
+  const { locked } = evaluatePressDeskAccess({ tier: user.tier, engagementKind });
 
   // Per-client editable framing copy (the lede stays computed from live counts).
   const prCopy = await getCopyMap(['pr.eyebrow', 'pr.h1'], { clientId: clientId ?? undefined });

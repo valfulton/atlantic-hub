@@ -19,6 +19,7 @@ import { getBriefPayload } from '@/lib/client/brief_store';
 import { listPressTouches, countPressTouchesThisWeek, type PressTouch } from '@/lib/client/press_touches';
 import { getDistrictHeatMap, parseDistrictZips, type DistrictSignal } from '@/lib/client/district_heatmap';
 import { parseItinerary, nextStops, type ItineraryStop } from '@/lib/client/itinerary';
+import { listDraftsForClient, countPendingDraftsForClient, type ClientCockpitDraft } from '@/lib/client/cockpit_drafts';
 import type { RowDataPacket } from 'mysql2';
 import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember } from '@/app/client/dashboard/AdrianaDashboard';
 
@@ -36,6 +37,11 @@ export interface KindData {
   districtSignals?: DistrictSignal[];
   hasDistrictConfig?: boolean;
   itineraryStops?: ItineraryStop[];
+  /** (#578) Drafts the operator (val) has generated for this client. Shown in
+   *  DraftsInQueuePanel — each card expands to show body inline, plus a deep-
+   *  link to /client/notes scoped to that draft for two-way comments. */
+  cockpitDrafts?: ClientCockpitDraft[];
+  cockpitDraftsPending?: number;
 }
 
 interface LoaderArgs {
@@ -589,6 +595,20 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
       const stops = parseItinerary(briefObj);
       kindData.itineraryStops = nextStops(stops, 3);
     }
+
+    // (#578) Drafts the operator wrote/generated for this client. Mount on every
+    // non-lead_gen engagement_kind — defense_pr / political_campaign /
+    // luxury_hospitality / book_pr all run press kits, so the client deserves
+    // to see what was drafted, read the body inline, and write notes back.
+    tasks.push(
+      Promise.all([
+        listDraftsForClient(activeClientId, { limit: 12 }),
+        countPendingDraftsForClient(activeClientId)
+      ]).then(([drafts, pendingCount]) => {
+        kindData.cockpitDrafts = drafts;
+        kindData.cockpitDraftsPending = pendingCount;
+      }).catch(() => { kindData.cockpitDrafts = []; kindData.cockpitDraftsPending = 0; })
+    );
 
     if (tasks.length > 0) await Promise.all(tasks);
   }

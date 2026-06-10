@@ -133,8 +133,60 @@ export async function POST(req: NextRequest) {
     const ok = await saveBriefPayload(tenantId, clientId, body.payload as BriefPayload, { changedBy, source: 'operator' });
     if (!ok) return NextResponse.json({ error: 'save failed' }, { status: 500 });
     const prompt = await getBriefForPrompt({ tenantId, clientId });
+
+    // (#577 val 2026-06-10) On every CLIENT-scoped brief save, spawn the
+    // cockpit press kit asynchronously. Fire-and-forget so the save response
+    // stays fast; the generator is idempotent (skips titles that already exist)
+    // so re-saves don't churn the LLM bill or clobber operator edits.
+    // House-brand briefs (clientId === null) are skipped — cockpit_approvals
+    // is per-client.
+    if (clientId != null && tenantId === 'av') {
+      void spawnCockpitPressKit(clientId, body.payload as Record<string, unknown>);
+    }
+
     return NextResponse.json({ ok: true, tenantId, clientId, brandName: prompt.brandName, grounded: prompt.grounded });
   } catch (err) {
     return NextResponse.json({ error: 'server error', errorClass: (err as Error).name }, { status: 500 });
+  }
+}
+
+/**
+ * (#577) Resolve engagement_kind + client_name, then kick the body generator.
+ * Async + soft-fail — never throws back to the save response. Errors are
+ * logged so the cron-like background task is debuggable from /admin/av/llm.
+ */
+async function spawnCockpitPressKit(clientId: number, payload: Record<string, unknown>): Promise<void> {
+  try {
+    const [{ getEngagementKind }, { generateCockpitBodies }, { getAvDb }] = await Promise.all([
+      import('@/lib/client/engagement_kind'),
+      import('@/lib/av/cockpit_body_generator'),
+      import('@/lib/db/av')
+    ]);
+    const engagementKind = await getEngagementKind({ clientId });
+    let clientName = typeof payload.company === 'string' && payload.company.trim()
+      ? payload.company.trim()
+      : `Client #${clientId}`;
+    try {
+      const db = getAvDb();
+      const [rows] = await db.execute<Array<{ client_name: string } & Record<string, unknown>>>(
+        `SELECT client_name FROM clients WHERE client_id = ? LIMIT 1`,
+        [clientId]
+      );
+      if (rows[0]?.client_name) clientName = rows[0].client_name;
+    } catch {
+      /* clientName fallback already set */
+    }
+    const result = await generateCockpitBodies({
+      clientId,
+      engagementKind,
+      brief: payload,
+      clientName
+    });
+    console.log(
+      '[brief:cockpit_press_kit]',
+      `client=${clientId} kind=${engagementKind} generated=${result.generated} skipped=${result.skipped} failed=${result.failed}`
+    );
+  } catch (err) {
+    console.error('[brief:cockpit_press_kit:fatal]', clientId, (err as Error).message);
   }
 }

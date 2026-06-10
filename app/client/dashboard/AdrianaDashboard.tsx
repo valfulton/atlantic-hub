@@ -28,6 +28,7 @@ import { KindHero, KindPanels } from './KindPanels';
 import type { PressTouch } from '@/lib/client/press_touches';
 import type { DistrictSignal } from '@/lib/client/district_heatmap';
 import type { ItineraryStop } from '@/lib/client/itinerary';
+import type { ClientCockpitDraft } from '@/lib/client/cockpit_drafts';
 
 /** (#557) Live data for the kind-specific dashboard panels. Every field is
  *  optional — only panels enabled by the active engagement_kind get populated;
@@ -44,6 +45,11 @@ export interface KindData {
   districtSignals?: DistrictSignal[];
   hasDistrictConfig?: boolean;
   itineraryStops?: ItineraryStop[];
+  /** (#578) Drafts the operator has written/generated for this client.
+   *  Visible inline (each card expands to show body). The CLIENT comment thread
+   *  per draft lands in /client/notes via a deep-link. Lead_gen kinds skip. */
+  cockpitDrafts?: ClientCockpitDraft[];
+  cockpitDraftsPending?: number;
 }
 
 export interface BrandChip {
