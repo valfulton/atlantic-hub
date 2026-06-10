@@ -31,6 +31,7 @@ import { getAvDb } from '@/lib/db/av';
 import type { ResultSetHeader } from 'mysql2';
 import { fetchByCompany as cfpbFetchByCompany } from '@/lib/public_intel/adapters/cfpb';
 import { fetchByName as courtListenerFetchByName } from '@/lib/public_intel/adapters/courtlistener';
+import { addPersonName, addCompanyName, sanitizeCompanyName } from '@/lib/public_intel/name_sanitize';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -227,18 +228,28 @@ export async function POST(req: NextRequest, { params }: { params: { client_id: 
   // We run both queries (people sue people; people also sue companies) and
   // dedup by docketUrl. Filter is name-strict — fetchByName drops rows where
   // the queried name doesn't appear in caseName or party list.
+  // (val 2026-06-10) Sanitize EVERY name before it hits CourtListener.
+  // "Dr. Ron Elfenbein — Defense Press" returns 0 hits; "Ron Elfenbein"
+  // (and last-name fallback "Elfenbein") returns the real cases. Shared
+  // helpers in lib/public_intel/name_sanitize.ts — identical logic to the
+  // pack-apply path so the two code paths can't drift.
+  // (#537) Owner first (KYC target), then contact (could be marketing POC),
+  // then company. addPersonName also pushes last-name fallback when distinct;
+  // dedup is case-insensitive across the full set.
   const namesToScreen: string[] = [];
-  // (#537) Screen owner first (KYC target), then contact (could be marketing
-  // POC), then company. Dedup case-insensitively.
-  const pushUnique = (n: string) => {
-    if (!n) return;
-    const lc = n.toLowerCase();
-    if (namesToScreen.some((x) => x.toLowerCase() === lc)) return;
-    namesToScreen.push(n);
-  };
-  pushUnique(ownerName);
-  pushUnique(contactName);
-  pushUnique(company);
+  const seenLcKyc = new Set<string>();
+  addPersonName(namesToScreen, seenLcKyc, ownerName);
+  addPersonName(namesToScreen, seenLcKyc, contactName);
+  addCompanyName(namesToScreen, seenLcKyc, company);
+  // Also include a clean company variant in case the company IS the brand
+  // label minus the kicker (e.g. "Dr. Ron Elfenbein — Defense Press" →
+  // "Ron Elfenbein" already covered above; "ACME Corp — A Brand" →
+  // "ACME Corp" caught here).
+  const cleanCompany = sanitizeCompanyName(company);
+  if (cleanCompany && !seenLcKyc.has(cleanCompany.toLowerCase())) {
+    seenLcKyc.add(cleanCompany.toLowerCase());
+    namesToScreen.push(cleanCompany);
+  }
   if (namesToScreen.length > 0) {
     try {
       const seenDocket = new Set<string>();

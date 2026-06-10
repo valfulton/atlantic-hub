@@ -81,6 +81,28 @@ export async function getBriefPayload(
   clientId: number | null
 ): Promise<BriefPayload | null> {
   const db = getAvDb();
+
+  // (val 2026-06-10) LIVE MERGE — not either-or.
+  //
+  // The old behavior was "try brief, else fall back to intake." That meant
+  // the first time you opened a client's brief, the intake answers
+  // pre-filled. The moment you saved the brief, the fallback path died
+  // forever — even if you went back and filled more intake fields, the
+  // brief editor would never see them because creative_briefs.brief_payload
+  // was no longer empty.
+  //
+  // New behavior: read BOTH, merge per-key with brief winning on every key
+  // where brief has a non-empty value. Empty brief slots auto-fill from
+  // intake on every read.
+  //
+  // Semantics:
+  //   - null / undefined / missing key in brief = use intake.
+  //   - Empty string or empty array in brief = use intake.
+  //   - Any other value in brief = brief wins (operator override sticks).
+  //   - getBriefForPrompt() benefits automatically — prompts get the
+  //     merged view, so AI calls never miss a known answer.
+
+  let brief: BriefPayload | null = null;
   try {
     const [rows] = await db.execute<BriefRow[]>(
       `SELECT brief_payload FROM creative_briefs
@@ -88,13 +110,12 @@ export async function getBriefPayload(
         ORDER BY updated_at DESC LIMIT 1`,
       [tenantId, clientId]
     );
-    const payload = asPayload(rows[0]?.brief_payload ?? null);
-    if (payload) return payload;
+    brief = asPayload(rows[0]?.brief_payload ?? null);
   } catch (err) {
     console.error('[brief_store:get]', (err as Error).message);
   }
 
-  // Fall back to the client's intake answers (legacy source of truth).
+  let intake: BriefPayload | null = null;
   if (clientId != null) {
     try {
       const [rows] = await db.execute<IntakeRow[]>(
@@ -103,13 +124,25 @@ export async function getBriefPayload(
           ORDER BY updated_at DESC LIMIT 1`,
         [clientId]
       );
-      return asPayload(rows[0]?.intake_payload ?? null);
+      intake = asPayload(rows[0]?.intake_payload ?? null);
     } catch (err) {
       console.error('[brief_store:get:intake_fallback]', (err as Error).message);
     }
   }
 
-  return null;
+  if (!brief && !intake) return null;
+  if (!intake) return brief;
+  if (!brief) return intake;
+
+  // Per-key merge with brief-wins-on-non-empty.
+  const out: Record<string, unknown> = { ...(intake as Record<string, unknown>) };
+  for (const [key, value] of Object.entries(brief as Record<string, unknown>)) {
+    if (value == null) continue;
+    if (typeof value === 'string' && value.trim() === '') continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    out[key] = value;
+  }
+  return out as BriefPayload;
 }
 
 /**
