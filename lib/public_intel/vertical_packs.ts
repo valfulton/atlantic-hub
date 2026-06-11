@@ -53,7 +53,13 @@ export type VerticalPackId =
   // (#530, val 2026-06-08) DD Report product line — investors / lenders / M&A
   // advisors / franchise vetters who pay 5-10x marketing prices for a
   // pre-engagement intelligence report on a person + their company.
-  | 'client_screening';        // Pre-engagement DD — KYC-style screening for investors, lenders, advisors
+  | 'client_screening'         // Pre-engagement DD — KYC-style screening for investors, lenders, advisors
+  // (val 2026-06-11) Marty Insley / mpgloans.com — Maryland mortgage broker.
+  // Residential + commercial mortgage origination. Distinct from commercial_lending
+  // (banks + SBA) because mortgage brokers buy refi-trigger + relocation signals,
+  // not credit-risk + workout signals. MD recorder adapter (#423) shipped, so MD
+  // lien priority lights up day-one without waiting on CA Acclaim.
+  | 'mortgage_lending';        // Mortgage brokers + originators — residential refi + purchase
 
 /**
  * (#384) Target audience: drives the score-time filter that prevents
@@ -440,6 +446,74 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     pricingThesis:
       'Different audience, different price point. A marketing engagement is $300-$2K/mo; a single pre-engagement DD report is $1,995-$7,995 because the buyer is making a $50K-$5M decision. The same engine produces both — investors pay for the polished deliverable + the speed. Bundleable as add-on to marketing engagements ("DD-as-a-service for any client you refer in").',
     suggestedPriceUsd: { low: 1995, high: 7995 }
+  },
+
+  // (val 2026-06-11) Marty Insley / mpgloans.com — Maryland mortgage broker.
+  // Residential + commercial originator. Distinct from commercial_lending
+  // (banks + SBA + equipment finance) because mortgage brokers buy
+  // refi-trigger + relocation + market-gap signals, not credit-risk +
+  // workout signals. The MD recorder adapter (#423) is the day-one moat:
+  // every Maryland mortgage filing flows into the watchlist on day one,
+  // letting Marty see purchase + refi windows opening across the state
+  // before any other broker is on the lead.
+  mortgage_lending: {
+    id: 'mortgage_lending',
+    displayName: 'Mortgage brokers + originators',
+    shortPositioning: 'Know which borrowers are about to need you — before they search.',
+    targetAudience: 'both',
+    signalWeights: {
+      // Strongest mortgage signal: a property just changed hands → refi
+      // window opens at 6–18 months, and the originator who's been in
+      // touch from day one wins the refi business.
+      property_transfer: 35,
+      // Someone moved → either they just bought (refi pipeline) or they
+      // rented and will buy in 12–36 months (purchase pipeline).
+      address_change: 30,
+      // HMDA market intelligence: high refi volume in an area = rate
+      // environment is moving + competitors are originating; Marty needs
+      // to be on every borrower in that zip BEFORE they call Rocket.
+      high_refinance_volume: 30,
+      // HMDA denial intelligence: where banks reject borrowers is where
+      // brokers win — broker shops place loans banks won't touch.
+      high_denial_rate: 25,
+      // CFPB: a lender under fire = competitor weakness = poach window
+      // for borrowers stuck with that lender.
+      lender_under_fire: 20,
+      // New LLC near a transferred property = investor entity buying
+      // rentals → commercial mortgage opportunity (BRRRR, DSCR loans).
+      new_llc: 10,
+      // Distressed property = listing opportunity for the buyer's agent
+      // and bridge/hard-money origination opportunity for Marty.
+      code_violation: 5
+    },
+    cascadeRecipeIds: [
+      // Investor LLC formation near a recent property transfer = high
+      // intent commercial mortgage shopper. Recipe already exists.
+      'new_llc_credit_opportunity'
+      // Future recipes (tracked in #423 follow-up):
+      //   property_transfer_refi_window      — fires 9 months post-deed
+      //   high_denial_zip_broker_opportunity — fires on HMDA quarterly load
+    ],
+    recommendedAdapters: [
+      'md_land_rec',  // (#423) day-one moat for MD originators
+      'hmda',         // refi volume + denial rate by zip
+      'cfpb',         // competitor lender complaint velocity
+      'census_acs',   // homeowner / area demographics
+      'courtlistener',// foreclosure / lis-pendens signals
+      'ca_sos'        // investor-entity catch for the commercial side
+    ],
+    bestForRoles: [
+      'Independent mortgage brokers (MD, VA, DC corridor first)',
+      'Mortgage loan originators (MLOs)',
+      'Refi specialists',
+      'Commercial mortgage brokers (DSCR / BRRRR / bridge)',
+      'Small mortgage shops white-labeling intelligence'
+    ],
+    pitchTemplate:
+      'Maryland mortgage brokers compete on two minutes of timing. The borrower who just signed a deed enters a refi window in 9 months — call them at month 7 and you own the relationship. The renter who just moved across town enters a purchase cycle in 18-36 months — be the broker they know. We turn every Maryland property transfer, every refi-heavy zip, every denied-borrower opportunity into a watchlist row, the day the public record updates.',
+    pricingThesis:
+      'Mortgage originators already spend $200-1,500/mo on lead-gen (Zillow Premier Agent, LendingTree, BoldLeads). We replace cold lead lists with timing intelligence on borrowers already in their geographic territory — same spend, far higher close rate. MD recorder gives us the rare day-one moat: no other broker tool surfaces MD deed transfers in near-real-time.',
+    suggestedPriceUsd: { low: 499, high: 1999 }
   }
 };
 

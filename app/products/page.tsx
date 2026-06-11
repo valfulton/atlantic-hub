@@ -22,6 +22,7 @@ export const metadata = {
 
 const VERTICAL_LANDING_SLUG: Record<string, string | null> = {
   collections: '/products/collections-intelligence',
+  mortgage_lending: '/products/mortgage-lending-intelligence',
   // Add more as the landing pages are built.
 };
 

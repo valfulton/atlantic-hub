@@ -261,6 +261,202 @@ export const PRODUCTS: Product[] = [
     ],
     status: 'beta',
     moat: 'Most agencies cannot navigate California lien priority. When CA Acclaim ships, this is the only intelligence provider with the timeline mapped county-by-county.'
+  },
+
+  // ── MORTGAGE LENDING VERTICAL PACK (Marty Insley / MPG Loans) ─────────────
+  // Five products mirror the collections shape: monitor → cascade → score →
+  // white-label → state-specific moat. Day-one moat is the MD recorder
+  // adapter (#423) — every Maryland deed transfer hits the watchlist before
+  // any other broker can see it.
+  {
+    slug: 'mortgage-portfolio-refi-monitoring',
+    name: 'Mortgage Portfolio Refi Monitoring',
+    verticalPackId: 'mortgage_lending',
+    customer: 'Mortgage brokers + loan originators with a closed book of 100–2,000 borrowers they want to retain through the next rate cycle.',
+    oneLiner: 'Monitor every borrower you have closed. We alert the moment a refi window opens — new lien, address change, equity event, or rate-environment shift.',
+    marketingTagline: 'Every borrower you closed is monitored daily. You hear about the refi opportunity before Rocket calls them.',
+    pricing: [
+      {
+        label: '$299/mo',
+        lowMonthlyCents: 29900,
+        highMonthlyCents: 29900,
+        includes: [
+          'Up to 100 borrowers under continuous refi-trigger monitoring',
+          'Address change + lien filing + property transfer alerts',
+          'Weekly digest of refi-window opportunities',
+          'Borrower-by-borrower signal trail'
+        ]
+      },
+      {
+        label: '$999/mo',
+        lowMonthlyCents: 99900,
+        highMonthlyCents: 99900,
+        includes: [
+          'Up to 2,000 borrowers under continuous monitoring',
+          'All alerts above + per-borrower equity-event scoring',
+          'Auto-staged outreach drafts when a refi window opens',
+          'Daily real-time alerts on high-priority refi triggers'
+        ]
+      }
+    ],
+    engineCapabilities: [
+      'distress_engine (refi-trigger signal weights)',
+      'distress_watchlist (per-client surfacing)',
+      'MD Land Records adapter (#423) for in-state deed events',
+      'cascade_attribution (link triggers to borrowers)',
+      'cockpit_approvals + body generator for borrower outreach',
+      'weekly digest cron (#244)'
+    ],
+    pendingDependencies: [
+      'CSV borrower-list import flow (mirrors Adriana portfolio upload)',
+      'Rate-environment integration (Freddie Mac PMMS feed)'
+    ],
+    status: 'beta',
+    moat: 'Most brokers lose retained customers to whichever lender markets first. We give the originator who closed the loan a 60-day head start on every refi opportunity in their own book.'
+  },
+  {
+    slug: 'refi-trigger-cascade-alerts',
+    name: 'Refi-Trigger Cascade Alerts',
+    verticalPackId: 'mortgage_lending',
+    customer: 'Mortgage brokers + refi specialists hunting net-new borrowers across a state or metro market.',
+    oneLiner: 'When rates shift or a homeowner stacks debt, we surface every borrower in your territory entering a refi window — before they search.',
+    marketingTagline: 'The competitor reads the rate news. You called the borrowers an hour ago.',
+    pricing: [
+      {
+        label: '$499–1,499/mo',
+        lowMonthlyCents: 49900,
+        highMonthlyCents: 149900,
+        includes: [
+          'Real-time cascade alerts when refi-relevant signals fire in your territory',
+          'Auto-surfaced borrower list from property transfer + lien + address events',
+          'Pre-staged outreach drafts for each surfaced borrower',
+          'Premium add-on to Portfolio Refi Monitoring'
+        ]
+      }
+    ],
+    engineCapabilities: [
+      'cascade_pipeline (#374)',
+      'MD Land Records adapter (#423) — day-one for MD originators',
+      'HMDA refi-volume signal',
+      'cockpit_approvals + body generator for outreach drafts'
+    ],
+    pendingDependencies: [
+      'Multi-state recorder rollout (#427) for non-MD territories'
+    ],
+    status: 'beta',
+    moat: 'No other broker tool ties Maryland recorder data to a daily cascade. Every other shop is buying Zillow leads after the borrower has already started shopping.'
+  },
+  {
+    slug: 'borrower-closing-probability-scoring',
+    name: 'Borrower Closing Probability Scoring',
+    verticalPackId: 'mortgage_lending',
+    customer: 'Mortgage originators with a queue of inbound leads who are wasting hours on borrowers who will not close.',
+    oneLiner: 'Hand us your inbound leads. We score each by likelihood of closing — credit signals, prior denials by other lenders, property attachment, entity status — so you focus where ROI is highest.',
+    marketingTagline: 'Stop wasting hours on dead leads. Know which borrowers will close before you make the first call.',
+    pricing: [
+      {
+        label: '$0.40–1.50 per lead',
+        lowMonthlyCents: 40,
+        highMonthlyCents: 150,
+        includes: [
+          'Bulk upload of inbound lead list (CSV)',
+          'Closing-probability score per lead (0–100)',
+          'Underlying signals visible per lead',
+          'Pay-as-you-go pricing — no minimum'
+        ]
+      },
+      {
+        label: '$599/mo unlimited',
+        lowMonthlyCents: 59900,
+        highMonthlyCents: 59900,
+        includes: [
+          'Unlimited scoring across all uploaded lead lists',
+          'Monthly re-score automation as new signals fire',
+          'Closing-probability dashboard per originator',
+          'API access for in-house LOS integration'
+        ]
+      }
+    ],
+    engineCapabilities: [
+      'distress_engine signal weights (lender_under_fire, high_denial_rate)',
+      'cascade_attribution (prior denial trail)',
+      'public_intel_records (property attachment visibility)',
+      'KYC sweep (borrower entity / co-applicant status)'
+    ],
+    pendingDependencies: [
+      'CSV inbound-lead import flow',
+      'Probability calibration against MPG historical close-rate data'
+    ],
+    status: 'coming_soon'
+  },
+  {
+    slug: 'mortgage-originator-white-label',
+    name: 'White-Label Intelligence for Mortgage Originator Shops',
+    verticalPackId: 'mortgage_lending',
+    customer: 'Small to mid-sized mortgage shops (3–25 originators) who want their own intelligence portal under their brand.',
+    oneLiner: 'Every borrower file opens with a full intelligence snapshot — current liens, property history, refi-trigger signals — instead of an LOA manually pulling records.',
+    marketingTagline: "Your loan officer assistant's morning research, automated. Every file opens with the whole picture.",
+    pricing: [
+      {
+        label: '$1,500–7,500/firm/mo',
+        lowMonthlyCents: 150000,
+        highMonthlyCents: 750000,
+        includes: [
+          'Branded broker portal (shop-name + logo on every screen)',
+          'Per-borrower intelligence dossier (KYC + property history + lien activity)',
+          'Cascade attribution surfaced in every dossier',
+          'Unlimited borrower lookups under originator seat count',
+          'Quarterly intelligence training for loan officer assistants'
+        ]
+      }
+    ],
+    engineCapabilities: [
+      'KYC sweep (#524)',
+      'DD Report generator (#525) — repurposed as borrower dossier',
+      'client_dossier + red flags',
+      'address history',
+      'cascade_attribution',
+      'brand-kit ingest for shop white-labeling (#208)'
+    ],
+    pendingDependencies: [
+      'White-label dashboard skin per shop — extends existing data-skin="royale" pattern',
+      'LOS integration (Encompass / LendingPad webhook receivers)'
+    ],
+    status: 'coming_soon',
+    moat: 'Network effect — each shop using the product improves the underlying signals via their borrower data. High ACV, sticky, recurring revenue. Each shop replaces 1–2 LOA hours per file.'
+  },
+  {
+    slug: 'md-lien-priority-mortgage-intelligence',
+    name: 'MD Lien Priority Mortgage Intelligence',
+    verticalPackId: 'mortgage_lending',
+    customer: 'Maryland-licensed mortgage brokers and bridge / hard-money lenders with exposure to MD residential and commercial property.',
+    oneLiner: "Maryland's lien priority decides whether a refi closes. We map the timeline county-by-county. You know who has claim and in what order before underwriting.",
+    marketingTagline: 'In Maryland, lien priority decides the loan. We map the priority. You move first.',
+    pricing: [
+      {
+        label: '$999/mo base + $35 per property deep-dive',
+        lowMonthlyCents: 99900,
+        highMonthlyCents: 99900,
+        includes: [
+          'Daily MD Land Records monitoring across portfolio (#423)',
+          'Lien priority timeline per property — every MD jurisdiction',
+          'Cross-county recorder cross-reference',
+          'Mechanic + judgment lien alerts',
+          'Per-property deep-dive on demand ($35 each)'
+        ]
+      }
+    ],
+    engineCapabilities: [
+      'MD Land Records adapter (#423, shipped)',
+      'recorder cross-reference (shipped for MD)',
+      'cascade attribution',
+      'KYC sweep'
+    ],
+    pendingDependencies: [
+      'Lien priority timeline UI (mirrors CA priority panel)'
+    ],
+    status: 'beta',
+    moat: 'No other mortgage intelligence provider has MD recorder fully wired. While competitors are still buying single-county data, we surface the full state on day one.'
   }
 ];
 
@@ -298,7 +494,11 @@ export const VERTICAL_DISPLAY_NAMES: Record<string, string> = {
   real_estate: 'Real Estate Intelligence',
   b2b_sales: 'B2B Sales Intelligence',
   law_firm: 'Law Firm Intelligence',
-  lending: 'Lending + Mortgage Intelligence',
+  // (val 2026-06-11) mortgage_lending is the canonical pack ID in
+  // vertical_packs.ts. 'lending' is kept as a soft alias for the
+  // pre-existing landing copy + URL slug.
+  mortgage_lending: 'Mortgage Broker Intelligence',
+  lending: 'Mortgage Broker Intelligence',
   political_campaign: 'Political Campaign Operations',
   defense_pr: 'Defense PR Operations',
   luxury_hospitality: 'Luxury Hospitality Operations'
@@ -310,6 +510,7 @@ export const VERTICAL_TAGLINES: Record<string, string> = {
   real_estate: 'The agent who knows about the listing before there is a listing.',
   b2b_sales: 'Which businesses are most likely to buy this quarter — before they ask.',
   law_firm: 'Every case opens with the whole picture. Your paralegals stop pulling records.',
+  mortgage_lending: 'Know which borrowers are about to need you — before they search.',
   lending: 'Know which borrowers are about to need you — before they search.',
   political_campaign: 'Your district. Your message. Your green-light. One operator, full press desk.',
   defense_pr: 'Defense PR as a service. Counsel approves every release inside the dashboard.',
