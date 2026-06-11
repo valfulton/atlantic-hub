@@ -7,7 +7,7 @@
  * Visual language inherits the cream surface + champagne accent direction val
  * approved on /admin/av/brief. NO black surfaces; this is brand-aligned.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import EditAssetModal, { type EditableAsset } from './EditAssetModal';
 
 type Kind = 'lead_gen' | 'defense_pr' | 'political_campaign' | 'luxury_hospitality' | 'book_pr' | string;
@@ -242,6 +242,19 @@ export default function CockpitClient({
       {showItinerary && <ItineraryPanel ring={ring} brief={data.brief} />}
       {showLeadsPanel && <LeadsPanelStub />}
 
+      {/* (val 2026-06-11) Defense_pr + political_campaign strategy panels —
+         read structured brief fields populated via the marketing-plan SQL.
+         Each panel renders only when its brief field is populated. */}
+      {(showCaseBrief || showDistrictPulse) && (
+        <>
+          <PillarsPanel ring={ring} brief={data.brief} />
+          <CampaignPhasesPanel ring={ring} brief={data.brief} />
+          <TargetOutletsPanel ring={ring} brief={data.brief} />
+          <InfluencerCohortsPanel ring={ring} brief={data.brief} />
+          <WebinarPanel ring={ring} brief={data.brief} />
+        </>
+      )}
+
       {/* Pending approvals — universal across kinds */}
       <div style={{ marginTop: '1.5rem' }}>
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -424,5 +437,159 @@ function LeadsPanelStub() {
     <div style={{ background: '#FFFFFF', border: `0.5px solid rgba(10,10,10,0.12)`, borderRadius: 12, padding: '14px 18px', marginTop: 4, fontSize: 13, color: 'rgba(10,10,10,0.55)' }}>
       Leads pipeline lives at <a href="/admin/av/leads" style={{ color: '#7A5A18' }}>/admin/av/leads</a>. The cockpit will surface the top 3 hot leads here in #550 v2.
     </div>
+  );
+}
+
+// (val 2026-06-11) Strategy panels — for defense_pr + political_campaign +
+// any kind where val builds a full Compass-style PR strategy. Each reads a
+// structured field from brief_payload and renders nothing if empty.
+
+interface Pillar { title?: string; body?: string }
+interface Phase { phase?: string; window?: string; focus?: string }
+interface OutletRow { tier?: string; outlet?: string; journalist?: string; beat?: string; status?: string }
+interface Cohort { cohort?: string; focus?: string; targets?: string }
+
+function asArr<T>(v: unknown): T[] { return Array.isArray(v) ? v as T[] : []; }
+function asStr(v: unknown): string { return typeof v === 'string' ? v : ''; }
+
+function StrategyCard({ title, ring, children }: { title: string; ring: string; children: ReactNode }) {
+  return (
+    <div style={{ background: '#FFFFFF', border: `0.5px solid rgba(10,10,10,0.12)`, borderRadius: 12, padding: '14px 18px', marginTop: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12, color: ring }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function PillarsPanel({ ring, brief }: { ring: string; brief: BriefPayload }) {
+  const pillars = asArr<Pillar>(brief.pillars);
+  const hashtags = asArr<string>(brief.campaign_hashtags);
+  if (pillars.length === 0 && hashtags.length === 0) return null;
+  return (
+    <StrategyCard title="Messaging pillars" ring={ring}>
+      {pillars.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: hashtags.length > 0 ? 12 : 0 }}>
+          {pillars.map((p, i) => (
+            <div key={i} style={{ background: '#F7F1E1', borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, color: '#7A5A18', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Pillar {i + 1}</div>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{p.title ?? `Pillar ${i + 1}`}</div>
+              <div style={{ fontSize: 12, lineHeight: 1.5, color: 'rgba(10,10,10,0.7)' }}>{p.body ?? ''}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {hashtags.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {hashtags.map((h, i) => (
+            <span key={i} style={{ background: '#E6F1FB', color: '#0C447C', fontSize: 11, padding: '3px 8px', borderRadius: 6 }}>{h}</span>
+          ))}
+          {asStr(brief.crisis_response_hashtag) && (
+            <span style={{ background: '#FAEEDA', color: '#633806', fontSize: 11, padding: '3px 8px', borderRadius: 6 }}>
+              crisis · {asStr(brief.crisis_response_hashtag)}
+            </span>
+          )}
+        </div>
+      )}
+    </StrategyCard>
+  );
+}
+
+function CampaignPhasesPanel({ ring, brief }: { ring: string; brief: BriefPayload }) {
+  const phases = asArr<Phase>(brief.campaign_phases);
+  if (phases.length === 0) return null;
+  return (
+    <StrategyCard title="Campaign phases" ring={ring}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {phases.map((p, i) => (
+          <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <div style={{ minWidth: 36, height: 36, borderRadius: 18, background: ring, color: '#FFFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500 }}>{i + 1}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, textTransform: 'capitalize' }}>{p.phase ?? `Phase ${i + 1}`}</div>
+              {p.window && <div style={{ fontSize: 11, color: 'rgba(10,10,10,0.55)', marginTop: 2 }}>{p.window}</div>}
+              {p.focus && <div style={{ fontSize: 12, lineHeight: 1.5, marginTop: 4, color: 'rgba(10,10,10,0.75)' }}>{p.focus}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </StrategyCard>
+  );
+}
+
+function TargetOutletsPanel({ ring, brief }: { ring: string; brief: BriefPayload }) {
+  const outlets = asArr<OutletRow>(brief.target_outlets);
+  if (outlets.length === 0) return null;
+  // Group by tier for legibility.
+  const grouped: Record<string, OutletRow[]> = {};
+  for (const o of outlets) {
+    const tier = o.tier ?? 'other';
+    if (!grouped[tier]) grouped[tier] = [];
+    grouped[tier].push(o);
+  }
+  const tierLabel = (t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const statusColor = (s?: string) =>
+    s === 'established' ? { bg: '#E1F5EE', fg: '#085041' }
+    : s === 'warm' ? { bg: '#FAEEDA', fg: '#633806' }
+    : { bg: '#F1EFE8', fg: '#444441' };
+  return (
+    <StrategyCard title="Target outlets" ring={ring}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {Object.entries(grouped).map(([tier, rows]) => (
+          <div key={tier}>
+            <div style={{ fontSize: 11, color: '#7A5A18', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{tierLabel(tier)}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {rows.map((r, i) => {
+                const sc = statusColor(r.status);
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: '#F7F1E1', borderRadius: 6, fontSize: 12 }}>
+                    <span style={{ fontWeight: 500, minWidth: 160 }}>{r.outlet ?? '—'}</span>
+                    {r.journalist && <span style={{ color: 'rgba(10,10,10,0.65)' }}>{r.journalist}</span>}
+                    {r.beat && <span style={{ color: 'rgba(10,10,10,0.5)', fontStyle: 'italic' }}>{r.beat}</span>}
+                    {r.status && (
+                      <span style={{ marginLeft: 'auto', background: sc.bg, color: sc.fg, fontSize: 10, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{r.status}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </StrategyCard>
+  );
+}
+
+function InfluencerCohortsPanel({ ring, brief }: { ring: string; brief: BriefPayload }) {
+  const cohorts = asArr<Cohort>(brief.influencer_cohorts);
+  if (cohorts.length === 0) return null;
+  return (
+    <StrategyCard title="Influencer cohorts" ring={ring}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+        {cohorts.map((c, i) => (
+          <div key={i} style={{ background: '#F7F1E1', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ fontSize: 13, fontWeight: 500, textTransform: 'capitalize', marginBottom: 4 }}>{(c.cohort ?? `Cohort ${i + 1}`).replace(/_/g, ' ')}</div>
+            {c.focus && <div style={{ fontSize: 11, color: '#7A5A18', marginBottom: 4 }}>{c.focus}</div>}
+            {c.targets && <div style={{ fontSize: 12, lineHeight: 1.5, color: 'rgba(10,10,10,0.7)' }}>{c.targets}</div>}
+          </div>
+        ))}
+      </div>
+    </StrategyCard>
+  );
+}
+
+function WebinarPanel({ ring, brief }: { ring: string; brief: BriefPayload }) {
+  const title = asStr(brief.webinar_title);
+  const date = asStr(brief.webinar_date_target);
+  const platform = asStr(brief.webinar_platform);
+  if (!title && !date && !platform) return null;
+  return (
+    <StrategyCard title="Webinar" ring={ring}>
+      <div style={{ background: '#F7F1E1', borderRadius: 8, padding: '12px 14px' }}>
+        {title && <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>{title}</div>}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: 'rgba(10,10,10,0.65)' }}>
+          {date && <span>📅 {date}</span>}
+          {platform && <span>📍 {platform}</span>}
+        </div>
+      </div>
+    </StrategyCard>
   );
 }
