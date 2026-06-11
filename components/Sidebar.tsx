@@ -40,6 +40,7 @@ const AV_NAV = [
   // still call them narrative lines (the strategic noun); the sidebar
   // calls them what they USE: campaigns the customer is running.
   { href: '/admin/av/narrative', label: 'Campaigns', section: 'sub' as const },
+  { href: '/admin/av/products', label: 'Products', section: 'sub' as const },
   { href: '/admin/av/intake', label: 'Client intake', section: 'sub' as const },
   { href: '/admin/av/brief', label: 'Creative brief', section: 'sub' as const },
   { href: '/admin/av/prompts', label: 'AI prompts', section: 'sub' as const },
