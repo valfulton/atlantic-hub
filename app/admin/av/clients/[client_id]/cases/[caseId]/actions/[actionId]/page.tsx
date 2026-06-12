@@ -109,7 +109,6 @@ export default async function ActionItemDetailPage({ params }: PageProps) {
           </h1>
           <div className="text-xs text-muted mt-2">
             Created {formatDate(action.createdAt)}
-            {action.source ? ` · source: ${action.source}` : ''}
           </div>
         </header>
 
