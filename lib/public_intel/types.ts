@@ -38,7 +38,11 @@ export type PublicIntelKind =
   | 'pacer_docket'       // Federal docket fetcher for bankruptcy creditor schedules
   // (#423) Multi-state RE foreclosure rollout. MD comes first because it's the
   // only state with a fully statewide free recorder portal (mdlandrec.net).
-  | 'md_land_rec';       // Maryland Land Records — every MD jurisdiction, one login
+  | 'md_land_rec'        // Maryland Land Records — every MD jurisdiction, one login
+  // (val 2026-06-11) Johnson family anchor — Contra Costa County CA recorder.
+  // Powers case_property auto-population for the Johnson Home-Ranch Trust case
+  // and any family_legacy_care client with a parent residence in Contra Costa.
+  | 'ca_contra_costa_recorder';  // Contra Costa County (CA) Clerk-Recorder official records
 
 export interface PublicIntelSource {
   sourceId: number;

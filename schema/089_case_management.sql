@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS family_health_roster (
 CREATE TABLE IF NOT EXISTS family_care_appointments (
   appointment_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   case_id BIGINT UNSIGNED NOT NULL,
-  party_id INT,
+  party_id BIGINT UNSIGNED,
   appointment_kind VARCHAR(40)
     COMMENT 'doctor / specialist / lab / imaging / therapy / pharmacy_pickup / va / other',
   scheduled_at DATETIME NOT NULL,

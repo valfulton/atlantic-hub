@@ -28,6 +28,10 @@ const AV_NAV = [
   // small index that lets her open any lead in the new view.
   { href: '/admin/av/lead', label: 'Leads (new view)', section: 'sub' as const },
   { href: '/admin/av/clients', label: 'Clients', section: 'sub' as const },
+  // (val 2026-06-11) Universal case-management module — Johnson family anchor.
+  // Surfaces every open case across every client. Reusable by defense_pr, political_campaign,
+  // family_legacy_care, and any client with a case attached.
+  { href: '/admin/av/cases', label: 'Cases', section: 'sub' as const },
   { href: '/admin/av/watchlist', label: 'Watchlist (all)', section: 'sub' as const },
   { href: '/admin/av/employees', label: 'Employees', section: 'sub' as const },
   { href: '/admin/av/discover', label: 'Find new leads', section: 'sub' as const },

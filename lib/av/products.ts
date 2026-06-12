@@ -457,6 +457,131 @@ export const PRODUCTS: Product[] = [
     ],
     status: 'beta',
     moat: 'No other mortgage intelligence provider has MD recorder fully wired. While competitors are still buying single-county data, we surface the full state on day one.'
+  },
+
+  // ── FAMILY LEGACY CARE VERTICAL PACK (Johnson family / Adriana CLDA) ──────
+  // Five products mirror the collections + mortgage shape: shared command
+  // center · legal decision drafts · financial housekeeping · senior care
+  // coordination · veterans services tracker. The Johnson family is the
+  // anchor case (Home-Ranch Trust dispute, 1657 Kingsly Dr Pittsburg CA).
+  // Adriana / CLDA Services is the legal-delivery partner; Rebecca Johnson
+  // is the primary family caregiver. Reusable for any family supporting
+  // aging parents through trust/estate/elder-advocacy/guardianship needs.
+  //
+  // PRICING INTENTIONALLY EMPTY ARRAYS — val owns pricing per HARD RULE
+  // feedback_no_invented_pricing. The label/cents structure is preserved
+  // (existing interface unchanged) but no dollars are populated until val
+  // sets them. See draft package at /AtlanticandVine/ATLANTIC AND VINE
+  // management/Clients/Johnson Family/07_New_Hub_Products_Family_Legacy.md
+  // for the proposed product set narrative.
+  {
+    slug: 'family-command-center',
+    name: 'Family Command Center',
+    verticalPackId: 'family_legacy_care',
+    customer: 'A primary family caregiver (often the adult child closest to the parents) who needs a shared, parent-approved place to track legal, financial, and care decisions.',
+    oneLiner: 'One shared place for every document, every decision, every appointment, every dollar — with the parents always in control.',
+    marketingTagline: 'One place for everything that matters. Mom and Dad stay in control.',
+    pricing: [],
+    engineCapabilities: [
+      'case-management module (schema 089)',
+      'document vault with SHA-256 provenance',
+      'case timeline (append-only event log)',
+      'case parties (trustors / trustees / beneficiaries / heirs)',
+      'wellness check log with concern flags',
+      'sibling co-access with parent-approved invites',
+      'mobile-friendly client surface'
+    ],
+    pendingDependencies: [
+      'C2PA content credentials on case documents (planned)',
+      'Mobile push for parent-approval flow (planned)'
+    ],
+    status: 'beta',
+    moat: 'Parent-first design with parent-approved sibling invites is the legibility difference. Other tools default to "let the eldest child decide"; we default to "the parents stay in charge as long as they are competent."'
+  },
+  {
+    slug: 'trust-estate-decision-drafts',
+    name: 'Trust + Estate Decision Drafts',
+    verticalPackId: 'family_legacy_care',
+    customer: 'A family facing a trust amendment, revocation, or fiduciary issue who needs plain-English drafts the parents can read and the family attorney can refine.',
+    oneLiner: 'Plain-English options for the parents. Attorney-refinable drafts for the family lawyer.',
+    marketingTagline: 'Drafts that talk like a kitchen-table conversation, refined into instruments that hold up in court.',
+    pricing: [],
+    engineCapabilities: [
+      'structured trust-clause library (revocation §5.A, amendment §5.B, residential §5.F patterns)',
+      'parents\' decision sheet generator (plain English)',
+      'POA revocation draft generator (financial + healthcare)',
+      'trustee accounting demand letter generator (Probate §16060)',
+      'attorney handoff packet'
+    ],
+    pendingDependencies: [
+      'State-by-state trust statute coverage (CA + MD covered today)',
+      'Probate court e-filing integration (later)'
+    ],
+    status: 'beta',
+    moat: 'The drafts ground in the actual trust instrument (read by AV) plus AV\'s structured clause library, then hand off to the family\'s attorney for refinement. No other product reads the trust and prepares plain-English parent-friendly options in one pass.'
+  },
+  {
+    slug: 'family-financial-housekeeping',
+    name: 'Family Financial Housekeeping',
+    verticalPackId: 'family_legacy_care',
+    customer: 'A primary caregiver running periodic financial review meetings with siblings, who needs to track income, expenses, projected runway, and approval logs.',
+    oneLiner: 'Monthly housekeeping meetings with the math, the agenda, the decisions, and Mom and Dad\'s approval all in one place.',
+    marketingTagline: 'Monthly meetings that prevent arguments. Mom and Dad sign off on every major decision.',
+    pricing: [],
+    engineCapabilities: [
+      'monthly financial summary with running balance',
+      'projected runway calculation (months at current burn)',
+      'meeting notes with attendee + decision log',
+      'parent approval workflow on flagged decisions',
+      'sibling visibility scoped by parent-set permissions'
+    ],
+    pendingDependencies: [
+      'Bank-feed integration for auto-running totals (manual entry today)',
+      'Spending threshold alerts (planned)'
+    ],
+    status: 'beta'
+  },
+  {
+    slug: 'senior-care-coordination',
+    name: 'Senior Care Coordination',
+    verticalPackId: 'family_legacy_care',
+    customer: 'Families coordinating medical care across multiple providers, including upcoming appointments, current medications, current doctors, current conditions, and known needs.',
+    oneLiner: 'Every doctor, every appointment, every prescription, visible to the family members the parents choose.',
+    marketingTagline: 'Every doctor, every appointment, every prescription — visible to the family members the parents choose.',
+    pricing: [],
+    engineCapabilities: [
+      'health roster (providers, medications, conditions, allergies, insurance)',
+      'care calendar with transport-responsible chips',
+      'wellness check log',
+      'HIPAA-conscious permission scoping per sibling',
+      'parent-controlled access tiers'
+    ],
+    pendingDependencies: [
+      'HL7 / FHIR integration for provider-side data exchange (planned)',
+      'Pharmacy refill reminders (planned)'
+    ],
+    status: 'beta'
+  },
+  {
+    slug: 'veterans-services-tracker',
+    name: 'Veterans Services Tracker',
+    verticalPackId: 'family_legacy_care',
+    customer: 'Veteran families navigating VA benefits, applications in flight, current disability ratings, and case worker coordination.',
+    oneLiner: 'Every VA benefit that\'s owed, every benefit that could be unlocked, every application in flight, in one tracked view.',
+    marketingTagline: 'Every VA benefit that\'s owed, every benefit that could be unlocked, in one tracked view.',
+    pricing: [],
+    engineCapabilities: [
+      'service-record summary',
+      'disability rating tracker',
+      'benefits-in-play monitor',
+      'applications-in-flight tracker',
+      'VA case worker contact card'
+    ],
+    pendingDependencies: [
+      'VA-public-data adapter for benefit-eligibility prompts (Aid & Attendance, Survivor\'s Pension, etc.)',
+      'Veteran-service-record verification automation (today: manual entry)'
+    ],
+    status: 'coming_soon'
   }
 ];
 
@@ -501,7 +626,9 @@ export const VERTICAL_DISPLAY_NAMES: Record<string, string> = {
   lending: 'Mortgage Broker Intelligence',
   political_campaign: 'Political Campaign Operations',
   defense_pr: 'Defense PR Operations',
-  luxury_hospitality: 'Luxury Hospitality Operations'
+  luxury_hospitality: 'Luxury Hospitality Operations',
+  // (val 2026-06-11) Johnson family anchor — adult children supporting aging parents.
+  family_legacy_care: 'Family Legacy Care'
 };
 
 /** Unifying tagline per vertical — used on grouped landing pages. */
@@ -514,5 +641,7 @@ export const VERTICAL_TAGLINES: Record<string, string> = {
   lending: 'Know which borrowers are about to need you — before they search.',
   political_campaign: 'Your district. Your message. Your green-light. One operator, full press desk.',
   defense_pr: 'Defense PR as a service. Counsel approves every release inside the dashboard.',
-  luxury_hospitality: 'Each port a chapter. Each guest a story worth telling.'
+  luxury_hospitality: 'Each port a chapter. Each guest a story worth telling.',
+  // (val 2026-06-11) Johnson family anchor — adult children supporting aging parents.
+  family_legacy_care: 'One shared place for every document, every decision, every appointment, every dollar — with the parents always in control.'
 };

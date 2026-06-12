@@ -59,7 +59,13 @@ export type VerticalPackId =
   // (banks + SBA) because mortgage brokers buy refi-trigger + relocation signals,
   // not credit-risk + workout signals. MD recorder adapter (#423) shipped, so MD
   // lien priority lights up day-one without waiting on CA Acclaim.
-  | 'mortgage_lending';        // Mortgage brokers + originators — residential refi + purchase
+  | 'mortgage_lending'         // Mortgage brokers + originators — residential refi + purchase
+  // (val 2026-06-11) Johnson family — adult children supporting aging parents
+  // through legal, financial, and care decisions. Composes with case-management
+  // module (schema/089) for trust/estate work + family wellness wrapper for
+  // health roster, VA benefits, financial housekeeping meetings, and sibling
+  // co-access scoped by parent approval. Anchor: 1657 Kingsly Dr, Pittsburg CA.
+  | 'family_legacy_care';      // Adult children + aging parents — trust, estate, care, family
 
 /**
  * (#384) Target audience: drives the score-time filter that prevents
@@ -514,6 +520,63 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     pricingThesis:
       'Mortgage originators already spend $200-1,500/mo on lead-gen (Zillow Premier Agent, LendingTree, BoldLeads). We replace cold lead lists with timing intelligence on borrowers already in their geographic territory — same spend, far higher close rate. MD recorder gives us the rare day-one moat: no other broker tool surfaces MD deed transfers in near-real-time.',
     suggestedPriceUsd: { low: 499, high: 1999 }
+  },
+
+  // (val 2026-06-11) Johnson family — Gordon + Maria Angelina, Rebecca caregiver.
+  // The pack composes with the case-management module (schema/089) and the
+  // family wellness wrapper to give adult children supporting aging parents
+  // through legal/financial/care decisions a shared, parent-first command
+  // center. Distinct from client_screening (which is DD ON a person) because
+  // family_legacy_care is FOR the family — multi-party access, parent approval
+  // gates, health/financial/sibling visibility. Anchor case: Johnson family
+  // Home-Ranch Trust dispute, 1657 Kingsly Dr Pittsburg CA. Reusable for any
+  // family in trust/estate/elder-advocacy/guardianship/general-litigation
+  // situations with parent-control + multi-party-visibility needs.
+  //
+  // Pricing: left intentionally blank per HARD RULE feedback_no_invented_pricing.
+  // val owns pricing; this pack does not invent dollars.
+  family_legacy_care: {
+    id: 'family_legacy_care',
+    displayName: 'Family Legacy Care (aging parents + family co-visibility)',
+    shortPositioning: 'A shared, parent-first command center for families supporting aging parents through legal, financial, and care decisions.',
+    targetAudience: 'consumer',
+    signalWeights: {
+      // Parent residence is the centerpiece — any deed activity is critical.
+      property_transfer: 35,
+      // Liens on the home indicate financial pressure or potential elder
+      // financial exploitation.
+      lien_filing: 30,
+      // A parent moving mid-case is a major flag (per the Johnson scenario).
+      address_change: 25,
+      // Local distress patterns help anticipate care/transport needs.
+      code_violation: 5,
+      // Investor entities forming near a parent residence (potential heir
+      // setting up a flip vehicle) are worth surfacing.
+      new_llc: 5
+    },
+    cascadeRecipeIds: [
+      // Reuses existing recipes. A follow-on recipe (parent_residence_deed_alert)
+      // is queued for the next pass but not blocking — the wellness module
+      // surfaces the same deed events directly via the case_property + recorder.
+      'new_llc_credit_opportunity'
+    ],
+    recommendedAdapters: [
+      'ca_contra_costa_recorder', // Johnson anchor (built in same bundle)
+      'md_land_rec',              // MD families
+      'courtlistener',            // probate / litigation tracking
+      'census_acs'                // area demographic context
+    ],
+    bestForRoles: [
+      'Adult children supporting aging parents',
+      'Family caregivers coordinating multi-sibling care',
+      'Families navigating trust or estate disputes',
+      'Veterans\' families coordinating VA benefits + care'
+    ],
+    pitchTemplate:
+      'When a family is supporting aging parents through legal or financial transitions, the hardest part is keeping everyone on the same page without drama. We give the parents, their primary caregiver, the family\'s attorney, and any siblings the parents choose to include a shared, real-time view of every document, every decision, every healthcare appointment, and every dollar — with the parents always in control.',
+    pricingThesis:
+      'val to own — see /AtlanticandVine/ATLANTIC AND VINE management/Clients/Johnson Family/07_New_Hub_Products_Family_Legacy.md for product set proposal. Pricing not invented per HARD RULE.',
+    suggestedPriceUsd: { low: 0, high: 0 }
   }
 };
 
