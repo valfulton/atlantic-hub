@@ -297,12 +297,21 @@ function rowToEvent(r: EventRow): CaseEvent {
 function rowToDocument(r: DocumentRow): CaseDocument {
   let sectionIndex: Record<string, number> | null = null;
   if (r.section_index) {
-    try {
-      const parsed = JSON.parse(r.section_index);
-      if (parsed && typeof parsed === 'object') {
-        sectionIndex = parsed as Record<string, number>;
-      }
-    } catch { /* malformed JSON — treat as not indexed */ }
+    // mysql2 can return a JSON column EITHER as a string (older driver versions,
+    // certain server settings) OR as an already-parsed object (newer default).
+    // Handle both — JSON.parse on an object throws, which used to leave
+    // sectionIndex permanently null and broke the deep-link renderer.
+    const raw = r.section_index as unknown;
+    if (typeof raw === 'object' && raw !== null) {
+      sectionIndex = raw as Record<string, number>;
+    } else if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          sectionIndex = parsed as Record<string, number>;
+        }
+      } catch { /* malformed JSON — treat as not indexed */ }
+    }
   }
   return {
     documentId: r.document_id,
