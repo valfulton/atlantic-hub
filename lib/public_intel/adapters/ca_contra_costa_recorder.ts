@@ -71,30 +71,29 @@ export const caContraCostaRecorderAdapter: PublicIntelAdapter = {
   displayName: 'Contra Costa County (CA) Clerk-Recorder',
   description:
     'Property deed transfers, lien filings, foreclosure notices, and trust-related recordings for Contra Costa County, California. Day-one anchor for the Johnson family case; reusable for any family_legacy_care or real_estate client with property in Contra Costa.',
+  requiresKey: false,
+  costNote: 'Free · Contra Costa CRIIS public portal scrape (rate-limited)',
   bestFor: [
     'Family Legacy Care clients with a parent residence in Contra Costa County',
     'Real estate clients monitoring distressed property in Contra Costa',
     'Elder advocacy cases needing recorder-level visibility on a tracked residence'
   ],
-  configShape: {
-    propertyAddress: { type: 'string', required: false, hint: 'e.g. "1657 KINGSLY DR"' },
-    partyName: { type: 'string', required: false, hint: 'e.g. "JOHNSON GORDON" (LAST FIRST)' },
-    apn: { type: 'string', required: false, hint: 'Assessor parcel number' },
-    docTypes: { type: 'array', required: false, hint: 'Defaults to all distress + transfer types' },
-    sinceDays: { type: 'number', required: false, hint: 'Lookback window in days (default 90)' }
-  } as const,
-
-  async run(_ctx: RunContext, _rawConfig: Record<string, unknown> | null): Promise<RunResult> {
+  validateConfig(config: Record<string, unknown> | null): string | null {
+    // Phase 2 scaffold accepts any config; Phase 3 will enforce at least one of
+    // propertyAddress / partyName / apn before allowing a run.
+    if (!config) return null;
+    return null;
+  },
+  async run(_ctx: RunContext): Promise<RunResult> {
     // Phase 3 implementation. The scaffold returns a clear "not implemented"
     // result rather than fake data — per visibility-gap, val should know
     // when an adapter is registered but not yet wired to a live source.
     return {
       ok: true,
-      runStatus: 'skipped',
-      runDetail:
-        'Contra Costa Recorder adapter registered (Phase 2 scaffold). Live Browserless scrape against crciis.cccounty.us pending (Phase 3). Until then, populate case_property.current_titled_owner + known_liens manually via the operator case dashboard or via SQL.',
-      recordCount: 0,
-      records: []
+      written: 0,
+      fromCache: 0,
+      detail:
+        'Contra Costa Recorder adapter registered (Phase 2 scaffold). Live Browserless scrape against crciis.cccounty.us pending (Phase 3). Until then, populate case_property.current_titled_owner + known_liens manually via the operator case dashboard or via SQL.'
     };
   }
 };
