@@ -16,6 +16,11 @@ import Link from 'next/link';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', path: '' },
+  // (val 2026-06-12) Matters — operator mirror of /client/cases. Per the
+  // nav-reachability rule, the client-side Matters tab in ClientV3TopNav +
+  // BottomTabBar requires this operator preview mirror to land together.
+  // Without it, val can't preview the case dashboards Adriana/Rebecca see.
+  { id: 'cases', label: 'Matters', path: '/cases' },
   { id: 'leads', label: 'Leads list', path: '/leads' },
   { id: 'watchlist', label: 'Watchlist', path: '/watchlist' },
   // (#433) Campaigns + Calendar — mirror /client/campaigns and /client/calendar.
