@@ -1,10 +1,16 @@
 /**
- * lib/case/pdf_section_index.ts  (val 2026-06-12)
+ * lib/case/pdf_section_index.ts  (val 2026-06-12, v2 — unpdf)
  *
  * Builds a { sectionKey: pageNumber } map from a trust/will/POA PDF so the
  * client + operator dashboards can deep-link "§6.G(2)" straight to the page
  * where it lives. The PDF byte-serve endpoint accepts an `#page=N` URL
  * fragment (Chrome/Edge/Safari/Firefox all support it on application/pdf).
+ *
+ * Why unpdf (not pdfjs-dist directly): pdfjs-dist 4.x's "fake worker"
+ * dynamic-imports a sibling .mjs that gets tree-shaken out of Netlify's
+ * serverless bundle. We spent three commits fighting workerSrc, external
+ * node_modules, and included_files configs without success. unpdf wraps
+ * pdfjs-dist for serverless runtimes and skips the worker entirely.
  *
  * The scan runs once at upload time (or on demand via /reindex). Output is
  * persisted to case_documents.section_index. NULL = never indexed. {} = scanned
@@ -20,11 +26,7 @@
  *
  * We DON'T match free-form references like "Section 5 of the trust" because
  * those don't pin to a specific paragraph. Goal is precision, not recall.
- *
- * No external network; pure server-side pdfjs-dist text extraction.
  */
-
-import { createRequire } from 'node:module';
 
 // Pattern: optional "§" or "Section ", then 1+ digits, ".", an uppercase letter,
 // optionally followed by "(N)" subitem. We capture the section key without §.
@@ -48,88 +50,39 @@ export interface SectionIndex {
   errorMessage?: string;
 }
 
-/** Scan a PDF buffer and return the section index.
- *
- *  Uses the LEGACY pdfjs-dist build because the modern build assumes a browser
- *  worker. Legacy works in Node out of the box. We dynamically import so the
- *  bundle stays slim for callers that never run a scan.
- */
+/** Scan a PDF buffer and return the section index. */
 export async function buildSectionIndex(bytes: Buffer): Promise<SectionIndex> {
   if (!bytes || bytes.length === 0) {
     return { pages: {}, pageCount: 0, unreadable: true };
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore resolved at runtime via package; legacy build is Node-safe.
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    // Dynamic import keeps the bundle slim for callers that never scan.
+    const { extractText, getDocumentProxy } = await import('unpdf');
 
-    // CRITICAL for Netlify serverless: pdfjs 4.x spins up a "fake worker" by
-    // dynamic-importing the worker module. The bundler-mangled URL points at
-    // a chunks/ path that doesn't exist on disk, so the import fails with
-    // 'Cannot find module .next/server/chunks/pdf.worker.mjs'.
-    //
-    // Fix: point GlobalWorkerOptions.workerSrc at the worker file inside
-    // node_modules. Combined with serverComponentsExternalPackages, this
-    // makes the resolution work in deployed functions.
-    try {
-      // Next.js compiles server modules to CommonJS, so __filename exists at
-      // runtime even though this file uses ESM-style imports. Use it (not
-      // import.meta.url) so the same call site works in both compilation
-      // modes. createRequire then resolves the worker's real disk path inside
-      // node_modules, sidestepping the bundler-mangled chunks/ URL.
-      const baseFile = typeof __filename !== 'undefined'
-        ? __filename
-        : process.cwd() + '/lib/case/pdf_section_index.ts';
-      const req = createRequire(baseFile);
-      const workerPath = req.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
-      if (pdfjs.GlobalWorkerOptions) {
-        pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
-      }
-    } catch (workerErr) {
-      // Non-fatal: fall through to fake worker. If that ALSO fails, the outer
-      // catch surfaces the real error.
-      console.warn('pdfjs worker resolve failed (will try fake worker)', workerErr);
-    }
-
-    // pdfjs.getDocument expects a Uint8Array or { data: Uint8Array }
     const uint8 = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const loadingTask = pdfjs.getDocument({
-      data: uint8,
-      // Avoid trying to fetch standard fonts from a CDN — we only need text.
-      disableFontFace: true,
-      isEvalSupported: false,
-      useSystemFonts: false
-    });
-    const doc = await loadingTask.promise;
+    const doc = await getDocumentProxy(uint8);
     const pageCount = doc.numPages;
+
+    // mergePages: false returns text as an array of per-page strings, which is
+    // exactly what we need — the index of the array IS the page number (0-based).
+    const result = await extractText(doc, { mergePages: false });
+    const pageTexts: string[] = Array.isArray(result.text) ? result.text : [String(result.text)];
+
     const pages: Record<string, number> = {};
+    pageTexts.forEach((rawText, idx) => {
+      const pageNum = idx + 1; // PDF page numbers are 1-indexed
+      const stripped = (rawText || '').replace(/\s+/g, ' ');
 
-    for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-      try {
-        const page = await doc.getPage(pageNum);
-        const content = await page.getTextContent();
-        // Concatenate item strings with spaces. pdfjs sometimes splits a token
-        // like "§6.G(2)" across multiple items, so we keep raw + a stripped
-        // version (no spaces) and scan both.
-        const raw = (content.items as Array<{ str?: string }>)
-          .map((item) => item.str || '')
-          .join(' ');
-        const stripped = raw.replace(/\s+/g, ' ');
-
-        let match: RegExpExecArray | null;
-        SECTION_REGEX.lastIndex = 0;
-        while ((match = SECTION_REGEX.exec(stripped)) !== null) {
-          const key = normalizeSectionKey(match[1], match[2], match[3] ?? null);
-          if (!(key in pages)) {
-            pages[key] = pageNum;
-          }
+      let match: RegExpExecArray | null;
+      const regex = new RegExp(SECTION_REGEX.source, 'g');
+      while ((match = regex.exec(stripped)) !== null) {
+        const key = normalizeSectionKey(match[1], match[2], match[3] ?? null);
+        if (!(key in pages)) {
+          pages[key] = pageNum;
         }
-      } catch {
-        // skip a single bad page; keep scanning.
-        continue;
       }
-    }
+    });
 
     return { pages, pageCount, unreadable: false };
   } catch (err) {
