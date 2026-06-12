@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { loadFullCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
+import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -321,6 +322,16 @@ export default async function CaseDetailPage({ params }: PageProps) {
                     </div>
                   );
                 })()}
+
+                {/* Editable add forms (Phase 3) */}
+                <WellnessEditorPanel
+                  caseId={c.caseId}
+                  parties={full.parties.map((p) => ({
+                    partyId: p.partyId,
+                    fullName: p.fullName,
+                    isParent: p.isParent
+                  }))}
+                />
               </section>
             )}
           </div>
