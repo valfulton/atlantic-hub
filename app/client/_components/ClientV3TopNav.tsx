@@ -14,6 +14,12 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const NAV = [
   { href: '/client/dashboard', label: 'Home' },
+  // (val 2026-06-12) Matters — the case-management surface. Without this
+  // link, family + counsel collaborators (Rebecca, Adriana on Johnson) had
+  // NO way to reach /client/cases — they could log in but never find the
+  // case dashboard they were invited to. Critical for defense_pr +
+  // family_legacy_care + estate_litigation engagement_kinds.
+  { href: '/client/cases', label: 'Matters' },
   { href: '/client/leads', label: 'Leads' },
   { href: '/client/watchlist', label: 'Watchlist' },
   // (#433) Campaigns + Calendar — the narrative-line spine + the approval queue.

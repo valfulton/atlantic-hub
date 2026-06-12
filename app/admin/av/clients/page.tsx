@@ -40,10 +40,17 @@ export default async function ClientsPage() {
 
   let clients: CockpitClient[] = [];
   let failed = false;
+  let failReason: string | null = null;
   try {
     clients = await fetchCockpitClients();
-  } catch {
+  } catch (err) {
     failed = true;
+    // (val 2026-06-12) Surface the actual error class + message — the silent
+    // catch was hiding what broke. If a recent schema change or a new column
+    // reference is the culprit, this exposes it instead of just "Could not load."
+    const e = err as Error;
+    failReason = `${e?.name || 'Error'}: ${e?.message || String(err)}`;
+    console.error('fetchCockpitClients failed', err);
   }
 
   // (val 2026-06-02) Cross-client roll-up: compute the 13-stage onboarding
@@ -126,7 +133,12 @@ export default async function ClientsPage() {
       </div>
 
       {failed ? (
-        <div className="rounded-2xl border border-border bg-surface p-6 text-muted">Could not load clients right now.</div>
+        <div className="rounded-2xl border border-red-700/40 bg-red-950/20 p-6 text-red-200">
+          <div className="font-medium">Could not load clients right now.</div>
+          {failReason && (
+            <div className="text-xs text-red-300 mt-2 font-mono break-all">{failReason}</div>
+          )}
+        </div>
       ) : clients.length === 0 ? (
         <div className="rounded-2xl border border-border bg-surface p-6">
           <p className="text-ink font-medium">No client accounts yet.</p>

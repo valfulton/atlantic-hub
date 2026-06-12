@@ -21,6 +21,11 @@ const PRIMARY: Item[] = [
 
 // Overflow — opened from the "More" tab as a bottom sheet.
 const MORE: Item[] = [
+  // (val 2026-06-12) Matters — case dashboards. Critical for family + counsel
+  // collaborators who need to reach /client/cases. Top-level desktop nav adds
+  // it directly; mobile overflow is fine since the four primary tabs already
+  // carry the lead_gen workflow.
+  { href: '/client/cases',     label: 'Matters',   icon: 'M4 6h16v14H4z M4 10h16 M9 6V4h6v2' },
   { href: '/client/campaigns', label: 'Campaigns', icon: 'M4 9l16-5v15l-16-5z M4 9v6 M9 10v4' },
   { href: '/client/calendar',  label: 'Calendar',  icon: 'M5 4h14v16H5z M5 10h14 M9 4v4 M15 4v4' },
   { href: '/client/pr',        label: 'Press',     icon: 'M4 4h16v12H7l-3 3V4z' },
