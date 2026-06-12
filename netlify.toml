@@ -13,12 +13,20 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# pdfjs-dist must be left as a real Node dep (not bundled by the function
-# bundler), so createRequire().resolve() can find its worker file at runtime.
-# external_node_modules preserves the package in node_modules; no need for
-# included_files (which would balloon every function over the 50MB limit).
+# pdfjs-dist must be left as a real Node dep (not bundled), so
+# createRequire().resolve() can find its worker file at runtime.
+# external_node_modules preserves the package in node_modules globally.
 [functions]
   external_node_modules = ["pdfjs-dist"]
+
+# The fake-worker dynamic-import target (pdf.worker.mjs) isn't reached by
+# static analysis, so Netlify tree-shakes it. Force-include it ONLY in the
+# Next.js server handler — the only function that actually parses PDFs.
+# Crons stay slim.
+[functions."___netlify-server-handler"]
+  included_files = [
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"
+  ]
 
 # Force HTTPS, never serve the .netlify.app preview as production
 [context.production]
