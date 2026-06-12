@@ -52,13 +52,27 @@ export default function SectionText({ text, documentUrl, sectionIndex, className
   // Walk the references in order, building alternating plain-text + anchor
   // segments. References that aren't in the index render as plain text (we
   // don't fabricate a link to a page we don't know).
+  //
+  // Fallback chain: §6.G(2) → try "6.G(2)" → then parent "6.G". Trust documents
+  // often print headers at the major-letter level (5.A, 6.G) while attorney
+  // analysis quotes specific sub-items like §6.G(2). Landing on the parent
+  // header gets the reader within a page or two of the exact spot.
+  function lookupPage(refKey: string): number | undefined {
+    const exact = sectionIndex![refKey];
+    if (exact) return exact;
+    // Drop trailing "(N)" if present, retry on parent.
+    const parent = refKey.replace(/\(\d+\)$/, '');
+    if (parent !== refKey) return sectionIndex![parent];
+    return undefined;
+  }
+
   const segments: React.ReactNode[] = [];
   let cursor = 0;
   refs.forEach((ref, i) => {
     if (ref.start > cursor) {
       segments.push(text.slice(cursor, ref.start));
     }
-    const page = sectionIndex[ref.key];
+    const page = lookupPage(ref.key);
     if (page) {
       segments.push(
         <a
@@ -67,11 +81,11 @@ export default function SectionText({ text, documentUrl, sectionIndex, className
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            color: 'currentColor',
-            textDecoration: 'underline',
+            color: '#E8C25A',                 // Clean champagne gold — readable
+            textDecoration: 'underline',       // on both dark + cream surfaces
+            textDecorationColor: '#E8C25A',
             textUnderlineOffset: '2px',
-            textDecorationStyle: 'dotted',
-            fontWeight: 500
+            fontWeight: 600
           }}
           title={`Open ${ref.raw} (page ${page})`}
         >
