@@ -9,9 +9,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getHotStorage } from '@/lib/storage/provider';
-import { getDocument, deleteDocument, canClientUserAccessCase } from '@/lib/case/case_store';
+import {
+  getDocument,
+  deleteDocument,
+  canClientUserAccessCase,
+  updateDocumentKind,
+  setDocumentSectionIndex
+} from '@/lib/case/case_store';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { activeBrandFor } from '@/lib/client/active-brand';
+import { buildSectionIndex } from '@/lib/case/pdf_section_index';
+
+const ALLOWED_KINDS = new Set([
+  'trust', 'deed', 'will', 'poa', 'medical_directive',
+  'financial_statement', 'court_filing', 'correspondence', 'photo', 'other'
+]);
+const INDEXABLE_KINDS = new Set(['trust', 'will', 'poa', 'medical_directive']);
 
 export const runtime = 'nodejs';
 
@@ -65,6 +78,81 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
       'content-disposition': `inline; filename="${doc.documentName.replace(/[^a-zA-Z0-9._ -]/g, '_')}"`,
       'cache-control': 'private, no-store'
     }
+  });
+}
+
+/** PATCH — update document metadata. Today: just the kind. The body is
+ *  {documentKind: 'trust' | 'will' | ...} or null to clear.
+ *
+ *  When the new kind is one we deep-link (trust/will/poa/medical_directive)
+ *  AND the file is a PDF, we synchronously rebuild the § index so the
+ *  operator sees the Re-index status update in the same round trip — saves a
+ *  second click on the "I forgot to pick a kind" path.
+ */
+export async function PATCH(req: NextRequest, ctx: RouteContext) {
+  const guard = await guardAdminRequest(req, {
+    targetResource: `case_document_patch:${ctx.params.documentId}`,
+    tenantId: 'av'
+  });
+  if (!guard.ok) return guard.response;
+  if (guard.actor.role === 'client_user') {
+    return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  }
+
+  const caseId = parseInt(ctx.params.caseId, 10);
+  const documentId = parseInt(ctx.params.documentId, 10);
+  if (!Number.isFinite(documentId) || documentId <= 0) {
+    return NextResponse.json({ ok: false, error: 'invalid id' }, { status: 400 });
+  }
+
+  let body: { documentKind?: string | null };
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ ok: false, error: 'expected JSON body' }, { status: 400 }); }
+
+  const newKind = body.documentKind === null ? null : (body.documentKind || '').trim() || null;
+  if (newKind != null && !ALLOWED_KINDS.has(newKind)) {
+    return NextResponse.json({ ok: false, error: 'unknown documentKind' }, { status: 400 });
+  }
+
+  const doc = await getDocument(documentId);
+  if (!doc || doc.caseId !== caseId) {
+    return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 });
+  }
+
+  const ok = await updateDocumentKind(documentId, newKind);
+  if (!ok) {
+    return NextResponse.json({ ok: false, error: 'update failed' }, { status: 500 });
+  }
+
+  // Synchronous § index rebuild on the happy path — operator gets immediate
+  // confirmation. Async branch on the upload route is for fresh uploads where
+  // we don't want to block the response on a slow PDF.
+  let sectionCount: number | null = null;
+  let indexErr: string | null = null;
+  if (newKind && INDEXABLE_KINDS.has(newKind) && doc.mimeType === 'application/pdf') {
+    try {
+      const bytes = await getHotStorage('case-documents').getBytes(doc.storageUri);
+      if (!bytes) {
+        indexErr = 'file bytes missing from storage';
+      } else {
+        const idx = await buildSectionIndex(Buffer.from(bytes));
+        if (idx.unreadable) {
+          indexErr = 'PDF could not be parsed (encrypted, scanned image, or corrupted) — try an unprotected re-export';
+        } else {
+          await setDocumentSectionIndex(documentId, idx.pages);
+          sectionCount = Object.keys(idx.pages).length;
+        }
+      }
+    } catch (err) {
+      indexErr = (err as Error).message || 'index build failed';
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    documentKind: newKind,
+    sectionCount,
+    indexErr
   });
 }
 

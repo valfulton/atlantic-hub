@@ -69,6 +69,59 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
   const [reindexing, setReindexing] = useState<number | null>(null);
   const [reindexStatus, setReindexStatus] = useState<Record<number, string>>({});
 
+  // Per-row in-progress + suggested kind for the "Set kind" picker.
+  const [tagging, setTagging] = useState<number | null>(null);
+  const [pendingKind, setPendingKind] = useState<Record<number, string>>({});
+
+  /** Filename → best-guess kind. So val doesn't have to think about it. */
+  function guessKindFromName(name: string): string | null {
+    const n = name.toLowerCase();
+    if (/(trust|trst)\b/.test(n)) return 'trust';
+    if (/\bwill\b/.test(n) && !/\bwillis\b/.test(n)) return 'will';
+    if (/\b(poa|power.of.attorney)\b/.test(n)) return 'poa';
+    if (/\b(medical|advance.directive|living.will)\b/.test(n)) return 'medical_directive';
+    if (/\b(deed|grant.deed)\b/.test(n)) return 'deed';
+    if (/property.report/.test(n)) return 'other';
+    if (/\b(financial|bank|statement)\b/.test(n)) return 'financial_statement';
+    if (/\b(court|filing|complaint|motion)\b/.test(n)) return 'court_filing';
+    return null;
+  }
+
+  async function handleSetKind(documentId: number, kind: string) {
+    setTagging(documentId);
+    setReindexStatus((prev) => ({ ...prev, [documentId]: 'tagging…' }));
+    try {
+      const res = await fetch(`/api/admin/av/cases/${caseId}/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ documentKind: kind })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setReindexStatus((prev) => ({ ...prev, [documentId]: data?.error || 'tag failed' }));
+        return;
+      }
+      if (data.indexErr) {
+        setReindexStatus((prev) => ({ ...prev, [documentId]: `tagged · ${data.indexErr}` }));
+      } else if (data.sectionCount != null) {
+        setReindexStatus((prev) => ({
+          ...prev,
+          [documentId]: `tagged · ${data.sectionCount} sections indexed`
+        }));
+      } else {
+        setReindexStatus((prev) => ({ ...prev, [documentId]: 'tagged' }));
+      }
+      router.refresh();
+    } catch (e) {
+      setReindexStatus((prev) => ({
+        ...prev,
+        [documentId]: e instanceof Error ? e.message : 'network error'
+      }));
+    } finally {
+      setTagging(null);
+    }
+  }
+
   async function handleReindex(documentId: number) {
     setReindexing(documentId);
     setReindexStatus((prev) => ({ ...prev, [documentId]: 'scanning…' }));
@@ -177,6 +230,13 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
               ref={fileInputRef}
               type="file"
               required
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f && !documentKind) {
+                  const guessed = guessKindFromName(f.name);
+                  if (guessed) setDocumentKind(guessed);
+                }
+              }}
               className="w-full text-sm text-ink file:mr-3 file:rounded file:border-0 file:bg-emerald-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:uppercase file:tracking-wider"
             />
           </label>
@@ -270,6 +330,47 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
                       : '§ index: not built yet. Click Re-index to scan for §X.Y references.'}
                     {reindexStatus[d.documentId] && (
                       <span className="ml-2 text-emerald-300">· {reindexStatus[d.documentId]}</span>
+                    )}
+                  </div>
+                )}
+                {!d.documentKind && d.mimeType === 'application/pdf' && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider text-amber-300">No kind set</span>
+                    <select
+                      value={pendingKind[d.documentId] ?? (guessKindFromName(d.documentName) || '')}
+                      onChange={(e) =>
+                        setPendingKind((prev) => ({ ...prev, [d.documentId]: e.target.value }))
+                      }
+                      disabled={tagging === d.documentId}
+                      className="text-xs bg-black/30 border border-border rounded px-2 py-1"
+                    >
+                      <option value="">Pick a kind…</option>
+                      {DOCUMENT_KINDS.map((k) => (
+                        <option key={k.value} value={k.value}>{k.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const k = pendingKind[d.documentId] ?? guessKindFromName(d.documentName);
+                        if (!k) {
+                          setReindexStatus((prev) => ({ ...prev, [d.documentId]: 'pick a kind first' }));
+                          return;
+                        }
+                        handleSetKind(d.documentId, k);
+                      }}
+                      disabled={tagging === d.documentId}
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-md bg-emerald-700 text-white disabled:opacity-50"
+                    >
+                      {tagging === d.documentId ? 'Saving…' : 'Save kind + index'}
+                    </button>
+                    {guessKindFromName(d.documentName) && !pendingKind[d.documentId] && (
+                      <span className="text-[10px] text-muted">
+                        guessed: {guessKindFromName(d.documentName)?.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    {reindexStatus[d.documentId] && (
+                      <span className="text-[10px] text-emerald-300">· {reindexStatus[d.documentId]}</span>
                     )}
                   </div>
                 )}

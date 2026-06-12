@@ -734,6 +734,28 @@ export async function getDocument(documentId: number): Promise<CaseDocument | nu
   }
 }
 
+/** Update the document_kind on an existing row. Used when the operator
+ *  uploaded without picking a Kind and now wants to tag it (so the § indexer
+ *  can recognize it as a trust/will/POA and the deep-link renderer can find it).
+ */
+export async function updateDocumentKind(
+  documentId: number,
+  kind: string | null
+): Promise<boolean> {
+  if (!Number.isInteger(documentId) || documentId <= 0) return false;
+  try {
+    const db = getAvDb();
+    await db.execute<ResultSetHeader>(
+      `UPDATE case_documents SET document_kind = ? WHERE document_id = ?`,
+      [kind, documentId]
+    );
+    return true;
+  } catch (err) {
+    console.error('updateDocumentKind failed', err);
+    return false;
+  }
+}
+
 /** Persist the {sectionKey: pageNumber} index built by pdf_section_index. */
 export async function setDocumentSectionIndex(
   documentId: number,
