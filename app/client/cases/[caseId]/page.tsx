@@ -274,10 +274,28 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
               Document vault
             </div>
+            {/* (val 2026-06-12) Documents are CLICKABLE on the client view too —
+                the byte-serve endpoint /api/admin/av/cases/[id]/documents/[id]
+                already authorizes client_user via canClientUserAccessCase
+                (primary OR collaborator). So Rebecca clicks the trust PDF and
+                gets the document inline in a new tab. */}
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
               {full.documents.map((d) => (
                 <li key={d.documentId} style={{ fontSize: 13 }}>
-                  <strong>{d.documentName}</strong>
+                  <a
+                    href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: 'var(--emerald-deep, #0A4D3C)',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      textDecorationColor: 'rgba(10,77,60,0.3)',
+                      textUnderlineOffset: 2
+                    }}
+                  >
+                    {d.documentName}
+                  </a>
                   {d.documentKind && (
                     <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
                   )}

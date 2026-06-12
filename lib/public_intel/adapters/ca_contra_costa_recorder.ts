@@ -34,7 +34,11 @@
 import type { PublicIntelAdapter, RunContext, RunResult } from '../types';
 
 const ADAPTER_KIND = 'ca_contra_costa_recorder' as const;
-const PORTAL_URL = 'https://crciis.cccounty.us/recorderonline/';
+// (val 2026-06-12) Original URL `crciis.cccounty.us` is DEAD — val confirmed
+// hostname-not-found. The live Contra Costa Clerk-Recorder Imaging system is
+// CRiis (Clerk-Recorder Imaging Information System) at criis.com. Use this URL
+// in the Phase 3 Browserless flow + in operator-facing copy.
+const PORTAL_URL = 'https://www.criis.com/contracosta.html';
 
 /** Document types worth tracking for distress + transfer signals. */
 const TRACKED_DOC_TYPES = [
@@ -85,15 +89,26 @@ export const caContraCostaRecorderAdapter: PublicIntelAdapter = {
     return null;
   },
   async run(_ctx: RunContext): Promise<RunResult> {
-    // Phase 3 implementation. The scaffold returns a clear "not implemented"
-    // result rather than fake data — per visibility-gap, val should know
-    // when an adapter is registered but not yet wired to a live source.
+    // Phase 3 IMPLEMENTATION — the live scrape is gated on the Puppeteer
+    // worker provisioning task (#422 / #531) because the Contra Costa portal
+    // is the same shape as mdlandrec (ASP.NET ViewState + JS-driven search
+    // submission). The Browserless free tier covers the call but the script
+    // needs hand-tuned selectors that we can only build by inspecting the
+    // live form. Until then, return a CLEAR + ACTIONABLE detail so val sees
+    // the right next step — NOT fake data, not a misleading "coming soon".
+    //
+    // What to do tonight if you need records on a Contra Costa property:
+    //   1. Open ${PORTAL_URL} in a new tab
+    //   2. Click "Official Records Search"
+    //   3. Search by property address (house # + street, no city/state/zip)
+    //   4. Review NOD / NTS / Lis Pendens / recent deeds
+    //   5. Use the case page → Add a known lien manually to record findings
     return {
       ok: true,
       written: 0,
       fromCache: 0,
       detail:
-        'Contra Costa Recorder adapter registered (Phase 2 scaffold). Live Browserless scrape against crciis.cccounty.us pending (Phase 3). Until then, populate case_property.current_titled_owner + known_liens manually via the operator case dashboard or via SQL.'
+        `Live scrape pending Puppeteer worker (#422). For now search manually: ${PORTAL_URL} — then log findings on the case page. The adapter card accepts {propertyAddress, partyName, apn, sinceDays} so the config you set today carries over when the worker lights up.`
     };
   }
 };

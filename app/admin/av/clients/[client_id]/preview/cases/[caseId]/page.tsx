@@ -177,10 +177,31 @@ export default async function PreviewCasePage({ params }: PageProps) {
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
                 {openActions.map((a) => (
                   <li key={a.actionId} style={{ borderLeft: a.priority === 'urgent' ? '3px solid #A23B2E' : a.priority === 'high' ? '3px solid var(--gold-deep, #7A5A18)' : '3px solid rgba(10,10,10,0.15)', paddingLeft: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
-                    {a.detail && <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55 }}>{a.detail}</div>}
-                    <div style={{ fontSize: 10, color: 'var(--muted, #3B4944)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      {a.priority}{a.dueDate ? ` · due ${formatDate(a.dueDate)}` : ''}
+                    {/* (val 2026-06-12) Preview mirror must match the client
+                        view: Open → link to action detail page, and the detail
+                        text wraps on newlines via whiteSpace pre-wrap so the
+                        Options A–E (or any long detail) renders as paragraphs
+                        instead of one wall of text. */}
+                    <Link
+                      href={`/admin/av/clients/${clientId}/preview/cases/${caseId}/actions/${a.actionId}`}
+                      style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)', textDecoration: 'none', display: 'block' }}
+                    >
+                      {a.title}
+                    </Link>
+                    {a.detail && (
+                      <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                        {a.detail}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: 'var(--muted, #3B4944)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <span>{a.priority}</span>
+                      {a.dueDate && <span>· due {formatDate(a.dueDate)}</span>}
+                      <Link
+                        href={`/admin/av/clients/${clientId}/preview/cases/${caseId}/actions/${a.actionId}`}
+                        style={{ marginLeft: 'auto', color: 'var(--gold-deep, #7A5A18)', textDecoration: 'none' }}
+                      >
+                        Open →
+                      </Link>
                     </div>
                   </li>
                 ))}
@@ -206,10 +227,26 @@ export default async function PreviewCasePage({ params }: PageProps) {
           {full.documents.length > 0 && (
             <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
               <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>Document vault</div>
+              {/* (val 2026-06-12) Documents are clickable — open the PDF in a
+                  new tab via the byte-serve endpoint. Same URL the operator
+                  case dashboard + the client view use. */}
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
                 {full.documents.map((d) => (
                   <li key={d.documentId} style={{ fontSize: 13 }}>
-                    <strong>{d.documentName}</strong>
+                    <a
+                      href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'var(--emerald-deep, #0A4D3C)',
+                        fontWeight: 600,
+                        textDecoration: 'underline',
+                        textDecorationColor: 'rgba(10,77,60,0.3)',
+                        textUnderlineOffset: 2
+                      }}
+                    >
+                      {d.documentName}
+                    </a>
                     {d.documentKind && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>}
                   </li>
                 ))}
