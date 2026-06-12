@@ -958,6 +958,101 @@ export async function updateActionItem(
   }
 }
 
+/** Single action item lookup (with case_id so the route can IDOR-check). */
+export async function getActionItem(actionId: number): Promise<CaseActionItem | null> {
+  if (!Number.isInteger(actionId) || actionId <= 0) return null;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<ActionRow[]>(
+      `SELECT * FROM case_action_items WHERE action_id = ? LIMIT 1`,
+      [actionId]
+    );
+    if (!rows.length) return null;
+    return rowToAction(rows[0]);
+  } catch (err) {
+    console.error('getActionItem failed', err);
+    return null;
+  }
+}
+
+// ── Action item notes ─────────────────────────────────────────────────
+// schema/092 ships the case_action_item_notes table. Notes are append-only
+// (no edit/delete in v1 — keeps the audit trail honest for legal matters).
+
+export interface CaseActionItemNote {
+  noteId: number;
+  actionId: number;
+  body: string;
+  authorRole: 'owner' | 'staff' | 'client_user';
+  authorUserId: number;
+  authorDisplayName: string | null;
+  createdAt: string | null;
+}
+
+interface NoteRow extends RowDataPacket {
+  note_id: number;
+  action_id: number;
+  body: string;
+  author_role: 'owner' | 'staff' | 'client_user';
+  author_user_id: number;
+  author_display_name: string | null;
+  created_at: Date | string | null;
+}
+
+export async function listActionItemNotes(actionId: number): Promise<CaseActionItemNote[]> {
+  if (!Number.isInteger(actionId) || actionId <= 0) return [];
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<NoteRow[]>(
+      `SELECT * FROM case_action_item_notes WHERE action_id = ?
+        ORDER BY created_at ASC`,
+      [actionId]
+    );
+    return rows.map((r) => ({
+      noteId: r.note_id,
+      actionId: r.action_id,
+      body: r.body,
+      authorRole: r.author_role,
+      authorUserId: r.author_user_id,
+      authorDisplayName: r.author_display_name,
+      createdAt: toIso(r.created_at)
+    }));
+  } catch (err) {
+    console.error('listActionItemNotes failed', err);
+    return [];
+  }
+}
+
+export async function addActionItemNote(input: {
+  actionId: number;
+  body: string;
+  authorRole: 'owner' | 'staff' | 'client_user';
+  authorUserId: number;
+  authorDisplayName: string | null;
+}): Promise<number | null> {
+  if (!Number.isInteger(input.actionId) || input.actionId <= 0) return null;
+  if (!input.body || !input.body.trim()) return null;
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `INSERT INTO case_action_item_notes
+         (action_id, body, author_role, author_user_id, author_display_name)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        input.actionId,
+        input.body.trim(),
+        input.authorRole,
+        input.authorUserId,
+        input.authorDisplayName
+      ]
+    );
+    return res.insertId || null;
+  } catch (err) {
+    console.error('addActionItemNote failed', err);
+    return null;
+  }
+}
+
 export async function listActionItems(caseId: number): Promise<CaseActionItem[]> {
   if (!Number.isInteger(caseId) || caseId <= 0) return [];
   try {

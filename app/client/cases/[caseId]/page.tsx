@@ -211,7 +211,12 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
               {openActions.map((a) => (
                 <li key={a.actionId} style={{ borderLeft: a.priority === 'urgent' ? '3px solid #A23B2E' : a.priority === 'high' ? '3px solid var(--gold-deep, #7A5A18)' : '3px solid rgba(10,10,10,0.15)', paddingLeft: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
+                  <Link
+                    href={`/client/cases/${caseId}/actions/${a.actionId}`}
+                    style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)', textDecoration: 'none', display: 'block' }}
+                  >
+                    {a.title}
+                  </Link>
                   {a.detail && (
                     <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55 }}>
                       <SectionText
@@ -221,9 +226,15 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                       />
                     </div>
                   )}
-                  <div style={{ fontSize: 10, color: 'var(--muted, #3B4944)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    {a.priority}
-                    {a.dueDate ? ` · due ${formatDate(a.dueDate)}` : ''}
+                  <div style={{ fontSize: 10, color: 'var(--muted, #3B4944)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span>{a.priority}</span>
+                    {a.dueDate && <span>· due {formatDate(a.dueDate)}</span>}
+                    <Link
+                      href={`/client/cases/${caseId}/actions/${a.actionId}`}
+                      style={{ marginLeft: 'auto', color: 'var(--gold-deep, #7A5A18)', textDecoration: 'none' }}
+                    >
+                      Open →
+                    </Link>
                   </div>
                 </li>
               ))}
