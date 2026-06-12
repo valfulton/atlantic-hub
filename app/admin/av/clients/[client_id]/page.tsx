@@ -33,6 +33,8 @@ import SocialChannelsPanel from './SocialChannelsPanel';
 import OwnerIntakeLink from './OwnerIntakeLink';
 import SendPasswordButton from './SendPasswordButton';
 import ClientAccessGroup from './ClientAccessGroup';
+import AccessRosterPanel from '@/components/access/AccessRosterPanel';
+import { listAccessRosterForClient } from '@/lib/av/access_roster';
 import AttachLoginPanel from './AttachLoginPanel';
 import InviteCopilotPanel from './InviteCopilotPanel';
 import PublicIntelPanel from './PublicIntelPanel';
@@ -135,6 +137,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
   // (#512) Latest website-audit snapshot powers the Site Health KPI strip.
   // Null when no scrape has ever run — strip auto-hides in that case.
   const siteSnapshot = await getLatestSnapshot(clientId);
+
+  // (val 2026-06-12) Access roster — every login that can reach this client
+  // (primary, brand member, case collaborator). Powers the per-row "Copy fresh
+  // link" UI so val stops doing SQL to find/refresh magic links.
+  const accessRoster = await listAccessRosterForClient(clientId);
 
   // (#45 Phase B) If the primary client_user attached to this brand also owns
   // OTHER brands, surface the all-brands intake link so val can send ONE URL
@@ -415,6 +422,11 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           </>
         }
       />
+
+      {/* (val 2026-06-12) Access roster — every login (primary + brand member +
+          case collaborator) that can reach this client. Per-row "Copy fresh
+          link" replaces the SQL flow val was using. */}
+      <AccessRosterPanel clientId={clientId} initial={accessRoster} />
       {/* (Spinoff B) Invite co-pilot — add a SECOND login to this brand so two
           people (e.g. Kevin + Maile Lyons on The Flame) each sign in with their
           own email and see the SAME brand. Co-pilots are full client_users; the
