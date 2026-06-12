@@ -40,6 +40,10 @@ export interface SectionIndex {
   pageCount: number;
   /** True when the scan ran but the file isn't readable as a PDF. */
   unreadable: boolean;
+  /** When unreadable, the raw error class + message — surfaces to the operator
+   *  so we can diagnose vs. assume it's encryption. */
+  errorClass?: string;
+  errorMessage?: string;
 }
 
 /** Scan a PDF buffer and return the section index.
@@ -97,8 +101,15 @@ export async function buildSectionIndex(bytes: Buffer): Promise<SectionIndex> {
     }
 
     return { pages, pageCount, unreadable: false };
-  } catch {
-    return { pages: {}, pageCount: 0, unreadable: true };
+  } catch (err) {
+    const e = err as Error;
+    return {
+      pages: {},
+      pageCount: 0,
+      unreadable: true,
+      errorClass: e?.name || 'UnknownError',
+      errorMessage: e?.message || String(err)
+    };
   }
 }
 

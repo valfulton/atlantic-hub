@@ -137,7 +137,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       } else {
         const idx = await buildSectionIndex(Buffer.from(bytes));
         if (idx.unreadable) {
-          indexErr = 'PDF could not be parsed (encrypted, scanned image, or corrupted) — try an unprotected re-export';
+          // Surface the actual pdfjs error so we can diagnose. Encryption is
+          // ONE cause; others: worker resolution, ESM import, font fetch.
+          const detail = idx.errorMessage
+            ? `${idx.errorClass ?? 'Error'}: ${idx.errorMessage}`
+            : 'no detail';
+          indexErr = `parse failed — ${detail}`;
         } else {
           await setDocumentSectionIndex(documentId, idx.pages);
           sectionCount = Object.keys(idx.pages).length;

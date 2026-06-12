@@ -56,9 +56,14 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     const buf = Buffer.from(bytes);
     const idx = await buildSectionIndex(buf);
     if (idx.unreadable) {
+      const detail = idx.errorMessage
+        ? `${idx.errorClass ?? 'Error'}: ${idx.errorMessage}`
+        : null;
       return NextResponse.json({
         ok: false,
-        error: 'PDF could not be parsed (encrypted or corrupted)'
+        error: detail ? `parse failed — ${detail}` : 'PDF could not be parsed (no detail returned)',
+        errorClass: idx.errorClass ?? null,
+        errorMessage: idx.errorMessage ?? null
       }, { status: 422 });
     }
     await setDocumentSectionIndex(documentId, idx.pages);
