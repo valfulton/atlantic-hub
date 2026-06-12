@@ -18,6 +18,7 @@ import AccessPaused from '@/app/client/_components/AccessPaused';
 import { loadFullCase, canClientUserAccessCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import SectionText from '@/components/case/SectionText';
+import DocumentApprovalActions from '@/components/case/DocumentApprovalActions';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -268,42 +269,101 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* Document vault */}
-        {full.documents.length > 0 && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
-              Document vault
-            </div>
-            {/* (val 2026-06-12) Documents are CLICKABLE on the client view too —
-                the byte-serve endpoint /api/admin/av/cases/[id]/documents/[id]
-                already authorizes client_user via canClientUserAccessCase
-                (primary OR collaborator). So Rebecca clicks the trust PDF and
-                gets the document inline in a new tab. */}
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
-              {full.documents.map((d) => (
-                <li key={d.documentId} style={{ fontSize: 13 }}>
-                  <a
-                    href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: 'var(--emerald-deep, #0A4D3C)',
-                      fontWeight: 600,
-                      textDecoration: 'underline',
-                      textDecorationColor: 'rgba(10,77,60,0.3)',
-                      textUnderlineOffset: 2
-                    }}
-                  >
-                    {d.documentName}
-                  </a>
-                  {d.documentKind && (
-                    <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {/* Document vault — split by approval status (val 2026-06-12, #613).
+            Pending drafts go to "Awaiting your decision" with Approve/Reject
+            buttons (Adriana acts here). Approved docs go to "Ready to download"
+            with a clickable filename. Draft (operator-still-editing) + rejected
+            docs are hidden from clients per spec — operator sees them on her
+            dashboard. */}
+        {(() => {
+          // 'draft' state is operator-only — clients (Adriana included) don't
+          // see drafts val is still editing. Rejected docs hide too (val has
+          // them flagged on her side).
+          const pending = full.documents.filter((d) => d.approvalStatus === 'pending_review');
+          const approved = full.documents.filter((d) => d.approvalStatus === 'approved');
+          if (pending.length === 0 && approved.length === 0) return null;
+          return (
+            <>
+              {pending.length > 0 && (
+                <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+                  <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 4 }}>
+                    Awaiting your decision
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
+                    Atlantic & Vine prepared these drafts. Review each one, then approve or send back with a note.
+                  </div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
+                    {pending.map((d) => (
+                      <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
+                        <a
+                          href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: 'var(--emerald-deep, #0A4D3C)',
+                            fontWeight: 600,
+                            textDecoration: 'underline',
+                            textDecorationColor: 'rgba(10,77,60,0.3)',
+                            textUnderlineOffset: 2,
+                            fontSize: 14
+                          }}
+                        >
+                          {d.documentName}
+                        </a>
+                        {d.documentKind && (
+                          <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
+                        )}
+                        {d.notes && (
+                          <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, fontStyle: 'italic' }}>{d.notes}</div>
+                        )}
+                        <DocumentApprovalActions
+                          caseId={c.caseId}
+                          documentId={d.documentId}
+                          documentName={d.documentName}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {approved.length > 0 && (
+                <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+                  <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
+                    Ready to download
+                  </div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
+                    {approved.map((d) => (
+                      <li key={d.documentId} style={{ fontSize: 13 }}>
+                        <a
+                          href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: 'var(--emerald-deep, #0A4D3C)',
+                            fontWeight: 600,
+                            textDecoration: 'underline',
+                            textDecorationColor: 'rgba(10,77,60,0.3)',
+                            textUnderlineOffset: 2
+                          }}
+                        >
+                          {d.documentName}
+                        </a>
+                        {d.documentKind && (
+                          <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
+                        )}
+                        {d.approvalNote && (
+                          <div style={{ fontSize: 11, color: 'var(--emerald-deep, #0A4D3C)', marginTop: 2, fontStyle: 'italic' }}>
+                            Approved: {d.approvalNote}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </>
+          );
+        })()}
 
         {/* Parties (people on the matter) */}
         {full.parties.length > 0 && (

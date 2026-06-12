@@ -24,6 +24,10 @@ interface CaseDocumentLite {
   notes: string | null;
   /** # of §X.Y references found in this PDF; null = never indexed. */
   sectionCount?: number | null;
+  // (val 2026-06-12, #613) Approval workflow surfaced inline so val can see
+  // each doc's state at a glance + flip drafts into Adriana's review queue.
+  approvalStatus?: 'draft' | 'pending_review' | 'approved' | 'rejected';
+  approvalNote?: string | null;
 }
 
 interface Props {
@@ -72,6 +76,46 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
   // Per-row in-progress + suggested kind for the "Set kind" picker.
   const [tagging, setTagging] = useState<number | null>(null);
   const [pendingKind, setPendingKind] = useState<Record<number, string>>({});
+
+  // (val 2026-06-12, #613) Approval flip state.
+  const [flipping, setFlipping] = useState<number | null>(null);
+  const [flipStatus, setFlipStatus] = useState<Record<number, string>>({});
+
+  async function handleFlipApproval(
+    documentId: number,
+    status: 'draft' | 'pending_review' | 'approved' | 'rejected',
+    note?: string
+  ) {
+    setFlipping(documentId);
+    setFlipStatus((prev) => ({ ...prev, [documentId]: 'saving…' }));
+    try {
+      const res = await fetch(
+        `/api/admin/av/cases/${caseId}/documents/${documentId}/approval`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ status, note: note ?? null })
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setFlipStatus((prev) => ({
+          ...prev,
+          [documentId]: data?.error || 'flip failed'
+        }));
+        return;
+      }
+      setFlipStatus((prev) => ({ ...prev, [documentId]: `now ${status.replace(/_/g, ' ')}` }));
+      router.refresh();
+    } catch (e) {
+      setFlipStatus((prev) => ({
+        ...prev,
+        [documentId]: e instanceof Error ? e.message : 'network error'
+      }));
+    } finally {
+      setFlipping(null);
+    }
+  }
 
   /** Filename → best-guess kind. So val doesn't have to think about it. */
   function guessKindFromName(name: string): string | null {
@@ -153,6 +197,10 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
   const [documentName, setDocumentName] = useState('');
   const [documentKind, setDocumentKind] = useState('');
   const [notes, setNotes] = useState('');
+  // (val 2026-06-12, #613) Upload approval state — default approved so existing
+  // workflows (trust PDF, deed) keep behaving the same. val flips to 'draft'
+  // when uploading a draft amendment that needs Adriana's review.
+  const [uploadStatus, setUploadStatus] = useState<'approved' | 'draft'>('approved');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -169,6 +217,9 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
     if (documentName.trim()) form.append('documentName', documentName.trim());
     if (documentKind) form.append('documentKind', documentKind);
     if (notes.trim()) form.append('notes', notes.trim());
+    // (#613) Upload status — 'draft' lands invisible to clients until val sends
+    // it for review; 'approved' lands visible immediately (legacy behavior).
+    form.append('approvalStatus', uploadStatus);
 
     try {
       const res = await fetch(`/api/admin/av/cases/${caseId}/documents`, {
@@ -275,6 +326,23 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
               className="w-full bg-black/30 border border-border rounded px-2 py-1.5 text-sm"
             />
           </label>
+          {/* (val 2026-06-12, #613) Approval gate at upload time. Default
+              'approved' for the common case (trust PDFs, deeds, property
+              reports — visible to client immediately). Flip to 'draft' when
+              uploading a draft that needs Adriana's sign-off (e.g. Option B
+              amendment); doc lands invisible to clients until val hits
+              "Send for Adriana's review" on the row. */}
+          <label className="text-xs block">
+            <span className="block text-muted uppercase tracking-wider mb-1">Visibility</span>
+            <select
+              value={uploadStatus}
+              onChange={(e) => setUploadStatus(e.target.value as 'approved' | 'draft')}
+              className="w-full bg-black/30 border border-border rounded px-2 py-1.5 text-sm"
+            >
+              <option value="approved">Approved — clients see + download immediately</option>
+              <option value="draft">Draft — hidden until I send for Adriana's review</option>
+            </select>
+          </label>
           {error && (
             <div className="text-xs text-red-300 bg-red-950/40 border border-red-700/40 rounded px-3 py-2">
               {error}
@@ -376,6 +444,54 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
                 )}
               </div>
               <div className="flex flex-col gap-1 items-end">
+                {/* (val 2026-06-12, #613) Approval status + flip controls.
+                    'draft' → "Send for Adriana's review" (→ pending_review)
+                    'pending_review' / 'approved' / 'rejected' → "Roll back"
+                       (→ draft, operator-only).
+                    Color: draft=gray · pending=amber · approved=emerald · rejected=red. */}
+                {(() => {
+                  const s = d.approvalStatus ?? 'approved';
+                  const label =
+                    s === 'draft' ? 'DRAFT' :
+                    s === 'pending_review' ? "ADRIANA'S QUEUE" :
+                    s === 'approved' ? 'APPROVED' : 'REJECTED';
+                  const color =
+                    s === 'draft' ? 'text-zinc-300' :
+                    s === 'pending_review' ? 'text-amber-300' :
+                    s === 'approved' ? 'text-emerald-300' : 'text-red-300';
+                  return (
+                    <span
+                      className={`text-[10px] uppercase tracking-wider ${color}`}
+                      title={d.approvalNote || undefined}
+                    >
+                      {label}
+                    </span>
+                  );
+                })()}
+                {(d.approvalStatus ?? 'approved') === 'draft' && (
+                  <button
+                    type="button"
+                    onClick={() => handleFlipApproval(d.documentId, 'pending_review')}
+                    disabled={flipping === d.documentId}
+                    className="text-[10px] uppercase tracking-wider text-amber-300 hover:text-amber-200 hover:underline disabled:opacity-50"
+                  >
+                    {flipping === d.documentId ? '…' : "Send for Adriana's review"}
+                  </button>
+                )}
+                {(d.approvalStatus ?? 'approved') !== 'draft' && (d.approvalStatus ?? 'approved') !== 'approved' && (
+                  <button
+                    type="button"
+                    onClick={() => handleFlipApproval(d.documentId, 'draft')}
+                    disabled={flipping === d.documentId}
+                    className="text-[10px] uppercase tracking-wider text-zinc-300 hover:text-zinc-100 hover:underline disabled:opacity-50"
+                    title="Pull this back to draft so you can edit before Adriana reviews."
+                  >
+                    {flipping === d.documentId ? '…' : 'Roll back to draft'}
+                  </button>
+                )}
+                {flipStatus[d.documentId] && (
+                  <span className="text-[10px] text-zinc-400">{flipStatus[d.documentId]}</span>
+                )}
                 {d.documentKind && INDEXABLE_KINDS.has(d.documentKind) && d.mimeType === 'application/pdf' && (
                   <button
                     type="button"

@@ -72,6 +72,8 @@ export interface CaseEvent {
   createdAt: string | null;
 }
 
+export type DocumentApprovalStatus = 'draft' | 'pending_review' | 'approved' | 'rejected';
+
 export interface CaseDocument {
   documentId: number;
   caseId: number;
@@ -86,6 +88,16 @@ export interface CaseDocument {
   notes: string | null;
   /** {sectionKey: pageNumber} map for PDF deep-linking. NULL = not indexed yet. */
   sectionIndex: Record<string, number> | null;
+  // (val 2026-06-12, #612) Document approval workflow.
+  /** draft → pending_review → approved → rejected. Clients see only 'approved'. */
+  approvalStatus: DocumentApprovalStatus;
+  /** client_user_id of the collaborator (typically attorney) who approved/rejected. */
+  approvedByUserId: number | null;
+  approvedAt: string | null;
+  /** Adriana's note when approving/rejecting. */
+  approvalNote: string | null;
+  /** When non-null, this doc is scoped to a specific action item (e.g. an option draft). */
+  attachedToActionId: number | null;
 }
 
 export interface CaseParty {
@@ -183,6 +195,12 @@ interface DocumentRow extends RowDataPacket {
   uploaded_at: Date | string | null;
   notes: string | null;
   section_index: string | null;
+  // (#612) Approval workflow columns. Added in schema/093_document_approval.sql.
+  approval_status: string | null;
+  approved_by_user_id: number | null;
+  approved_at: Date | string | null;
+  approval_note: string | null;
+  attached_to_action_id: number | null;
 }
 
 interface PartyRow extends RowDataPacket {
@@ -313,6 +331,13 @@ function rowToDocument(r: DocumentRow): CaseDocument {
       } catch { /* malformed JSON — treat as not indexed */ }
     }
   }
+  // Default approval_status to 'approved' for any row that pre-dates migration
+  // 093 (existing trust PDF, property report) so old docs stay visible.
+  const rawStatus = (r.approval_status ?? 'approved') as string;
+  const approvalStatus: DocumentApprovalStatus = (
+    rawStatus === 'draft' || rawStatus === 'pending_review' ||
+    rawStatus === 'approved' || rawStatus === 'rejected'
+  ) ? (rawStatus as DocumentApprovalStatus) : 'approved';
   return {
     documentId: r.document_id,
     caseId: r.case_id,
@@ -325,7 +350,12 @@ function rowToDocument(r: DocumentRow): CaseDocument {
     uploadedByUserId: r.uploaded_by_user_id,
     uploadedAt: toIso(r.uploaded_at),
     notes: r.notes,
-    sectionIndex
+    sectionIndex,
+    approvalStatus,
+    approvedByUserId: r.approved_by_user_id == null ? null : Number(r.approved_by_user_id),
+    approvedAt: toIso(r.approved_at),
+    approvalNote: r.approval_note,
+    attachedToActionId: r.attached_to_action_id == null ? null : Number(r.attached_to_action_id)
   };
 }
 
@@ -672,6 +702,12 @@ export interface AttachDocumentInput {
   sizeBytes?: number | null;
   uploadedByUserId?: number | null;
   notes?: string | null;
+  // (val 2026-06-12, #612) Approval workflow fields.
+  /** Default 'draft' for new operator uploads so they don't auto-publish to clients.
+   *  Set to 'approved' for legacy-style direct uploads where no review is needed. */
+  approvalStatus?: DocumentApprovalStatus;
+  /** When provided, doc is scoped to a specific action item (e.g. the Cecilia options). */
+  attachedToActionId?: number | null;
 }
 
 export async function attachDocument(input: AttachDocumentInput): Promise<number | null> {
@@ -682,8 +718,9 @@ export async function attachDocument(input: AttachDocumentInput): Promise<number
     const [res] = await db.execute<ResultSetHeader>(
       `INSERT INTO case_documents (
          case_id, document_name, document_kind, storage_uri, content_hash,
-         mime_type, size_bytes, uploaded_by_user_id, notes
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         mime_type, size_bytes, uploaded_by_user_id, notes,
+         approval_status, attached_to_action_id
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.caseId,
         input.documentName.trim(),
@@ -693,13 +730,74 @@ export async function attachDocument(input: AttachDocumentInput): Promise<number
         input.mimeType ?? null,
         input.sizeBytes ?? null,
         input.uploadedByUserId ?? null,
-        input.notes ?? null
+        input.notes ?? null,
+        input.approvalStatus ?? 'draft',
+        input.attachedToActionId ?? null
       ]
     );
     return res.insertId || null;
   } catch (err) {
     console.error('attachDocument failed', err);
     return null;
+  }
+}
+
+// ── Document approval (val 2026-06-12, #612) ──────────────────────────────
+//
+// One unified helper instead of separate approve/reject/submit-for-review
+// functions. Caller passes the new status + optional note + the user id that
+// took the action. We stamp approved_at + approved_by on approve/reject so
+// the audit trail is clear. 'draft' and 'pending_review' clear those fields.
+
+export interface SetDocumentApprovalInput {
+  documentId: number;
+  status: DocumentApprovalStatus;
+  /** client_user_id (collaborator who approved) OR null for operator self-actions. */
+  actorClientUserId: number | null;
+  note?: string | null;
+}
+
+export async function setDocumentApprovalStatus(
+  input: SetDocumentApprovalInput
+): Promise<boolean> {
+  if (!Number.isInteger(input.documentId) || input.documentId <= 0) return false;
+  const stamps = input.status === 'approved' || input.status === 'rejected';
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `UPDATE case_documents
+          SET approval_status = ?,
+              approved_by_user_id = ${stamps ? '?' : 'NULL'},
+              approved_at = ${stamps ? 'CURRENT_TIMESTAMP' : 'NULL'},
+              approval_note = ?
+        WHERE document_id = ?`,
+      stamps
+        ? [input.status, input.actorClientUserId, input.note ?? null, input.documentId]
+        : [input.status, input.note ?? null, input.documentId]
+    );
+    return res.affectedRows > 0;
+  } catch (err) {
+    console.error('setDocumentApprovalStatus failed', err);
+    return false;
+  }
+}
+
+/** List docs scoped to a single action item. Used on the action detail page
+ *  to render the per-option drafts attached to "Decide: Cecilia removal". */
+export async function listDocumentsForAction(actionId: number): Promise<CaseDocument[]> {
+  if (!Number.isInteger(actionId) || actionId <= 0) return [];
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<DocumentRow[]>(
+      `SELECT * FROM case_documents
+        WHERE attached_to_action_id = ?
+        ORDER BY uploaded_at DESC, document_id DESC`,
+      [actionId]
+    );
+    return rows.map(rowToDocument);
+  } catch (err) {
+    console.error('listDocumentsForAction failed', err);
+    return [];
   }
 }
 

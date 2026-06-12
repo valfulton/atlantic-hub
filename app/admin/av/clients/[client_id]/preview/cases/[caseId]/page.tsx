@@ -224,35 +224,90 @@ export default async function PreviewCasePage({ params }: PageProps) {
             </section>
           )}
 
-          {full.documents.length > 0 && (
-            <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>Document vault</div>
-              {/* (val 2026-06-12) Documents are clickable — open the PDF in a
-                  new tab via the byte-serve endpoint. Same URL the operator
-                  case dashboard + the client view use. */}
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
-                {full.documents.map((d) => (
-                  <li key={d.documentId} style={{ fontSize: 13 }}>
-                    <a
-                      href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: 'var(--emerald-deep, #0A4D3C)',
-                        fontWeight: 600,
-                        textDecoration: 'underline',
-                        textDecorationColor: 'rgba(10,77,60,0.3)',
-                        textUnderlineOffset: 2
-                      }}
-                    >
-                      {d.documentName}
-                    </a>
-                    {d.documentKind && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {/* (val 2026-06-12, #613) Mirror of the client-view split:
+              "Awaiting your decision" (pending_review, gold border) vs
+              "Ready to download" (approved). Draft + rejected are operator-only
+              so they're hidden on the preview just like they are on the
+              real client view. The preview doesn't render Approve/Reject
+              actions — those only exist on the actual /client route where
+              Adriana is logged in. */}
+          {(() => {
+            const pending = full.documents.filter((d) => d.approvalStatus === 'pending_review');
+            const approved = full.documents.filter((d) => d.approvalStatus === 'approved');
+            return (
+              <>
+                {pending.length > 0 && (
+                  <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 4 }}>
+                      Awaiting your decision
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
+                      Atlantic & Vine prepared these drafts. Review each one, then approve or send back with a note.
+                    </div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
+                      {pending.map((d) => (
+                        <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
+                          <a
+                            href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: 'var(--emerald-deep, #0A4D3C)',
+                              fontWeight: 600,
+                              textDecoration: 'underline',
+                              textDecorationColor: 'rgba(10,77,60,0.3)',
+                              textUnderlineOffset: 2,
+                              fontSize: 14
+                            }}
+                          >
+                            {d.documentName}
+                          </a>
+                          {d.documentKind && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>}
+                          {d.notes && (
+                            <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, fontStyle: 'italic' }}>{d.notes}</div>
+                          )}
+                          <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)', marginTop: 6, fontStyle: 'italic' }}>
+                            (Approve / Send back buttons appear on the live client view — not in this read-only preview.)
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+                {approved.length > 0 && (
+                  <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>Ready to download</div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
+                      {approved.map((d) => (
+                        <li key={d.documentId} style={{ fontSize: 13 }}>
+                          <a
+                            href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: 'var(--emerald-deep, #0A4D3C)',
+                              fontWeight: 600,
+                              textDecoration: 'underline',
+                              textDecorationColor: 'rgba(10,77,60,0.3)',
+                              textUnderlineOffset: 2
+                            }}
+                          >
+                            {d.documentName}
+                          </a>
+                          {d.documentKind && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>}
+                          {d.approvalNote && (
+                            <div style={{ fontSize: 11, color: 'var(--emerald-deep, #0A4D3C)', marginTop: 2, fontStyle: 'italic' }}>
+                              Approved: {d.approvalNote}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </>
+            );
+          })()}
 
           {full.parties.length > 0 && (
             <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>

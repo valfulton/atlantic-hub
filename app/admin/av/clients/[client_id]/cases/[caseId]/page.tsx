@@ -206,7 +206,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 sizeBytes: d.sizeBytes,
                 uploadedAt: d.uploadedAt,
                 notes: d.notes,
-                sectionCount: d.sectionIndex ? Object.keys(d.sectionIndex).length : null
+                sectionCount: d.sectionIndex ? Object.keys(d.sectionIndex).length : null,
+                // (#613) Approval status surfaced as a badge on each row.
+                approvalStatus: d.approvalStatus,
+                approvalNote: d.approvalNote
               }))}
             />
 

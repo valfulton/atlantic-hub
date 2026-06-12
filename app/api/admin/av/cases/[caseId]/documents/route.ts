@@ -69,6 +69,23 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     ? (form.get('notes') as string).trim()
     : null;
 
+  // (val 2026-06-12, #613/#614) Optional approval status + action attachment.
+  // Default: 'approved' — preserves the old behavior for direct case-vault
+  // uploads (trust PDFs, deeds, property reports — no review needed). When val
+  // is uploading a DRAFT that needs Adriana's sign-off, the form sends
+  // approvalStatus='draft' OR 'pending_review' AND optionally attachedToActionId
+  // so the doc lands scoped to a specific action item (e.g. Cecilia options).
+  const approvalStatusRaw = (form.get('approvalStatus') as string | null)?.trim() || 'approved';
+  const approvalStatus: 'draft' | 'pending_review' | 'approved' | 'rejected' =
+    approvalStatusRaw === 'draft' || approvalStatusRaw === 'pending_review' ||
+    approvalStatusRaw === 'approved' || approvalStatusRaw === 'rejected'
+      ? approvalStatusRaw
+      : 'approved';
+  const actionIdRaw = (form.get('attachedToActionId') as string | null)?.trim();
+  const attachedToActionId = actionIdRaw && /^\d+$/.test(actionIdRaw)
+    ? parseInt(actionIdRaw, 10)
+    : null;
+
   const safeName = (file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
   const blobKey = `case/${caseId}/${Date.now()}-${safeName}`;
 
@@ -83,7 +100,9 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
       mimeType: file.type || null,
       sizeBytes: file.size,
       uploadedByUserId: guard.actor.userId ?? null,
-      notes
+      notes,
+      approvalStatus,
+      attachedToActionId
     });
     if (!documentId) {
       return NextResponse.json({ error: 'database write failed (file is in storage, row missing)' }, { status: 500 });
