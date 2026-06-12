@@ -10,8 +10,15 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+
+interface KnownPerson {
+  email: string;
+  displayName: string | null;
+  clientName: string | null;
+  shortName: string | null;
+}
 
 interface CollaboratorRowLite {
   collaboratorId: number;
@@ -67,6 +74,42 @@ export default function CollaboratorsPanel({ caseId, collaborators }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [justInvitedLink, setJustInvitedLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // People picker — pulls every known client_user so val can pick by name
+  // instead of typing emails she doesn't remember (Adriana, Skip, Mike, etc.)
+  const [knownPeople, setKnownPeople] = useState<KnownPerson[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showForm) return;
+    if (knownPeople.length > 0) return;
+    setPeopleLoading(true);
+    fetch('/api/admin/av/people/lookup')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.ok && Array.isArray(data.people)) {
+          setKnownPeople(data.people);
+        }
+      })
+      .catch(() => { /* non-fatal — typing still works */ })
+      .finally(() => setPeopleLoading(false));
+  }, [showForm, knownPeople.length]);
+
+  // Hide anyone already on this case from the picker — no point inviting them again.
+  const alreadyOnCaseEmails = new Set(collaborators.map((c) => c.email.toLowerCase()));
+  const pickerPeople = knownPeople.filter((p) => !alreadyOnCaseEmails.has(p.email.toLowerCase()));
+
+  function handlePickPerson(emailValue: string) {
+    if (!emailValue) {
+      setEmail(''); setDisplayName('');
+      return;
+    }
+    const found = knownPeople.find((p) => p.email === emailValue);
+    if (found) {
+      setEmail(found.email);
+      setDisplayName(found.displayName || '');
+    }
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -151,6 +194,27 @@ export default function CollaboratorsPanel({ caseId, collaborators }: Props) {
 
       {showForm && (
         <form onSubmit={handleInvite} className="mb-4 p-3 rounded-lg bg-black/20 border border-border space-y-2">
+          {/* People picker — pull existing client_users so val can choose Adriana, Skip, etc.
+              without typing emails she doesn't remember. */}
+          <label className="text-xs block">
+            <span className="block text-muted uppercase tracking-wider mb-1">
+              Pick an existing person {peopleLoading && <span className="text-muted">· loading…</span>}
+            </span>
+            <select
+              value={email}
+              onChange={(e) => handlePickPerson(e.target.value)}
+              className="w-full bg-black/30 border border-border rounded px-2 py-1.5 text-sm"
+            >
+              <option value="">— or enter a new email below —</option>
+              {pickerPeople.map((p) => (
+                <option key={p.email} value={p.email}>
+                  {p.displayName || p.email}
+                  {p.clientName ? ` · ${p.shortName || p.clientName}` : ''}
+                  {p.email !== (p.displayName || '') ? ` (${p.email})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs">
               <span className="block text-muted uppercase tracking-wider mb-1">Email *</span>

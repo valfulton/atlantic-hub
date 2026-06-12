@@ -120,7 +120,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
     <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
         {/* Breadcrumb */}
-        <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginBottom: 18 }}>
+        <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)', marginBottom: 18 }}>
           <Link href="/client/cases" style={{ color: 'var(--gold-deep, #7A5A18)' }}>Your matters</Link>
           <span style={{ margin: '0 6px' }}>·</span>
           <span>{c.caseName}</span>
@@ -134,7 +134,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           <h1 style={{ fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif', fontWeight: 500, fontSize: 36, lineHeight: 1.1, marginBottom: 10 }}>
             {c.caseName}
           </h1>
-          <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)' }}>
+          <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)' }}>
             Opened {formatDate(c.openedAt)}
             {c.metadata?.trust_executed_date ? ` · Trust executed ${String(c.metadata.trust_executed_date)}` : ''}
           </div>
@@ -143,7 +143,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
         {/* Synopsis card */}
         {c.caseSynopsis && (
           <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #5C6862)', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 10 }}>
               Where we are
             </div>
             <div style={{ fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{c.caseSynopsis}</div>
@@ -153,29 +153,29 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
         {/* Property */}
         {full.property && (
           <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #5C6862)', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 10 }}>
               The property
             </div>
             <div style={{ fontSize: 15, fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif' }}>
               {full.property.addressLine}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--muted, #5C6862)' }}>
+            <div style={{ fontSize: 13, color: 'var(--muted, #3B4944)' }}>
               {[full.property.city, full.property.state, full.property.zip].filter(Boolean).join(', ')}
               {full.property.county ? ` · ${full.property.county} County` : ''}
             </div>
             {full.property.currentTitledOwner && (
               <div style={{ fontSize: 12, marginTop: 10 }}>
-                <span style={{ color: 'var(--muted, #5C6862)' }}>Currently titled to:</span>{' '}
+                <span style={{ color: 'var(--muted, #3B4944)' }}>Currently titled to:</span>{' '}
                 <strong>{full.property.currentTitledOwner}</strong>
               </div>
             )}
             {(full.property.estimatedValueCents != null || full.property.equityCents != null) && (
               <div style={{ display: 'flex', gap: 24, fontSize: 12, marginTop: 8 }}>
                 {full.property.estimatedValueCents != null && (
-                  <div><span style={{ color: 'var(--muted, #5C6862)' }}>Est. value:</span> {dollars(full.property.estimatedValueCents)}</div>
+                  <div><span style={{ color: 'var(--muted, #3B4944)' }}>Est. value:</span> {dollars(full.property.estimatedValueCents)}</div>
                 )}
                 {full.property.equityCents != null && (
-                  <div><span style={{ color: 'var(--muted, #5C6862)' }}>Equity:</span> {dollars(full.property.equityCents)}</div>
+                  <div><span style={{ color: 'var(--muted, #3B4944)' }}>Equity:</span> {dollars(full.property.equityCents)}</div>
                 )}
               </div>
             )}
@@ -185,7 +185,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
         {/* Action items the family should act on */}
         {openActions.length > 0 && (
           <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #5C6862)', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
               What we are working on next
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
@@ -193,9 +193,9 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 <li key={a.actionId} style={{ borderLeft: a.priority === 'urgent' ? '3px solid #A23B2E' : a.priority === 'high' ? '3px solid var(--gold-deep, #7A5A18)' : '3px solid rgba(10,10,10,0.15)', paddingLeft: 12 }}>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
                   {a.detail && (
-                    <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)', marginTop: 4, lineHeight: 1.55 }}>{a.detail}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55 }}>{a.detail}</div>
                   )}
-                  <div style={{ fontSize: 10, color: 'var(--muted, #5C6862)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted, #3B4944)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                     {a.priority}
                     {a.dueDate ? ` · due ${formatDate(a.dueDate)}` : ''}
                   </div>
@@ -208,16 +208,16 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
         {/* Timeline */}
         {full.events.length > 0 && (
           <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #5C6862)', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
               Timeline
             </div>
             <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 14 }}>
               {full.events.map((e) => (
                 <li key={e.eventId} style={{ borderLeft: '2px solid rgba(10,10,10,0.12)', paddingLeft: 14 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)' }}>{formatDate(e.eventDate)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)' }}>{formatDate(e.eventDate)}</div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{e.eventTitle}</div>
                   {e.eventDetail && (
-                    <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)', marginTop: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{e.eventDetail}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{e.eventDetail}</div>
                   )}
                 </li>
               ))}
@@ -228,7 +228,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
         {/* Document vault */}
         {full.documents.length > 0 && (
           <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #5C6862)', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
               Document vault
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
@@ -236,7 +236,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 <li key={d.documentId} style={{ fontSize: 13 }}>
                   <strong>{d.documentName}</strong>
                   {d.documentKind && (
-                    <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #5C6862)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
+                    <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
                   )}
                 </li>
               ))}
@@ -247,7 +247,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
         {/* Parties (people on the matter) */}
         {full.parties.length > 0 && (
           <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #5C6862)', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
               On this matter
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 10 }}>
@@ -255,10 +255,10 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 <li key={p.partyId} style={{ fontSize: 13 }}>
                   <strong>{p.fullName}</strong>
                   {p.role && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #5C6862)' }}>{p.role.replace(/_/g, ' ')}</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #3B4944)' }}>{p.role.replace(/_/g, ' ')}</span>
                   )}
                   {p.relationship && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #5C6862)', fontStyle: 'italic' }}>{p.relationship}</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #3B4944)', fontStyle: 'italic' }}>{p.relationship}</span>
                   )}
                 </li>
               ))}
