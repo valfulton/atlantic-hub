@@ -440,6 +440,83 @@ export async function listCasesForClient(clientId: number): Promise<CaseRecord[]
   }
 }
 
+/**
+ * Cases the given client_user can see:
+ *   - all cases under their primary client_id, PLUS
+ *   - cases they've been invited to as collaborators (parent_approved AND not revoked).
+ * This is what powers Adriana-as-attorney access to Johnson, sibling-readers
+ * on other families, etc. Phase 3 Wave 3.
+ */
+export async function listCasesAccessibleByClientUser(
+  clientUserId: number,
+  primaryClientId: number | null
+): Promise<CaseRecord[]> {
+  if (!Number.isInteger(clientUserId) || clientUserId <= 0) return [];
+  try {
+    const db = getAvDb();
+    // UNION ALL — primary-client cases + collaborator-granted cases.
+    // The DISTINCT on case_id collapses any case the user could see via both
+    // routes (e.g. their primary client IS the case-anchored client AND
+    // they're explicitly in collaborators too).
+    const [rows] = await db.execute<CaseRow[]>(
+      `SELECT DISTINCT c.case_id, c.client_id, c.case_name, c.case_kind, c.case_synopsis,
+              c.status, c.opened_at, c.closed_at, c.wellness_enabled, c.metadata,
+              c.created_at, c.updated_at
+         FROM cases c
+        WHERE c.client_id = ?
+           OR c.case_id IN (
+              SELECT case_id FROM family_case_collaborators
+               WHERE client_user_id = ?
+                 AND parent_approved = TRUE
+                 AND revoked_at IS NULL
+           )
+        ORDER BY status = 'open' DESC, opened_at DESC, case_id DESC`,
+      [primaryClientId ?? 0, clientUserId]
+    );
+    return rows.map(rowToCase);
+  } catch (err) {
+    console.error('listCasesAccessibleByClientUser failed', err);
+    return [];
+  }
+}
+
+/**
+ * Whether a client_user can access a specific case.
+ *   true if the case belongs to their primary client_id, OR
+ *   true if they have an approved, non-revoked collaborator row on it.
+ * Used by /client/cases/[caseId] for the IDOR check.
+ */
+export async function canClientUserAccessCase(
+  clientUserId: number,
+  primaryClientId: number | null,
+  caseId: number
+): Promise<boolean> {
+  if (!Number.isInteger(caseId) || caseId <= 0) return false;
+  if (!Number.isInteger(clientUserId) || clientUserId <= 0) return false;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT 1 AS ok FROM cases
+        WHERE case_id = ?
+          AND (
+            client_id = ?
+            OR case_id IN (
+              SELECT case_id FROM family_case_collaborators
+               WHERE client_user_id = ?
+                 AND parent_approved = TRUE
+                 AND revoked_at IS NULL
+            )
+          )
+        LIMIT 1`,
+      [caseId, primaryClientId ?? 0, clientUserId]
+    );
+    return rows.length > 0;
+  } catch (err) {
+    console.error('canClientUserAccessCase failed', err);
+    return false;
+  }
+}
+
 export async function listAllOpenCases(): Promise<CaseRecord[]> {
   try {
     const db = getAvDb();

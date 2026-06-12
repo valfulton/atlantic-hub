@@ -14,7 +14,7 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import { listCasesForClient } from '@/lib/case/case_store';
+import { listCasesAccessibleByClientUser } from '@/lib/case/case_store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -67,7 +67,11 @@ export default async function ClientCasesPage() {
     return <AccessPaused expired={access.expired} />;
   }
 
-  const cases = await listCasesForClient(clientId);
+  // Includes cases where this user is invited as a collaborator (attorney /
+  // advisor / sibling-reader) plus cases on their primary client_id. Adriana
+  // sees Johnson here once invited + parent-approved without leaving her own
+  // CBB portal.
+  const cases = await listCasesAccessibleByClientUser(actor.clientUserId, clientId);
   const openCases = cases.filter((c) => c.status === 'open');
   const otherCases = cases.filter((c) => c.status !== 'open');
 

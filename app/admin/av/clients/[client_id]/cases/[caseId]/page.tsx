@@ -20,8 +20,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { loadFullCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
+import { listCollaboratorsForCase } from '@/lib/case/case_collaborators';
 import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
 import DocumentVaultPanel from '@/components/case/DocumentVaultPanel';
+import CollaboratorsPanel from '@/components/case/CollaboratorsPanel';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -91,7 +93,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
   if (!full || full.case.clientId !== clientId) notFound();
 
   const c = full.case;
-  const wellness = c.wellnessEnabled ? await loadFullWellness(caseId) : null;
+  const [wellness, collaborators] = await Promise.all([
+    c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
+    listCollaboratorsForCase(caseId)
+  ]);
 
   return (
     <main className="min-h-screen p-6 bg-[var(--surface)] text-ink">
@@ -181,6 +186,25 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 sizeBytes: d.sizeBytes,
                 uploadedAt: d.uploadedAt,
                 notes: d.notes
+              }))}
+            />
+
+            {/* Family + advisors (collaborators) — invite Rebecca's siblings,
+                Adriana as attorney, etc. Parent-approval gated per spec. */}
+            <CollaboratorsPanel
+              caseId={c.caseId}
+              collaborators={collaborators.map((co) => ({
+                collaboratorId: co.collaboratorId,
+                clientUserId: co.clientUserId,
+                email: co.email,
+                displayName: co.displayName,
+                role: co.role,
+                invitationAccepted: co.invitationAccepted,
+                acceptedAt: co.acceptedAt,
+                parentApproved: co.parentApproved,
+                revokedAt: co.revokedAt,
+                magicToken: co.magicToken,
+                magicTokenExpiresAt: co.magicTokenExpiresAt
               }))}
             />
 

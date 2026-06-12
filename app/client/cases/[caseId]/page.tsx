@@ -14,7 +14,7 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import { loadFullCase } from '@/lib/case/case_store';
+import { loadFullCase, canClientUserAccessCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 
 export const dynamic = 'force-dynamic';
@@ -83,8 +83,15 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   const full = await loadFullCase(caseId);
   if (!full) notFound();
 
-  // Critical: prevent IDOR. The case must belong to this client.
-  if (full.case.clientId !== clientId) notFound();
+  // Critical: prevent IDOR. Access granted if EITHER:
+  //   - the case belongs to this user's primary client_id, OR
+  //   - the user is an approved, non-revoked collaborator on this case.
+  // The latter is how Adriana (attorney on Johnson) reads the matter from
+  // inside her own CBB portal.
+  const canAccess =
+    full.case.clientId === clientId
+    || await canClientUserAccessCase(actor.clientUserId, clientId, caseId);
+  if (!canAccess) notFound();
 
   const c = full.case;
   const wellness = c.wellnessEnabled ? await loadFullWellness(caseId) : null;
