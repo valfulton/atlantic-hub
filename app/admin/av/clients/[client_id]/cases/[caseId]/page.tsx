@@ -18,12 +18,13 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { loadFullCase } from '@/lib/case/case_store';
+import { loadFullCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import { listCollaboratorsForCase } from '@/lib/case/case_collaborators';
 import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
 import DocumentVaultPanel from '@/components/case/DocumentVaultPanel';
 import CollaboratorsPanel from '@/components/case/CollaboratorsPanel';
+import SectionText from '@/components/case/SectionText';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -93,10 +94,17 @@ export default async function CaseDetailPage({ params }: PageProps) {
   if (!full || full.case.clientId !== clientId) notFound();
 
   const c = full.case;
-  const [wellness, collaborators] = await Promise.all([
+  const [wellness, collaborators, indexableDoc] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
-    listCollaboratorsForCase(caseId)
+    listCollaboratorsForCase(caseId),
+    findIndexableDocumentForCase(caseId)
   ]);
+  // The byte-serve URL the SectionText renderer will deep-link into. Only
+  // populated when there's an indexed trust/will/POA on this case.
+  const sectionDocUrl = indexableDoc
+    ? `/api/admin/av/cases/${c.caseId}/documents/${indexableDoc.documentId}`
+    : null;
+  const sectionIndex = indexableDoc?.sectionIndex ?? null;
 
   return (
     <main className="min-h-screen p-6 bg-[var(--surface)] text-ink">
@@ -142,7 +150,13 @@ export default async function CaseDetailPage({ params }: PageProps) {
             <section className="rounded-xl border border-border bg-[var(--surface-2)] p-5">
               <h2 className="text-sm uppercase tracking-wider text-muted mb-3">Synopsis</h2>
               <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                {c.caseSynopsis || (
+                {c.caseSynopsis ? (
+                  <SectionText
+                    text={c.caseSynopsis}
+                    documentUrl={sectionDocUrl}
+                    sectionIndex={sectionIndex}
+                  />
+                ) : (
                   <span className="text-muted italic">No synopsis yet. Add one to give the family + counsel a single paragraph that captures the case.</span>
                 )}
               </div>
@@ -162,7 +176,13 @@ export default async function CaseDetailPage({ params }: PageProps) {
                       </div>
                       <div className="font-medium text-sm">{e.eventTitle}</div>
                       {e.eventDetail && (
-                        <div className="text-xs text-muted mt-1 whitespace-pre-wrap">{e.eventDetail}</div>
+                        <div className="text-xs text-muted mt-1 whitespace-pre-wrap">
+                          <SectionText
+                            text={e.eventDetail}
+                            documentUrl={sectionDocUrl}
+                            sectionIndex={sectionIndex}
+                          />
+                        </div>
                       )}
                       {e.sourceUri && (
                         <a href={e.sourceUri} target="_blank" rel="noopener noreferrer" className="text-xs text-brand hover:underline">
@@ -185,7 +205,8 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 mimeType: d.mimeType,
                 sizeBytes: d.sizeBytes,
                 uploadedAt: d.uploadedAt,
-                notes: d.notes
+                notes: d.notes,
+                sectionCount: d.sectionIndex ? Object.keys(d.sectionIndex).length : null
               }))}
             />
 
@@ -444,7 +465,13 @@ export default async function CaseDetailPage({ params }: PageProps) {
                         </span>
                       </div>
                       {a.detail && (
-                        <div className="text-xs text-muted">{a.detail}</div>
+                        <div className="text-xs text-muted">
+                          <SectionText
+                            text={a.detail}
+                            documentUrl={sectionDocUrl}
+                            sectionIndex={sectionIndex}
+                          />
+                        </div>
                       )}
                       <div className="text-xs text-muted mt-1">
                         {a.status}

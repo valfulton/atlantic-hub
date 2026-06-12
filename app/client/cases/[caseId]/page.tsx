@@ -15,8 +15,9 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import { loadFullCase, canClientUserAccessCase } from '@/lib/case/case_store';
+import { loadFullCase, canClientUserAccessCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
+import SectionText from '@/components/case/SectionText';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -111,7 +112,20 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   if (!canAccess) notFound();
 
   const c = full.case;
-  const wellness = c.wellnessEnabled ? await loadFullWellness(caseId) : null;
+  const [wellness, indexableDoc] = await Promise.all([
+    c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
+    findIndexableDocumentForCase(caseId)
+  ]);
+
+  // Client byte-serve URL for the indexed trust/will/POA. Note this points at
+  // the operator API — clients reading their own case will need a client-side
+  // serve route in a follow-up (the link still opens in a new tab and the
+  // operator route gates on guard.actor.userId, which client_user has). For
+  // collaborators (e.g. Adriana attorney-side), this works today.
+  const sectionDocUrl = indexableDoc
+    ? `/api/admin/av/cases/${c.caseId}/documents/${indexableDoc.documentId}`
+    : null;
+  const sectionIndex = indexableDoc?.sectionIndex ?? null;
 
   // Show only OPEN/IN-PROGRESS action items to clients; completed live in archive
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
@@ -146,7 +160,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 10 }}>
               Where we are
             </div>
-            <div style={{ fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{c.caseSynopsis}</div>
+            <div style={{ fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+              <SectionText
+                text={c.caseSynopsis}
+                documentUrl={sectionDocUrl}
+                sectionIndex={sectionIndex}
+              />
+            </div>
           </section>
         )}
 
@@ -193,7 +213,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 <li key={a.actionId} style={{ borderLeft: a.priority === 'urgent' ? '3px solid #A23B2E' : a.priority === 'high' ? '3px solid var(--gold-deep, #7A5A18)' : '3px solid rgba(10,10,10,0.15)', paddingLeft: 12 }}>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
                   {a.detail && (
-                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55 }}>{a.detail}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55 }}>
+                      <SectionText
+                        text={a.detail}
+                        documentUrl={sectionDocUrl}
+                        sectionIndex={sectionIndex}
+                      />
+                    </div>
                   )}
                   <div style={{ fontSize: 10, color: 'var(--muted, #3B4944)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                     {a.priority}
@@ -217,7 +243,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                   <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)' }}>{formatDate(e.eventDate)}</div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{e.eventTitle}</div>
                   {e.eventDetail && (
-                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{e.eventDetail}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                      <SectionText
+                        text={e.eventDetail}
+                        documentUrl={sectionDocUrl}
+                        sectionIndex={sectionIndex}
+                      />
+                    </div>
                   )}
                 </li>
               ))}

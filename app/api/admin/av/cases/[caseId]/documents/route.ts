@@ -14,7 +14,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getHotStorage } from '@/lib/storage/provider';
-import { attachDocument, listDocuments, getCase } from '@/lib/case/case_store';
+import { attachDocument, listDocuments, getCase, setDocumentSectionIndex } from '@/lib/case/case_store';
+import { buildSectionIndex } from '@/lib/case/pdf_section_index';
+
+const INDEXABLE_KINDS = new Set(['trust', 'will', 'poa', 'medical_directive']);
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -85,6 +88,20 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     if (!documentId) {
       return NextResponse.json({ error: 'database write failed (file is in storage, row missing)' }, { status: 500 });
     }
+
+    // Auto-index § sections if this is a legal doc we know how to deep-link.
+    // We DON'T block the response on this — if the scan is slow or fails, the
+    // upload still succeeds. Operator can hit "Re-index" if needed.
+    if (documentKind && INDEXABLE_KINDS.has(documentKind) && file.type === 'application/pdf') {
+      buildSectionIndex(buf)
+        .then((idx) => {
+          if (!idx.unreadable) {
+            return setDocumentSectionIndex(documentId, idx.pages);
+          }
+        })
+        .catch((err) => console.error('section-index build failed', err));
+    }
+
     return NextResponse.json({ ok: true, documentId, documentName });
   } catch (err) {
     return NextResponse.json({ error: 'upload failed', errorClass: (err as Error).name }, { status: 500 });

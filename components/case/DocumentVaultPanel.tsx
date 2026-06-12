@@ -22,12 +22,16 @@ interface CaseDocumentLite {
   sizeBytes: number | null;
   uploadedAt: string | null;
   notes: string | null;
+  /** # of §X.Y references found in this PDF; null = never indexed. */
+  sectionCount?: number | null;
 }
 
 interface Props {
   caseId: number;
   documents: CaseDocumentLite[];
 }
+
+const INDEXABLE_KINDS = new Set(['trust', 'will', 'poa', 'medical_directive']);
 
 const DOCUMENT_KINDS: Array<{ value: string; label: string }> = [
   { value: 'trust', label: 'Trust document' },
@@ -62,6 +66,36 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [reindexing, setReindexing] = useState<number | null>(null);
+  const [reindexStatus, setReindexStatus] = useState<Record<number, string>>({});
+
+  async function handleReindex(documentId: number) {
+    setReindexing(documentId);
+    setReindexStatus((prev) => ({ ...prev, [documentId]: 'scanning…' }));
+    try {
+      const res = await fetch(`/api/admin/av/cases/${caseId}/documents/${documentId}/reindex`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setReindexStatus((prev) => ({ ...prev, [documentId]: data?.error || 'failed' }));
+        return;
+      }
+      setReindexStatus((prev) => ({
+        ...prev,
+        [documentId]: `${data.sectionCount} sections · ${data.pageCount} pages`
+      }));
+      // Refresh so §6.G(2) anchors render immediately
+      router.refresh();
+    } catch (e) {
+      setReindexStatus((prev) => ({
+        ...prev,
+        [documentId]: e instanceof Error ? e.message : 'network error'
+      }));
+    } finally {
+      setReindexing(null);
+    }
+  }
 
   const [documentName, setDocumentName] = useState('');
   const [documentKind, setDocumentKind] = useState('');
@@ -229,15 +263,38 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
                 {d.notes && (
                   <div className="text-xs text-ink mt-1 opacity-80">{d.notes}</div>
                 )}
+                {d.documentKind && INDEXABLE_KINDS.has(d.documentKind) && d.mimeType === 'application/pdf' && (
+                  <div className="text-[10px] text-muted mt-1">
+                    {d.sectionCount != null
+                      ? `§ index: ${d.sectionCount} sections found — §X.Y references will deep-link into this PDF.`
+                      : '§ index: not built yet. Click Re-index to scan for §X.Y references.'}
+                    {reindexStatus[d.documentId] && (
+                      <span className="ml-2 text-emerald-300">· {reindexStatus[d.documentId]}</span>
+                    )}
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(d.documentId)}
-                className="text-[10px] uppercase tracking-wider text-red-300 hover:text-red-200 hover:underline"
-                aria-label={`Delete ${d.documentName}`}
-              >
-                Delete
-              </button>
+              <div className="flex flex-col gap-1 items-end">
+                {d.documentKind && INDEXABLE_KINDS.has(d.documentKind) && d.mimeType === 'application/pdf' && (
+                  <button
+                    type="button"
+                    onClick={() => handleReindex(d.documentId)}
+                    disabled={reindexing === d.documentId}
+                    className="text-[10px] uppercase tracking-wider text-emerald-300 hover:text-emerald-200 hover:underline disabled:opacity-50"
+                    aria-label={`Re-index ${d.documentName}`}
+                  >
+                    {reindexing === d.documentId ? 'Scanning…' : 'Re-index §'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDelete(d.documentId)}
+                  className="text-[10px] uppercase tracking-wider text-red-300 hover:text-red-200 hover:underline"
+                  aria-label={`Delete ${d.documentName}`}
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>

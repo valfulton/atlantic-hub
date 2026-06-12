@@ -9,7 +9,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getHotStorage } from '@/lib/storage/provider';
-import { getDocument, deleteDocument } from '@/lib/case/case_store';
+import { getDocument, deleteDocument, canClientUserAccessCase } from '@/lib/case/case_store';
+import { findClientUserById } from '@/lib/auth/client-user';
+import { activeBrandFor } from '@/lib/client/active-brand';
 
 export const runtime = 'nodejs';
 
@@ -23,9 +25,6 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     tenantId: 'av'
   });
   if (!guard.ok) return guard.response;
-  if (guard.actor.role === 'client_user') {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-  }
 
   const caseId = parseInt(ctx.params.caseId, 10);
   const documentId = parseInt(ctx.params.documentId, 10);
@@ -36,6 +35,22 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
   const doc = await getDocument(documentId);
   if (!doc || doc.caseId !== caseId) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
+  // Read-only access for client_users: the byte stream is what the SectionText
+  // hyperlink opens in a new tab. Rebecca (primary) or Adriana (collaborator)
+  // must be able to follow §6.G(2) into the PDF. We honor the same access
+  // rule used by the case detail page (primary OR approved collaborator).
+  if (guard.actor.role === 'client_user') {
+    const user = await findClientUserById(guard.actor.userId);
+    if (!user) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+    const primaryClientId = await activeBrandFor(guard.actor.userId, user.client_id ?? null);
+    const allowed = await canClientUserAccessCase(guard.actor.userId, primaryClientId ?? 0, caseId);
+    if (!allowed) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
   }
 
   const bytes = await getHotStorage('case-documents').getBytes(doc.storageUri);

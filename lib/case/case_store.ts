@@ -84,6 +84,8 @@ export interface CaseDocument {
   uploadedByUserId: number | null;
   uploadedAt: string | null;
   notes: string | null;
+  /** {sectionKey: pageNumber} map for PDF deep-linking. NULL = not indexed yet. */
+  sectionIndex: Record<string, number> | null;
 }
 
 export interface CaseParty {
@@ -180,6 +182,7 @@ interface DocumentRow extends RowDataPacket {
   uploaded_by_user_id: number | null;
   uploaded_at: Date | string | null;
   notes: string | null;
+  section_index: string | null;
 }
 
 interface PartyRow extends RowDataPacket {
@@ -292,6 +295,15 @@ function rowToEvent(r: EventRow): CaseEvent {
 }
 
 function rowToDocument(r: DocumentRow): CaseDocument {
+  let sectionIndex: Record<string, number> | null = null;
+  if (r.section_index) {
+    try {
+      const parsed = JSON.parse(r.section_index);
+      if (parsed && typeof parsed === 'object') {
+        sectionIndex = parsed as Record<string, number>;
+      }
+    } catch { /* malformed JSON — treat as not indexed */ }
+  }
   return {
     documentId: r.document_id,
     caseId: r.case_id,
@@ -303,7 +315,8 @@ function rowToDocument(r: DocumentRow): CaseDocument {
     sizeBytes: r.size_bytes == null ? null : Number(r.size_bytes),
     uploadedByUserId: r.uploaded_by_user_id,
     uploadedAt: toIso(r.uploaded_at),
-    notes: r.notes
+    notes: r.notes,
+    sectionIndex
   };
 }
 
@@ -717,6 +730,50 @@ export async function getDocument(documentId: number): Promise<CaseDocument | nu
     return rows[0] ? rowToDocument(rows[0]) : null;
   } catch (err) {
     console.error('getDocument failed', err);
+    return null;
+  }
+}
+
+/** Persist the {sectionKey: pageNumber} index built by pdf_section_index. */
+export async function setDocumentSectionIndex(
+  documentId: number,
+  index: Record<string, number>
+): Promise<boolean> {
+  if (!Number.isInteger(documentId) || documentId <= 0) return false;
+  try {
+    const db = getAvDb();
+    await db.execute<ResultSetHeader>(
+      `UPDATE case_documents SET section_index = ? WHERE document_id = ?`,
+      [JSON.stringify(index), documentId]
+    );
+    return true;
+  } catch (err) {
+    console.error('setDocumentSectionIndex failed', err);
+    return false;
+  }
+}
+
+/** Return the most recent indexable document for a case — the "trust" doc
+ *  takes priority because that's what action items reference; falls back to
+ *  will / poa / medical_directive. Used by renderers that need to know which
+ *  doc to deep-link sections into.
+ */
+export async function findIndexableDocumentForCase(caseId: number): Promise<CaseDocument | null> {
+  if (!Number.isInteger(caseId) || caseId <= 0) return null;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<DocumentRow[]>(
+      `SELECT * FROM case_documents
+        WHERE case_id = ?
+          AND document_kind IN ('trust', 'will', 'poa', 'medical_directive')
+        ORDER BY FIELD(document_kind, 'trust', 'will', 'poa', 'medical_directive'),
+                 uploaded_at DESC, document_id DESC
+        LIMIT 1`,
+      [caseId]
+    );
+    return rows[0] ? rowToDocument(rows[0]) : null;
+  } catch (err) {
+    console.error('findIndexableDocumentForCase failed', err);
     return null;
   }
 }
