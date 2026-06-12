@@ -21,6 +21,7 @@ import { notFound } from 'next/navigation';
 import { loadFullCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
+import DocumentVaultPanel from '@/components/case/DocumentVaultPanel';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -169,35 +170,19 @@ export default async function CaseDetailPage({ params }: PageProps) {
               )}
             </section>
 
-            {/* Document vault */}
-            <section className="rounded-xl border border-border bg-[var(--surface-2)] p-5">
-              <h2 className="text-sm uppercase tracking-wider text-muted mb-3">Document vault</h2>
-              {full.documents.length === 0 ? (
-                <div className="text-sm text-muted italic">No documents yet.</div>
-              ) : (
-                <ul className="space-y-2">
-                  {full.documents.map((d) => (
-                    <li key={d.documentId} className="flex items-start justify-between gap-3 text-sm">
-                      <div className="flex-1">
-                        <div className="font-medium">{d.documentName}</div>
-                        {d.documentKind && (
-                          <div className="text-xs text-muted">{d.documentKind}</div>
-                        )}
-                        {d.notes && (
-                          <div className="text-xs text-muted mt-1">{d.notes}</div>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted text-right">
-                        <div>{formatDate(d.uploadedAt)}</div>
-                        {d.sizeBytes && (
-                          <div>{Math.round(d.sizeBytes / 1024)} KB</div>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+            {/* Document vault — uploadable */}
+            <DocumentVaultPanel
+              caseId={c.caseId}
+              documents={full.documents.map((d) => ({
+                documentId: d.documentId,
+                documentName: d.documentName,
+                documentKind: d.documentKind,
+                mimeType: d.mimeType,
+                sizeBytes: d.sizeBytes,
+                uploadedAt: d.uploadedAt,
+                notes: d.notes
+              }))}
+            />
 
             {/* Family wellness — mounts only when enabled */}
             {wellness && (

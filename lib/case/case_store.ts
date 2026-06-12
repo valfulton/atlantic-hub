@@ -628,6 +628,38 @@ export async function listDocuments(caseId: number, kind?: string): Promise<Case
   }
 }
 
+/** Fetch a single document by id. Used by the byte-serve endpoint. */
+export async function getDocument(documentId: number): Promise<CaseDocument | null> {
+  if (!Number.isInteger(documentId) || documentId <= 0) return null;
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<DocumentRow[]>(
+      `SELECT * FROM case_documents WHERE document_id = ? LIMIT 1`,
+      [documentId]
+    );
+    return rows[0] ? rowToDocument(rows[0]) : null;
+  } catch (err) {
+    console.error('getDocument failed', err);
+    return null;
+  }
+}
+
+/** Delete a document row. Caller is responsible for purging blob bytes. */
+export async function deleteDocument(documentId: number): Promise<boolean> {
+  if (!Number.isInteger(documentId) || documentId <= 0) return false;
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `DELETE FROM case_documents WHERE document_id = ?`,
+      [documentId]
+    );
+    return res.affectedRows > 0;
+  } catch (err) {
+    console.error('deleteDocument failed', err);
+    return false;
+  }
+}
+
 // ── Parties ───────────────────────────────────────────────────────────
 
 export interface AddPartyInput {
