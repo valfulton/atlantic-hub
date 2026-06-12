@@ -13,6 +13,17 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Bundle pdfjs-dist worker files into serverless functions. The legacy worker
+# (.mjs) sits in node_modules and is resolved at runtime via createRequire;
+# we tell Netlify's bundler not to strip it during tree-shaking.
+[functions]
+  included_files = [
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+    "node_modules/pdfjs-dist/build/pdf.worker.mjs"
+  ]
+  external_node_modules = ["pdfjs-dist"]
+
 # Force HTTPS, never serve the .netlify.app preview as production
 [context.production]
   command = "npm run build"

@@ -61,6 +61,31 @@ export async function buildSectionIndex(bytes: Buffer): Promise<SectionIndex> {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore resolved at runtime via package; legacy build is Node-safe.
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
+    // CRITICAL for Netlify serverless: pdfjs 4.x spins up a "fake worker" by
+    // dynamic-importing the worker module. The bundler-mangled URL points at
+    // a chunks/ path that doesn't exist on disk, so the import fails with
+    // 'Cannot find module .next/server/chunks/pdf.worker.mjs'.
+    //
+    // Fix: point GlobalWorkerOptions.workerSrc at the worker file inside
+    // node_modules. Combined with serverComponentsExternalPackages, this
+    // makes the resolution work in deployed functions.
+    try {
+      const { createRequire } = await import('node:module');
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore import.meta is available in ESM module context at runtime
+      const req = createRequire(import.meta.url);
+      const workerPath = req.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+      // pdfjs.GlobalWorkerOptions is the standard config surface.
+      if (pdfjs.GlobalWorkerOptions) {
+        pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
+      }
+    } catch (workerErr) {
+      // Non-fatal: fall through to fake worker. If that ALSO fails, the outer
+      // catch surfaces the real error.
+      console.warn('pdfjs worker resolve failed (will try fake worker)', workerErr);
+    }
+
     // pdfjs.getDocument expects a Uint8Array or { data: Uint8Array }
     const uint8 = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const loadingTask = pdfjs.getDocument({
