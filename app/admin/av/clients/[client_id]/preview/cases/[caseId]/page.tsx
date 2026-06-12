@@ -12,11 +12,31 @@
  */
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { loadFullCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+/**
+ * (val 2026-06-12) Cream-register tokens defined LOCALLY on the page wrapper.
+ * The operator route's base theme defines --ink as near-white (#f1f5f9, for the
+ * dark cockpit); without redefining the cream tokens here, the case body text
+ * inherited that near-white --ink and rendered bone-on-cream (val's legibility
+ * blocker on the preview mirror). Setting the cream palette on the container
+ * makes every var(--ink/--muted/--paper/...) inside resolve to cream values,
+ * independent of whichever theme the surrounding route applies.
+ */
+const CREAM_SKIN = {
+  '--ink': '#14201B',
+  '--muted': '#5C6862',
+  '--paper': '#FFFFFF',
+  '--cream': '#FAF8F4',
+  '--gold-deep': '#7A5A18',
+  '--emerald-deep': '#0A4D3C',
+  '--emerald-mist': '#DCEDE5'
+} as CSSProperties;
 
 interface PageProps {
   params: { client_id: string; caseId: string };
@@ -66,13 +86,17 @@ export default async function PreviewCasePage({ params }: PageProps) {
 
   return (
     <>
-      {/* Operator chrome banner */}
+      {/* Operator chrome banner — colors aligned to the shared
+          OperatorPreviewChrome pattern (cream ground #F5EFE3, gold border,
+          emerald-deep accent text — AA-safe on cream; the prior tan + coral
+          #4A1B0C was off-pattern). Full component adoption pending a `cases`
+          tab in the shared TABS array. */}
       <div style={{
-        background: '#F7F1E1',
-        borderBottom: '0.5px solid rgba(122,90,24,0.3)',
+        background: '#F5EFE3',
+        borderBottom: '1px solid rgba(201,169,97,0.4)',
         padding: '10px 18px',
         fontSize: 12,
-        color: '#4A1B0C',
+        color: '#1B2329',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -80,20 +104,20 @@ export default async function PreviewCasePage({ params }: PageProps) {
         gap: 10
       }}>
         <div>
-          <strong>Operator preview</strong> — what {c.caseName} sees here. Read-only.
+          <strong style={{ color: '#0A4D3C' }}>Operator preview</strong> — what {c.caseName} sees here. Read-only.
         </div>
         <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
-          <Link href={`/admin/av/clients/${clientId}/cases/${caseId}`} style={{ color: '#7A5A18', textDecoration: 'underline' }}>
+          <Link href={`/admin/av/clients/${clientId}/cases/${caseId}`} style={{ color: '#0A4D3C', textDecoration: 'underline' }}>
             Operator case dashboard →
           </Link>
-          <Link href={`/admin/av/clients/${clientId}`} style={{ color: '#7A5A18', textDecoration: 'underline' }}>
+          <Link href={`/admin/av/clients/${clientId}`} style={{ color: '#0A4D3C', textDecoration: 'underline' }}>
             Back to client
           </Link>
         </div>
       </div>
 
       {/* Same content as /client/cases/[caseId] */}
-      <main className="min-h-screen" style={{ background: 'var(--cream, #FAF8F4)', color: 'var(--ink, #14201B)' }}>
+      <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
           <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginBottom: 18 }}>
             <span style={{ color: 'var(--gold-deep, #7A5A18)' }}>Your matters</span>

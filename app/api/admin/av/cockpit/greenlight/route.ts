@@ -37,6 +37,7 @@ import {
   type ApprovalKind
 } from '@/lib/av/cockpit_approvals';
 import { logPressTouch } from '@/lib/client/press_touches';
+import { resolveApproverDisplayName, countActiveClientLogins } from '@/lib/av/account_team';
 import { getAvDb } from '@/lib/db/av';
 import type { ResultSetHeader } from 'mysql2';
 
@@ -177,10 +178,18 @@ export async function POST(req: NextRequest) {
 
   await linkDispatch(approvalId, dispatch);
 
+  // (Spinoff B) Surface WHO approved + whether this brand is jointly held, so
+  // the cockpit can render an "approved by Kevin · joint authority" badge.
+  // Visibility only — approval is never blocked on a co-pilot's sign-off.
+  const approver = await resolveApproverDisplayName(actorId);
+  const jointAuthority = (await countActiveClientLogins(a.client_id)) >= 2;
+
   return NextResponse.json({
     ok: true,
     approvalId,
     action: 'green',
-    dispatched: dispatch
+    dispatched: dispatch,
+    approvedByName: approver?.name ?? null,
+    jointAuthority
   });
 }

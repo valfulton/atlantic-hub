@@ -55,6 +55,9 @@ interface Approval {
    *  draft yet (renders "No draft yet — click Edit"). */
   bodyWordCount?: number;
   state?: 'live' | 'killed';
+  /** (Spinoff B) Who green-lit this draft, resolved server-side on approve.
+   *  Drives the "approved by Kevin · joint authority" badge. */
+  approvedByName?: string | null;
 }
 
 // Kind-aware hero copy. Falls back to lead_gen on unknown kinds.
@@ -121,7 +124,8 @@ const KIND_RING: Record<string, string> = {
 export default function CockpitClient({
   data,
   clientId,
-  initialApprovals
+  initialApprovals,
+  jointAuthority = false
 }: {
   data: CockpitData;
   clientId: number;
@@ -130,6 +134,10 @@ export default function CockpitClient({
    *  so every defense_pr client sees drafts about THEIR case, not Ron's.
    *  Falls back to the legacy hardcoded set only if the server didn't supply. */
   initialApprovals?: Approval[];
+  /** (Spinoff B) True when 2+ logins share this brand (joint tenants, e.g.
+   *  Kevin + Maile on The Flame). Shows a "joint authority" badge on approvals:
+   *  either co-pilot's green light counts; approval is never blocked. */
+  jointAuthority?: boolean;
 }) {
   const hero = HERO[data.kind] ?? HERO.lead_gen;
   const ring = KIND_RING[data.kind] ?? KIND_RING.lead_gen;
@@ -169,16 +177,27 @@ export default function CockpitClient({
     const body = isInline && card
       ? { clientId, action, approval: { kind: card.kind, title: card.title, source: card.source, angle: card.angle } }
       : { clientId, approvalId: Number(id) || id, action };
+    // (Spinoff B) Capture WHO approved from the response so the card can show
+    // "approved by Kevin · joint authority". Non-fatal — UI flips optimistically.
+    let approvedByName: string | null = null;
     try {
-      await fetch(`/api/admin/av/cockpit/greenlight`, {
+      const res = await fetch(`/api/admin/av/cockpit/greenlight`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body)
       });
+      try {
+        const j = await res.json();
+        if (j && typeof j.approvedByName === 'string') approvedByName = j.approvedByName;
+      } catch {
+        /* response body optional */
+      }
     } catch {
       /* swallow; UI optimistically flips below */
     }
-    setApprovals((prev) => prev.map((a) => a.id === id ? { ...a, state: action === 'green' ? 'live' : 'killed' } : a));
+    setApprovals((prev) => prev.map((a) => a.id === id
+      ? { ...a, state: action === 'green' ? 'live' : 'killed', approvedByName: action === 'green' ? approvedByName : a.approvedByName }
+      : a));
     setBusyId(null);
   }
 
@@ -267,7 +286,7 @@ export default function CockpitClient({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {approvals.map((a) => (
-            <ApprovalRow key={a.id} approval={a} busy={busyId === a.id} onAct={(action) => act(a.id, action)} />
+            <ApprovalRow key={a.id} approval={a} busy={busyId === a.id} jointAuthority={jointAuthority} onAct={(action) => act(a.id, action)} />
           ))}
         </div>
       </div>
@@ -316,7 +335,7 @@ function BriefLine({ label, value }: { label: string; value?: string }) {
   );
 }
 
-function ApprovalRow({ approval, busy, onAct }: { approval: Approval; busy: boolean; onAct: (a: 'green' | 'kill' | 'edit') => void }) {
+function ApprovalRow({ approval, busy, jointAuthority, onAct }: { approval: Approval; busy: boolean; jointAuthority?: boolean; onAct: (a: 'green' | 'kill' | 'edit') => void }) {
   const live = approval.state === 'live';
   const killed = approval.state === 'killed';
   const kindLabel: Record<string, string> = { commercial: 'Commercial', press_release: 'Press release', op_ed: 'Op-ed', social: 'Social' };
@@ -340,6 +359,19 @@ function ApprovalRow({ approval, busy, onAct }: { approval: Approval; busy: bool
           {live && <span style={{ background: '#E1F5EE', color: '#085041', fontSize: 10, padding: '2px 6px', borderRadius: 6 }}>LIVE</span>}
           {killed && <span style={{ background: '#F1EFE8', color: '#444441', fontSize: 10, padding: '2px 6px', borderRadius: 6 }}>killed</span>}
         </div>
+        {/* (Spinoff B) Approval attribution — "approved by Kevin · joint
+            authority". Visibility only: shows WHO green-lit it; joint authority
+            means either co-pilot's approval counts (never blocked on the other). */}
+        {live && (approval.approvedByName || jointAuthority) && (
+          <div style={{ fontSize: 11, color: '#085041', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span>✓ Approved{approval.approvedByName ? ` by ${approval.approvedByName}` : ''}</span>
+            {jointAuthority && (
+              <span style={{ background: '#E1F5EE', color: '#085041', fontSize: 9, padding: '1px 6px', borderRadius: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                joint authority
+              </span>
+            )}
+          </div>
+        )}
         {/* Campaign name — plain text, shows which campaign feeds the draft. */}
         {campaignName ? (
           <div style={{ fontSize: 11, color: '#0A4D3C', marginTop: 3 }}>

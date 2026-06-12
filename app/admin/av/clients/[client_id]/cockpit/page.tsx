@@ -35,6 +35,8 @@ import { cockpitTitlesFor } from '@/lib/av/cockpit_asset_titles';
 // (#571, Tier 2.1) Real cockpit counters — replace the mock pulse numbers.
 import { countPendingApprovals, listApprovalsForClient } from '@/lib/av/cockpit_approvals';
 import { countPressTouchesThisWeek } from '@/lib/client/press_touches';
+// (Spinoff B) Joint-tenant signal for the approval "joint authority" badge.
+import { countActiveClientLogins } from '@/lib/av/account_team';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,13 +110,16 @@ export default async function CockpitPage({ params }: CockpitProps) {
   //         take precedence below so edits aren't overwritten).
   // (#569/#570) Existing approvals from cockpit_approvals — persisted edits
   //         + greenlit rows merge ahead of the inline brief-generated slots.
-  const [narrativesRunning, pendingApprovals, pressTouches, signalsThisWeek, persistedApprovals] = await Promise.all([
+  const [narrativesRunning, pendingApprovals, pressTouches, signalsThisWeek, persistedApprovals, clientLoginCount] = await Promise.all([
     countNarrativesRunningForClient(clientId),
     countPendingApprovals(clientId),
     countPressTouchesThisWeek(clientId),
     countSignalsThisWeekForBrief(brief as Record<string, unknown>),
-    listApprovalsForClient(clientId, { status: 'pending', limit: 8 })
+    listApprovalsForClient(clientId, { status: 'pending', limit: 8 }),
+    countActiveClientLogins(clientId)
   ]);
+  // (Spinoff B) 2+ logins on the brand = jointly held → show "joint authority".
+  const jointAuthority = clientLoginCount >= 2;
 
   const briefTitles = cockpitTitlesFor(kind, brief as Record<string, unknown>);
   // (#581) Carry campaignName + bodyWordCount through so the cockpit cards can
@@ -152,7 +157,7 @@ export default async function CockpitPage({ params }: CockpitProps) {
     }
   };
 
-  return <CockpitClient data={cockpitData} clientId={clientId} initialApprovals={merged} />;
+  return <CockpitClient data={cockpitData} clientId={clientId} initialApprovals={merged} jointAuthority={jointAuthority} />;
 }
 
 /** (#571) Count active narrative lines owned by this client. Soft-fail to 0. */

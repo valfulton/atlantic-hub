@@ -34,6 +34,7 @@ import OwnerIntakeLink from './OwnerIntakeLink';
 import SendPasswordButton from './SendPasswordButton';
 import ClientAccessGroup from './ClientAccessGroup';
 import AttachLoginPanel from './AttachLoginPanel';
+import InviteCopilotPanel from './InviteCopilotPanel';
 import PublicIntelPanel from './PublicIntelPanel';
 import DistressWatchlistPanel from './DistressWatchlistPanel';
 import CascadePanel from './CascadePanel';
@@ -414,6 +415,23 @@ export default async function ClientDetailPage({ params }: { params: { client_id
           </>
         }
       />
+      {/* (Spinoff B) Invite co-pilot — add a SECOND login to this brand so two
+          people (e.g. Kevin + Maile Lyons on The Flame) each sign in with their
+          own email and see the SAME brand. Co-pilots are full client_users; the
+          joint nature is brand-level (both notified, either's approval counts),
+          not a separate role. Renders the current roster + an invite form. */}
+      <div className="mt-4">
+        <InviteCopilotPanel
+          clientId={clientId}
+          clientName={d.name}
+          existing={d.members.map((m) => ({
+            email: m.email,
+            displayName: m.displayName,
+            tier: m.tier,
+            lastLoginAt: m.lastLoginAt
+          }))}
+        />
+      </div>
       </MobileAccordion>
 
       {/* (#512) Site Health KPI strip — last audit's 7-axis scores at a glance.

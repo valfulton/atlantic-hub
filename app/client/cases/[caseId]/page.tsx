@@ -8,6 +8,7 @@
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { ensureClientHub } from '@/lib/client/provision';
@@ -19,6 +20,22 @@ import { loadFullWellness } from '@/lib/case/family_wellness';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+/**
+ * (val 2026-06-12) Cream-register tokens defined locally so the case body text
+ * resolves to emerald-black on cream regardless of the surrounding theme — the
+ * same guard the operator preview mirror needs (where the dark cockpit's --ink
+ * is near-white). Keeps both surfaces self-contained and legible.
+ */
+const CREAM_SKIN = {
+  '--ink': '#14201B',
+  '--muted': '#5C6862',
+  '--paper': '#FFFFFF',
+  '--cream': '#FAF8F4',
+  '--gold-deep': '#7A5A18',
+  '--emerald-deep': '#0A4D3C',
+  '--emerald-mist': '#DCEDE5'
+} as CSSProperties;
 
 interface PageProps {
   params: { caseId: string };
@@ -100,7 +117,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
 
   return (
-    <main className="min-h-screen" style={{ background: 'var(--cream, #FAF8F4)', color: 'var(--ink, #14201B)' }}>
+    <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
         {/* Breadcrumb */}
         <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginBottom: 18 }}>
