@@ -542,12 +542,14 @@ export const VERTICAL_PACKS: Record<VerticalPackId, VerticalPack> = {
     targetAudience: 'consumer',
     signalWeights: {
       // Parent residence is the centerpiece — any deed activity is critical.
-      property_transfer: 35,
-      // Liens on the home indicate financial pressure or potential elder
-      // financial exploitation.
-      lien_filing: 30,
+      // The recorder adapters classify all deed types (NOD, NTS, Trustee Deed,
+      // Grant Deed, etc.) under property_transfer until a lien-specific signal
+      // is added in Phase 3.
+      property_transfer: 50,
       // A parent moving mid-case is a major flag (per the Johnson scenario).
       address_change: 25,
+      // Lawsuit filings — probate disputes, trust contests, elder-abuse cases.
+      lawsuit_filed: 15,
       // Local distress patterns help anticipate care/transport needs.
       code_violation: 5,
       // Investor entities forming near a parent residence (potential heir
