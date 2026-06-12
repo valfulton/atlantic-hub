@@ -30,7 +30,10 @@ const STATUS_OK: ActionStatus[] = ['open', 'in_progress', 'done', 'blocked'];
 const PRIORITY_OK: ActionPriority[] = ['low', 'normal', 'high', 'urgent'];
 
 export async function PATCH(req: NextRequest, ctx: RouteContext) {
-  const guard = await guardAdminRequest(req);
+  const guard = await guardAdminRequest(req, {
+    targetResource: `case_action:${ctx.params.actionId}`,
+    tenantId: 'av'
+  });
   if (!guard.ok) return guard.response;
 
   const actionId = parseInt(ctx.params.actionId, 10);

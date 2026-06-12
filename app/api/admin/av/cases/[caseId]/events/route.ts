@@ -27,7 +27,10 @@ interface RouteContext {
 }
 
 export async function POST(req: NextRequest, ctx: RouteContext) {
-  const guard = await guardAdminRequest(req);
+  const guard = await guardAdminRequest(req, {
+    targetResource: `case_event:${ctx.params.caseId}`,
+    tenantId: 'av'
+  });
   if (!guard.ok) return guard.response;
 
   const caseId = parseInt(ctx.params.caseId, 10);
@@ -69,7 +72,7 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     eventDetail: typeof b.eventDetail === 'string' ? b.eventDetail : null,
     source: typeof b.source === 'string' ? b.source : null,
     sourceUri: typeof b.sourceUri === 'string' ? b.sourceUri : null,
-    createdByUserId: guard.userId ?? null
+    createdByUserId: guard.actor.userId ?? null
   });
 
   if (!eventId) {

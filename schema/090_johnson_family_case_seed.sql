@@ -44,6 +44,9 @@ SET NAMES utf8mb4;
 -- and on case_parties + case_property, NOT on clients. Don't try to add
 -- them here — that's the field-parity-for-FORM work (#567), not schema.
 -- ---------------------------------------------------------------------
+-- Idempotent: re-running must not duplicate the client row. ON DUPLICATE
+-- KEY UPDATE collides on uq_client_slug; the SELECT after fetches the id
+-- whether we just inserted or already had it from a prior run.
 INSERT INTO clients (
   client_uuid, client_name, short_name, client_slug,
   industry, plan_tier, created_at
@@ -55,8 +58,10 @@ INSERT INTO clients (
   'Elder advocacy / Trust dispute',
   'sprint',
   NOW()
-);
-SET @client_id := LAST_INSERT_ID();
+) ON DUPLICATE KEY UPDATE
+  short_name = VALUES(short_name),
+  industry = VALUES(industry);
+SET @client_id := (SELECT client_id FROM clients WHERE client_slug='johnson-family' LIMIT 1);
 
 -- ---------------------------------------------------------------------
 -- 2. Create the case (wellness_enabled = TRUE — the family wellness
