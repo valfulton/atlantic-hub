@@ -28,9 +28,23 @@
  * those don't pin to a specific paragraph. Goal is precision, not recall.
  */
 
-// Pattern: optional "§" or "Section ", then 1+ digits, ".", an uppercase letter,
-// optionally followed by "(N)" subitem. We capture the section key without §.
-const SECTION_REGEX = /(?:§\s*|Section\s+)(\d+)\.([A-Z])(?:\s*\((\d+)\))?/g;
+// TWO regexes, because the PDF body and operator analysis text use different
+// conventions:
+//
+//   ANALYSIS_REGEX — for parsing operator/Adriana text in action items and
+//     synopsis. Requires the literal § marker or the word "Section " so we
+//     only link explicit references, not coincidental "5.A" mentions.
+//
+//   PDF_SCAN_REGEX — for scanning the trust PDF itself. Real trust documents
+//     print section headers as bare "5.A" or "5.A." — no § symbol. We allow
+//     the § OR a word boundary, but we still anchor on uppercase letter so
+//     things like "version 2.5" don't match.
+const ANALYSIS_REGEX = /(?:§\s*|Section\s+)(\d+)\.([A-Z])(?:\s*\((\d+)\))?/g;
+const PDF_SCAN_REGEX = /(?:§\s*|\b)(\d+)\.([A-Z])(?:\s*\((\d+)\))?(?=[.\s]|$)/g;
+
+// Legacy name kept for back-compat with any external callers that reference
+// it via barrel imports.
+const SECTION_REGEX = ANALYSIS_REGEX;
 
 /** Normalize whatever the regex captured into a canonical key like "6.G(2)". */
 export function normalizeSectionKey(major: string, letter: string, sub: string | null): string {
@@ -74,8 +88,9 @@ export async function buildSectionIndex(bytes: Buffer): Promise<SectionIndex> {
       const pageNum = idx + 1; // PDF page numbers are 1-indexed
       const stripped = (rawText || '').replace(/\s+/g, ' ');
 
+      // PDF body uses bare "5.A" or "5.A." — the loose regex.
       let match: RegExpExecArray | null;
-      const regex = new RegExp(SECTION_REGEX.source, 'g');
+      const regex = new RegExp(PDF_SCAN_REGEX.source, 'g');
       while ((match = regex.exec(stripped)) !== null) {
         const key = normalizeSectionKey(match[1], match[2], match[3] ?? null);
         if (!(key in pages)) {
@@ -115,7 +130,8 @@ export interface SectionRef {
 
 export function findSectionReferences(body: string): SectionRef[] {
   if (!body) return [];
-  const regex = new RegExp(SECTION_REGEX.source, 'g');
+  // Analysis text always uses §X.Y or "Section X.Y" — strict regex.
+  const regex = new RegExp(ANALYSIS_REGEX.source, 'g');
   const out: SectionRef[] = [];
   let match: RegExpExecArray | null;
   while ((match = regex.exec(body)) !== null) {
