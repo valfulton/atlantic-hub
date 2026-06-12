@@ -24,6 +24,8 @@
  * No external network; pure server-side pdfjs-dist text extraction.
  */
 
+import { createRequire } from 'node:module';
+
 // Pattern: optional "§" or "Section ", then 1+ digits, ".", an uppercase letter,
 // optionally followed by "(N)" subitem. We capture the section key without §.
 const SECTION_REGEX = /(?:§\s*|Section\s+)(\d+)\.([A-Z])(?:\s*\((\d+)\))?/g;
@@ -71,12 +73,16 @@ export async function buildSectionIndex(bytes: Buffer): Promise<SectionIndex> {
     // node_modules. Combined with serverComponentsExternalPackages, this
     // makes the resolution work in deployed functions.
     try {
-      const { createRequire } = await import('node:module');
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore import.meta is available in ESM module context at runtime
-      const req = createRequire(import.meta.url);
+      // Next.js compiles server modules to CommonJS, so __filename exists at
+      // runtime even though this file uses ESM-style imports. Use it (not
+      // import.meta.url) so the same call site works in both compilation
+      // modes. createRequire then resolves the worker's real disk path inside
+      // node_modules, sidestepping the bundler-mangled chunks/ URL.
+      const baseFile = typeof __filename !== 'undefined'
+        ? __filename
+        : process.cwd() + '/lib/case/pdf_section_index.ts';
+      const req = createRequire(baseFile);
       const workerPath = req.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
-      // pdfjs.GlobalWorkerOptions is the standard config surface.
       if (pdfjs.GlobalWorkerOptions) {
         pdfjs.GlobalWorkerOptions.workerSrc = workerPath;
       }
