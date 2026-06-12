@@ -20,6 +20,9 @@ import { pacerDocketAdapter } from './adapters/pacer_docket';
 import { gbpAdapter } from './adapters/gbp';
 import { dataSfAdapter } from './adapters/datasf';
 import { mdLandRecAdapter } from './adapters/md_land_rec';
+// (val 2026-06-11) Johnson family anchor — Contra Costa County CA recorder.
+// Scaffold registered; live Browserless scrape lands in Phase 3.
+import { caContraCostaRecorderAdapter } from './adapters/ca_contra_costa_recorder';
 
 export interface AdapterEntry {
   adapter: PublicIntelAdapter;
@@ -111,7 +114,10 @@ const IMPLEMENTED: PublicIntelAdapter[] = [
   gbpAdapter,
   dataSfAdapter,
   // (#423) First adapter in the multi-state RE foreclosure rollout.
-  mdLandRecAdapter
+  mdLandRecAdapter,
+  // (val 2026-06-11) Anchor adapter for the Johnson family case. Scaffold today,
+  // live scrape Phase 3 (see lib/public_intel/adapters/ca_contra_costa_recorder.ts).
+  caContraCostaRecorderAdapter
 ];
 
 const REGISTRY: Map<PublicIntelKind, AdapterEntry> = new Map();
