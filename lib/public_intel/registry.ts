@@ -51,13 +51,14 @@ const PLANNED: Array<{ kind: PublicIntelKind; displayName: string; description: 
     bestFor: ['Adriana (CLDA)', 'B2B sales'],
     costNote: 'Free · bizfileOnline scrape (rate-limited)'
   },
-  {
-    kind: 'ca_recorder',
-    displayName: 'CA county recorder filings',
-    description: 'Per-county recorder filings: deeds, liens, releases. No federal API — adapters scrape per-county portals (LA, SF, San Diego, OC, Sacramento).',
-    bestFor: ['Adriana (CLDA)'],
-    costNote: 'Free per-county scrape · varies by county'
-  },
+  // (val 2026-06-12) Removed: generic 'ca_recorder' placeholder. It was rendering
+  // a "coming soon" line in the starter-pack activation report ALONGSIDE the real
+  // ca_contra_costa_recorder adapter (which IS implemented and IS surfaced via
+  // the IMPLEMENTED array). The duplicate confused val: she saw "CA county
+  // recorder filings · coming soon" and assumed Contra Costa wasn't built. The
+  // real adapter's displayName is 'Contra Costa County (CA) Clerk-Recorder' so
+  // it's clearly named. As we add more county adapters they get registered the
+  // same way (one entry per county adapter, no generic placeholder).
   {
     kind: 'datasf',
     displayName: 'DataSF (San Francisco Open Data)',
