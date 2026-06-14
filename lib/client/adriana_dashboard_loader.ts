@@ -21,7 +21,7 @@ import { getDistrictHeatMap, parseDistrictZips, type DistrictSignal } from '@/li
 import { parseItinerary, nextStops, type ItineraryStop } from '@/lib/client/itinerary';
 import { listDraftsForClient, countPendingDraftsForClient, type ClientCockpitDraft } from '@/lib/client/cockpit_drafts';
 import type { RowDataPacket } from 'mysql2';
-import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember } from '@/app/client/dashboard/AdrianaDashboard';
+import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember, MatterCard } from '@/app/client/dashboard/AdrianaDashboard';
 
 /** (#550 v2) Kind-specific live data the dashboard panels render. Every field
  *  is optional — only the panels enabled by the active engagement_kind get
@@ -411,6 +411,70 @@ async function clientShortNameOf(clientId: number): Promise<string | null> {
   }
 }
 
+// (val 2026-06-14, UX/UI Beauty Pack) Role enum → human label. Mirror copy of
+// ROLE_LABEL in components/case/ViewAsPicker.tsx; keep both in sync if you
+// edit one. (Lives here so the loader doesn't import a client component.)
+const COLLAB_ROLE_LABEL: Record<string, string> = {
+  attorney: 'Attorney / advisor',
+  advisor: 'Advisor',
+  parent: 'Parent',
+  primary_caregiver: 'Primary caregiver',
+  successor_trustee: 'Successor trustee',
+  sibling_admin: 'Family (admin)',
+  sibling_commenter: 'Family',
+  sibling_reader: 'Family (view only)'
+};
+
+/** (val 2026-06-14, UX/UI PATCH 1) Cases this user collaborates on
+ *  (attorney / family / advisor), with the count of OPEN action items needing
+ *  them. Honors family_case_collaborators.parent_approved + revoked_at — the
+ *  same gate as listCasesAccessibleByClientUser. Soft-fails to [] so a missing
+ *  table never breaks the dashboard. Guarded against clientUserId <= 0 so the
+ *  operator preview (which may pass member?.client_user_id ?? 0) doesn't run
+ *  the query when there's no real client_user. */
+async function loadMattersForUser(clientUserId: number): Promise<MatterCard[]> {
+  if (!Number.isInteger(clientUserId) || clientUserId <= 0) return [];
+  try {
+    const db = getAvDb();
+    type Row = RowDataPacket & {
+      case_id: number;
+      case_name: string;
+      case_kind: string;
+      collab_role: string | null;
+      open_actions: number;
+      urgent_actions: number;
+    };
+    const [rows] = await db.execute<Row[]>(
+      `SELECT c.case_id, c.case_name, c.case_kind, fcc.role AS collab_role,
+              (SELECT COUNT(*) FROM case_action_items ai
+                 WHERE ai.case_id = c.case_id AND ai.status <> 'done') AS open_actions,
+              (SELECT COUNT(*) FROM case_action_items ai
+                 WHERE ai.case_id = c.case_id AND ai.status <> 'done'
+                   AND ai.priority = 'urgent') AS urgent_actions
+         FROM family_case_collaborators fcc
+         JOIN cases c ON c.case_id = fcc.case_id
+        WHERE fcc.client_user_id = ?
+          AND fcc.revoked_at IS NULL
+          AND fcc.parent_approved = TRUE
+          AND c.status = 'open'
+        ORDER BY c.case_id DESC
+        LIMIT 6`,
+      [clientUserId]
+    );
+    return rows.map((r) => ({
+      caseId: r.case_id,
+      caseName: r.case_name,
+      caseKind: r.case_kind,
+      roleLabel: COLLAB_ROLE_LABEL[(r.collab_role || '').toLowerCase()] || 'Advisor',
+      openActions: Number(r.open_actions ?? 0),
+      urgentActions: Number(r.urgent_actions ?? 0),
+      href: `/client/cases/${r.case_id}`
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDashboardProps> {
   const { clientUserId, activeClientId, firstName, brandName, brandPill } = args;
 
@@ -441,6 +505,11 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   let activeClientName: string | null = null;
   let activeClientShortName: string | null = null;
   let activeCampaignCount = 0;
+  // (val 2026-06-14, UX/UI PATCH 1) Cases this user collaborates on. Soft-fails
+  // to []. Empty for users with no collaborator rows — the dashboard hides the
+  // matters card entirely in that case.
+  const matters = await loadMattersForUser(clientUserId);
+
   // (#377) AV employees on this client — Adriana sees Rebecca; Tim sees nothing.
   // Lib already returns [] on error, so this never breaks the dashboard.
   let team: TeamMember[] = [];
@@ -624,6 +693,7 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     engagementKind,
     kindConfig,
     brands,
+    matters,
     team,
     // (SPEC §1) Outcome-hero payload — pipeline buckets, forecast potential,
     // and the "this week" recap counts. Hero hides zero clauses.

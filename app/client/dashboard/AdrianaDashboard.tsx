@@ -60,6 +60,20 @@ export interface BrandChip {
   active: boolean;
 }
 
+/** (val 2026-06-14, UX/UI Beauty Pack) A case the logged-in user collaborates on
+ *  (attorney, family caregiver, successor trustee, etc.). Surfaces as the
+ *  white .av-matters card with the garnet count badge. The count is what fed
+ *  the Matters tab badge too — single source of truth via the loader. */
+export interface MatterCard {
+  caseId: number;
+  caseName: string;
+  caseKind: string;
+  roleLabel: string;
+  openActions: number;
+  urgentActions: number;
+  href: string;
+}
+
 export interface CascadeNode {
   label: string;
   payoff?: boolean;
@@ -128,6 +142,10 @@ export interface AdrianaDashboardProps {
   subhead: string;            // "3 new signals on your watchlist since yesterday..."
   copy?: Record<string, string>; // editable section copy (dashboard.sec.*, dashboard.empty)
   brands: BrandChip[];
+  /** (val 2026-06-14) Cases the logged-in user collaborates on (Adriana sees
+   *  Johnson via family_case_collaborators). Empty array for users with no
+   *  collaborator rows — the matters card hides entirely in that case. */
+  matters: MatterCard[];
   /** AV employees on this account — render as "Your A&V team" widget when present. */
   team: TeamMember[];
   /** (val 2026-06-06, SPEC) Outcome-hero payload — value first, jargon never.
@@ -171,6 +189,25 @@ export interface AdrianaDashboardProps {
 
 function timeWord(t: AdrianaDashboardProps['greetingTime']): string {
   return t === 'morning' ? 'Good morning' : t === 'afternoon' ? 'Good afternoon' : 'Good evening';
+}
+
+/** Human-readable case_kind label — mirrors the switch used on the cases pages.
+ *  Falls through to 'Matter' for unknown kinds so a new vertical pack doesn't
+ *  surface a raw enum string. */
+function caseKindLabel(k: string): string {
+  switch (k) {
+    case 'trust_dispute': return 'Trust matter';
+    case 'elder_advocacy': return 'Elder advocacy';
+    case 'estate_litigation': return 'Estate matter';
+    case 'malpractice_defense': return 'Malpractice defense';
+    case 'campaign_legal': return 'Campaign legal';
+    case 'guardianship': return 'Guardianship';
+    case 'family_law': return 'Family matter';
+    case 'business_litigation': return 'Business matter';
+    case 'general_litigation':
+    default:
+      return 'Matter';
+  }
 }
 
 /** Render the brand wordmark with the ampersand in italic Fraunces (the scrolly &). */
@@ -379,6 +416,10 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
   // (Adriana: CBB vs CLDA) can tell which brand's hub they're in at a glance —
   // the two views read near-identical otherwise.
   const activeBrandName = p.brands.find((b) => b.active)?.name ?? null;
+  // (val 2026-06-14, UX/UI Beauty Pack) Matters card collapse state — when a
+  // viewer has multiple matters or just wants to focus, they can minimize the
+  // card. Default expanded so the count badge is visible on first paint.
+  const [mattersMin, setMattersMin] = useState(false);
   return (
     <>
       {/* Top bar */}
@@ -468,6 +509,64 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
               <span className="cta">{p.hero.ctaLabel}</span>
             </div>
           </Link>
+        )}
+
+        {/* (val 2026-06-14, UX/UI Beauty Pack) Your matters — white card with
+            emerald left-accent and the garnet count badge. Surfaces every case
+            the user collaborates on (Adriana sees Johnson). Card hides entirely
+            when matters is empty (lead_gen-only clients with no collaborator
+            rows). Single-source count via openActionItemCountForUserCase. */}
+        {p.matters.length > 0 && (
+          <section
+            className={`av-matters${mattersMin ? ' is-min' : ''}`}
+            aria-label="Your matters"
+          >
+            <button
+              type="button"
+              className="av-matters__min"
+              onClick={() => setMattersMin((v) => !v)}
+              aria-label={mattersMin ? 'Expand matters' : 'Minimize matters'}
+            >
+              {mattersMin ? '+' : '−'}
+            </button>
+            <p className="av-matters__eyebrow">
+              Your matters
+              {activeBrandName ? ` · ${p.brands.find((b) => b.active)?.initials ?? ''}` : ''}
+            </p>
+            <div className="av-matters__bodywrap">
+              {p.matters.map((m) => (
+                <div className="av-matters__row" key={m.caseId}>
+                  <span
+                    className="av-matters__count"
+                    aria-label={`${m.openActions} open ${m.openActions === 1 ? 'item' : 'items'}`}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                      <path d="M9 11l3 3 8-8" />
+                      <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
+                    </svg>
+                    {m.openActions > 0 && (
+                      <span className="av-matters__n">{m.openActions}</span>
+                    )}
+                  </span>
+                  <div className="av-matters__body">
+                    <div className="av-matters__name">{m.caseName}</div>
+                    <div className="av-matters__role">
+                      {caseKindLabel(m.caseKind)} · Role: {m.roleLabel}
+                    </div>
+                    {m.openActions > 0 && (
+                      <div className="av-matters__next">
+                        {m.openActions} next step{m.openActions === 1 ? '' : 's'}
+                        {m.urgentActions > 0 ? ` · ${m.urgentActions} urgent` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <a href={m.href} className="av-matters__open">
+                    Open the matter →
+                  </a>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* (#551) Watchlist — gated by kind (lead_gen + political_campaign show

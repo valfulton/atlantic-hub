@@ -136,3 +136,48 @@
 [data-skin="social"] h1,
 [data-skin="social"] h2,
 [data-skin="social"] h3{font-family:var(--serif);font-weight:500}
+
+/* ============================================================
+   MATTERS CARD — UX/UI PATCH 2026-06-14 (Beauty Pack v1)
+   White surface, emerald left-accent, garnet count badge.
+   Token-mapped to the real cream-register tokens above:
+     --navy-soft = #FFFFFF (white card), --cream = #14201B (text),
+     --cream-muted = #5C6862, --rule = rgba(10,77,60,.14),
+     --emerald-deep = #0A4D3C, --navy = #FAF8F4 (cream button text).
+   Garnet (#8E2A2A) is the only inline literal — it's the universal
+   "needs you" indicator color and not yet a token.
+   ============================================================ */
+[data-skin="social"] .av-matters{ position:relative; background:var(--navy-soft);
+  border:1px solid var(--rule); border-left:4px solid var(--emerald-deep);
+  border-radius:14px; padding:20px 22px; margin-bottom:16px; }
+[data-skin="social"] .av-matters.is-min .av-matters__bodywrap{ display:none; }
+[data-skin="social"] .av-matters__min{ position:absolute; top:16px; right:16px;
+  width:30px; height:30px; border-radius:8px; border:1px solid var(--rule);
+  background:transparent; color:var(--cream-muted); cursor:pointer; font-size:15px;
+  display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+[data-skin="social"] .av-matters__min:focus-visible{ outline:2px solid var(--emerald-deep); outline-offset:2px; }
+[data-skin="social"] .av-matters__eyebrow{ font-size:.72rem; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--emerald-deep); margin:0 0 14px; }
+[data-skin="social"] .av-matters__row{ display:flex; align-items:flex-start; gap:14px;
+  padding:6px 0; }
+[data-skin="social"] .av-matters__body{ flex:1; min-width:0; }
+[data-skin="social"] .av-matters__count{ position:relative; width:48px; height:48px;
+  border-radius:12px; background:#E8F2EE; color:var(--emerald-deep);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+[data-skin="social"] .av-matters__n{ position:absolute; top:-8px; right:-8px;
+  min-width:23px; height:23px; padding:0 5px; border-radius:12px; background:#8E2A2A;
+  color:#fff; font-size:.74rem; font-weight:600; display:flex; align-items:center;
+  justify-content:center; border:2px solid var(--navy-soft); }
+[data-skin="social"] .av-matters__name{ font-family:'Fraunces',Georgia,serif;
+  font-weight:500; font-size:1.3rem; line-height:1.18; color:var(--cream); }
+[data-skin="social"] .av-matters__role{ font-size:.9rem; color:var(--cream-muted); margin-top:4px; }
+[data-skin="social"] .av-matters__next{ font-size:.9rem; font-weight:600;
+  color:var(--emerald-deep); margin-top:9px; }
+[data-skin="social"] .av-matters__open{ margin-left:auto; display:inline-flex;
+  align-items:center; min-height:48px; padding:0 18px; border-radius:24px;
+  background:var(--emerald-deep); color:var(--navy); font-weight:600;
+  font-size:.95rem; text-decoration:none; white-space:nowrap; }
+@media (max-width:640px){
+  [data-skin="social"] .av-matters__row{ flex-wrap:wrap; }
+  [data-skin="social"] .av-matters__open{ margin-left:0; margin-top:10px; width:100%; justify-content:center; }
+}
