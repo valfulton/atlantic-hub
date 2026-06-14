@@ -131,6 +131,13 @@ export const config = {
     '/client/social/:path*',
     // (#220) Client-facing PR pipeline.
     '/client/pr/:path*',
+    // (val 2026-06-13) Matters — case dashboards for Rebecca/Adriana/parents.
+    // MISSING entry is EXACTLY the #485-class bug: tab is in the nav, middleware
+    // doesn't match, x-ah-client-user-id never set, page redirects to /login.
+    // Rebecca's "click Matters → bounced to login" was this. Add /client/notes
+    // too since it's in BottomTabBar MORE and was equally unprotected.
+    '/client/cases/:path*',
+    '/client/notes/:path*',
     '/client/set-password',
     // Client portal APIs (protected)
     '/api/client/me',
