@@ -319,3 +319,54 @@
 .av-matters .av-matter__open{ background:var(--emerald-deep,#0A4D3C);
   color:var(--cream,#FAF8F4); border:none; border-radius:24px;
   min-height:48px; padding:0 18px; font-weight:600; }
+
+/* ============================================================
+   MATTERS CARD — unscoped (val 2026-06-14, fix)
+   The [data-skin="social"] scope in skin.social.css doesn't match
+   operator preview routes (no data-skin attribute on /admin/av/*).
+   Re-declare unscoped here so the white card renders everywhere
+   the .av-matters class exists. Same tokens as the .av-card family
+   above (paper / edge / emerald-deep / muted / ink), garnet inline.
+   ============================================================ */
+.av-matters{ position:relative; background:var(--paper,#FFFFFF);
+  border:1px solid var(--edge,rgba(10,77,60,.12));
+  border-left:4px solid var(--emerald-deep,#0A4D3C);
+  border-radius:14px; padding:20px 22px; margin-bottom:18px;
+  box-shadow:0 10px 30px rgba(10,77,60,.05); }
+.av-matters.is-min .av-matters__bodywrap{ display:none; }
+.av-matters__min{ position:absolute; top:16px; right:16px;
+  width:30px; height:30px; border-radius:8px;
+  border:1px solid var(--edge,rgba(10,77,60,.12));
+  background:transparent; color:var(--muted,#5C6862);
+  cursor:pointer; font-size:15px; display:inline-flex;
+  align-items:center; justify-content:center; line-height:1; }
+.av-matters__min:focus-visible{ outline:2px solid var(--emerald-deep,#0A4D3C); outline-offset:2px; }
+.av-matters__eyebrow{ font-size:.72rem; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase;
+  color:var(--emerald-deep,#0A4D3C); margin:0 0 14px; }
+.av-matters__row{ display:flex; align-items:flex-start; gap:14px; padding:6px 0; }
+.av-matters__body{ flex:1; min-width:0; }
+.av-matters__count{ position:relative; width:48px; height:48px;
+  border-radius:12px; background:#E8F2EE;
+  color:var(--emerald-deep,#0A4D3C);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.av-matters__n{ position:absolute; top:-8px; right:-8px;
+  min-width:23px; height:23px; padding:0 5px; border-radius:12px;
+  background:#8E2A2A; color:#fff;
+  font-size:.74rem; font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid var(--paper,#FFFFFF); }
+.av-matters__name{ font-family:'Fraunces',Georgia,serif;
+  font-weight:500; font-size:1.3rem; line-height:1.18;
+  color:var(--ink,#14201B); }
+.av-matters__role{ font-size:.9rem; color:var(--muted,#5C6862); margin-top:4px; }
+.av-matters__next{ font-size:.9rem; font-weight:600;
+  color:var(--emerald-deep,#0A4D3C); margin-top:9px; }
+.av-matters__open{ margin-left:auto; display:inline-flex;
+  align-items:center; min-height:48px; padding:0 18px; border-radius:24px;
+  background:var(--emerald-deep,#0A4D3C); color:var(--cream,#FAF8F4);
+  font-weight:600; font-size:.95rem; text-decoration:none; white-space:nowrap; }
+@media (max-width:640px){
+  .av-matters__row{ flex-wrap:wrap; }
+  .av-matters__open{ margin-left:0; margin-top:10px; width:100%; justify-content:center; }
+}
