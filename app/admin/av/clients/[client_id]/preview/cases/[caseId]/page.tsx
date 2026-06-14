@@ -15,6 +15,13 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { loadFullCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
+import {
+  resolveCaseViewerRole,
+  visibleFor,
+  listViewAsCandidates,
+  type CaseViewerRole
+} from '@/lib/case/case_collaborators';
+import ViewAsPicker from '@/components/case/ViewAsPicker';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
 
 /* (val 2026-06-13) Inline client-nav mockup. ClientV3TopNav's .v3-* CSS
@@ -88,6 +95,7 @@ const CREAM_SKIN = {
 
 interface PageProps {
   params: { client_id: string; caseId: string };
+  searchParams: { as?: string };
 }
 
 function caseKindLabel(k: string): string {
@@ -120,13 +128,38 @@ function dollars(cents: number | null): string {
   return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 }
 
-export default async function PreviewCasePage({ params }: PageProps) {
+export default async function PreviewCasePage({ params, searchParams }: PageProps) {
   const clientId = parseInt(params.client_id, 10);
   const caseId = parseInt(params.caseId, 10);
   if (!Number.isInteger(clientId) || !Number.isInteger(caseId)) notFound();
 
-  const full = await loadFullCase(caseId);
-  if (!full || full.case.clientId !== clientId) notFound();
+  // (val 2026-06-13, #636) "View as" — read ?as=<client_user_id>. When set,
+  // resolve that user's role on this case and apply the visibility filter so
+  // the page renders EXACTLY what they would see. When absent, val is in
+  // operator/god view and sees everything.
+  const asParam = searchParams.as;
+  const asUserId = asParam && /^\d+$/.test(asParam) ? parseInt(asParam, 10) : null;
+
+  // Peek at the case's client_id BEFORE loading the action items so we can
+  // resolve the viewer's role with the right brand context.
+  const peek = await loadFullCase(caseId);
+  if (!peek || peek.case.clientId !== clientId) notFound();
+
+  let viewerRole: CaseViewerRole = 'operator';
+  let visibilityFilter: ('parents_safe' | 'operator_only')[] | undefined = undefined;
+  if (asUserId !== null) {
+    viewerRole = await resolveCaseViewerRole(asUserId, caseId, peek.case.clientId);
+    visibilityFilter = visibleFor(viewerRole);
+  }
+
+  // Now reload with the filter applied. Cheap — loadFullCase is already
+  // batched and the second pass only swaps the action-items query.
+  const full = (asUserId !== null)
+    ? await loadFullCase(caseId, visibilityFilter)
+    : peek;
+  if (!full) notFound();
+
+  const candidates = await listViewAsCandidates(caseId, full.case.clientId);
 
   const c = full.case;
   const wellness = c.wellnessEnabled ? await loadFullWellness(caseId) : null;
@@ -149,6 +182,13 @@ export default async function PreviewCasePage({ params }: PageProps) {
             </Link>
           }
         />
+      </div>
+
+      {/* (val 2026-06-13, #636) View-as picker — operator picks any collaborator
+          to see the page filtered to what THAT user sees. Default (no ?as) =
+          full operator visibility. */}
+      <div style={{ padding: '0 18px' }}>
+        <ViewAsPicker candidates={candidates} current={asUserId} />
       </div>
 
       {/* (val 2026-06-13) Inline client-nav mockup — see PreviewClientNav above. */}

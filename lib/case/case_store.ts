@@ -117,6 +117,8 @@ export interface CaseParty {
 export type ActionStatus = 'open' | 'in_progress' | 'done' | 'blocked';
 export type ActionPriority = 'low' | 'normal' | 'high' | 'urgent';
 
+export type ActionVisibility = 'parents_safe' | 'operator_only';
+
 export interface CaseActionItem {
   actionId: number;
   caseId: number;
@@ -124,6 +126,8 @@ export interface CaseActionItem {
   detail: string | null;
   status: ActionStatus | string;
   priority: ActionPriority | string;
+  /** parents_safe = renders on family view; operator_only = Rebecca/Adriana/val only. */
+  visibility: ActionVisibility;
   assignedToUserId: number | null;
   dueDate: string | null;
   completedAt: string | null;
@@ -224,6 +228,7 @@ interface ActionRow extends RowDataPacket {
   detail: string | null;
   status: string;
   priority: string;
+  visibility: string | null;
   assigned_to_user_id: number | null;
   due_date: Date | string | null;
   completed_at: Date | string | null;
@@ -383,6 +388,8 @@ function rowToAction(r: ActionRow): CaseActionItem {
     detail: r.detail,
     status: r.status,
     priority: r.priority,
+    // Default to parents_safe so legacy rows without the column still render.
+    visibility: (r.visibility === 'operator_only' ? 'operator_only' : 'parents_safe'),
     assignedToUserId: r.assigned_to_user_id,
     dueDate: toDateString(r.due_date),
     completedAt: toIso(r.completed_at),
@@ -1151,17 +1158,34 @@ export async function addActionItemNote(input: {
   }
 }
 
-export async function listActionItems(caseId: number): Promise<CaseActionItem[]> {
+export async function listActionItems(
+  caseId: number,
+  /** (val 2026-06-13, #635) Optional visibility filter. When supplied, only
+   *  rows whose `visibility` is in the array are returned. Pass undefined
+   *  for full operator visibility. */
+  visibleVisibilities?: ('parents_safe' | 'operator_only')[]
+): Promise<CaseActionItem[]> {
   if (!Number.isInteger(caseId) || caseId <= 0) return [];
+  if (visibleVisibilities && visibleVisibilities.length === 0) return [];
   try {
     const db = getAvDb();
+
+    const params: (number | string)[] = [caseId];
+    let visClause = '';
+    if (visibleVisibilities && visibleVisibilities.length > 0) {
+      visClause = `AND visibility IN (${visibleVisibilities.map(() => '?').join(',')})`;
+      for (const v of visibleVisibilities) params.push(v);
+    }
+
     const [rows] = await db.execute<ActionRow[]>(
-      `SELECT * FROM case_action_items WHERE case_id = ?
-       ORDER BY
-         CASE status WHEN 'urgent' THEN 0 WHEN 'open' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'blocked' THEN 3 WHEN 'done' THEN 4 ELSE 5 END,
-         CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
-         created_at DESC`,
-      [caseId]
+      `SELECT * FROM case_action_items
+        WHERE case_id = ?
+          ${visClause}
+        ORDER BY
+          CASE status WHEN 'urgent' THEN 0 WHEN 'open' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'blocked' THEN 3 WHEN 'done' THEN 4 ELSE 5 END,
+          CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
+          created_at DESC`,
+      params
     );
     return rows.map(rowToAction);
   } catch (err) {
@@ -1284,14 +1308,20 @@ export interface FullCaseLoad {
   property: CaseProperty | null;
 }
 
-export async function loadFullCase(caseId: number): Promise<FullCaseLoad | null> {
+export async function loadFullCase(
+  caseId: number,
+  /** (val 2026-06-13, #635) Optional visibility filter applied to action
+   *  items. Pass the result of visibleFor(role) — undefined = operator full
+   *  visibility. Drives the parents_safe vs operator_only audience split. */
+  visibleVisibilities?: ('parents_safe' | 'operator_only')[]
+): Promise<FullCaseLoad | null> {
   const c = await getCase(caseId);
   if (!c) return null;
   const [events, documents, parties, actionItems, property] = await Promise.all([
     listEvents(caseId),
     listDocuments(caseId),
     listParties(caseId),
-    listActionItems(caseId),
+    listActionItems(caseId, visibleVisibilities),
     getProperty(caseId)
   ]);
   return { case: c, events, documents, parties, actionItems, property };

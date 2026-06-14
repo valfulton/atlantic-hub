@@ -296,6 +296,207 @@ export async function approveCollaborator(
   }
 }
 
+/**
+ * (val 2026-06-13, #636) Resolve what role a client_user has on a case so the
+ * page render can apply the correct visibility filter.
+ *
+ *  parent              — brand owner OR collaborator role='parent'.
+ *                        Sees parents_safe items only.
+ *  account_rep         — A&V account manager (sibling_admin / primary_caregiver
+ *                        collaborator roles, OR matched by account_employees
+ *                        once unified-identity ships). Sees everything.
+ *  professional        — attorney / advisor collaborator. Sees parents_safe
+ *                        only (outside counsel — not internal operator).
+ *  family              — sibling_reader / sibling_commenter / advisor.
+ *                        Sees parents_safe only.
+ *  operator            — val. Used when no ?as is supplied. Sees everything.
+ *  unknown             — fallback when client_user has no relationship to
+ *                        the case. Sees nothing (forced empty).
+ */
+export type CaseViewerRole =
+  | 'parent'
+  | 'account_rep'
+  | 'professional'
+  | 'family'
+  | 'operator'
+  | 'unknown';
+
+interface CollabRoleRow extends RowDataPacket {
+  role: string;
+  revoked_at: string | null;
+  parent_approved: 0 | 1;
+}
+
+export async function resolveCaseViewerRole(
+  clientUserId: number,
+  caseId: number,
+  caseClientId: number | null
+): Promise<CaseViewerRole> {
+  if (!Number.isInteger(clientUserId) || clientUserId <= 0) return 'unknown';
+  if (!Number.isInteger(caseId) || caseId <= 0) return 'unknown';
+
+  try {
+    const db = getAvDb();
+
+    // Brand owner shortcut — if their client_users.client_id matches the
+    // case's client_id, they're a parent/owner.
+    if (caseClientId) {
+      const [ownerRows] = await db.execute<RowDataPacket[]>(
+        `SELECT 1 FROM client_users
+          WHERE client_user_id = ? AND client_id = ? LIMIT 1`,
+        [clientUserId, caseClientId]
+      );
+      if (ownerRows.length > 0) return 'parent';
+    }
+
+    // Otherwise check family_case_collaborators for the case-scoped role.
+    const [rows] = await db.execute<CollabRoleRow[]>(
+      `SELECT role, revoked_at, parent_approved
+         FROM family_case_collaborators
+        WHERE client_user_id = ? AND case_id = ?
+        LIMIT 1`,
+      [clientUserId, caseId]
+    );
+    const row = rows[0];
+    if (!row || row.revoked_at) return 'unknown';
+
+    switch (row.role) {
+      case 'parent':
+        return 'parent';
+      case 'sibling_admin':
+      case 'primary_caregiver':
+      case 'successor_trustee':
+        // Account-rep roles (fiduciary working layer). Rebecca's
+        // sibling_admin lands here. See all items including operator_only.
+        return 'account_rep';
+      case 'attorney':
+      case 'advisor':
+        return 'professional';
+      case 'sibling_reader':
+      case 'sibling_commenter':
+        return 'family';
+      default:
+        return 'family';
+    }
+  } catch (err) {
+    console.error('resolveCaseViewerRole failed', err);
+    return 'unknown';
+  }
+}
+
+/**
+ * Maps a viewer role to the visibility levels they're allowed to see.
+ * Renderers filter case items by `visibility IN visibleFor(role)`.
+ */
+export function visibleFor(role: CaseViewerRole): ('parents_safe' | 'operator_only')[] {
+  switch (role) {
+    case 'operator':
+    case 'account_rep':
+      // Internal/A&V eyes — full visibility.
+      return ['parents_safe', 'operator_only'];
+    case 'parent':
+    case 'professional':
+    case 'family':
+      // Outside-the-A&V-tent — only parent-safe items.
+      return ['parents_safe'];
+    case 'unknown':
+      // No relationship — nothing.
+      return [];
+  }
+}
+
+/**
+ * (val 2026-06-13, #636) Return every client_user who could plausibly be a
+ * "View as" target on this case — brand owner + active collaborators. Used
+ * to populate the ViewAsPicker dropdown on the operator preview page.
+ */
+export interface ViewAsCandidate {
+  clientUserId: number;
+  email: string;
+  displayName: string | null;
+  /** Pre-resolved role label so the picker doesn't need a second query. */
+  role: CaseViewerRole;
+}
+
+interface CandidateRow extends RowDataPacket {
+  client_user_id: number;
+  email: string;
+  display_name: string | null;
+  source: 'brand_owner' | 'collaborator';
+  collab_role: string | null;
+}
+
+export async function listViewAsCandidates(
+  caseId: number,
+  caseClientId: number | null
+): Promise<ViewAsCandidate[]> {
+  if (!Number.isInteger(caseId) || caseId <= 0) return [];
+  try {
+    const db = getAvDb();
+
+    const params: number[] = [];
+    let ownerSel = '';
+    if (caseClientId) {
+      ownerSel = `
+        UNION
+        SELECT
+          cu.client_user_id, cu.email, cu.display_name,
+          'brand_owner' AS source, NULL AS collab_role
+        FROM client_users cu
+        WHERE cu.client_id = ? AND cu.archived_at IS NULL`;
+      params.push(caseClientId);
+    }
+
+    params.push(caseId);
+
+    const [rows] = await db.query<CandidateRow[]>(
+      `SELECT
+          cu.client_user_id, cu.email, cu.display_name,
+          'collaborator' AS source, fcc.role AS collab_role
+        FROM family_case_collaborators fcc
+        JOIN client_users cu ON cu.client_user_id = fcc.client_user_id
+        WHERE fcc.case_id = ? AND fcc.revoked_at IS NULL
+        ${ownerSel}`,
+      params
+    );
+
+    const seen = new Set<number>();
+    const out: ViewAsCandidate[] = [];
+    for (const r of rows) {
+      if (seen.has(r.client_user_id)) continue;
+      seen.add(r.client_user_id);
+      out.push({
+        clientUserId: r.client_user_id,
+        email: r.email,
+        displayName: r.display_name,
+        role: roleFromSource(r.source, r.collab_role)
+      });
+    }
+    return out;
+  } catch (err) {
+    console.error('listViewAsCandidates failed', err);
+    return [];
+  }
+}
+
+function roleFromSource(
+  source: 'brand_owner' | 'collaborator',
+  collabRole: string | null
+): CaseViewerRole {
+  if (source === 'brand_owner') return 'parent';
+  switch (collabRole) {
+    case 'parent': return 'parent';
+    case 'sibling_admin':
+    case 'primary_caregiver':
+    case 'successor_trustee': return 'account_rep';
+    case 'attorney':
+    case 'advisor': return 'professional';
+    case 'sibling_reader':
+    case 'sibling_commenter': return 'family';
+    default: return 'family';
+  }
+}
+
 /** Soft-revoke a collaborator (sets revoked_at). */
 export async function revokeCollaborator(collaboratorId: number): Promise<boolean> {
   if (!Number.isInteger(collaboratorId) || collaboratorId <= 0) return false;

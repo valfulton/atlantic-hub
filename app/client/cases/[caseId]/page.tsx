@@ -16,6 +16,7 @@ import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import { loadFullCase, canClientUserAccessCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
+import { resolveCaseViewerRole, visibleFor } from '@/lib/case/case_collaborators';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import SectionText from '@/components/case/SectionText';
 import DocumentApprovalActions from '@/components/case/DocumentApprovalActions';
@@ -100,8 +101,10 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
     return <AccessPaused expired={access.expired} />;
   }
 
-  const full = await loadFullCase(caseId);
-  if (!full) notFound();
+  // Peek once to get the case's owning client_id so the role resolver has
+  // the right brand context. Then reload with the visibility filter applied.
+  const peek = await loadFullCase(caseId);
+  if (!peek) notFound();
 
   // Critical: prevent IDOR. Access granted if EITHER:
   //   - the case belongs to this user's primary client_id, OR
@@ -109,9 +112,22 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   // The latter is how Adriana (attorney on Johnson) reads the matter from
   // inside her own CBB portal.
   const canAccess =
-    full.case.clientId === clientId
+    peek.case.clientId === clientId
     || await canClientUserAccessCase(actor.clientUserId, clientId, caseId);
   if (!canAccess) notFound();
+
+  // (val 2026-06-13, #635) Resolve the LIVE viewer's role on this case and
+  // reload with their visibility filter. Parents see parents_safe only;
+  // Rebecca (sibling_admin = account_rep) sees everything; Adriana
+  // (attorney = professional) sees parents_safe only.
+  const viewerRole = await resolveCaseViewerRole(
+    actor.clientUserId,
+    caseId,
+    peek.case.clientId
+  );
+  const visibilityFilter = visibleFor(viewerRole);
+  const full = await loadFullCase(caseId, visibilityFilter);
+  if (!full) notFound();
 
   const c = full.case;
   const [wellness, indexableDoc] = await Promise.all([
