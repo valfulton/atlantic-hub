@@ -434,7 +434,10 @@ export async function listViewAsCandidates(
   try {
     const db = getAvDb();
 
-    const params: number[] = [];
+    // Param order MUST match the order of `?` in the final SQL:
+    //   1. main SELECT's fcc.case_id = ?
+    //   2. union SELECT's cu.client_id = ?  (only when caseClientId is present)
+    const params: number[] = [caseId];
     let ownerSel = '';
     if (caseClientId) {
       ownerSel = `
@@ -446,8 +449,6 @@ export async function listViewAsCandidates(
         WHERE cu.client_id = ? AND cu.archived_at IS NULL`;
       params.push(caseClientId);
     }
-
-    params.push(caseId);
 
     const [rows] = await db.query<CandidateRow[]>(
       `SELECT
