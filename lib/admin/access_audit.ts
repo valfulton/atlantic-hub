@@ -16,6 +16,7 @@
  */
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
+import type mysql from 'mysql2/promise';
 
 export interface AccessAuditCase {
   caseId: number;
@@ -96,11 +97,25 @@ interface CaseRow extends RowDataPacket {
 export async function loadAccessAudit(): Promise<AccessAuditUser[]> {
   const db = getAvDb();
 
+  // (val 2026-06-13) Hold ONE pool connection for the whole audit instead of
+  // grabbing+releasing per query. HostGator caps max_user_connections per
+  // DB user; if crons + middleware + other request handlers have eaten the
+  // slots, the audit page just kept 500-ing. Single connection = single
+  // slot, three serial queries on it, then release.
+  const conn = await db.getConnection();
+  try {
+    return await loadAccessAuditOnConn(conn);
+  } finally {
+    conn.release();
+  }
+}
+
+async function loadAccessAuditOnConn(conn: mysql.PoolConnection): Promise<AccessAuditUser[]> {
   // (val 2026-06-13) Simpler ORDER BY — drop the "archived NULL first" boolean
   // ordering that the earlier version used. Some mysql configs choke on it
   // and the page just 500s. Sort by login recency instead; archived rows
   // get the 'archived' badge in the UI either way.
-  const [userRows] = await db.query<UserRow[]>(
+  const [userRows] = await conn.query<UserRow[]>(
     `SELECT
        cu.client_user_id, cu.email, cu.display_name, cu.client_id,
        cu.tier, cu.password_hash, cu.magic_token, cu.magic_token_expires_at,
@@ -119,7 +134,7 @@ export async function loadAccessAudit(): Promise<AccessAuditUser[]> {
   // this deploy, fall back to empty rather than 500-ing the entire page.
   let brandRows: BrandRow[] = [];
   try {
-    const [rows] = await db.query<BrandRow[]>(
+    const [rows] = await conn.query<BrandRow[]>(
       `SELECT
          bm.client_user_id,
          bm.client_id,
@@ -139,7 +154,7 @@ export async function loadAccessAudit(): Promise<AccessAuditUser[]> {
   // running migration 089. If the table is missing the page should still load.
   let caseRows: CaseRow[] = [];
   try {
-    const [rows] = await db.query<CaseRow[]>(
+    const [rowsC] = await conn.query<CaseRow[]>(
       `SELECT
          fcc.client_user_id,
          fcc.case_id,
@@ -152,7 +167,7 @@ export async function loadAccessAudit(): Promise<AccessAuditUser[]> {
        FROM family_case_collaborators fcc
        JOIN cases c ON c.case_id = fcc.case_id`
     );
-    caseRows = rows;
+    caseRows = rowsC;
   } catch (e) {
     console.error('access_audit: family_case_collaborators query failed', (e as Error).message);
   }
