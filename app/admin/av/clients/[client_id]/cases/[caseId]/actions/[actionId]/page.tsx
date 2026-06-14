@@ -75,9 +75,9 @@ export default async function ActionItemDetailPage({ params }: PageProps) {
     : null;
   const sectionIndex = indexableDoc?.sectionIndex ?? null;
 
+  // (val 2026-06-14) Content div, not a main element — the shared operator
+  // layout provides main + the left Sidebar. A nested full-height main hid it.
   return (
-    // (val 2026-06-14) Content div, not <main> — the shared operator layout
-    // provides <main> + the left Sidebar. A nested full-height <main> hid it.
     <div className="text-ink">
       <div className="max-w-4xl mx-auto">
         {/* Breadcrumb */}

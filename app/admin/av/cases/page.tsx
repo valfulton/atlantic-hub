@@ -78,11 +78,11 @@ export default async function OperatorCasesIndexPage() {
   const clientIds = Array.from(new Set(cases.map((c) => c.clientId)));
   const clientMap = await getClientNameMap(clientIds);
 
+  // (val 2026-06-14) Return a content div, NOT a main — the shared operator
+  // layout (app/admin/layout.tsx) already provides the main element + the flex
+  // row with the left Sidebar. A nested main with min-h-screen + a full surface
+  // bg broke the flex and hid the sidebar ("where's the rest of the navigation?").
   return (
-    // (val 2026-06-14) Return a content div, NOT a <main> — the shared operator
-    // layout (app/admin/layout.tsx) already provides <main> + the flex row with
-    // the left Sidebar. A nested <main> with min-h-screen + a full surface bg
-    // broke the flex and hid the sidebar ("where's the rest of the navigation?").
     <div className="text-ink">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">

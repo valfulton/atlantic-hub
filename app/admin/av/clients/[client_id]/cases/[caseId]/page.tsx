@@ -106,10 +106,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
     : null;
   const sectionIndex = indexableDoc?.sectionIndex ?? null;
 
+  // (val 2026-06-14) Content div, not a main element — the shared operator
+  // layout already renders main + the left Sidebar flex row. A nested
+  // full-height main with a surface bg hid the sidebar on this new route.
   return (
-    // (val 2026-06-14) Content div, not <main> — the shared operator layout
-    // already renders <main> + the left Sidebar flex row. A nested full-height
-    // <main> with a surface bg hid the sidebar on this new route.
     <div className="text-ink">
       <div className="max-w-6xl mx-auto">
         {/* Breadcrumb */}
