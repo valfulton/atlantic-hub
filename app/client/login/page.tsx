@@ -289,16 +289,40 @@ function LoginForm() {
             </div>
 
             <div className="ig-field">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="ig-field-row">
+                <label htmlFor="password">Password</label>
+                {/* (val 2026-06-13) Self-serve reset — prominent, NOT buried.
+                    Triggers the resend endpoint which generates a fresh magic
+                    token + emails it. After click, the user lands on
+                    /client/set-password to pick a new one. */}
+                <button
+                  type="button"
+                  className="ig-forgot"
+                  onClick={handleResend}
+                  disabled={resending}
+                >
+                  {resending ? 'Sending…' : 'Forgot password?'}
+                </button>
+              </div>
+              <div className="ig-pwd-wrap">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="ig-pwd-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -309,6 +333,8 @@ function LoginForm() {
             {resendMsg && (
               <div role="status" className="ig-note">
                 {resendMsg}
+                {' '}
+                If you don&rsquo;t see it within 2 minutes, check spam — or text Val and she&rsquo;ll send it manually.
               </div>
             )}
 
@@ -320,11 +346,6 @@ function LoginForm() {
             </button>
 
             <p className="ig-fallback">
-              Link expired, or first time signing in?{' '}
-              <button type="button" className="ig-resend" onClick={handleResend} disabled={resending}>
-                {resending ? 'Sending…' : 'Email me a secure link'}
-              </button>
-              <br />
               No account yet? Submit the intake form at{' '}
               <a href="https://atlanticandvine.netlify.app/#client-intake">
                 atlanticandvine.com
@@ -463,6 +484,48 @@ function LoginForm() {
             color: var(--emerald-deep);
             margin-bottom: 0.4rem;
           }
+          .ig-field-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 0.4rem;
+          }
+          .ig-field-row label { margin-bottom: 0; }
+          .ig-forgot {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: var(--emerald-deep);
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+          }
+          .ig-forgot:hover { color: var(--black); }
+          .ig-forgot:disabled { opacity: 0.5; cursor: wait; }
+          .ig-pwd-wrap { position: relative; }
+          .ig-pwd-toggle {
+            position: absolute;
+            top: 50%;
+            right: 0.6rem;
+            transform: translateY(-50%);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--emerald-deep);
+            background: rgba(10, 77, 60, 0.08);
+            border: 1px solid rgba(10, 77, 60, 0.2);
+            border-radius: 4px;
+            padding: 0.3rem 0.55rem;
+            cursor: pointer;
+          }
+          .ig-pwd-toggle:hover { background: rgba(10, 77, 60, 0.16); }
           .ig-field input {
             width: 100%;
             font-family: 'Inter', sans-serif;
@@ -476,6 +539,7 @@ function LoginForm() {
             outline: none;
             box-sizing: border-box;
           }
+          .ig-pwd-wrap input { padding-right: 4.2rem; }
           .ig-field input:focus {
             border-color: var(--emerald-deep);
             background: var(--paper);
