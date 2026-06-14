@@ -104,6 +104,40 @@ async function resolveRecipient(clientId: number): Promise<{ email: string | nul
 }
 
 /**
+ * (Spinoff B — joint tenants) Every OTHER active login on this brand, so the
+ * digest fans out to all co-pilots. `resolveRecipient` above picks ONE primary
+ * (most recently active) for the greeting + the canonical `build.to`; this
+ * returns the rest (Kevin + Maile both see The Flame → both get the email).
+ * Excludes the primary to avoid double-sending. Soft-fails to [].
+ */
+async function resolveCopilotRecipients(clientId: number, primaryEmail: string | null): Promise<string[]> {
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<RecipientRow[]>(
+      `SELECT email, display_name, NULL AS client_name
+         FROM client_users
+        WHERE client_id = ? AND archived_at IS NULL
+          AND email IS NOT NULL AND email <> ''`,
+      [clientId]
+    );
+    const primary = primaryEmail?.trim().toLowerCase() || null;
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const r of rows) {
+      const e = r.email?.trim();
+      if (!e) continue;
+      const key = e.toLowerCase();
+      if (key === primary || seen.has(key)) continue;
+      seen.add(key);
+      out.push(e);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Build the digest (HTML + text) without sending. Useful for the "send now"
  * button to preview-then-send, and the future Friday cron.
  */
@@ -232,6 +266,8 @@ export async function buildClientDigest(clientId: number): Promise<DigestBuildRe
 export async function sendClientDigest(clientId: number, opts: { force?: boolean } = {}): Promise<{
   build: DigestBuildResult;
   send: SendEmailResult | { sent: false; reason: string };
+  /** (Spinoff B) Co-pilot emails the digest was ALSO delivered to. */
+  alsoSentTo?: string[];
 }> {
   const build = await buildClientDigest(clientId);
 
@@ -249,6 +285,24 @@ export async function sendClientDigest(clientId: number, opts: { force?: boolean
     html: build.html
   });
 
+  // (Spinoff B — joint tenants) Fan out to every OTHER co-pilot on the brand so
+  // both Kevin + Maile get the digest. Best-effort: a co-pilot SMTP failure
+  // never fails or unwinds the primary send above.
+  const alsoSentTo: string[] = [];
+  try {
+    const others = await resolveCopilotRecipients(clientId, build.to);
+    for (const r of others) {
+      try {
+        const res = await sendEmail({ to: r, subject: build.subject, text: build.text, html: build.html });
+        if (res.sent) alsoSentTo.push(r);
+      } catch {
+        /* non-fatal per co-pilot */
+      }
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   await logEvent({
     eventType: sendRes.sent ? 'client.digest.sent' : 'client.digest.send_failed',
     organizationId: clientId,
@@ -258,10 +312,11 @@ export async function sendClientDigest(clientId: number, opts: { force?: boolean
     payload: {
       client_id: clientId,
       to: build.to,
+      also_sent_to: alsoSentTo,
       items_count: build.items.length,
       is_empty: build.isEmpty
     }
   });
 
-  return { build, send: sendRes };
+  return { build, send: sendRes, alsoSentTo };
 }

@@ -160,6 +160,41 @@ export async function listAccessRosterForClient(clientId: number): Promise<Acces
   }
 }
 
+/** Archive a client_user — kills the login entirely. Sets archived_at = NOW()
+ *  and clears the magic_token. The user can no longer authenticate to ANY
+ *  brand (their row is filtered out of all login queries by archived_at).
+ *
+ *  Use this for true "they should not have access anymore" — distinct from
+ *  case-collaborator revoke which only scopes off one case while leaving the
+ *  portal login intact. */
+export async function archiveClientUser(clientUserId: number): Promise<
+  | { ok: true }
+  | { ok: false; error: string }
+> {
+  if (!Number.isInteger(clientUserId) || clientUserId <= 0) {
+    return { ok: false, error: 'invalid client_user_id' };
+  }
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `UPDATE client_users
+          SET archived_at = NOW(),
+              magic_token = NULL,
+              magic_token_expires_at = NULL
+        WHERE client_user_id = ?
+          AND archived_at IS NULL`,
+      [clientUserId]
+    );
+    if (!res.affectedRows) {
+      return { ok: false, error: 'already archived or not found' };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('archiveClientUser failed', err);
+    return { ok: false, error: 'database error' };
+  }
+}
+
 /** Mint a fresh magic_token for an existing client_user, set the 24h expiry,
  *  and return the full URL ready to copy/send. Used by the Regenerate button
  *  on each Access Roster row. */

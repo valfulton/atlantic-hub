@@ -97,6 +97,39 @@ export default function AccessRosterPanel({ clientId, initial }: Props) {
   const [busy, setBusy] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Record<number, string>>({});
 
+  async function handleArchive(entry: RosterEntry) {
+    const label = entry.displayName || entry.email;
+    const ok = window.confirm(
+      `Archive ${label}?\n\nThey will no longer be able to log into ANY brand. ` +
+      `Their portal access dies immediately. This does NOT delete their data — ` +
+      `the row stays for audit purposes — but they cannot reach the portal again ` +
+      `until you create a new client_user for them.\n\nProceed?`
+    );
+    if (!ok) return;
+    setBusy(entry.clientUserId);
+    setFeedback((prev) => ({ ...prev, [entry.clientUserId]: 'archiving…' }));
+    try {
+      const res = await fetch(
+        `/api/admin/av/clients/${clientId}/access-roster/${entry.clientUserId}/archive`,
+        { method: 'POST' }
+      );
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setFeedback((prev) => ({ ...prev, [entry.clientUserId]: data?.error || 'archive failed' }));
+        return;
+      }
+      setFeedback((prev) => ({ ...prev, [entry.clientUserId]: 'archived · login killed' }));
+      router.refresh();
+    } catch (e) {
+      setFeedback((prev) => ({
+        ...prev,
+        [entry.clientUserId]: e instanceof Error ? e.message : 'network error'
+      }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleCopyFreshLink(entry: RosterEntry) {
     setBusy(entry.clientUserId);
     setFeedback((prev) => ({ ...prev, [entry.clientUserId]: 'minting…' }));
@@ -197,6 +230,15 @@ export default function AccessRosterPanel({ clientId, initial }: Props) {
                 title="Mint a new 24h link and copy it. Old link is killed immediately."
               >
                 {busy === e.clientUserId ? 'Working…' : 'Copy fresh link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleArchive(e)}
+                disabled={busy === e.clientUserId}
+                className="text-[10px] uppercase tracking-wider text-red-300 hover:text-red-200 hover:underline disabled:opacity-50"
+                title="Permanently kill this login. They lose portal access to every brand."
+              >
+                Archive login
               </button>
             </div>
           </li>
