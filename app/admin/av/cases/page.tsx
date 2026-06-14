@@ -158,6 +158,6 @@ export default async function OperatorCasesIndexPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
