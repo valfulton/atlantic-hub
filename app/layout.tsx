@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import ConductorCanvasMode from '@/components/ConductorCanvasMode';
 
 export const metadata: Metadata = {
   title: 'Atlantic Hub',
@@ -28,11 +27,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         {children}
-        {/* (val 2026-06-13) Floating Canvas Mode toggle — bottom right.
-            One click hides all platform chrome (sidebar, monitoring banner,
-            operator preview chrome, ViewAsPicker) so val can screenshot just
-            the content. Persists in localStorage across navigation. */}
-        <ConductorCanvasMode />
       </body>
     </html>
   );
