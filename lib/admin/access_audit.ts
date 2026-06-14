@@ -96,6 +96,10 @@ interface CaseRow extends RowDataPacket {
 export async function loadAccessAudit(): Promise<AccessAuditUser[]> {
   const db = getAvDb();
 
+  // (val 2026-06-13) Simpler ORDER BY — drop the "archived NULL first" boolean
+  // ordering that the earlier version used. Some mysql configs choke on it
+  // and the page just 500s. Sort by login recency instead; archived rows
+  // get the 'archived' badge in the UI either way.
   const [userRows] = await db.query<UserRow[]>(
     `SELECT
        cu.client_user_id, cu.email, cu.display_name, cu.client_id,
@@ -104,38 +108,54 @@ export async function loadAccessAudit(): Promise<AccessAuditUser[]> {
        c.client_name AS primary_client_name
      FROM client_users cu
      LEFT JOIN clients c ON c.client_id = cu.client_id
-     ORDER BY cu.archived_at IS NULL DESC, cu.last_login_at DESC, cu.client_user_id DESC`
+     ORDER BY cu.last_login_at DESC, cu.client_user_id DESC`
   );
 
   if (userRows.length === 0) return [];
 
   // Brand memberships — owner relationship via client_users.client_id is
   // already captured above; this pulls additional brand_members joins.
-  const [brandRows] = await db.query<BrandRow[]>(
-    `SELECT
-       bm.client_user_id,
-       bm.client_id,
-       c.client_name,
-       'member' AS rel
-     FROM brand_members bm
-     JOIN clients c ON c.client_id = bm.client_id
-     WHERE bm.revoked_at IS NULL`
-  );
+  // Defensive: brand_members is per-tenant. If the table doesn't exist on
+  // this deploy, fall back to empty rather than 500-ing the entire page.
+  let brandRows: BrandRow[] = [];
+  try {
+    const [rows] = await db.query<BrandRow[]>(
+      `SELECT
+         bm.client_user_id,
+         bm.client_id,
+         c.client_name,
+         'member' AS rel
+       FROM brand_members bm
+       JOIN clients c ON c.client_id = bm.client_id
+       WHERE bm.revoked_at IS NULL`
+    );
+    brandRows = rows;
+  } catch (e) {
+    console.error('access_audit: brand_members query failed', (e as Error).message);
+  }
 
   // Case collaborator rows — joined to cases for the name + brand.
-  const [caseRows] = await db.query<CaseRow[]>(
-    `SELECT
-       fcc.client_user_id,
-       fcc.case_id,
-       c.case_name,
-       c.client_id AS case_client_id,
-       fcc.role,
-       fcc.invitation_accepted,
-       fcc.parent_approved,
-       fcc.revoked_at
-     FROM family_case_collaborators fcc
-     JOIN cases c ON c.case_id = fcc.case_id`
-  );
+  // Same defensive guard — family_case_collaborators only lands for tenants
+  // running migration 089. If the table is missing the page should still load.
+  let caseRows: CaseRow[] = [];
+  try {
+    const [rows] = await db.query<CaseRow[]>(
+      `SELECT
+         fcc.client_user_id,
+         fcc.case_id,
+         c.case_name,
+         c.client_id AS case_client_id,
+         fcc.role,
+         fcc.invitation_accepted,
+         fcc.parent_approved,
+         fcc.revoked_at
+       FROM family_case_collaborators fcc
+       JOIN cases c ON c.case_id = fcc.case_id`
+    );
+    caseRows = rows;
+  } catch (e) {
+    console.error('access_audit: family_case_collaborators query failed', (e as Error).message);
+  }
 
   const brandsByUser = new Map<number, AccessAuditBrand[]>();
   for (const u of userRows) {

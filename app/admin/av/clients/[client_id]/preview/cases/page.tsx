@@ -14,8 +14,52 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import { listCasesForClient, type CaseRecord } from '@/lib/case/case_store';
-import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
+
+/* See [caseId]/page.tsx for the rationale — inline client-nav mockup
+   instead of mounting ClientV3TopNav (which renders unstyled on /admin/*
+   routes because the client app.css isn't loaded there). */
+function PreviewClientNav() {
+  const NAV = ['Home', 'Matters', 'Leads', 'Watchlist', 'Campaigns', 'Calendar', 'Content', 'Press', 'Newsroom'];
+  return (
+    <div style={{
+      background: '#FAF8F4',
+      borderBottom: '1px solid rgba(10,77,60,0.10)',
+      padding: '12px 22px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 18,
+      flexWrap: 'wrap',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    }}>
+      <span style={{
+        fontFamily: 'Fraunces, Georgia, serif',
+        fontSize: 16,
+        fontWeight: 600,
+        letterSpacing: '-0.01em',
+        color: '#14201B'
+      }}>
+        Atlantic &amp; Vine
+      </span>
+      <nav style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }} aria-label="What the client sees in their top nav">
+        {NAV.map((label) => (
+          <span
+            key={label}
+            style={{
+              fontSize: 12,
+              fontWeight: label === 'Matters' ? 600 : 500,
+              color: label === 'Matters' ? '#0A4D3C' : '#5C6862',
+              padding: '4px 2px',
+              borderBottom: label === 'Matters' ? '2px solid #0A4D3C' : '2px solid transparent'
+            }}
+          >
+            {label}
+          </span>
+        ))}
+      </nav>
+    </div>
+  );
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -79,7 +123,7 @@ export default async function PreviewCasesListPage({ params }: PageProps) {
           active="cases"
         />
       </div>
-      <ClientV3TopNav preview />
+      <PreviewClientNav />
     <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
         <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 12 }}>

@@ -56,7 +56,17 @@ function buildMagicUrl(token: string | null): string | null {
 }
 
 export default async function AccessAuditPage() {
-  const users = await loadAccessAudit();
+  // (val 2026-06-13) Defensive load — if the SQL throws, render an error
+  // banner instead of letting Next.js 500 the whole page. The 500 was
+  // hiding the actual cause from val.
+  let users: AccessAuditUser[] = [];
+  let loadError: string | null = null;
+  try {
+    users = await loadAccessAudit();
+  } catch (e) {
+    loadError = (e as Error).message || 'Unknown error loading access audit.';
+    console.error('access-audit page load failed', e);
+  }
 
   const totalUsers = users.length;
   const blocked = users.filter((u) =>
@@ -79,6 +89,21 @@ export default async function AccessAuditPage() {
           they see. If somebody is silently blocked, the row tells you why and what to click next.
         </p>
       </header>
+
+      {loadError && (
+        <div style={{
+          background: 'rgba(180,58,58,0.08)',
+          border: '1px solid rgba(180,58,58,0.45)',
+          color: '#A03030',
+          padding: '14px 18px',
+          borderRadius: 10,
+          marginBottom: 18,
+          fontSize: 13,
+          lineHeight: 1.5
+        }}>
+          <strong>Audit load failed:</strong> {loadError}
+        </div>
+      )}
 
       {/* Summary chips */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>

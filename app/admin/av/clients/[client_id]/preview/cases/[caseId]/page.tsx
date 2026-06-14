@@ -15,8 +15,54 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { loadFullCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
-import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
+
+/* (val 2026-06-13) Inline client-nav mockup. ClientV3TopNav's .v3-* CSS
+   lives in /client/_styles/app.css which is only loaded by /client/layout.tsx;
+   on /admin/* the classes render unstyled (giant logo, mashed nav links).
+   Inline styles keep the mirror visually accurate without dragging the
+   client design system into operator pages. */
+function PreviewClientNav() {
+  const NAV = ['Home', 'Matters', 'Leads', 'Watchlist', 'Campaigns', 'Calendar', 'Content', 'Press', 'Newsroom'];
+  return (
+    <div style={{
+      background: '#FAF8F4',
+      borderBottom: '1px solid rgba(10,77,60,0.10)',
+      padding: '12px 22px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 18,
+      flexWrap: 'wrap',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    }}>
+      <span style={{
+        fontFamily: 'Fraunces, Georgia, serif',
+        fontSize: 16,
+        fontWeight: 600,
+        letterSpacing: '-0.01em',
+        color: '#14201B'
+      }}>
+        Atlantic &amp; Vine
+      </span>
+      <nav style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }} aria-label="What the client sees in their top nav">
+        {NAV.map((label) => (
+          <span
+            key={label}
+            style={{
+              fontSize: 12,
+              fontWeight: label === 'Matters' ? 600 : 500,
+              color: label === 'Matters' ? '#0A4D3C' : '#5C6862',
+              padding: '4px 2px',
+              borderBottom: label === 'Matters' ? '2px solid #0A4D3C' : '2px solid transparent'
+            }}
+          >
+            {label}
+          </span>
+        ))}
+      </nav>
+    </div>
+  );
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -105,13 +151,8 @@ export default async function PreviewCasePage({ params }: PageProps) {
         />
       </div>
 
-      {/* (val 2026-06-13) Mount ClientV3TopNav in preview mode so val sees
-          EXACTLY what Rebecca / Adriana / parents see when they hit
-          /client/cases/[caseId] — including the cream client nav with Home,
-          Matters, Leads, etc. Without this the operator preview was an orphan
-          page and val (rightly) couldn't tell whether collaborators had a way
-          to navigate off the case. preview=true makes the nav links inert. */}
-      <ClientV3TopNav preview />
+      {/* (val 2026-06-13) Inline client-nav mockup — see PreviewClientNav above. */}
+      <PreviewClientNav />
 
       {/* Same content as /client/cases/[caseId] */}
       <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
