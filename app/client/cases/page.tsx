@@ -14,6 +14,7 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 import { listCasesAccessibleByClientUser } from '@/lib/case/case_store';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +77,15 @@ export default async function ClientCasesPage() {
   const otherCases = cases.filter((c) => c.status !== 'open');
 
   return (
+    <>
+      {/* (val 2026-06-13) Mount ClientV3TopNav so Rebecca / Adriana / parents
+          actually have a nav bar to move between Home, Matters, Leads, etc.
+          Without this, the cases pages had NO top-of-page navigation on
+          desktop (mobile gets BottomTabBar from the layout, but desktop is
+          ClientV3TopNav only). Mirrors the pattern used by /client/leads,
+          /client/calendar, /client/pr — every page that takes a logged-in
+          client mounts its own ClientV3TopNav. */}
+      <ClientV3TopNav />
     <main className="min-h-screen" style={{ background: 'var(--cream, #FAF8F4)', color: 'var(--ink, #14201B)' }}>
       <div style={{ maxWidth: 880, margin: '0 auto', padding: '2.5rem 1.25rem 4rem' }}>
         <header style={{ marginBottom: '2rem' }}>
@@ -170,5 +180,6 @@ export default async function ClientCasesPage() {
         )}
       </div>
     </main>
+    </>
   );
 }

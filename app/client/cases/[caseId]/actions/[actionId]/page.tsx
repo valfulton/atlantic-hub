@@ -28,6 +28,7 @@ import {
 } from '@/lib/case/case_store';
 import SectionText from '@/components/case/SectionText';
 import ActionItemNotesPanel from '@/components/case/ActionItemNotesPanel';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -100,6 +101,10 @@ export default async function ClientActionDetailPage({ params }: PageProps) {
   const sectionIndex = indexableDoc?.sectionIndex ?? null;
 
   return (
+    <>
+      {/* (val 2026-06-13) Nav fix — without ClientV3TopNav, Rebecca / Adriana
+          had no way to navigate off the action detail page on desktop. */}
+      <ClientV3TopNav />
     <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
         {/* Breadcrumb */}
@@ -178,5 +183,6 @@ export default async function ClientActionDetailPage({ params }: PageProps) {
         </section>
       </div>
     </main>
+    </>
   );
 }

@@ -19,6 +19,7 @@ import { loadFullCase, canClientUserAccessCase, findIndexableDocumentForCase } f
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import SectionText from '@/components/case/SectionText';
 import DocumentApprovalActions from '@/components/case/DocumentApprovalActions';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -132,6 +133,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
 
   return (
+    <>
+      {/* (val 2026-06-13) Mount ClientV3TopNav so logged-in clients
+          (Rebecca, Adriana, parents) have a working nav bar on the case
+          detail page. Without this, desktop users had NO way to navigate
+          between Home / Matters / Leads / etc. — they were stuck on
+          whatever case page they landed on. */}
+      <ClientV3TopNav />
     <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
         {/* Breadcrumb */}
@@ -424,5 +432,6 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
         )}
       </div>
     </main>
+    </>
   );
 }
