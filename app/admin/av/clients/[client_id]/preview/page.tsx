@@ -28,7 +28,13 @@ import { getWelcomePopupSlides, getWelcomeSlidesForEngagement } from '@/lib/welc
 // AdrianaDashboard renders against the canonical client-app design system.
 // The operator preview route doesn't go through app/client/layout.tsx, so
 // we import the design system here directly.
+// (val 2026-06-14) app.css alone styles .app-* (greeting/hero/brand) but NOT
+// the .av-matters card, which lives in skin.social.css + client-social.css.
+// The live client surface loads all three via the client layout; the preview
+// must import them too or the Matters card renders as unstyled plain text.
 import '@/app/client/_styles/app.css';
+import '@/app/client/skin.social.css';
+import '@/app/client/client-social.css';
 import type { RowDataPacket } from 'mysql2';
 
 export const dynamic = 'force-dynamic';
