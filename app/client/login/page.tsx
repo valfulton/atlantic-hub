@@ -92,6 +92,10 @@ function LoginForm() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // (val 2026-06-13) Show/hide so users can see what they're typing. Important
+  // for collaborators on shared screens (Rebecca couldn't tell if she had a
+  // typo because dots).
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(
     initialError ? ERROR_MESSAGES[initialError] ?? 'Could not sign in. Please try again.' : null
   );

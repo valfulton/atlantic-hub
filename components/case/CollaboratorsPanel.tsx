@@ -168,6 +168,69 @@ export default function CollaboratorsPanel({ caseId, collaborators }: Props) {
     } catch (e) { alert(e instanceof Error ? e.message : 'Network error'); }
   }
 
+  // (val 2026-06-13) Reset password + Unlock — replaces the SQL workflow
+  // for unblocking a collaborator who can't get in. Resetting targets THIS
+  // specific client_user (not the brand owner); Unlock wipes the rate-limit
+  // bucket so they can attempt login immediately.
+  const [resetForId, setResetForId] = useState<number | null>(null);
+  const [resetPwd, setResetPwd] = useState('');
+  const [resetShow, setResetShow] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetResultEmail, setResetResultEmail] = useState<string | null>(null);
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [unlockMsg, setUnlockMsg] = useState<string | null>(null);
+
+  async function handleResetPassword(collaboratorId: number) {
+    if (resetPwd.length < 8) {
+      alert('Password must be 8+ characters');
+      return;
+    }
+    setResetBusy(true);
+    try {
+      const res = await fetch(
+        `/api/admin/av/cases/${caseId}/collaborators/${collaboratorId}/set-password`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ password: resetPwd })
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || 'Reset failed');
+        return;
+      }
+      setResetResultEmail(data.email);
+      setResetPwd('');
+      setResetForId(null);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Network error');
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
+  async function handleUnlockLogin() {
+    if (unlockBusy) return;
+    setUnlockBusy(true);
+    setUnlockMsg(null);
+    try {
+      const res = await fetch('/api/admin/av/unlock-login', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setUnlockMsg(data?.error || 'Unlock failed');
+        return;
+      }
+      setUnlockMsg(`Cleared ${data.cleared} lockout bucket${data.cleared === 1 ? '' : 's'}. They can try again now.`);
+      setTimeout(() => setUnlockMsg(null), 4500);
+    } catch (e) {
+      setUnlockMsg(e instanceof Error ? e.message : 'Network error');
+    } finally {
+      setUnlockBusy(false);
+    }
+  }
+
   function copyLink(link: string) {
     void navigator.clipboard.writeText(link).then(() => {
       setLinkCopied(true);
@@ -179,18 +242,42 @@ export default function CollaboratorsPanel({ caseId, collaborators }: Props) {
 
   return (
     <section className="rounded-xl border border-border bg-[var(--surface-2)] p-5">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h2 className="text-sm uppercase tracking-wider text-muted">
           Family + advisors ({collaborators.length})
         </h2>
-        <button
-          type="button"
-          onClick={() => setShowForm(!showForm)}
-          className="text-xs uppercase tracking-wider px-3 py-1.5 rounded-md border border-border bg-[var(--surface-3,rgba(255,255,255,0.04))] text-ink hover:bg-[var(--surface-3,rgba(255,255,255,0.08))]"
-        >
-          {showForm ? 'Cancel' : '+ Invite'}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Clears the client-login rate-limit globally — kills the
+              "too many attempts" lockout without SQL. */}
+          <button
+            type="button"
+            onClick={handleUnlockLogin}
+            disabled={unlockBusy}
+            className="text-xs uppercase tracking-wider px-3 py-1.5 rounded-md border border-amber-700/40 text-amber-200 hover:bg-amber-900/30 disabled:opacity-50"
+            title="Wipes the client-login rate-limit so anyone locked out of /client/login can try again."
+          >
+            {unlockBusy ? 'Unlocking…' : 'Unlock all logins'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm(!showForm)}
+            className="text-xs uppercase tracking-wider px-3 py-1.5 rounded-md border border-border bg-[var(--surface-3,rgba(255,255,255,0.04))] text-ink hover:bg-[var(--surface-3,rgba(255,255,255,0.08))]"
+          >
+            {showForm ? 'Cancel' : '+ Invite'}
+          </button>
+        </div>
       </div>
+      {unlockMsg && (
+        <div className="text-xs text-amber-200 mb-3 px-2 py-1.5 rounded border border-amber-700/40 bg-amber-900/20">
+          {unlockMsg}
+        </div>
+      )}
+      {resetResultEmail && (
+        <div className="text-xs text-emerald-200 mb-3 px-2 py-1.5 rounded border border-emerald-700/40 bg-emerald-900/20 flex items-center justify-between gap-2">
+          <span>Password set for <strong>{resetResultEmail}</strong>. Share it with them.</span>
+          <button type="button" onClick={() => setResetResultEmail(null)} className="text-emerald-300 hover:text-emerald-100">×</button>
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleInvite} className="mb-4 p-3 rounded-lg bg-black/20 border border-border space-y-2">
@@ -357,6 +444,16 @@ export default function CollaboratorsPanel({ caseId, collaborators }: Props) {
                     {!c.revokedAt && (
                       <button
                         type="button"
+                        onClick={() => { setResetForId(c.collaboratorId); setResetPwd(''); setResetShow(false); }}
+                        className="text-[10px] uppercase tracking-wider px-2 py-1 rounded border border-emerald-700/40 text-emerald-200 hover:bg-emerald-900/30"
+                        title="Set a password for this person — replaces any current password they had."
+                      >
+                        Reset password
+                      </button>
+                    )}
+                    {!c.revokedAt && (
+                      <button
+                        type="button"
                         onClick={() => handleRevoke(c.collaboratorId)}
                         className="text-[10px] uppercase tracking-wider px-2 py-1 rounded text-red-300 hover:text-red-200 hover:underline"
                       >
@@ -365,6 +462,52 @@ export default function CollaboratorsPanel({ caseId, collaborators }: Props) {
                     )}
                   </div>
                 </div>
+
+                {/* Inline reset-password form — appears under the row val tapped.
+                    Reset targets THIS client_user_id, not the brand owner. */}
+                {resetForId === c.collaboratorId && (
+                  <div className="mt-3 p-3 rounded-md border border-emerald-800/40 bg-emerald-950/30">
+                    <div className="text-[10px] uppercase tracking-wider text-emerald-300 mb-2">
+                      New password for {c.displayName || c.email}
+                    </div>
+                    <div className="flex items-stretch gap-2 flex-wrap">
+                      <input
+                        type={resetShow ? 'text' : 'password'}
+                        value={resetPwd}
+                        onChange={(e) => setResetPwd(e.target.value)}
+                        placeholder="8+ characters"
+                        autoFocus
+                        className="flex-1 min-w-[200px] bg-black/30 border border-border rounded px-2 py-1.5 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setResetShow((v) => !v)}
+                        className="text-[10px] uppercase tracking-wider px-2 py-1 rounded border border-border text-muted hover:text-ink"
+                        title={resetShow ? 'Hide' : 'Show'}
+                      >
+                        {resetShow ? 'Hide' : 'Show'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleResetPassword(c.collaboratorId)}
+                        disabled={resetBusy || resetPwd.length < 8}
+                        className="text-[10px] uppercase tracking-wider px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
+                      >
+                        {resetBusy ? 'Saving…' : 'Set password'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setResetForId(null); setResetPwd(''); }}
+                        className="text-[10px] uppercase tracking-wider px-2 py-1 rounded text-muted hover:text-ink"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-muted mt-2">
+                      No email is sent. Share the password with {c.displayName?.split(' ')[0] || 'them'} however you like.
+                    </div>
+                  </div>
+                )}
               </li>
             );
           })}
