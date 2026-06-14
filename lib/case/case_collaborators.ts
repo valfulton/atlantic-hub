@@ -17,6 +17,7 @@
 import { getAvDb } from '@/lib/db/av';
 import { randomBytes } from 'node:crypto';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { buildMagicLinkUrl } from '@/lib/auth/client-magic-token';
 
 export type CollaboratorRole =
   | 'parent'
@@ -256,8 +257,13 @@ export async function inviteCollaborator(input: InviteCollaboratorInput): Promis
     );
     const collaboratorId = collabRows[0]?.collaborator_id ?? null;
 
-    const base = process.env.NEXT_PUBLIC_APP_URL || 'https://atlantic-hub.netlify.app';
-    const magicLink = `${base.replace(/\/$/, '')}/client/login?token=${token}`;
+    // (val 2026-06-13) Use the canonical buildMagicLinkUrl — points at
+    // /api/client/magic-link/{token} which actually consumes the token and
+    // sets the session cookie. The earlier hand-rolled `/client/login?token=`
+    // was DEAD: it just rendered the login form with an ignored query param,
+    // which is why Rebecca's invite link "didn't work". Same fix in
+    // components/case/CollaboratorsPanel.tsx.
+    const magicLink = buildMagicLinkUrl(token);
 
     return { ok: true, collaboratorId, clientUserId, magicLink };
   } catch (err) {

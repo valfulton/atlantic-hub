@@ -302,8 +302,12 @@ export default function CollaboratorsPanel({ caseId, collaborators }: Props) {
         <ul className="space-y-2">
           {collaborators.map((c) => {
             const pill = statusPill(c);
+            // (val 2026-06-13) Real consume endpoint is /api/client/magic-link/{token},
+            // NOT /client/login?token=... The login page IGNORES the token query string,
+            // which is why Rebecca's "INVITE SENT" link did nothing. Mirror of the
+            // server-side fix in lib/case/case_collaborators.ts.
             const magicLink = c.magicToken && !c.invitationAccepted
-              ? `${baseUrl}/client/login?token=${c.magicToken}` : null;
+              ? `${baseUrl}/api/client/magic-link/${c.magicToken}` : null;
             return (
               <li
                 key={c.collaboratorId}
