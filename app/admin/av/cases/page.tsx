@@ -79,7 +79,11 @@ export default async function OperatorCasesIndexPage() {
   const clientMap = await getClientNameMap(clientIds);
 
   return (
-    <main className="min-h-screen p-8 bg-[var(--surface)] text-ink">
+    // (val 2026-06-14) Return a content div, NOT a <main> — the shared operator
+    // layout (app/admin/layout.tsx) already provides <main> + the flex row with
+    // the left Sidebar. A nested <main> with min-h-screen + a full surface bg
+    // broke the flex and hid the sidebar ("where's the rest of the navigation?").
+    <div className="text-ink">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8">
           <div className="text-[11px] tracking-[0.18em] uppercase text-muted mb-2">

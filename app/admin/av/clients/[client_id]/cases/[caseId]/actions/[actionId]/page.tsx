@@ -76,7 +76,9 @@ export default async function ActionItemDetailPage({ params }: PageProps) {
   const sectionIndex = indexableDoc?.sectionIndex ?? null;
 
   return (
-    <main className="min-h-screen p-6 bg-[var(--surface)] text-ink">
+    // (val 2026-06-14) Content div, not <main> — the shared operator layout
+    // provides <main> + the left Sidebar. A nested full-height <main> hid it.
+    <div className="text-ink">
       <div className="max-w-4xl mx-auto">
         {/* Breadcrumb */}
         <div className="text-xs text-muted mb-4">
@@ -156,6 +158,6 @@ export default async function ActionItemDetailPage({ params }: PageProps) {
           />
         </section>
       </div>
-    </main>
+    </div>
   );
 }

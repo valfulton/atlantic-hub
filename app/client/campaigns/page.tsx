@@ -21,7 +21,6 @@ import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
-import { resolveGreetingName } from '@/lib/client/display_name';
 import { getAvDb } from '@/lib/db/av';
 import type { RowDataPacket } from 'mysql2';
 
@@ -74,7 +73,6 @@ export default async function ClientCampaignsPage() {
     if (!access.active) return <AccessPaused expired={access.expired} />;
   }
 
-  const firstName = await resolveGreetingName(user.display_name, clientId, 'there');
   const campaigns = await loadCampaigns(clientId);
 
   return (
@@ -82,12 +80,12 @@ export default async function ClientCampaignsPage() {
       <ClientV3TopNav />
 
       <section className="v3-greet">
-        <p className="v3-eyebrow">YOUR CAMPAIGNS</p>
-        <h1 className="v3-h1">
-          {firstName === 'there'
-            ? 'Your campaigns.'
-            : <>The story you&apos;re telling, <em>{firstName}</em>.</>}
-        </h1>
+        <p className="v3-eyebrow">Your campaigns</p>
+        {/* (val 2026-06-14) Neutral headline. The prior second-person line
+            ("The story you're telling, Johnson") addressed a case-shaped client
+            by its truncated brand nickname — a naming-drift bug. A campaign list
+            is a workspace, not a personalized salutation. */}
+        <h1 className="v3-h1">Your campaigns.</h1>
         <p className="v3-lede">
           Every piece of outreach, every post, every press hit — anchored to the lines you stand for.
         </p>
@@ -95,12 +93,15 @@ export default async function ClientCampaignsPage() {
 
       {campaigns.length === 0 ? (
         <article className="v3-card">
-          <h3 className="v3-card__h">Your campaigns are taking shape.</h3>
+          <h3 className="v3-card__h">No campaigns yet.</h3>
           <p className="v3-card__p">
-            We&apos;re assembling the narrative lines from your intake — what you stand for,
-            who you serve, the moments worth marking. Each one becomes a campaign you
-            approve before anything goes out. Check back here once they&apos;re ready for your eyes.
+            A campaign is a through-line — the message you keep returning to across your
+            outreach, posts, and press. They build from your brief. Finish yours and we&apos;ll
+            line up the first campaigns here for your approval.
           </p>
+          <a href="/client/intake" style={{ color: 'var(--emerald-deep)', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 2, display: 'inline-block', marginTop: 10 }}>
+            Complete your brief →
+          </a>
         </article>
       ) : (
         <section className="v3-grid">
