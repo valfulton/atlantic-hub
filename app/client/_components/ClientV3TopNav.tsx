@@ -30,6 +30,11 @@ const NAV = [
   // (#419) Content Studio — generated posts ready to approve, true-to-platform preview.
   { href: '/client/content', label: 'Content' },
   { href: '/client/pr', label: 'Press' },
+  // (val 2026-06-14, UX/UI audit) Notes — two-way thread to the A&V team.
+  // Was reachable only via mobile BottomTabBar's "More" overflow; promoted to
+  // desktop nav so clients can find the channel without hunting. Mirror at
+  // /admin/av/clients/[id]/preview/notes is already shipped (#575).
+  { href: '/client/notes', label: 'Notes' },
   // Newsroom — the public Wire surfacing published work. Same URL for client and
   // operator (public route), so the mirror discipline is satisfied by the URL itself.
   { href: '/newsroom', label: 'Newsroom' }

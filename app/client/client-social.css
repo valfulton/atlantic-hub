@@ -298,3 +298,24 @@
   .av-hero h2{ font-size:1.3rem; }
   .av-brand__go,.av-matter__open{ font-size:.78rem; padding:8px 12px; }
 }
+
+/* MATTERS CARD — dashboard-level container (distinct from .av-matter ROW).
+   UX/UI spec correction 2026-06-14: white surface (NOT mint), emerald left-accent,
+   collapsible via `.av-matters.is-min`. The .av-matter ROWS render INSIDE this. */
+.av-matters{ position:relative; background:var(--paper,#FFFFFF);
+  border:1px solid var(--edge,rgba(10,77,60,.12));
+  border-left:4px solid var(--emerald-deep,#0A4D3C);
+  border-radius:14px; padding:20px 22px; margin-bottom:18px;
+  box-shadow:0 10px 30px rgba(10,77,60,.05); }
+.av-matters.is-min .av-matters__body{ display:none; }
+.av-matters__min{ position:absolute; top:16px; right:16px;
+  width:30px; height:30px; border-radius:8px;
+  border:1px solid var(--edge,rgba(10,77,60,.12));
+  background:transparent; color:var(--muted,#5C6862);
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+.av-matters__min:focus-visible{ outline:2px solid var(--emerald-deep,#0A4D3C); outline-offset:2px; }
+/* Solid emerald open-button OVERRIDE (was ghost on .av-matter__open). Inside
+   .av-matters card the primary action is solid — obvious next step. */
+.av-matters .av-matter__open{ background:var(--emerald-deep,#0A4D3C);
+  color:var(--cream,#FAF8F4); border:none; border-radius:24px;
+  min-height:48px; padding:0 18px; font-weight:600; }
