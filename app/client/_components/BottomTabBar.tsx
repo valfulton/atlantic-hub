@@ -12,20 +12,23 @@ import { useState } from 'react';
 type Item = { href: string; label: string; icon: string };
 
 // Primary thumb tabs — the everyday surfaces.
+// (val 2026-06-13) Matters PROMOTED to primary. Was buried in MORE overflow
+// for family_legacy_care + defense_pr + estate_litigation engagement_kinds
+// where Matters IS the engagement — Rebecca on the Johnson trust case had
+// to tap More → Matters to reach the only thing she logs in for. Promoting
+// Matters universally is the right call: lead_gen clients still have Home/
+// Leads/Watchlist/Content; case clients now have a thumb-reachable path
+// to their case.
 const PRIMARY: Item[] = [
   { href: '/client/dashboard', label: 'Home',      icon: 'M3 11l9-8 9 8 M5 10v10h14V10' },
+  { href: '/client/cases',     label: 'Matters',   icon: 'M4 6h16v14H4z M4 10h16 M9 6V4h6v2' },
   { href: '/client/leads',     label: 'Leads',     icon: 'M4 6h16 M4 12h16 M4 18h10' },
-  { href: '/client/watchlist', label: 'Watchlist', icon: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0' },
   { href: '/client/content',   label: 'Content',   icon: 'M5 4h11l3 3v13H5z M14 4v4h4 M8 12h8 M8 16h6' }
 ];
 
 // Overflow — opened from the "More" tab as a bottom sheet.
 const MORE: Item[] = [
-  // (val 2026-06-12) Matters — case dashboards. Critical for family + counsel
-  // collaborators who need to reach /client/cases. Top-level desktop nav adds
-  // it directly; mobile overflow is fine since the four primary tabs already
-  // carry the lead_gen workflow.
-  { href: '/client/cases',     label: 'Matters',   icon: 'M4 6h16v14H4z M4 10h16 M9 6V4h6v2' },
+  { href: '/client/watchlist', label: 'Watchlist', icon: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0' },
   { href: '/client/campaigns', label: 'Campaigns', icon: 'M4 9l16-5v15l-16-5z M4 9v6 M9 10v4' },
   { href: '/client/calendar',  label: 'Calendar',  icon: 'M5 4h14v16H5z M5 10h14 M9 4v4 M15 4v4' },
   { href: '/client/pr',        label: 'Press',     icon: 'M4 4h16v12H7l-3 3V4z' },
