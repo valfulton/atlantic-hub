@@ -62,6 +62,7 @@ export default function ViewAsPicker({
 
   return (
     <div
+      data-chrome="hide-in-canvas"
       style={{
         background: '#F5EFE3',
         border: '1px solid rgba(201,169,97,0.45)',

@@ -263,6 +263,32 @@ main > * {
   max-width: 100%;
 }
 
+/* ─── CONDUCTOR CANVAS MODE (val 2026-06-13) ─────────────────────────────
+   When the conductor toggles canvas mode (ConductorCanvasMode component),
+   every piece of platform chrome hides so val can screenshot just the
+   content. Body gets data-canvas-mode="full" from the toggle.
+
+   What hides:
+     - The operator Sidebar (the dark nav)
+     - The MONITORING ticker banner
+     - OperatorPreviewChrome banner (the "Operator preview — what X sees here")
+     - ViewAsPicker bar
+     - Anything tagged data-chrome="hide-in-canvas"
+
+   What stays:
+     - The main content
+     - The Canvas Mode toggle button itself (it has its own z-index 9999) */
+body[data-canvas-mode="full"] aside,
+body[data-canvas-mode="full"] [data-chrome="hide-in-canvas"],
+body[data-canvas-mode="full"] .monitoring-banner,
+body[data-canvas-mode="full"] [data-monitoring-banner] {
+  display: none !important;
+}
+/* When the sidebar is hidden, let the main content claim the full width. */
+body[data-canvas-mode="full"] {
+  --sidebar-width: 0;
+}
+
 /* ─── LEGIBILITY FLOOR (#276) ─────────────────────────────────────────────
    val has vision issues + the dark theme is hard to read. Existing pages
    are riddled with text-[9.5px], text-[10px], text-[11px], text-[12px]

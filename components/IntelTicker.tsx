@@ -72,6 +72,8 @@ export function IntelTicker() {
 
   return (
     <div
+      data-chrome="hide-in-canvas"
+      data-monitoring-banner="true"
       className="mb-5 flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
       style={{ borderColor: 'rgba(255,156,91,0.35)', background: 'linear-gradient(90deg, rgba(255,90,110,0.10), rgba(255,156,91,0.06))' }}
       role="status"
