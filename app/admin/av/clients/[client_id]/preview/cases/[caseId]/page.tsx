@@ -15,6 +15,8 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { loadFullCase } from '@/lib/case/case_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
+import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -86,35 +88,30 @@ export default async function PreviewCasePage({ params }: PageProps) {
 
   return (
     <>
-      {/* Operator chrome banner — colors aligned to the shared
-          OperatorPreviewChrome pattern (cream ground #F5EFE3, gold border,
-          emerald-deep accent text — AA-safe on cream; the prior tan + coral
-          #4A1B0C was off-pattern). Full component adoption pending a `cases`
-          tab in the shared TABS array. */}
-      <div style={{
-        background: '#F5EFE3',
-        borderBottom: '1px solid rgba(201,169,97,0.4)',
-        padding: '10px 18px',
-        fontSize: 12,
-        color: '#1B2329',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 10
-      }}>
-        <div>
-          <strong style={{ color: '#0A4D3C' }}>Operator preview</strong> — what {c.caseName} sees here. Read-only.
-        </div>
-        <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
-          <Link href={`/admin/av/clients/${clientId}/cases/${caseId}`} style={{ color: '#0A4D3C', textDecoration: 'underline' }}>
-            Operator case dashboard →
-          </Link>
-          <Link href={`/admin/av/clients/${clientId}`} style={{ color: '#0A4D3C', textDecoration: 'underline' }}>
-            Back to client
-          </Link>
-        </div>
+      {/* (val 2026-06-13) Use the shared OperatorPreviewChrome — same banner +
+          sibling tab strip every other preview surface uses. Replaces the inline
+          ad-hoc banner that lived here. `active="cases"` highlights the Matters
+          tab in the operator strip. */}
+      <div style={{ padding: '0 18px' }}>
+        <OperatorPreviewChrome
+          clientId={clientId}
+          clientName={c.caseName}
+          active="cases"
+          bannerExtra={
+            <Link href={`/admin/av/clients/${clientId}/cases/${caseId}`} style={{ color: '#0A4D3C', textDecoration: 'none' }}>
+              Operator case dashboard →
+            </Link>
+          }
+        />
       </div>
+
+      {/* (val 2026-06-13) Mount ClientV3TopNav in preview mode so val sees
+          EXACTLY what Rebecca / Adriana / parents see when they hit
+          /client/cases/[caseId] — including the cream client nav with Home,
+          Matters, Leads, etc. Without this the operator preview was an orphan
+          page and val (rightly) couldn't tell whether collaborators had a way
+          to navigate off the case. preview=true makes the nav links inert. */}
+      <ClientV3TopNav preview />
 
       {/* Same content as /client/cases/[caseId] */}
       <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>

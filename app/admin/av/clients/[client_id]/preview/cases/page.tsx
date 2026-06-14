@@ -14,6 +14,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import { listCasesForClient, type CaseRecord } from '@/lib/case/case_store';
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
+import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -64,6 +66,20 @@ export default async function PreviewCasesListPage({ params }: PageProps) {
   }
 
   return (
+    <>
+      {/* (val 2026-06-13) Shared operator chrome + cream client nav, same as
+          the case detail preview, so val sees what Rebecca/Adriana actually see
+          when they hit /client/cases. Without this the preview was an orphan
+          page with no nav — val (rightly) thought collaborators had no way
+          to navigate off the page. */}
+      <div style={{ padding: '0 18px' }}>
+        <OperatorPreviewChrome
+          clientId={clientId}
+          clientName="this client"
+          active="cases"
+        />
+      </div>
+      <ClientV3TopNav preview />
     <main className="min-h-screen" style={{ ...CREAM_SKIN, background: 'var(--cream)', color: 'var(--ink)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
         <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 12 }}>
@@ -117,5 +133,6 @@ export default async function PreviewCasesListPage({ params }: PageProps) {
         )}
       </div>
     </main>
+    </>
   );
 }
