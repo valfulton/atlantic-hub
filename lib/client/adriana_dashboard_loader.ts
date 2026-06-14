@@ -432,7 +432,10 @@ const COLLAB_ROLE_LABEL: Record<string, string> = {
  *  table never breaks the dashboard. Guarded against clientUserId <= 0 so the
  *  operator preview (which may pass member?.client_user_id ?? 0) doesn't run
  *  the query when there's no real client_user. */
-async function loadMattersForUser(clientUserId: number): Promise<MatterCard[]> {
+async function loadMattersForUser(
+  clientUserId: number,
+  activeClientId: number | null
+): Promise<MatterCard[]> {
   if (!Number.isInteger(clientUserId) || clientUserId <= 0) return [];
   try {
     const db = getAvDb();
@@ -444,6 +447,15 @@ async function loadMattersForUser(clientUserId: number): Promise<MatterCard[]> {
       open_actions: number;
       urgent_actions: number;
     };
+    // (val 2026-06-14, #657) Brand-scoped via family_case_collaborators.via_client_id.
+    // A matter shows when ANY of these is true:
+    //   1. activeClientId IS NULL — no scoping context (rare; defensive)
+    //   2. c.client_id = activeClientId — case's own home (Johnson preview for Johnson)
+    //   3. fcc.via_client_id IS NULL — single-brand collaborator (Rebecca, parents)
+    //   4. fcc.via_client_id = activeClientId — collaborator's work-context brand match
+    //                                            (Adriana on CLDA shows Johnson; on CBB hides)
+    // The migration schema/094 adds the via_client_id column; this query degrades
+    // softly via the try/catch when run before the migration lands.
     const [rows] = await db.execute<Row[]>(
       `SELECT c.case_id, c.case_name, c.case_kind, fcc.role AS collab_role,
               (SELECT COUNT(*) FROM case_action_items ai
@@ -457,9 +469,15 @@ async function loadMattersForUser(clientUserId: number): Promise<MatterCard[]> {
           AND fcc.revoked_at IS NULL
           AND fcc.parent_approved = TRUE
           AND c.status = 'open'
+          AND (
+                ? IS NULL
+             OR c.client_id = ?
+             OR fcc.via_client_id IS NULL
+             OR fcc.via_client_id = ?
+          )
         ORDER BY c.case_id DESC
         LIMIT 6`,
-      [clientUserId]
+      [clientUserId, activeClientId, activeClientId, activeClientId]
     );
     return rows.map((r) => ({
       caseId: r.case_id,
@@ -505,10 +523,12 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   let activeClientName: string | null = null;
   let activeClientShortName: string | null = null;
   let activeCampaignCount = 0;
-  // (val 2026-06-14, UX/UI PATCH 1) Cases this user collaborates on. Soft-fails
+  // (val 2026-06-14, #657) Cases this user collaborates on, BRAND-SCOPED via
+  // fcc.via_client_id. Adriana on CBB doesn't see her Johnson legal matter;
+  // on CLDA she does; on Johnson preview anyone with access sees it. Soft-fails
   // to []. Empty for users with no collaborator rows — the dashboard hides the
   // matters card entirely in that case.
-  const matters = await loadMattersForUser(clientUserId);
+  const matters = await loadMattersForUser(clientUserId, activeClientId);
 
   // (#377) AV employees on this client — Adriana sees Rebecca; Tim sees nothing.
   // Lib already returns [] on error, so this never breaks the dashboard.

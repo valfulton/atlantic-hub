@@ -170,6 +170,12 @@ export interface InviteCollaboratorInput {
   role: CollaboratorRole;
   /** When TRUE, marks parent_approved immediately. Operator-only path. */
   bypassParentApproval?: boolean;
+  /** (val 2026-06-14, #657) Which of the invitee's brands does this work belong to?
+   *  For multi-brand owners (Adriana = CBB + CLDA) this scopes the matter to ONE brand
+   *  so the case doesn't bleed across their dashboards. The invite UI should show a
+   *  brand picker when the invitee owns 2+ brands; default to their current primary.
+   *  Single-brand invitees (Rebecca, parents): leave NULL — no scoping needed. */
+  viaClientId?: number | null;
 }
 
 export interface InviteResult {
@@ -207,14 +213,19 @@ export async function inviteCollaborator(input: InviteCollaboratorInput): Promis
   try {
     const db = getAvDb();
 
-    // 1. Upsert the client_users row. ON DUPLICATE KEY UPDATE re-binds them
-    //    to this client_id + issues a fresh token so the magic link works.
+    // 1. Upsert the client_users row. If an existing user is invited to a case
+    //    we issue a fresh magic_token so the invite link works, but we do NOT
+    //    re-bind their client_id — that would clobber a brand-owner's primary
+    //    brand (val 2026-06-14, #657: Adriana invited to Johnson got her primary
+    //    client_id repointed from CBB(9) to Johnson(18), breaking her dashboard
+    //    home + popover). The collaborator relationship lives in
+    //    family_case_collaborators below, scoped via via_client_id; primary
+    //    brand context stays where it was.
     await db.execute<ResultSetHeader>(
       `INSERT INTO client_users
          (client_id, email, display_name, magic_token, magic_token_expires_at, tier)
        VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY), 'audit_only')
        ON DUPLICATE KEY UPDATE
-         client_id = VALUES(client_id),
          display_name = COALESCE(VALUES(display_name), display_name),
          magic_token = VALUES(magic_token),
          magic_token_expires_at = VALUES(magic_token_expires_at)`,
@@ -232,21 +243,30 @@ export async function inviteCollaborator(input: InviteCollaboratorInput): Promis
     }
 
     // 3. Upsert the collaborator row. Unique key is (case_id, client_user_id).
+    //    (val 2026-06-14, #657) via_client_id scopes this matter to ONE of a
+    //    multi-brand owner's brands so it doesn't bleed across all their
+    //    dashboards. NULL = no scoping (single-brand invitees). The matters
+    //    loader uses this column; see schema/094_collaborator_via_client_id.sql.
     const parentApproved = input.bypassParentApproval ? 1 : 0;
     const parentApprovedAt = input.bypassParentApproval ? 'NOW()' : 'NULL';
+    const viaClientId = (typeof input.viaClientId === 'number' && input.viaClientId > 0)
+      ? input.viaClientId
+      : null;
     await db.execute<ResultSetHeader>(
       `INSERT INTO family_case_collaborators (
          case_id, client_user_id, role, invited_by_user_id,
-         invitation_accepted, parent_approved, parent_approved_at, permissions
-       ) VALUES (?, ?, ?, ?, FALSE, ?, ${parentApprovedAt}, ?)
+         invitation_accepted, parent_approved, parent_approved_at,
+         via_client_id, permissions
+       ) VALUES (?, ?, ?, ?, FALSE, ?, ${parentApprovedAt}, ?, ?)
        ON DUPLICATE KEY UPDATE
          role = VALUES(role),
          invited_by_user_id = VALUES(invited_by_user_id),
          parent_approved = VALUES(parent_approved),
          parent_approved_at = VALUES(parent_approved_at),
+         via_client_id = COALESCE(VALUES(via_client_id), via_client_id),
          permissions = VALUES(permissions),
          revoked_at = NULL`,
-      [input.caseId, clientUserId, role, input.inviterUserId, parentApproved, JSON.stringify(perms)]
+      [input.caseId, clientUserId, role, input.inviterUserId, parentApproved, viaClientId, JSON.stringify(perms)]
     );
 
     // 4. Read back the collaborator id we just touched.
