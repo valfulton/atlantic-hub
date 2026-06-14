@@ -196,3 +196,105 @@
 [data-skin="social"] .chip--signal,[data-skin="social"] .chip--fit{
   color:var(--emerald-deep,#0A4D3C);background:var(--emerald-mist,#E8F2EE);
   border:0;padding:.18rem .5rem;letter-spacing:.06em}
+
+/* ============================================================
+   BEAUTY PACK v1 — UX/UI standard 2026-06-14 (AV_UXUI_Beauty_Pack_Standards.md)
+   Universal cream-register classes for every client-facing surface.
+   Drop-in: <article class="av-card">, <section class="av-hero">, etc.
+   Elderly-first floor: 18px+ body, AAA 7:1 ink-on-cream, 48px+ tap targets.
+   No data-skin scoping — these are the new universal vocabulary on cream.
+   Operator dark register stays untouched.
+   ============================================================ */
+
+/* CARD — base surface for every block */
+.av-card{ background:var(--paper,#FFFFFF); border:1px solid var(--edge,rgba(10,77,60,.12));
+  border-radius:16px; padding:20px 22px; margin-bottom:18px;
+  box-shadow:0 10px 30px rgba(10,77,60,.05); }
+.av-card__eyebrow{ font-size:.72rem; font-weight:600; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--gold-deep,#7A5A18); margin:0 0 14px; }
+
+/* HERO — the "worth your attention" featured block */
+.av-hero{ background:linear-gradient(135deg,var(--emerald-deep,#0A4D3C),#0d3a2d 70%);
+  border-radius:16px; padding:26px 28px; margin-bottom:18px; position:relative; overflow:hidden; }
+.av-hero__tag{ display:inline-flex; gap:6px; align-items:center; font-size:.66rem;
+  font-weight:600; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--emerald-deep,#0A4D3C); background:var(--gold,#C9A961);
+  padding:5px 12px; border-radius:20px; margin-bottom:14px; }
+.av-hero h2{ font-family:var(--serif,Fraunces,Georgia,serif); font-weight:500;
+  font-size:1.5rem; line-height:1.22; color:#fff; margin:0 0 8px; }
+.av-hero h2 em{ font-style:italic; color:var(--gold,#C9A961); }
+.av-hero__who{ font-size:.84rem; color:rgba(255,255,255,.72); margin:0 0 14px; }
+.av-hero__state{ display:inline-block; font-size:.74rem; font-weight:600; color:#fff;
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+  padding:5px 12px; border-radius:8px; margin-bottom:16px; }
+.av-hero__cta{ display:inline-flex; gap:6px; align-items:center; font-weight:600;
+  color:var(--emerald-deep,#0A4D3C); background:var(--cream,#FAF8F4);
+  padding:12px 20px; border-radius:24px; min-height:48px;
+  text-decoration:none; }
+
+/* COUNT BADGE — the universal "needs you" surfacing primitive.
+   Same component on dashboard cards, nav tabs, list rows. */
+.av-count{ position:relative; display:inline-flex; align-items:center; justify-content:center;
+  width:46px; height:46px; border-radius:12px;
+  background:var(--emerald-mist,#E8F2EE); color:var(--emerald-deep,#0A4D3C);
+  flex:0 0 auto; }
+.av-count__n{ position:absolute; top:-7px; right:-7px; min-width:22px; height:22px; padding:0 5px;
+  border-radius:11px; background:var(--garnet,#8E2A2A); color:#fff;
+  font-size:.72rem; font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid var(--paper,#FFFFFF); }
+
+/* MATTER ROW — surfaces a case onto a dashboard */
+.av-matter{ display:flex; align-items:flex-start; gap:14px; }
+.av-matter__body{ flex:1; min-width:0; }
+.av-matter__name{ font-family:var(--serif,Fraunces,Georgia,serif); font-weight:500;
+  font-size:1.15rem; color:var(--ink,#14201B); line-height:1.2; }
+.av-matter__role{ font-size:.85rem; color:var(--muted,#5C6862); margin-top:3px; }
+.av-matter__next{ font-size:.88rem; font-weight:600; color:var(--emerald-deep,#0A4D3C);
+  margin-top:7px; display:inline-flex; align-items:center; gap:5px; }
+.av-matter__open{ margin-left:auto; font-size:.82rem; font-weight:600;
+  color:var(--emerald-deep,#0A4D3C); border:1px solid var(--emerald-deep,#0A4D3C);
+  border-radius:8px; padding:6px 13px; white-space:nowrap;
+  text-decoration:none; min-height:36px; display:inline-flex; align-items:center; }
+
+/* BRAND ROW — one owned brand with stats */
+.av-brand{ display:flex; align-items:center; gap:14px; padding:13px 0;
+  border-top:1px solid var(--edge,rgba(10,77,60,.12)); }
+.av-brand:first-child{ border-top:none; padding-top:2px; }
+.av-brand__badge{ width:46px; height:46px; border-radius:50%;
+  background:var(--emerald-deep,#0A4D3C); color:#fff;
+  font-family:var(--serif,Fraunces,Georgia,serif); font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid transparent; flex:0 0 auto; font-size:.9rem; }
+.av-brand.is-active .av-brand__badge{ border-color:var(--gold,#C9A961); }
+.av-brand__meta{ flex:1; min-width:0; }
+.av-brand__name{ font-weight:600; font-size:.98rem; color:var(--ink,#14201B); }
+.av-brand__stats{ font-size:.84rem; color:var(--muted,#5C6862); margin-top:2px; }
+.av-brand__stats b{ color:var(--emerald-deep,#0A4D3C); font-weight:600; }
+.av-brand__hot{ color:var(--gold-deep,#7A5A18); font-weight:600; }
+.av-brand__go{ margin-left:auto; font-size:.82rem; font-weight:600;
+  color:var(--emerald-deep,#0A4D3C); border:1px solid var(--emerald-deep,#0A4D3C);
+  border-radius:8px; padding:6px 13px; white-space:nowrap;
+  text-decoration:none; min-height:36px; display:inline-flex; align-items:center; }
+.av-brand.is-active .av-brand__go{ background:var(--emerald-deep,#0A4D3C); color:var(--cream,#FAF8F4); }
+
+/* BUTTONS — ghost (default) + solid (active/primary). 48px min for elderly thumbs. */
+.av-btn{ display:inline-flex; align-items:center; gap:6px; min-height:48px;
+  padding:0 16px; border-radius:10px; font-weight:600; font-size:.95rem;
+  border:1px solid var(--emerald-deep,#0A4D3C); color:var(--emerald-deep,#0A4D3C);
+  background:transparent; cursor:pointer; text-decoration:none; }
+.av-btn--solid{ background:var(--emerald-deep,#0A4D3C); color:var(--cream,#FAF8F4); }
+.av-btn:focus-visible{ outline:3px solid var(--emerald-deep,#0A4D3C); outline-offset:2px; }
+
+/* SCOPED SECTION HEADER — "Your watchlist · CLDA · 8 active" */
+.av-scope{ font-size:.7rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--emerald-deep,#0A4D3C); background:var(--emerald-mist,#E8F2EE);
+  padding:3px 9px; border-radius:20px; }
+
+/* MOBILE rules — single column on phones, no horizontal scroll */
+@media (max-width:640px){
+  .av-card{ padding:18px 16px; margin-bottom:14px; border-radius:14px; }
+  .av-hero{ padding:22px 18px; }
+  .av-hero h2{ font-size:1.3rem; }
+  .av-brand__go,.av-matter__open{ font-size:.78rem; padding:8px 12px; }
+}
