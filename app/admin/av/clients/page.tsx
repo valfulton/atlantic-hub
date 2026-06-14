@@ -172,8 +172,12 @@ export default async function ClientsPage() {
                     <Link href={`/admin/av/clients/${c.clientId}`} className="text-ink hover:text-brand no-underline font-medium">
                       {c.name}
                     </Link>
+                    {/* (val 2026-06-14) Show the numeric client_id — val needs it
+                        visible from the roster (multi-brand owners + case lookups).
+                        Mono + normal-case so it's scannable/copyable. */}
                     <div className="text-[11px] text-muted capitalize">
-                      {c.planTier}
+                      <span className="font-mono normal-case text-ink/70">#{c.clientId}</span>
+                      {' · '}{c.planTier}
                       {c.industry ? ` · ${c.industry}` : ''}
                       {!c.enabled && <span style={{ color: '#fca5a5' }}> · disabled</span>}
                     </div>

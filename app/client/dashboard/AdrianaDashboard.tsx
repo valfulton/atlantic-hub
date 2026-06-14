@@ -375,6 +375,10 @@ function TeamRow({ team }: { team: TeamMember[] }) {
 export default function AdrianaDashboard(p: AdrianaDashboardProps) {
   // Outer .app wrapper lives in app/client/layout.tsx so every /client/*
   // page inherits the design system without re-wrapping.
+  // (val 2026-06-14) Surface the ACTIVE BRAND name so a multi-brand owner
+  // (Adriana: CBB vs CLDA) can tell which brand's hub they're in at a glance —
+  // the two views read near-identical otherwise.
+  const activeBrandName = p.brands.find((b) => b.active)?.name ?? null;
   return (
     <>
       {/* Top bar */}
@@ -393,6 +397,11 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
       <div className="app-wrap">
         {/* Greeting */}
         <section className="app-hello">
+          {activeBrandName && (
+            <p style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--emerald-deep)', margin: '0 0 6px' }}>
+              {activeBrandName}
+            </p>
+          )}
           <h1>
             {timeWord(p.greetingTime)}, <em>{p.firstName}.</em>
           </h1>
