@@ -247,6 +247,11 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
       return true;
     });
 
+  // (val 2026-06-15, #662) Split docs — approved → sidebar Documents panel,
+  // pending → main column with Approve/Reject actions.
+  const pendingDocs = full.documents.filter((d) => d.approvalStatus === 'pending_review');
+  const approvedDocs = full.documents.filter((d) => d.approvalStatus === 'approved');
+
   return (
     <>
       {/* (val 2026-06-13) Use the shared OperatorPreviewChrome — same banner +
@@ -355,6 +360,16 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
               .case-grid .prep-name { font-size: 15px; font-weight: 600; color: var(--ink); }
               .case-grid .prep-role { font-size: 13.5px; color: var(--muted, #5C6862); margin-top: 2px; }
               .case-grid .prep-date { font-size: 13px; color: var(--muted, #5C6862); margin-top: 8px; line-height: 1.5; }
+              .case-grid .doc-row { padding: 9px 0; border-top: 1px solid rgba(10,77,60,0.14); }
+              .case-grid .doc-row:first-of-type { border-top: none; padding-top: 0; }
+              .case-grid .doc-row a { font-size: 13.5px; font-weight: 600; color: var(--emerald-deep, #0A4D3C); text-decoration: underline; text-decoration-color: rgba(10,77,60,0.35); text-underline-offset: 2px; line-height: 1.35; display: inline-block; }
+              .case-grid .doc-row a:hover { text-decoration-color: var(--emerald-deep, #0A4D3C); }
+              .case-grid .doc-kind { font-size: 10px; color: var(--muted, #5C6862); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+              .case-grid .ai-collapse summary { cursor: pointer; list-style: none; }
+              .case-grid .ai-collapse summary::-webkit-details-marker { display: none; }
+              .case-grid .ai-collapse summary::marker { display: none; }
+              .case-grid .ai-chev { font-size: 11px; color: var(--muted, #5C6862); transition: transform 0.18s ease; display: inline-block; transform-origin: center; }
+              .case-grid .ai-collapse[open] .ai-chev { transform: rotate(90deg); }
               @media (max-width: 760px) { .case-grid { grid-template-columns: 1fr; gap: 30px; } }
             `}</style>
 
@@ -385,24 +400,27 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                     const tagClass = a.priority === 'urgent' ? 'urg' : a.priority === 'high' ? 'hi' : 'norm';
                     const tagLabel = a.priority === 'urgent' ? 'Urgent' : a.priority === 'high' ? 'High' : 'Normal';
                     return (
-                      <div key={a.actionId} className="ai-item">
-                        <div className="ai-top">
-                          <span className="ai-num">{i + 1}</span>
-                          <span className={`ai-tag ${tagClass}`}>{tagLabel}</span>
-                          {a.dueDate && (
-                            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted, #5C6862)' }}>
-                              Due {formatDate(a.dueDate)}
-                            </span>
-                          )}
-                        </div>
-                        <Link
-                          href={`/admin/av/clients/${clientId}/preview/cases/${caseId}/actions/${a.actionId}`}
-                          className="ai-title"
-                        >
-                          {a.title}
-                        </Link>
+                      <details key={a.actionId} className="ai-item ai-collapse" open>
+                        <summary>
+                          <div className="ai-top">
+                            <span className="ai-chev" aria-hidden="true">▸</span>
+                            <span className="ai-num">{i + 1}</span>
+                            <span className={`ai-tag ${tagClass}`}>{tagLabel}</span>
+                            {a.dueDate && (
+                              <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted, #5C6862)' }}>
+                                Due {formatDate(a.dueDate)}
+                              </span>
+                            )}
+                          </div>
+                          <Link
+                            href={`/admin/av/clients/${clientId}/preview/cases/${caseId}/actions/${a.actionId}`}
+                            className="ai-title"
+                          >
+                            {a.title}
+                          </Link>
+                        </summary>
                         {a.detail && <div className="ai-detail">{a.detail}</div>}
-                      </div>
+                      </details>
                     );
                   })}
                 </div>
@@ -490,6 +508,27 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                   </div>
                 );
               })()}
+
+              {/* Documents — downloadable docs in sidebar (val 2026-06-15, #662). */}
+              {approvedDocs.length > 0 && (
+                <div className="panel">
+                  <p className="panel-h">Documents</p>
+                  {approvedDocs.map((d) => (
+                    <div key={d.documentId} className="doc-row">
+                      <a
+                        href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {d.documentName}
+                      </a>
+                      {d.documentKind && (
+                        <div className="doc-kind">{d.documentKind}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </aside>
           </div>
 
@@ -508,105 +547,50 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
             </section>
           )}
 
-          {/* (val 2026-06-12, #613) Mirror of the client-view split:
-              "Awaiting your decision" (pending_review, gold border) vs
-              "Ready to download" (approved). Draft + rejected are operator-only
-              so they're hidden on the preview just like they are on the
-              real client view. The preview doesn't render Approve/Reject
-              actions — those only exist on the actual /client route where
-              Adriana is logged in. */}
-          {(() => {
-            const pending = full.documents.filter((d) => d.approvalStatus === 'pending_review');
-            const approved = full.documents.filter((d) => d.approvalStatus === 'approved');
-            return (
-              <>
-                {pending.length > 0 && (
-                  <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-                    <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 4 }}>
-                      Awaiting your decision
+          {/* (val 2026-06-15, #662) Approved docs → sidebar Documents panel.
+              Pending docs (with Approve/Reject) keep their prominent main
+              column placement — they have interactive controls. */}
+          {pendingDocs.length > 0 && (
+            <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 4 }}>
+                Awaiting your decision
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
+                Drafts are ready for your review. Approve each one, or send it back with a note.
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
+                {pendingDocs.map((d) => (
+                  <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
+                    <a
+                      href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'var(--emerald-deep, #0A4D3C)',
+                        fontWeight: 600,
+                        textDecoration: 'underline',
+                        textDecorationColor: 'rgba(10,77,60,0.3)',
+                        textUnderlineOffset: 2,
+                        fontSize: 14
+                      }}
+                    >
+                      {d.documentName}
+                    </a>
+                    {d.documentKind && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>}
+                    {d.notes && (
+                      <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, fontStyle: 'italic' }}>{d.notes}</div>
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)', marginTop: 6, fontStyle: 'italic' }}>
+                      (Approve / Send back buttons appear on the live client view — not in this read-only preview.)
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
-                      Atlantic & Vine prepared these drafts. Review each one, then approve or send back with a note.
-                    </div>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
-                      {pending.map((d) => (
-                        <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
-                          <a
-                            href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: 'var(--emerald-deep, #0A4D3C)',
-                              fontWeight: 600,
-                              textDecoration: 'underline',
-                              textDecorationColor: 'rgba(10,77,60,0.3)',
-                              textUnderlineOffset: 2,
-                              fontSize: 14
-                            }}
-                          >
-                            {d.documentName}
-                          </a>
-                          {d.documentKind && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>}
-                          {d.notes && (
-                            <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, fontStyle: 'italic' }}>{d.notes}</div>
-                          )}
-                          <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)', marginTop: 6, fontStyle: 'italic' }}>
-                            (Approve / Send back buttons appear on the live client view — not in this read-only preview.)
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-                {approved.length > 0 && (
-                  <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-                    <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>Ready to download</div>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
-                      {approved.map((d) => (
-                        <li key={d.documentId} style={{ fontSize: 13 }}>
-                          <a
-                            href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: 'var(--emerald-deep, #0A4D3C)',
-                              fontWeight: 600,
-                              textDecoration: 'underline',
-                              textDecorationColor: 'rgba(10,77,60,0.3)',
-                              textUnderlineOffset: 2
-                            }}
-                          >
-                            {d.documentName}
-                          </a>
-                          {d.documentKind && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>}
-                          {d.approvalNote && (
-                            <div style={{ fontSize: 11, color: 'var(--emerald-deep, #0A4D3C)', marginTop: 2, fontStyle: 'italic' }}>
-                              Approved: {d.approvalNote}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-              </>
-            );
-          })()}
-
-          {full.parties.length > 0 && (
-            <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>On this matter</div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 10 }}>
-                {full.parties.map((p) => (
-                  <li key={p.partyId} style={{ fontSize: 13 }}>
-                    <strong>{p.fullName}</strong>
-                    {p.role && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #3B4944)' }}>{p.role.replace(/_/g, ' ')}</span>}
-                    {p.relationship && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #3B4944)', fontStyle: 'italic' }}>{p.relationship}</span>}
                   </li>
                 ))}
               </ul>
             </section>
           )}
+
+          {/* (val 2026-06-15, #662) Parties moved into sidebar — Trustors /
+              Trustees / Beneficiaries grouped. This duplicate block removed. */}
 
           {wellness && (
             <section style={{ background: 'var(--emerald-mist, #DCEDE5)', border: '0.5px solid var(--emerald-deep, #0A4D3C)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>

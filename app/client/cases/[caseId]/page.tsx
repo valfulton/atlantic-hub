@@ -245,6 +245,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   // Show only OPEN/IN-PROGRESS action items to clients; completed live in archive
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
 
+  // (val 2026-06-14, #662) Split documents BEFORE the layout so we can route
+  // approved → sidebar Documents panel and pending → main column action area.
+  // Pending docs have interactive Approve/Reject buttons; approved are simple
+  // download links and belong in the right rail.
+  const pendingDocs = full.documents.filter((d) => d.approvalStatus === 'pending_review');
+  const approvedDocs = full.documents.filter((d) => d.approvalStatus === 'approved');
+
   return (
     <>
       {/* (val 2026-06-13) Mount ClientV3TopNav so logged-in clients
@@ -336,6 +343,16 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             .case-grid .prep-name { font-size: 15px; font-weight: 600; color: var(--ink); }
             .case-grid .prep-role { font-size: 13.5px; color: var(--muted, #5C6862); margin-top: 2px; }
             .case-grid .prep-date { font-size: 13px; color: var(--muted, #5C6862); margin-top: 8px; line-height: 1.5; }
+            .case-grid .doc-row { padding: 9px 0; border-top: 1px solid rgba(10,77,60,0.14); }
+            .case-grid .doc-row:first-of-type { border-top: none; padding-top: 0; }
+            .case-grid .doc-row a { font-size: 13.5px; font-weight: 600; color: var(--emerald-deep, #0A4D3C); text-decoration: underline; text-decoration-color: rgba(10,77,60,0.35); text-underline-offset: 2px; line-height: 1.35; display: inline-block; }
+            .case-grid .doc-row a:hover { text-decoration-color: var(--emerald-deep, #0A4D3C); }
+            .case-grid .doc-kind { font-size: 10px; color: var(--muted, #5C6862); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+            .case-grid .ai-collapse summary { cursor: pointer; list-style: none; }
+            .case-grid .ai-collapse summary::-webkit-details-marker { display: none; }
+            .case-grid .ai-collapse summary::marker { display: none; }
+            .case-grid .ai-chev { font-size: 11px; color: var(--muted, #5C6862); transition: transform 0.18s ease; display: inline-block; transform-origin: center; }
+            .case-grid .ai-collapse[open] .ai-chev { transform: rotate(90deg); }
             @media (max-width: 760px) { .case-grid { grid-template-columns: 1fr; gap: 30px; } }
           `}</style>
 
@@ -370,26 +387,33 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 {openActions.map((a, i) => {
                   const tagClass = a.priority === 'urgent' ? 'urg' : a.priority === 'high' ? 'hi' : 'norm';
                   const tagLabel = a.priority === 'urgent' ? 'Urgent' : a.priority === 'high' ? 'High' : 'Normal';
+                  // (val 2026-06-15, #662) Native <details>/<summary> for
+                  // collapse — server-renderable, no JS needed, full a11y.
+                  // Default OPEN so first-time readers see everything; each
+                  // can be clicked to collapse and shorten the page.
                   return (
-                    <div key={a.actionId} className="ai-item">
-                      <div className="ai-top">
-                        <span className="ai-num">{i + 1}</span>
-                        <span className={`ai-tag ${tagClass}`}>{tagLabel}</span>
-                        {a.dueDate && (
-                          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted, #5C6862)' }}>
-                            Due {formatDate(a.dueDate)}
-                          </span>
-                        )}
-                      </div>
-                      <Link href={`/client/cases/${caseId}/actions/${a.actionId}`} className="ai-title">
-                        {a.title}
-                      </Link>
+                    <details key={a.actionId} className="ai-item ai-collapse" open>
+                      <summary>
+                        <div className="ai-top">
+                          <span className="ai-chev" aria-hidden="true">▸</span>
+                          <span className="ai-num">{i + 1}</span>
+                          <span className={`ai-tag ${tagClass}`}>{tagLabel}</span>
+                          {a.dueDate && (
+                            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted, #5C6862)' }}>
+                              Due {formatDate(a.dueDate)}
+                            </span>
+                          )}
+                        </div>
+                        <Link href={`/client/cases/${caseId}/actions/${a.actionId}`} className="ai-title">
+                          {a.title}
+                        </Link>
+                      </summary>
                       {a.detail && (
                         <div className="ai-detail">
                           <SectionText text={a.detail} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
                         </div>
                       )}
-                    </div>
+                    </details>
                   );
                 })}
               </div>
@@ -492,6 +516,29 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 </div>
               );
             })()}
+
+            {/* Documents — approved/downloadable docs only (val 2026-06-15, #662).
+                Pending docs with Approve/Reject controls stay in the main column
+                below the two-column body so the interactive surface is prominent. */}
+            {approvedDocs.length > 0 && (
+              <div className="panel">
+                <p className="panel-h">Documents</p>
+                {approvedDocs.map((d) => (
+                  <div key={d.documentId} className="doc-row">
+                    <a
+                      href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {d.documentName}
+                    </a>
+                    {d.documentKind && (
+                      <div className="doc-kind">{d.documentKind}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </aside>
         </div>
 
@@ -527,95 +574,52 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             with a clickable filename. Draft (operator-still-editing) + rejected
             docs are hidden from clients per spec — operator sees them on her
             dashboard. */}
-        {(() => {
-          // 'draft' state is operator-only — clients (Adriana included) don't
-          // see drafts val is still editing. Rejected docs hide too (val has
-          // them flagged on her side).
-          const pending = full.documents.filter((d) => d.approvalStatus === 'pending_review');
-          const approved = full.documents.filter((d) => d.approvalStatus === 'approved');
-          if (pending.length === 0 && approved.length === 0) return null;
-          return (
-            <>
-              {pending.length > 0 && (
-                <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-                  <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 4 }}>
-                    Awaiting your decision
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
-                    Atlantic & Vine prepared these drafts. Review each one, then approve or send back with a note.
-                  </div>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
-                    {pending.map((d) => (
-                      <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
-                        <a
-                          href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            color: 'var(--emerald-deep, #0A4D3C)',
-                            fontWeight: 600,
-                            textDecoration: 'underline',
-                            textDecorationColor: 'rgba(10,77,60,0.3)',
-                            textUnderlineOffset: 2,
-                            fontSize: 14
-                          }}
-                        >
-                          {d.documentName}
-                        </a>
-                        {d.documentKind && (
-                          <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
-                        )}
-                        {d.notes && (
-                          <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, fontStyle: 'italic' }}>{d.notes}</div>
-                        )}
-                        <DocumentApprovalActions
-                          caseId={c.caseId}
-                          documentId={d.documentId}
-                          documentName={d.documentName}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-              {approved.length > 0 && (
-                <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-                  <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
-                    Ready to download
-                  </div>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
-                    {approved.map((d) => (
-                      <li key={d.documentId} style={{ fontSize: 13 }}>
-                        <a
-                          href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            color: 'var(--emerald-deep, #0A4D3C)',
-                            fontWeight: 600,
-                            textDecoration: 'underline',
-                            textDecorationColor: 'rgba(10,77,60,0.3)',
-                            textUnderlineOffset: 2
-                          }}
-                        >
-                          {d.documentName}
-                        </a>
-                        {d.documentKind && (
-                          <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
-                        )}
-                        {d.approvalNote && (
-                          <div style={{ fontSize: 11, color: 'var(--emerald-deep, #0A4D3C)', marginTop: 2, fontStyle: 'italic' }}>
-                            Approved: {d.approvalNote}
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-            </>
-          );
-        })()}
+        {/* (val 2026-06-15, #662) Approved/downloadable docs moved into the
+            sidebar Documents panel. Pending docs (with Approve/Reject) stay
+            below the two-column area because they have interactive controls
+            Adriana acts on — they belong in the main flow. */}
+        {pendingDocs.length > 0 && (
+          <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 4 }}>
+              Awaiting your decision
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
+              Drafts are ready for your review. Approve each one, or send it back with a note.
+            </div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
+              {pendingDocs.map((d) => (
+                <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
+                  <a
+                    href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: 'var(--emerald-deep, #0A4D3C)',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      textDecorationColor: 'rgba(10,77,60,0.3)',
+                      textUnderlineOffset: 2,
+                      fontSize: 14
+                    }}
+                  >
+                    {d.documentName}
+                  </a>
+                  {d.documentKind && (
+                    <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
+                  )}
+                  {d.notes && (
+                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, fontStyle: 'italic' }}>{d.notes}</div>
+                  )}
+                  <DocumentApprovalActions
+                    caseId={c.caseId}
+                    documentId={d.documentId}
+                    documentName={d.documentName}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* (val 2026-06-14, #661) Parties moved into the two-column sidebar
             above — grouped by Trustors / Trustees / Beneficiaries. */}
