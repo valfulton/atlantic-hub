@@ -129,6 +129,37 @@ function dollars(cents: number | null): string {
   return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 }
 
+/**
+ * Split a synopsis body into paragraphs.  (val 2026-06-14, #660 readability)
+ * Mirrors the client-view helper so val's preview matches what the family
+ * actually sees. Honors explicit \n\n breaks first; otherwise clusters
+ * sentences in pairs so a dense single paragraph gets natural breathing room.
+ */
+function splitSynopsis(text: string): string[] {
+  if (!text) return [];
+  if (/\n{2,}/.test(text)) {
+    return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  }
+  const ABBREV = /\b(?:Mr|Mrs|Ms|Dr|St|Sr|Jr|Inc|Ltd|Co|Corp|Hon|Esq|U\.S|U\.K|e\.g|i\.e|vs|etc)\.$/i;
+  const sentences: string[] = [];
+  let current = '';
+  const parts = text.split(/(?<=\.) +/);
+  for (const p of parts) {
+    if (current && ABBREV.test(current)) {
+      current = current + ' ' + p;
+    } else {
+      if (current) sentences.push(current.trim());
+      current = p;
+    }
+  }
+  if (current) sentences.push(current.trim());
+  const out: string[] = [];
+  for (let i = 0; i < sentences.length; i += 2) {
+    out.push(sentences.slice(i, i + 2).join(' '));
+  }
+  return out;
+}
+
 export default async function PreviewCasePage({ params, searchParams }: PageProps) {
   const clientId = parseInt(params.client_id, 10);
   const caseId = parseInt(params.caseId, 10);
@@ -225,15 +256,32 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
             </div>
           </header>
 
-          {/* (val 2026-06-14, #658) Beauty Pack §4 easy-read floor — synopsis, property,
-              action items all lifted to ≥18px body, line-height 1.6+, AAA contrast.
-              Mirror keeps parity with the live /client/cases/[caseId] view. */}
-          {c.caseSynopsis && (
-            <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>Where we are</div>
-              <div style={{ fontSize: 18, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>{c.caseSynopsis}</div>
-            </section>
-          )}
+          {/* (val 2026-06-14, #660) Easy-read v2 — body 20px / line-height 1.8,
+              synopsis auto-split into paragraphs so each thought sits on its
+              own. Mirror keeps parity with /client/cases/[caseId]. */}
+          {c.caseSynopsis && (() => {
+            const paras = splitSynopsis(c.caseSynopsis);
+            return (
+              <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '30px 32px 32px', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 16 }}>Where we are</div>
+                {paras.map((para, i) => (
+                  <p
+                    key={i}
+                    style={{
+                      fontSize: 20,
+                      lineHeight: 1.8,
+                      color: 'var(--ink)',
+                      margin: 0,
+                      marginBottom: i < paras.length - 1 ? 20 : 0,
+                      whiteSpace: 'pre-wrap'
+                    }}
+                  >
+                    {para}
+                  </p>
+                ))}
+              </section>
+            );
+          })()}
 
           {full.property && (
             <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>

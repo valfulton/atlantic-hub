@@ -76,6 +76,52 @@ function dollars(cents: number | null): string {
   return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 }
 
+/**
+ * Split a synopsis body into paragraphs.  (val 2026-06-14, #660 readability)
+ *
+ * Honors explicit paragraph breaks (\n\n) first. If the operator wrote one
+ * dense paragraph (legacy case data — Johnson's original synopsis is one
+ * 5-sentence wall), fall back to sentence-pair clustering so Mrs. Johnson
+ * isn't staring at a brick of text. We don't split on every sentence
+ * because that produces orphaned 1-line paragraphs that read choppy; pairs
+ * give natural breathing room.
+ *
+ * Edge cases handled:
+ *   - Section refs like "§6.G(2)." don't trigger false splits because we
+ *     look for ". " (period + space), and the section refs sit inside
+ *     parentheses or are followed by alphanumerics.
+ *   - Abbreviations Mr./Mrs./Dr./St. are common in trust copy; we keep
+ *     them attached to the next sentence rather than splitting prematurely.
+ */
+function splitSynopsis(text: string): string[] {
+  if (!text) return [];
+  // Honor explicit breaks first.
+  if (/\n{2,}/.test(text)) {
+    return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  }
+  // No explicit breaks — split on sentence boundaries but cluster in pairs.
+  const ABBREV = /\b(?:Mr|Mrs|Ms|Dr|St|Sr|Jr|Inc|Ltd|Co|Corp|Hon|Esq|U\.S|U\.K|e\.g|i\.e|vs|etc)\.$/i;
+  const sentences: string[] = [];
+  let current = '';
+  const parts = text.split(/(?<=\.) +/);
+  for (const p of parts) {
+    if (current && ABBREV.test(current)) {
+      current = current + ' ' + p;
+    } else {
+      if (current) sentences.push(current.trim());
+      current = p;
+    }
+  }
+  if (current) sentences.push(current.trim());
+  // Cluster sentences in pairs (every 2 sentences = 1 paragraph). Single
+  // trailing sentence stands alone.
+  const out: string[] = [];
+  for (let i = 0; i < sentences.length; i += 2) {
+    out.push(sentences.slice(i, i + 2).join(' '));
+  }
+  return out;
+}
+
 export default async function ClientCaseDetailPage({ params }: PageProps) {
   const caseId = parseInt(params.caseId, 10);
   if (!Number.isInteger(caseId)) notFound();
@@ -179,24 +225,43 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           </div>
         </header>
 
-        {/* Synopsis card — Beauty Pack §4 easy-read floor (val 2026-06-14, #658):
-            ≥18px body type so a 70-year-old parent can read this comfortably on a phone.
-            Color stays --ink on --paper (≈14.7:1) — clears AAA 7:1. Line-height 1.7
-            for matter-summary text since the paragraphs are dense. */}
-        {c.caseSynopsis && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
-              Where we are
-            </div>
-            <div style={{ fontSize: 18, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
-              <SectionText
-                text={c.caseSynopsis}
-                documentUrl={sectionDocUrl}
-                sectionIndex={sectionIndex}
-              />
-            </div>
-          </section>
-        )}
+        {/* Synopsis card — easy-read floor v2 (val 2026-06-14, #660):
+            Body type 20px / line-height 1.8 so a 70-year-old can read this
+            without leaning in. Synopsis text is split into multiple paragraphs
+            so each thought sits on its own — the original Johnson synopsis was
+            one 5-sentence wall (parents/trustors/trustee/conflict/sections all
+            jammed together), unreadable for the family. splitSynopsis() honors
+            explicit \n\n breaks if the operator wrote them, else clusters in
+            sentence pairs. */}
+        {c.caseSynopsis && (() => {
+          const paras = splitSynopsis(c.caseSynopsis);
+          return (
+            <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '30px 32px 32px', marginBottom: '1.5rem' }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 16 }}>
+                Where we are
+              </div>
+              {paras.map((para, i) => (
+                <p
+                  key={i}
+                  style={{
+                    fontSize: 20,
+                    lineHeight: 1.8,
+                    color: 'var(--ink)',
+                    margin: 0,
+                    marginBottom: i < paras.length - 1 ? 20 : 0,
+                    whiteSpace: 'pre-wrap'
+                  }}
+                >
+                  <SectionText
+                    text={para}
+                    documentUrl={sectionDocUrl}
+                    sectionIndex={sectionIndex}
+                  />
+                </p>
+              ))}
+            </section>
+          );
+        })()}
 
         {/* Property — easy-read pass: address in Fraunces 22px, meta lifted from 13→16
             so the parents can read it without leaning in. */}
