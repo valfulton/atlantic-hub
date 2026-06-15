@@ -59,6 +59,7 @@ export type TaskKind =
   | 'pr_draft_release'       // draft a press release from a win — strategic
   | 'pr_artifact'            // PR artifact generation (boilerplate / talking points) — mid
   | 'lead_audit_with_score'  // combined audit+scorer (lib/ai/score_and_audit) — strategic
+  | 'document_read'          // (#666) scan an uploaded PDF for oddities/conflicts — strategic legal-read
   | 'misc';                  // catch-all fallback
 
 /**
@@ -154,6 +155,7 @@ export const TASK_MODEL: Record<TaskKind, ModelId> = {
   pr_draft_release: 'openai:gpt-4o',
   pr_artifact: 'openai:gpt-4o-mini',
   lead_audit_with_score: 'openai:gpt-4o',
+  document_read: 'openai:gpt-4o',          // strategic legal/contract scan, needs the full model
   misc: 'openai:gpt-4o-mini'
 };
 
@@ -194,6 +196,7 @@ export const TASK_CACHE: Record<TaskKind, CachePolicy> = {
   pr_draft_release: { kind: 'none' },          // creative, never reuse
   pr_artifact: { kind: 'event' },
   lead_audit_with_score: { kind: 'event' },
+  document_read: { kind: 'event' },        // re-runs when operator uploads a revised PDF (cache key carries content_hash)
   misc: { kind: 'none' }
 };
 

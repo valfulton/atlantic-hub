@@ -24,9 +24,11 @@ import { loadFullWellness } from '@/lib/case/family_wellness';
 import { listCollaboratorsForCase } from '@/lib/case/case_collaborators';
 import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
 import DocumentVaultPanel from '@/components/case/DocumentVaultPanel';
+import DocumentFindingsPanel from '@/components/case/DocumentFindingsPanel';
 import CollaboratorsPanel from '@/components/case/CollaboratorsPanel';
 import SectionText from '@/components/case/SectionText';
 import ActionItemsEditorPanel from '@/components/case/ActionItemsEditorPanel';
+import { listFindingsForCase } from '@/lib/case/document_findings_store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -104,10 +106,11 @@ export default async function CaseDetailPage({ params }: PageProps) {
   if (!accessible) notFound();
 
   const c = full.case;
-  const [wellness, collaborators, indexableDoc] = await Promise.all([
+  const [wellness, collaborators, indexableDoc, docFindings] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
     listCollaboratorsForCase(caseId),
-    findIndexableDocumentForCase(caseId)
+    findIndexableDocumentForCase(caseId),
+    listFindingsForCase(caseId)
   ]);
   // The byte-serve URL the SectionText renderer will deep-link into. Only
   // populated when there's an indexed trust/will/POA on this case.
@@ -224,6 +227,21 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 approvalStatus: d.approvalStatus,
                 approvalNote: d.approvalNote
               }))}
+            />
+
+            {/* (val 2026-06-15, #666) Document findings — LLM scanner per PDF.
+                Operator clicks "Read & flag oddities" on any uploaded PDF;
+                findings store in case_document_findings and render inline.
+                Universal: works for trust, will, POA, contract, deed, etc. */}
+            <DocumentFindingsPanel
+              caseId={c.caseId}
+              documents={full.documents.map((d) => ({
+                documentId: d.documentId,
+                documentName: d.documentName,
+                documentKind: d.documentKind,
+                mimeType: d.mimeType
+              }))}
+              existingFindings={docFindings}
             />
 
             {/* Family + advisors (collaborators) — invite Rebecca's siblings,
