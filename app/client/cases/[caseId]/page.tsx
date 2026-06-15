@@ -30,6 +30,8 @@ import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 // asking val for the contact.
 import DocumentExtractsPanel from '@/components/case/DocumentExtractsPanel';
 import { listExtractsForCase } from '@/lib/case/document_extracts_store';
+// (val 2026-06-15, #688) Family-side bulk Collapse/Expand toggle.
+import CollapseAllActionItems from '@/components/case/CollapseAllActionItems';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -396,7 +398,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             .case-grid .prep-date { font-size: 13px; color: var(--muted, #5C6862); margin-top: 8px; line-height: 1.5; }
             .case-grid .doc-row { padding: 9px 0; border-top: 1px solid rgba(10,77,60,0.14); }
             .case-grid .doc-row:first-of-type { border-top: none; padding-top: 0; }
-            .case-grid .doc-row a { font-size: 13.5px; font-weight: 600; color: var(--emerald-deep, #0A4D3C); text-decoration: underline; text-decoration-color: rgba(10,77,60,0.35); text-underline-offset: 2px; line-height: 1.35; display: inline-block; }
+            .case-grid .doc-row a { font-size: 13.5px; font-weight: 600; color: var(--emerald-deep, #0A4D3C); text-decoration: underline; text-decoration-color: rgba(10,77,60,0.35); text-underline-offset: 2px; line-height: 1.35; display: block; word-break: break-word; overflow-wrap: anywhere; min-width: 0; }
+            /* (val 2026-06-15, #688) Sidebar overflow guard: ensure the
+               Documents panel and its rows don't horizontally overflow the
+               aside column when filenames lack spaces (e.g.
+               Property-Report-for-1657-Kingsly-Dr-Pittsburg-CA-94565.pdf). */
+            .case-grid aside .panel { overflow-wrap: anywhere; word-break: break-word; }
+            .case-grid .doc-row { min-width: 0; overflow-wrap: anywhere; }
             .case-grid .doc-row a:hover { text-decoration-color: var(--emerald-deep, #0A4D3C); }
             .case-grid .doc-kind { font-size: 10px; color: var(--muted, #5C6862); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
             .case-grid .ai-collapse summary { cursor: pointer; list-style: none; }
@@ -434,7 +442,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
 
             {openActions.length > 0 && (
               <div style={{ marginBottom: 30 }}>
-                <h2 className="case-h">Outstanding items</h2>
+                {/* (val 2026-06-15, #688) Heading + bulk collapse toggle.
+                    Items still default open per element; this lets val /
+                    Rebecca scan 27+ items by collapsing all at once. */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                  <h2 className="case-h" style={{ margin: 0 }}>Outstanding items</h2>
+                  <CollapseAllActionItems />
+                </div>
                 {openActions.map((a, i) => {
                   const tagClass = a.priority === 'urgent' ? 'urg' : a.priority === 'high' ? 'hi' : 'norm';
                   const tagLabel = a.priority === 'urgent' ? 'Urgent' : a.priority === 'high' ? 'High' : 'Normal';
