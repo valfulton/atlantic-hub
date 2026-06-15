@@ -79,10 +79,40 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
+  // (val 2026-06-15, #687) Collapsible items — default state is collapsed
+  // so val can scan 27 items + spot redundancy fast. Click a row header to
+  // toggle. Detail body + Edit affordance hide when collapsed; title +
+  // priority + visibility + status + due-date stay visible (no info loss).
+  // Expand-all / Collapse-all buttons at the top for bulk control.
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const allExpanded = expandedIds.size === initialItems.length && initialItems.length > 0;
+
+  function toggleExpand(actionId: number) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(actionId)) next.delete(actionId);
+      else next.add(actionId);
+      return next;
+    });
+  }
+  function expandAll() {
+    setExpandedIds(new Set(initialItems.map((a) => a.actionId)));
+  }
+  function collapseAll() {
+    setExpandedIds(new Set());
+  }
+
   function startEdit(a: CaseActionItem) {
     setEditingId(a.actionId);
     setDraft(toDraft(a));
     setErr(null);
+    // (#687) Auto-expand when entering edit — the form needs the room.
+    setExpandedIds((prev) => {
+      if (prev.has(a.actionId)) return prev;
+      const next = new Set(prev);
+      next.add(a.actionId);
+      return next;
+    });
   }
 
   function cancelEdit() {
@@ -178,20 +208,34 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
 
   return (
     <div className="space-y-3">
-      {/* Add-new toggle row */}
-      <div className="flex items-center justify-between">
+      {/* Add-new toggle row + bulk-collapse controls (val 2026-06-15, #687) */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <span className="text-xs text-muted">
           {initialItems.length} item{initialItems.length === 1 ? '' : 's'}
+          {expandedIds.size > 0 && initialItems.length > 0 && (
+            <span className="ml-2 text-[10px]">· {expandedIds.size} open</span>
+          )}
         </span>
-        {!addingNew && (
-          <button
-            type="button"
-            onClick={() => { setAddingNew(true); setNewDraft(emptyDraft()); setErr(null); }}
-            className="text-xs px-2 py-1 rounded border border-emerald-700/40 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50 transition-colors"
-          >
-            + Add action item
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {initialItems.length > 1 && (
+            <button
+              type="button"
+              onClick={allExpanded ? collapseAll : expandAll}
+              className="text-[11px] uppercase tracking-wider px-2 py-1 text-emerald-300 hover:text-emerald-200"
+            >
+              {allExpanded ? 'Collapse all' : 'Expand all'}
+            </button>
+          )}
+          {!addingNew && (
+            <button
+              type="button"
+              onClick={() => { setAddingNew(true); setNewDraft(emptyDraft()); setErr(null); }}
+              className="text-xs px-2 py-1 rounded border border-emerald-700/40 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50 transition-colors"
+            >
+              + Add action item
+            </button>
+          )}
+        </div>
       </div>
 
       {err && (
@@ -361,21 +405,36 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                     </div>
                   </div>
                 ) : (
+                  /* (val 2026-06-15, #687) Collapsible read-view. Title row is
+                      clickable to toggle. Title + priority + visibility +
+                      status + due chips always visible (so collapsing doesn't
+                      lose scanning info). Detail body + Edit/Delete only
+                      render when expanded — 27-item lists become scannable. */
                   <div className="group">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex-1 font-medium">{a.title}</div>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(a.actionId)}
+                      aria-expanded={expandedIds.has(a.actionId)}
+                      className="w-full text-left flex items-start justify-between gap-2 mb-1 hover:bg-emerald-900/10 rounded -mx-1 px-1 py-0.5 transition-colors"
+                    >
+                      <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                        <span
+                          className="text-[10px] text-muted mt-1 transition-transform inline-block"
+                          style={{ transform: expandedIds.has(a.actionId) ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                          aria-hidden="true"
+                        >
+                          ▸
+                        </span>
+                        <div className="flex-1 font-medium">{a.title}</div>
+                      </div>
                       <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${priorityPill(a.priority)}`}>
                         {a.priority}
                       </span>
-                    </div>
-                    {a.detail && (
-                      <div className="text-xs text-muted whitespace-pre-wrap">{a.detail}</div>
-                    )}
-                    <div className="text-xs text-muted mt-1 flex items-center gap-2 flex-wrap">
+                    </button>
+                    {/* Compact meta strip — visibility + status + due, always shown */}
+                    <div className="text-xs text-muted mt-0.5 ml-4 flex items-center gap-2 flex-wrap">
                       <span>{a.status}</span>
                       {a.dueDate && <span>· due {formatDate(a.dueDate)}</span>}
-                      {/* (val 2026-06-15, #685) Three tiers — investigation
-                          (legal_team) sits between family-safe and operator-only. */}
                       <span className={`text-[9px] uppercase tracking-wider px-1 py-0.5 rounded ${
                         a.visibility === 'operator_only'
                           ? 'bg-[var(--surface-3)] text-amber-300 border border-amber-700/40'
@@ -389,14 +448,20 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                           ? 'Investigation'
                           : 'Family sees it'}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => startEdit(a)}
-                        className="ml-auto text-[10px] uppercase tracking-wider text-emerald-300 hover:text-emerald-200"
-                      >
-                        Edit
-                      </button>
+                      {expandedIds.has(a.actionId) && (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(a)}
+                          className="ml-auto text-[10px] uppercase tracking-wider text-emerald-300 hover:text-emerald-200"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
+                    {/* Detail body — only when expanded */}
+                    {expandedIds.has(a.actionId) && a.detail && (
+                      <div className="text-xs text-muted whitespace-pre-wrap mt-2 ml-4">{a.detail}</div>
+                    )}
                   </div>
                 )}
               </li>
