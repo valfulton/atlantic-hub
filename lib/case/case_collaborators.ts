@@ -358,18 +358,15 @@ export async function resolveCaseViewerRole(
   try {
     const db = getAvDb();
 
-    // Brand owner shortcut — if their client_users.client_id matches the
-    // case's client_id, they're a parent/owner.
-    if (caseClientId) {
-      const [ownerRows] = await db.execute<RowDataPacket[]>(
-        `SELECT 1 FROM client_users
-          WHERE client_user_id = ? AND client_id = ? LIMIT 1`,
-        [clientUserId, caseClientId]
-      );
-      if (ownerRows.length > 0) return 'parent';
-    }
-
-    // Otherwise check family_case_collaborators for the case-scoped role.
+    // (val 2026-06-15, #686) Check case_collaborators FIRST. If the user has
+    // an explicit case-scoped role (sibling_admin, attorney, etc.), use it —
+    // even if they happen to also be the brand owner of the case's client
+    // account. Rebecca is the canonical example: she's brand owner of the
+    // Johnson Trust client AND sibling_admin on case 1; the previous order
+    // (owner shortcut first) resolved her to 'parent' and locked her out of
+    // editing. The owner-as-parent fallback now runs only when no explicit
+    // case row exists — still correct for Maria (case-owning parent, no
+    // separate collaborator row).
     const [rows] = await db.execute<CollabRoleRow[]>(
       `SELECT role, revoked_at, parent_approved
          FROM family_case_collaborators
@@ -377,6 +374,16 @@ export async function resolveCaseViewerRole(
         LIMIT 1`,
       [clientUserId, caseId]
     );
+
+    if ((!rows || rows.length === 0) && caseClientId) {
+      // No case row — try the brand-owner shortcut.
+      const [ownerRows] = await db.execute<RowDataPacket[]>(
+        `SELECT 1 FROM client_users
+          WHERE client_user_id = ? AND client_id = ? LIMIT 1`,
+        [clientUserId, caseClientId]
+      );
+      if (ownerRows.length > 0) return 'parent';
+    }
     const row = rows[0];
     if (!row || row.revoked_at) return 'unknown';
 

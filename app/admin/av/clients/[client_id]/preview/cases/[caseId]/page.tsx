@@ -234,7 +234,10 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   if (!accessible) notFound();
 
   let viewerRole: CaseViewerRole = 'operator';
-  let visibilityFilter: ('parents_safe' | 'operator_only')[] | undefined = undefined;
+  // (val 2026-06-15, #685) Widened to include 'legal_team' so visibleFor()'s
+  // 3-tier return assigns cleanly. The IN-clause in loadFullCase handles any
+  // length of array, so this is purely a type widening.
+  let visibilityFilter: ('parents_safe' | 'operator_only' | 'legal_team')[] | undefined = undefined;
   if (asUserId !== null) {
     viewerRole = await resolveCaseViewerRole(asUserId, caseId, peek.case.clientId);
     visibilityFilter = visibleFor(viewerRole);
