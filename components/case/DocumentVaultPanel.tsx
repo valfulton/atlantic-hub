@@ -81,6 +81,71 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
   const [flipping, setFlipping] = useState<number | null>(null);
   const [flipStatus, setFlipStatus] = useState<Record<number, string>>({});
 
+  // (val 2026-06-15, #683) Inline rename + notes edit. One row at a time:
+  // editingMetaId tracks which row is open. nameDraft / notesDraft hold the
+  // pending values. PATCH /api/admin/av/cases/[caseId]/documents/[documentId]
+  // accepts both — see content/route.ts for the body shape.
+  const [editingMetaId, setEditingMetaId] = useState<number | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingMeta, setSavingMeta] = useState(false);
+  const [metaErr, setMetaErr] = useState<string | null>(null);
+
+  function openMetaEdit(d: CaseDocumentLite) {
+    setEditingMetaId(d.documentId);
+    setNameDraft(d.documentName);
+    setNotesDraft(d.notes || '');
+    setMetaErr(null);
+  }
+
+  function cancelMetaEdit() {
+    setEditingMetaId(null);
+    setNameDraft('');
+    setNotesDraft('');
+    setMetaErr(null);
+  }
+
+  async function saveMetaEdit(documentId: number, origName: string, origNotes: string | null) {
+    setMetaErr(null);
+    setSavingMeta(true);
+    try {
+      const body: { documentName?: string; notes?: string | null } = {};
+      const trimmedName = nameDraft.trim();
+      const trimmedNotes = notesDraft.trim();
+      if (!trimmedName) {
+        setMetaErr('Name cannot be blank.');
+        return;
+      }
+      if (trimmedName !== origName) body.documentName = trimmedName;
+      const newNotesValue = trimmedNotes || null;
+      const origNotesValue = origNotes || null;
+      if (newNotesValue !== origNotesValue) body.notes = newNotesValue;
+      if (Object.keys(body).length === 0) {
+        cancelMetaEdit();
+        return;
+      }
+      const res = await fetch(
+        `/api/admin/av/cases/${caseId}/documents/${documentId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setMetaErr(data?.error || 'save failed');
+        return;
+      }
+      cancelMetaEdit();
+      router.refresh();
+    } catch (e) {
+      setMetaErr(e instanceof Error ? e.message : 'network error');
+    } finally {
+      setSavingMeta(false);
+    }
+  }
+
   async function handleFlipApproval(
     documentId: number,
     status: 'draft' | 'pending_review' | 'approved' | 'rejected',
@@ -388,8 +453,64 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
                   {d.sizeBytes && <> · {formatBytes(d.sizeBytes)}</>}
                   {d.mimeType && <> · {d.mimeType}</>}
                 </div>
-                {d.notes && (
-                  <div className="text-xs text-ink mt-1 opacity-80">{d.notes}</div>
+                {/* (val 2026-06-15, #683) Inline meta edit (name + notes).
+                    Edit pencil sits next to notes; open mode swaps in inputs. */}
+                {editingMetaId === d.documentId ? (
+                  <div className="mt-2 space-y-2 p-2 rounded border border-emerald-700/30 bg-emerald-950/20">
+                    <label className="text-[10px] uppercase tracking-wider text-muted block">
+                      Document name
+                      <input
+                        type="text"
+                        value={nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        className="block w-full mt-0.5 bg-black/30 border border-border rounded px-2 py-1 text-sm"
+                      />
+                    </label>
+                    <label className="text-[10px] uppercase tracking-wider text-muted block">
+                      Notes
+                      <textarea
+                        value={notesDraft}
+                        onChange={(e) => setNotesDraft(e.target.value)}
+                        rows={3}
+                        placeholder="Quick note about this document (optional)"
+                        className="block w-full mt-0.5 bg-black/30 border border-border rounded px-2 py-1 text-xs"
+                      />
+                    </label>
+                    {metaErr && (
+                      <div className="text-[11px] text-red-300">{metaErr}</div>
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={cancelMetaEdit}
+                        disabled={savingMeta}
+                        className="text-[10px] uppercase tracking-wider px-2 py-1 text-muted hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveMetaEdit(d.documentId, d.documentName, d.notes)}
+                        disabled={savingMeta}
+                        className="text-[10px] uppercase tracking-wider px-2 py-1 rounded bg-emerald-900/50 text-emerald-200 border border-emerald-700/50 hover:bg-emerald-900/70 transition-colors"
+                      >
+                        {savingMeta ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {d.notes && (
+                      <div className="text-xs text-ink mt-1 opacity-80">{d.notes}</div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openMetaEdit(d)}
+                      className="mt-1 text-[10px] uppercase tracking-wider text-emerald-300 hover:text-emerald-200"
+                    >
+                      {d.notes ? 'Edit name + notes' : 'Add notes / rename'}
+                    </button>
+                  </>
                 )}
                 {d.documentKind && INDEXABLE_KINDS.has(d.documentKind) && d.mimeType === 'application/pdf' && (
                   <div className="text-[10px] text-muted mt-1">

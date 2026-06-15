@@ -40,6 +40,10 @@ interface Props {
 }
 
 const ROLE_OPTIONS: Array<{ value: string; label: string; danger?: boolean }> = [
+  // (val 2026-06-15, #683) Parent role exposed in the dropdown so val + Rebecca
+  // can add Dad alongside Mom-as-owner. Resolver in lib/case/case_collaborators
+  // already maps role='parent' → viewer-role 'parent' (read-only on docs).
+  { value: 'parent', label: 'Parent — lifetime beneficiary (read-only)' },
   { value: 'sibling_reader', label: 'Sibling — read only' },
   { value: 'sibling_commenter', label: 'Sibling — read + comment + log wellness' },
   { value: 'sibling_admin', label: 'Sibling admin — can also upload + invite' },

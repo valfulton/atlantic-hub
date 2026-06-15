@@ -930,6 +930,43 @@ export async function updateDocumentKind(
   }
 }
 
+/**
+ * (val 2026-06-15, #683) Operator-only document metadata edit. Supports rename
+ * (documentName) and notes edits. Kind has its own updater above because PATCH
+ * on kind also triggers the §-index rebuild — those routes stay separate.
+ */
+export async function updateDocument(
+  documentId: number,
+  caseId: number,
+  patch: Partial<{ documentName: string; notes: string | null }>
+): Promise<boolean> {
+  if (!Number.isInteger(documentId) || documentId <= 0) return false;
+  if (!Number.isInteger(caseId) || caseId <= 0) return false;
+  const fields: string[] = [];
+  const params: unknown[] = [];
+  if (patch.documentName !== undefined) {
+    fields.push('document_name = ?');
+    params.push(patch.documentName);
+  }
+  if (patch.notes !== undefined) {
+    fields.push('notes = ?');
+    params.push(patch.notes);
+  }
+  if (!fields.length) return false;
+  params.push(documentId, caseId);
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `UPDATE case_documents SET ${fields.join(', ')} WHERE document_id = ? AND case_id = ?`,
+      params
+    );
+    return res.affectedRows > 0;
+  } catch (err) {
+    console.error('updateDocument failed', err);
+    return false;
+  }
+}
+
 /** Persist the {sectionKey: pageNumber} index built by pdf_section_index. */
 export async function setDocumentSectionIndex(
   documentId: number,

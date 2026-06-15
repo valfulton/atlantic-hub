@@ -14,6 +14,7 @@ import {
   deleteDocument,
   canClientUserAccessCase,
   updateDocumentKind,
+  updateDocument,
   setDocumentSectionIndex
 } from '@/lib/case/case_store';
 import { findClientUserById } from '@/lib/auth/client-user';
@@ -105,18 +106,51 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ ok: false, error: 'invalid id' }, { status: 400 });
   }
 
-  let body: { documentKind?: string | null };
+  let body: {
+    documentKind?: string | null;
+    documentName?: string;
+    notes?: string | null;
+  };
   try { body = await req.json(); }
   catch { return NextResponse.json({ ok: false, error: 'expected JSON body' }, { status: 400 }); }
-
-  const newKind = body.documentKind === null ? null : (body.documentKind || '').trim() || null;
-  if (newKind != null && !ALLOWED_KINDS.has(newKind)) {
-    return NextResponse.json({ ok: false, error: 'unknown documentKind' }, { status: 400 });
-  }
 
   const doc = await getDocument(documentId);
   if (!doc || doc.caseId !== caseId) {
     return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 });
+  }
+
+  // (val 2026-06-15, #683) Rename + notes edit. Same PATCH endpoint as
+  // documentKind — operator may send any combination. Notes-only and
+  // rename-only paths skip the §-index rebuild branch below.
+  if (body.documentName !== undefined || body.notes !== undefined) {
+    const metaPatch: { documentName?: string; notes?: string | null } = {};
+    if (body.documentName !== undefined) {
+      const trimmed = String(body.documentName).trim();
+      if (!trimmed) {
+        return NextResponse.json({ ok: false, error: 'documentName cannot be blank' }, { status: 400 });
+      }
+      metaPatch.documentName = trimmed;
+    }
+    if (body.notes !== undefined) {
+      metaPatch.notes = body.notes === null
+        ? null
+        : (String(body.notes).trim() || null);
+    }
+    const metaOk = await updateDocument(documentId, caseId, metaPatch);
+    if (!metaOk) {
+      return NextResponse.json({ ok: false, error: 'metadata update failed' }, { status: 500 });
+    }
+    // If documentKind wasn't also sent, we're done.
+    if (body.documentKind === undefined) {
+      return NextResponse.json({ ok: true, ...metaPatch });
+    }
+  }
+
+  // Kind branch — same as before, plus the synchronous §-index rebuild on
+  // the happy path. Only runs when documentKind is in the body.
+  const newKind = body.documentKind === null ? null : (body.documentKind || '').trim() || null;
+  if (newKind != null && !ALLOWED_KINDS.has(newKind)) {
+    return NextResponse.json({ ok: false, error: 'unknown documentKind' }, { status: 400 });
   }
 
   const ok = await updateDocumentKind(documentId, newKind);
