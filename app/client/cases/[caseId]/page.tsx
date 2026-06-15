@@ -15,8 +15,8 @@ import { ensureClientHub } from '@/lib/client/provision';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import { loadFullCase, canClientUserAccessCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
-import { resolveCaseViewerRole, visibleFor } from '@/lib/case/case_collaborators';
+import { loadFullCase, canClientUserAccessCase, findIndexableDocumentForCase, type CaseParty } from '@/lib/case/case_store';
+import { resolveCaseViewerRole, visibleFor, listCollaboratorsForCase } from '@/lib/case/case_collaborators';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import SectionText from '@/components/case/SectionText';
 import DocumentApprovalActions from '@/components/case/DocumentApprovalActions';
@@ -77,49 +77,84 @@ function dollars(cents: number | null): string {
 }
 
 /**
- * Split a synopsis body into paragraphs.  (val 2026-06-14, #660 readability)
+ * Parse a synopsis body for rendering as a two-column document.
+ *   (val 2026-06-14, #661 — UX/UI v4)
  *
- * Honors explicit paragraph breaks (\n\n) first. If the operator wrote one
- * dense paragraph (legacy case data — Johnson's original synopsis is one
- * 5-sentence wall), fall back to sentence-pair clustering so Mrs. Johnson
- * isn't staring at a brick of text. We don't split on every sentence
- * because that produces orphaned 1-line paragraphs that read choppy; pairs
- * give natural breathing room.
+ * HARD RULE: Content is verbatim. We never rewrite, summarize, soften, or
+ * truncate. We only honor markers the operator wrote into the synopsis:
  *
- * Edge cases handled:
- *   - Section refs like "§6.G(2)." don't trigger false splits because we
- *     look for ". " (period + space), and the section refs sit inside
- *     parentheses or are followed by alphanumerics.
- *   - Abbreviations Mr./Mrs./Dr./St. are common in trust copy; we keep
- *     them attached to the next sentence rather than splitting prematurely.
+ *   - `\n\n` separates paragraphs of prose.
+ *   - `[STATUS]…[/STATUS]` wraps a sentence that should render as a thin
+ *     garnet-rule callout (urgent matter status). Per the mock: "Cecilia
+ *     is currently moving to force the sale of the home…" — set off
+ *     visually, not paraphrased.
+ *
+ * Output preserves prose order so the renderer can map 1:1.
  */
-function splitSynopsis(text: string): string[] {
+type SynopsisBlock =
+  | { kind: 'prose'; text: string }
+  | { kind: 'status'; text: string };
+
+function parseSynopsis(text: string | null | undefined): SynopsisBlock[] {
   if (!text) return [];
-  // Honor explicit breaks first.
-  if (/\n{2,}/.test(text)) {
-    return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const paras = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  // If no explicit breaks, treat the whole text as one prose paragraph —
+  // do NOT auto-split sentences. Operator controls breaks.
+  return paras.map<SynopsisBlock>((p) => {
+    const m = p.match(/^\[STATUS\]([\s\S]*?)\[\/STATUS\]$/);
+    if (m) return { kind: 'status', text: m[1].trim() };
+    return { kind: 'prose', text: p };
+  });
+}
+
+/**
+ * Group case_parties into the document-style sidebar buckets.
+ *   (val 2026-06-14, #661)
+ * Buckets: Trustors → Trustees → Beneficiaries → Other.
+ * Roles are matched case-insensitively. Empty buckets are dropped.
+ */
+function groupParties(parties: CaseParty[]): Array<{ label: string; members: CaseParty[] }> {
+  const buckets: Record<string, CaseParty[]> = { Trustors: [], Trustees: [], Beneficiaries: [], Other: [] };
+  for (const p of parties) {
+    const r = (p.role || '').toLowerCase();
+    if (r.includes('trustor') || r.includes('settlor') || r.includes('grantor')) buckets.Trustors.push(p);
+    else if (r.includes('trustee')) buckets.Trustees.push(p);
+    else if (r.includes('beneficiary')) buckets.Beneficiaries.push(p);
+    else buckets.Other.push(p);
   }
-  // No explicit breaks — split on sentence boundaries but cluster in pairs.
-  const ABBREV = /\b(?:Mr|Mrs|Ms|Dr|St|Sr|Jr|Inc|Ltd|Co|Corp|Hon|Esq|U\.S|U\.K|e\.g|i\.e|vs|etc)\.$/i;
-  const sentences: string[] = [];
-  let current = '';
-  const parts = text.split(/(?<=\.) +/);
-  for (const p of parts) {
-    if (current && ABBREV.test(current)) {
-      current = current + ' ' + p;
-    } else {
-      if (current) sentences.push(current.trim());
-      current = p;
-    }
+  return (['Trustors', 'Trustees', 'Beneficiaries', 'Other'] as const)
+    .map((label) => ({ label, members: buckets[label] }))
+    .filter((g) => g.members.length > 0);
+}
+
+/**
+ * Family-facing role label.  (val 2026-06-14, #661 HARD RULE 2)
+ *
+ * The DB stores `attorney` / `advisor` for legal collaborators. On any
+ * client-facing surface we MUST remap to "Legal Document Assistant" —
+ * never the word "attorney" or "lawyer" anywhere. This is a compliance
+ * line, not a style choice. Other role labels render human-readable.
+ */
+function familyFacingRoleLabel(dbRole: string | null | undefined): string {
+  switch ((dbRole || '').toLowerCase()) {
+    case 'attorney':
+    case 'advisor':
+      return 'Legal Document Assistant';
+    case 'sibling_admin':
+      return 'Account representative';
+    case 'sibling_commenter':
+      return 'Family';
+    case 'sibling_reader':
+      return 'Family';
+    case 'primary_caregiver':
+      return 'Primary caregiver';
+    case 'successor_trustee':
+      return 'Successor trustee';
+    case 'parent':
+      return 'Parent';
+    default:
+      return (dbRole || '').replace(/_/g, ' ');
   }
-  if (current) sentences.push(current.trim());
-  // Cluster sentences in pairs (every 2 sentences = 1 paragraph). Single
-  // trailing sentence stands alone.
-  const out: string[] = [];
-  for (let i = 0; i < sentences.length; i += 2) {
-    out.push(sentences.slice(i, i + 2).join(' '));
-  }
-  return out;
 }
 
 export default async function ClientCaseDetailPage({ params }: PageProps) {
@@ -176,6 +211,14 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   if (!full) notFound();
 
   const c = full.case;
+  // (val 2026-06-14, #661) Collaborators feed the sidebar "Review & approval"
+  // panel. We surface non-revoked attorney/advisor collaborators with their
+  // family-facing role remapped (HARD RULE 2).
+  const collaborators = await listCollaboratorsForCase(caseId);
+  const reviewers = collaborators.filter((c2) =>
+    !c2.revokedAt && (c2.role === 'attorney' || c2.role === 'advisor')
+  );
+
   const [wellness, indexableDoc] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
     findIndexableDocumentForCase(caseId)
@@ -211,134 +254,238 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           <span>{c.caseName}</span>
         </div>
 
-        {/* Header */}
-        <header style={{ marginBottom: '2rem' }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 8 }}>
-            {caseKindLabel(c.caseKind)}
+        {/* Header band (val 2026-06-14, #661 v4) — eyebrow + Fraunces title +
+            meta + status badges. "Open" pill if case.status === 'open';
+            "Time-sensitive" pill if metadata.time_sensitive === true (val sets
+            this per-case). */}
+        <header style={{ borderBottom: '1px solid rgba(10,77,60,0.14)', paddingBottom: 22, marginBottom: 30 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 9 }}>
+            {caseKindLabel(c.caseKind)}{full.property?.county ? ` · ${full.property.county} County` : ''}
           </div>
-          <h1 style={{ fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif', fontWeight: 500, fontSize: 36, lineHeight: 1.1, marginBottom: 10 }}>
+          <h1 style={{ fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif', fontWeight: 500, fontSize: 33, lineHeight: 1.12, letterSpacing: '-0.012em', margin: '0 0 10px', color: 'var(--ink)' }}>
             {c.caseName}
           </h1>
-          <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)' }}>
+          <p style={{ fontSize: 14.5, color: 'var(--muted, #5C6862)', margin: '0 0 14px' }}>
             Opened {formatDate(c.openedAt)}
             {c.metadata?.trust_executed_date ? ` · Trust executed ${String(c.metadata.trust_executed_date)}` : ''}
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {c.status === 'open' && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: 'var(--emerald-deep, #0A4D3C)', background: 'var(--emerald-mist, #EDF4F0)', border: '1px solid rgba(10,77,60,0.18)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1A6B52' }} />
+                Open
+              </span>
+            )}
+            {c.metadata?.time_sensitive === true && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: '#8E2A2A', background: 'rgba(142,42,42,0.07)', border: '1px solid rgba(142,42,42,0.3)' }}>
+                <span aria-hidden="true">▲</span>
+                Time-sensitive
+              </span>
+            )}
           </div>
         </header>
 
-        {/* Synopsis card — easy-read floor v2 (val 2026-06-14, #660):
-            Body type 20px / line-height 1.8 so a 70-year-old can read this
-            without leaning in. Synopsis text is split into multiple paragraphs
-            so each thought sits on its own — the original Johnson synopsis was
-            one 5-sentence wall (parents/trustors/trustee/conflict/sections all
-            jammed together), unreadable for the family. splitSynopsis() honors
-            explicit \n\n breaks if the operator wrote them, else clusters in
-            sentence pairs. */}
-        {c.caseSynopsis && (() => {
-          const paras = splitSynopsis(c.caseSynopsis);
-          return (
-            <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '30px 32px 32px', marginBottom: '1.5rem' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 16 }}>
-                Where we are
-              </div>
-              {paras.map((para, i) => (
-                <p
-                  key={i}
-                  style={{
-                    fontSize: 20,
-                    lineHeight: 1.8,
-                    color: 'var(--ink)',
-                    margin: 0,
-                    marginBottom: i < paras.length - 1 ? 20 : 0,
-                    whiteSpace: 'pre-wrap'
-                  }}
-                >
-                  <SectionText
-                    text={para}
-                    documentUrl={sectionDocUrl}
-                    sectionIndex={sectionIndex}
-                  />
-                </p>
-              ))}
-            </section>
-          );
-        })()}
+        {/* Two-column body (val 2026-06-14, #661 v4 — UX/UI approved mock).
+            Main column: Summary (verbatim per HARD RULE 1) + Outstanding items.
+            Sidebar: Property · Parties · Trust provisions · Review & approval.
+            Sidebar stacks under the main column on mobile. */}
+        <div className="case-grid">
+          <style>{`
+            .case-grid { display: grid; grid-template-columns: 1fr 300px; gap: 40px; align-items: start; }
+            .case-grid h2.case-h { font-family: 'Fraunces','Cormorant Garamond',Georgia,serif; font-weight: 500; font-size: 1.32rem; color: var(--ink); margin: 0 0 14px; padding-bottom: 9px; border-bottom: 1px solid rgba(10,77,60,0.14); }
+            .case-grid .prose-p { font-size: 17px; line-height: 1.74; color: var(--ink); margin: 0 0 14px; }
+            .case-grid .prose-p:last-child { margin-bottom: 0; }
+            .case-grid .status-flag { border-left: 3px solid #8E2A2A; padding: 2px 0 2px 16px; margin: 16px 0; }
+            .case-grid .status-flag .fe { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #8E2A2A; margin: 0 0 3px; }
+            .case-grid .status-flag p { font-size: 17px; line-height: 1.6; color: var(--ink); margin: 0; }
+            .case-grid .ai-item { padding: 16px 0; border-top: 1px solid rgba(10,77,60,0.14); }
+            .case-grid .ai-item:first-of-type { border-top: none; }
+            .case-grid .ai-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+            .case-grid .ai-num { font-family: 'Fraunces',Georgia,serif; font-size: 14px; color: var(--muted, #5C6862); }
+            .case-grid .ai-tag { font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 8px; border-radius: 5px; }
+            .case-grid .ai-tag.urg { color: #8E2A2A; background: rgba(142,42,42,0.09); }
+            .case-grid .ai-tag.hi { color: var(--gold-deep, #7A5A18); background: rgba(201,169,97,0.16); }
+            .case-grid .ai-tag.norm { color: var(--emerald-deep, #0A4D3C); background: var(--emerald-mist, #EDF4F0); }
+            .case-grid .ai-title { font-size: 17px; font-weight: 600; color: var(--ink); line-height: 1.4; text-decoration: none; display: block; }
+            .case-grid .ai-title:hover { text-decoration: underline; text-decoration-color: rgba(10,77,60,0.3); text-underline-offset: 3px; }
+            .case-grid .ai-detail { font-size: 15.5px; line-height: 1.62; color: var(--muted, #5C6862); margin-top: 5px; white-space: pre-wrap; }
+            .case-grid .panel { background: var(--paper, #FFFFFF); border: 1px solid rgba(10,77,60,0.14); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; }
+            .case-grid .panel-h { font-size: 11.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--emerald-deep, #0A4D3C); margin: 0 0 14px; }
+            .case-grid .addr { font-family: 'Fraunces',Georgia,serif; font-weight: 500; font-size: 1.05rem; color: var(--ink); line-height: 1.25; }
+            .case-grid .addr-line { font-size: 14px; color: var(--muted, #5C6862); margin-top: 4px; line-height: 1.45; }
+            .case-grid .addr-title { font-size: 13.5px; margin-top: 10px; color: var(--muted, #5C6862); line-height: 1.45; }
+            .case-grid .addr-title b { color: var(--ink); font-weight: 600; }
+            .case-grid .party-grp { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold-deep, #7A5A18); margin: 14px 0 4px; }
+            .case-grid .party-grp:first-child { margin-top: 0; }
+            .case-grid .party { padding: 9px 0; border-top: 1px solid rgba(10,77,60,0.14); }
+            .case-grid .party:first-of-type { border-top: none; padding-top: 0; }
+            .case-grid .party-name { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+            .case-grid .party-role { font-size: 13px; color: var(--muted, #5C6862); }
+            .case-grid .prov { padding: 10px 0; border-top: 1px solid rgba(10,77,60,0.14); display: flex; gap: 10px; }
+            .case-grid .prov:first-of-type { border-top: none; padding-top: 0; }
+            .case-grid .prov a { font-family: 'Fraunces',Georgia,serif; font-size: 13px; font-weight: 600; color: var(--emerald-deep, #0A4D3C); text-decoration: none; flex: 0 0 auto; border-bottom: 1px solid rgba(10,77,60,0.3); }
+            .case-grid .prov span { font-size: 14px; line-height: 1.45; color: var(--ink); }
+            .case-grid .prep-name { font-size: 15px; font-weight: 600; color: var(--ink); }
+            .case-grid .prep-role { font-size: 13.5px; color: var(--muted, #5C6862); margin-top: 2px; }
+            .case-grid .prep-date { font-size: 13px; color: var(--muted, #5C6862); margin-top: 8px; line-height: 1.5; }
+            @media (max-width: 760px) { .case-grid { grid-template-columns: 1fr; gap: 30px; } }
+          `}</style>
 
-        {/* Property — easy-read pass: address in Fraunces 22px, meta lifted from 13→16
-            so the parents can read it without leaning in. */}
-        {full.property && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
-              The property
-            </div>
-            <div style={{ fontSize: 22, fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif', color: 'var(--ink)', lineHeight: 1.3 }}>
-              {full.property.addressLine}
-            </div>
-            <div style={{ fontSize: 16, color: 'var(--muted, #3B4944)', marginTop: 6, lineHeight: 1.55 }}>
-              {[full.property.city, full.property.state, full.property.zip].filter(Boolean).join(', ')}
-              {full.property.county ? ` · ${full.property.county} County` : ''}
-            </div>
-            {full.property.currentTitledOwner && (
-              <div style={{ fontSize: 16, marginTop: 14, lineHeight: 1.55 }}>
-                <span style={{ color: 'var(--muted, #3B4944)' }}>Currently titled to:</span>{' '}
-                <strong>{full.property.currentTitledOwner}</strong>
-              </div>
-            )}
-            {(full.property.estimatedValueCents != null || full.property.equityCents != null) && (
-              <div style={{ display: 'flex', gap: 28, fontSize: 16, marginTop: 10, lineHeight: 1.55 }}>
-                {full.property.estimatedValueCents != null && (
-                  <div><span style={{ color: 'var(--muted, #3B4944)' }}>Est. value:</span> {dollars(full.property.estimatedValueCents)}</div>
-                )}
-                {full.property.equityCents != null && (
-                  <div><span style={{ color: 'var(--muted, #3B4944)' }}>Equity:</span> {dollars(full.property.equityCents)}</div>
-                )}
-              </div>
-            )}
-          </section>
-        )}
+          {/* MAIN COLUMN */}
+          <div>
+            {c.caseSynopsis && (() => {
+              const blocks = parseSynopsis(c.caseSynopsis);
+              return (
+                <div style={{ marginBottom: 30 }}>
+                  <h2 className="case-h">Summary</h2>
+                  {blocks.map((b, i) => (
+                    b.kind === 'status' ? (
+                      <div key={i} className="status-flag">
+                        <p className="fe">Status</p>
+                        <p>
+                          <SectionText text={b.text} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                        </p>
+                      </div>
+                    ) : (
+                      <p key={i} className="prose-p">
+                        <SectionText text={b.text} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                      </p>
+                    )
+                  ))}
+                </div>
+              );
+            })()}
 
-        {/* Action items the family should act on — easy-read pass:
-            title 14→18, detail 12→16, meta 10→12, tap targets bumped via more
-            generous padding. Urgent border kept (semantic, not alarmist red
-            anymore — switched to the gold-deep family color so the family
-            view doesn't show panic-red on every urgent item). */}
-        {openActions.length > 0 && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
-              What we are working on next
-            </div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 18 }}>
-              {openActions.map((a) => (
-                <li key={a.actionId} style={{ borderLeft: a.priority === 'urgent' ? '3px solid var(--gold-deep, #7A5A18)' : a.priority === 'high' ? '3px solid var(--gold-deep, #7A5A18)' : '3px solid rgba(10,10,10,0.15)', paddingLeft: 16 }}>
-                  <Link
-                    href={`/client/cases/${caseId}/actions/${a.actionId}`}
-                    style={{ fontSize: 18, fontWeight: 500, color: 'var(--ink)', textDecoration: 'none', display: 'block', lineHeight: 1.35 }}
-                  >
-                    {a.title}
-                  </Link>
-                  {a.detail && (
-                    <div style={{ fontSize: 16, color: 'var(--ink)', marginTop: 6, lineHeight: 1.6, opacity: 0.85 }}>
-                      <SectionText
-                        text={a.detail}
-                        documentUrl={sectionDocUrl}
-                        sectionIndex={sectionIndex}
-                      />
+            {openActions.length > 0 && (
+              <div style={{ marginBottom: 30 }}>
+                <h2 className="case-h">Outstanding items</h2>
+                {openActions.map((a, i) => {
+                  const tagClass = a.priority === 'urgent' ? 'urg' : a.priority === 'high' ? 'hi' : 'norm';
+                  const tagLabel = a.priority === 'urgent' ? 'Urgent' : a.priority === 'high' ? 'High' : 'Normal';
+                  return (
+                    <div key={a.actionId} className="ai-item">
+                      <div className="ai-top">
+                        <span className="ai-num">{i + 1}</span>
+                        <span className={`ai-tag ${tagClass}`}>{tagLabel}</span>
+                        {a.dueDate && (
+                          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted, #5C6862)' }}>
+                            Due {formatDate(a.dueDate)}
+                          </span>
+                        )}
+                      </div>
+                      <Link href={`/client/cases/${caseId}/actions/${a.actionId}`} className="ai-title">
+                        {a.title}
+                      </Link>
+                      {a.detail && (
+                        <div className="ai-detail">
+                          <SectionText text={a.detail} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 10, textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <span>{a.priority === 'urgent' ? 'Important' : a.priority}</span>
-                    {a.dueDate && <span>· due {formatDate(a.dueDate)}</span>}
-                    <Link
-                      href={`/client/cases/${caseId}/actions/${a.actionId}`}
-                      style={{ marginLeft: 'auto', color: 'var(--gold-deep, #7A5A18)', textDecoration: 'none', fontSize: 13 }}
-                    >
-                      Open →
-                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SIDEBAR */}
+          <aside>
+            {full.property && (
+              <div className="panel">
+                <p className="panel-h">Property</p>
+                <div className="addr">{full.property.addressLine}</div>
+                <div className="addr-line">
+                  {[full.property.city, full.property.state, full.property.zip].filter(Boolean).join(', ')}
+                  {full.property.county ? <><br />{full.property.county} County</> : null}
+                </div>
+                {full.property.currentTitledOwner && (
+                  <div className="addr-title">
+                    Titled to: <b>{full.property.currentTitledOwner}</b>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+                )}
+              </div>
+            )}
+
+            {full.parties.length > 0 && (() => {
+              const groups = groupParties(full.parties);
+              return (
+                <div className="panel">
+                  <p className="panel-h">Parties</p>
+                  {groups.map((g) => (
+                    <div key={g.label}>
+                      <p className="party-grp">{g.label}</p>
+                      {g.members.map((p) => (
+                        <div key={p.partyId} className="party">
+                          <div className="party-name">{p.fullName}</div>
+                          {(p.relationship || p.role) && (
+                            <div className="party-role">
+                              {p.relationship || (p.role ? p.role.replace(/_/g, ' ') : '')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Trust provisions — render only if operator populated
+                case.metadata.trust_provisions as Array<{section_key, description}>. */}
+            {(() => {
+              const tp = c.metadata?.trust_provisions;
+              if (!Array.isArray(tp) || tp.length === 0) return null;
+              return (
+                <div className="panel">
+                  <p className="panel-h">Trust provisions</p>
+                  {tp.map((p, i) => {
+                    const item = p as { section_key?: string; description?: string };
+                    if (!item.section_key) return null;
+                    const page = sectionIndex?.[item.section_key]
+                      ?? sectionIndex?.[item.section_key.replace(/\(\d+\)$/, '')];
+                    const href = page && sectionDocUrl ? `${sectionDocUrl}#page=${page}` : undefined;
+                    return (
+                      <div key={i} className="prov">
+                        {href ? (
+                          <a href={href} target="_blank" rel="noopener noreferrer">§{item.section_key}</a>
+                        ) : (
+                          <span style={{ fontFamily: 'Fraunces,Georgia,serif', fontSize: 13, fontWeight: 600, color: 'var(--emerald-deep, #0A4D3C)', flex: '0 0 auto' }}>§{item.section_key}</span>
+                        )}
+                        <span>{item.description || ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* Review & approval — Adriana (HARD RULE 2: NEVER "attorney"
+                or "lawyer" on a family surface; HARD RULE 3: framed as
+                REVIEWER, not author). Operator can override the org label
+                via case.metadata.reviewer_org_label; otherwise fall back to
+                "Legal services". */}
+            {reviewers.length > 0 && (() => {
+              const orgLabel = typeof c.metadata?.reviewer_org_label === 'string'
+                ? String(c.metadata.reviewer_org_label)
+                : 'Legal services';
+              const blurb = typeof c.metadata?.reviewer_blurb === 'string'
+                ? String(c.metadata.reviewer_blurb)
+                : 'Reviews and approves new documents for this matter.';
+              return (
+                <div className="panel">
+                  <p className="panel-h">Review &amp; approval</p>
+                  {reviewers.map((r) => (
+                    <div key={r.collaboratorId} style={{ marginBottom: 12 }}>
+                      <div className="prep-name">{r.displayName || r.email}</div>
+                      <div className="prep-role">{orgLabel} · {familyFacingRoleLabel(r.role)}</div>
+                    </div>
+                  ))}
+                  <div className="prep-date">{blurb}</div>
+                </div>
+              );
+            })()}
+          </aside>
+        </div>
 
         {/* Timeline */}
         {full.events.length > 0 && (
@@ -462,27 +609,8 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           );
         })()}
 
-        {/* Parties (people on the matter) */}
-        {full.parties.length > 0 && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
-              On this matter
-            </div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 10 }}>
-              {full.parties.map((p) => (
-                <li key={p.partyId} style={{ fontSize: 13 }}>
-                  <strong>{p.fullName}</strong>
-                  {p.role && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #3B4944)' }}>{p.role.replace(/_/g, ' ')}</span>
-                  )}
-                  {p.relationship && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted, #3B4944)', fontStyle: 'italic' }}>{p.relationship}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {/* (val 2026-06-14, #661) Parties moved into the two-column sidebar
+            above — grouped by Trustors / Trustees / Beneficiaries. */}
 
         {/* Family wellness summary (when wellness_enabled) */}
         {wellness && (
