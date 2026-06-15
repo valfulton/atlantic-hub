@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS case_document_findings (
   CONSTRAINT fk_cdf_document FOREIGN KEY (document_id)
     REFERENCES case_documents (document_id) ON DELETE CASCADE,
   CONSTRAINT fk_cdf_case FOREIGN KEY (case_id)
-    REFERENCES family_cases (case_id) ON DELETE CASCADE
+    REFERENCES cases (case_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='LLM-produced findings per uploaded case document (#666).';
 
