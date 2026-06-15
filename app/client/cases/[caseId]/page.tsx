@@ -211,19 +211,23 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   if (!full) notFound();
 
   const c = full.case;
-  // (val 2026-06-14, #661) Collaborators feed the sidebar "Review & approval"
-  // panel. We surface non-revoked attorney/advisor collaborators with their
-  // family-facing role remapped (HARD RULE 2). Dedupe by client_user_id —
-  // a multi-brand collaborator (Adriana via CBB-NULL + CLDA via_client_id=10)
-  // has TWO rows in family_case_collaborators but is ONE human; we render
-  // them once.
+  // (val 2026-06-15, #661) Reviewers — non-revoked attorney/advisor
+  // collaborators, deduped by email (fall back to displayName, then
+  // clientUserId). Email is the durable identity: even when there are
+  // two client_users rows for the same human (Adriana has one from CBB
+  // setup + one from CLDA setup with different client_user_ids), the
+  // email matches, so we render her once. Per HARD RULE 2 we remap the
+  // role label for the family view.
   const collaborators = await listCollaboratorsForCase(caseId);
-  const seenReviewerIds = new Set<number>();
+  const seenReviewerKeys = new Set<string>();
   const reviewers = collaborators
     .filter((c2) => !c2.revokedAt && (c2.role === 'attorney' || c2.role === 'advisor'))
     .filter((c2) => {
-      if (seenReviewerIds.has(c2.clientUserId)) return false;
-      seenReviewerIds.add(c2.clientUserId);
+      const email = c2.email?.trim().toLowerCase();
+      const name = c2.displayName?.trim().toLowerCase();
+      const key = email ? `e:${email}` : name ? `n:${name}` : `u:${c2.clientUserId}`;
+      if (seenReviewerKeys.has(key)) return false;
+      seenReviewerKeys.add(key);
       return true;
     });
 
@@ -284,20 +288,26 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             Opened {formatDate(c.openedAt)}
             {c.metadata?.trust_executed_date ? ` · Trust executed ${String(c.metadata.trust_executed_date)}` : ''}
           </p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {c.status === 'open' && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: 'var(--emerald-deep, #0A4D3C)', background: 'var(--emerald-mist, #EDF4F0)', border: '1px solid rgba(10,77,60,0.18)' }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1A6B52' }} />
-                Open
-              </span>
-            )}
-            {c.metadata?.time_sensitive === true && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: '#8E2A2A', background: 'rgba(142,42,42,0.07)', border: '1px solid rgba(142,42,42,0.3)' }}>
-                <span aria-hidden="true">▲</span>
-                Time-sensitive
-              </span>
-            )}
-          </div>
+          {/* Status markers — only render when there's something meaningful to
+              communicate. The case being "open" is implied by viewing it
+              (val 2026-06-15) — we don't show an "Open" pill on its own.
+              "Closed" surfaces when c.status === 'closed' (rare on family
+              view), and "Time-sensitive" surfaces when operator flags it. */}
+          {(c.status === 'closed' || c.metadata?.time_sensitive === true) && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {c.status === 'closed' && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: 'var(--muted, #5C6862)', background: 'rgba(10,10,10,0.04)', border: '1px solid rgba(10,10,10,0.12)' }}>
+                  Closed
+                </span>
+              )}
+              {c.metadata?.time_sensitive === true && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: '#8E2A2A', background: 'rgba(142,42,42,0.07)', border: '1px solid rgba(142,42,42,0.3)' }}>
+                  <span aria-hidden="true">▲</span>
+                  Time-sensitive
+                </span>
+              )}
+            </div>
+          )}
         </header>
 
         {/* Two-column body (val 2026-06-14, #661 v4 — UX/UI approved mock).

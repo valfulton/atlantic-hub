@@ -234,16 +234,20 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   const c = full.case;
   const wellness = c.wellnessEnabled ? await loadFullWellness(caseId) : null;
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
-  // (val 2026-06-14, #661) Reviewers — non-revoked attorney/advisor
-  // collaborators, deduped by clientUserId (multi-brand collaborator
-  // has multiple fcc rows for the same human).
+  // (val 2026-06-15, #661) Reviewers — dedupe by email (fall back to
+  // displayName) so a multi-brand human with two client_users rows
+  // (Adriana: CBB row + CLDA row, different client_user_ids, same email)
+  // renders once.
   const collaborators = await listCollaboratorsForCase(caseId);
-  const seenReviewerIds = new Set<number>();
+  const seenReviewerKeys = new Set<string>();
   const reviewers = collaborators
     .filter((cc) => !cc.revokedAt && (cc.role === 'attorney' || cc.role === 'advisor'))
     .filter((cc) => {
-      if (seenReviewerIds.has(cc.clientUserId)) return false;
-      seenReviewerIds.add(cc.clientUserId);
+      const email = cc.email?.trim().toLowerCase();
+      const name = cc.displayName?.trim().toLowerCase();
+      const key = email ? `e:${email}` : name ? `n:${name}` : `u:${cc.clientUserId}`;
+      if (seenReviewerKeys.has(key)) return false;
+      seenReviewerKeys.add(key);
       return true;
     });
 
@@ -305,20 +309,24 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
               Opened {formatDate(c.openedAt)}
               {c.metadata?.trust_executed_date ? ` · Trust executed ${String(c.metadata.trust_executed_date)}` : ''}
             </p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {c.status === 'open' && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: 'var(--emerald-deep, #0A4D3C)', background: 'var(--emerald-mist, #EDF4F0)', border: '1px solid rgba(10,77,60,0.18)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1A6B52' }} />
-                  Open
-                </span>
-              )}
-              {c.metadata?.time_sensitive === true && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: '#8E2A2A', background: 'rgba(142,42,42,0.07)', border: '1px solid rgba(142,42,42,0.3)' }}>
-                  <span aria-hidden="true">▲</span>
-                  Time-sensitive
-                </span>
-              )}
-            </div>
+            {/* Status markers — same rule as the live family view: don't
+                surface "Open" alone (val 2026-06-15). Only render when
+                something meaningful is set. */}
+            {(c.status === 'closed' || c.metadata?.time_sensitive === true) && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {c.status === 'closed' && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: 'var(--muted, #5C6862)', background: 'rgba(10,10,10,0.04)', border: '1px solid rgba(10,10,10,0.12)' }}>
+                    Closed
+                  </span>
+                )}
+                {c.metadata?.time_sensitive === true && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 6, color: '#8E2A2A', background: 'rgba(142,42,42,0.07)', border: '1px solid rgba(142,42,42,0.3)' }}>
+                    <span aria-hidden="true">▲</span>
+                    Time-sensitive
+                  </span>
+                )}
+              </div>
+            )}
           </header>
 
           <div className="case-grid">
