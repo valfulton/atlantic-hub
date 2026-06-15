@@ -79,21 +79,43 @@ export default function DocumentExtractsPanel({ caseId: _caseId, extracts, docum
                   <li
                     key={e.extractId}
                     style={{
+                      // (val 2026-06-15, #689) Responsive — stack columns
+                      // under ~520px so labels/values/source don't crush.
                       display: 'grid',
-                      gridTemplateColumns: '180px 1fr auto',
+                      gridTemplateColumns: 'minmax(140px, 180px) minmax(0, 1fr) minmax(0, auto)',
                       gap: 12,
                       padding: '8px 0',
-                      borderTop: '1px solid rgba(255,255,255,0.06)',
+                      borderTop: '1px solid rgba(127,127,127,0.18)',
                       alignItems: 'baseline'
                     }}
                   >
                     <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)' }}>
                       {e.label || '(no label)'}
                     </div>
-                    <div style={{ fontSize: 13, color: missing ? 'var(--muted, #888)' : 'var(--ink-on-dark, #F4F1E8)', fontStyle: missing ? 'italic' : 'normal' }}>
+                    {/* (val 2026-06-15, #689) Use currentColor so the value
+                        inherits whatever ink the surrounding surface defines —
+                        was using --ink-on-dark fallback #F4F1E8 which rendered
+                        near-white on the cream family surface and killed
+                        legibility. */}
+                    <div style={{
+                      fontSize: 13,
+                      color: missing ? 'var(--muted, #5C6862)' : 'currentColor',
+                      fontStyle: missing ? 'italic' : 'normal',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                      minWidth: 0
+                    }}>
                       {missing ? (e.note || 'not present in document') : e.value}
                     </div>
-                    <div style={{ fontSize: 10, letterSpacing: '0.06em', color: 'var(--muted, #888)', textAlign: 'right' }}>
+                    <div style={{
+                      fontSize: 10,
+                      letterSpacing: '0.06em',
+                      color: 'var(--muted, #5C6862)',
+                      textAlign: 'right',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                      minWidth: 0
+                    }}>
                       {docName ? <span>{docName.replace(/\.[a-z]+$/i, '')}</span> : null}
                       {e.pageNumber ? <span> · p.{e.pageNumber}</span> : null}
                     </div>
