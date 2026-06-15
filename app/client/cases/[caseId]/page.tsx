@@ -179,13 +179,16 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           </div>
         </header>
 
-        {/* Synopsis card */}
+        {/* Synopsis card — Beauty Pack §4 easy-read floor (val 2026-06-14, #658):
+            ≥18px body type so a 70-year-old parent can read this comfortably on a phone.
+            Color stays --ink on --paper (≈14.7:1) — clears AAA 7:1. Line-height 1.7
+            for matter-summary text since the paragraphs are dense. */}
         {c.caseSynopsis && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 10 }}>
+          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
               Where we are
             </div>
-            <div style={{ fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: 18, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
               <SectionText
                 text={c.caseSynopsis}
                 documentUrl={sectionDocUrl}
@@ -195,27 +198,28 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* Property */}
+        {/* Property — easy-read pass: address in Fraunces 22px, meta lifted from 13→16
+            so the parents can read it without leaning in. */}
         {full.property && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 10 }}>
+          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
               The property
             </div>
-            <div style={{ fontSize: 15, fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif' }}>
+            <div style={{ fontSize: 22, fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif', color: 'var(--ink)', lineHeight: 1.3 }}>
               {full.property.addressLine}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--muted, #3B4944)' }}>
+            <div style={{ fontSize: 16, color: 'var(--muted, #3B4944)', marginTop: 6, lineHeight: 1.55 }}>
               {[full.property.city, full.property.state, full.property.zip].filter(Boolean).join(', ')}
               {full.property.county ? ` · ${full.property.county} County` : ''}
             </div>
             {full.property.currentTitledOwner && (
-              <div style={{ fontSize: 12, marginTop: 10 }}>
+              <div style={{ fontSize: 16, marginTop: 14, lineHeight: 1.55 }}>
                 <span style={{ color: 'var(--muted, #3B4944)' }}>Currently titled to:</span>{' '}
                 <strong>{full.property.currentTitledOwner}</strong>
               </div>
             )}
             {(full.property.estimatedValueCents != null || full.property.equityCents != null) && (
-              <div style={{ display: 'flex', gap: 24, fontSize: 12, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 28, fontSize: 16, marginTop: 10, lineHeight: 1.55 }}>
                 {full.property.estimatedValueCents != null && (
                   <div><span style={{ color: 'var(--muted, #3B4944)' }}>Est. value:</span> {dollars(full.property.estimatedValueCents)}</div>
                 )}
@@ -227,23 +231,27 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* Action items the family should act on */}
+        {/* Action items the family should act on — easy-read pass:
+            title 14→18, detail 12→16, meta 10→12, tap targets bumped via more
+            generous padding. Urgent border kept (semantic, not alarmist red
+            anymore — switched to the gold-deep family color so the family
+            view doesn't show panic-red on every urgent item). */}
         {openActions.length > 0 && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
+          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '24px 26px', marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
               What we are working on next
             </div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 18 }}>
               {openActions.map((a) => (
-                <li key={a.actionId} style={{ borderLeft: a.priority === 'urgent' ? '3px solid #A23B2E' : a.priority === 'high' ? '3px solid var(--gold-deep, #7A5A18)' : '3px solid rgba(10,10,10,0.15)', paddingLeft: 12 }}>
+                <li key={a.actionId} style={{ borderLeft: a.priority === 'urgent' ? '3px solid var(--gold-deep, #7A5A18)' : a.priority === 'high' ? '3px solid var(--gold-deep, #7A5A18)' : '3px solid rgba(10,10,10,0.15)', paddingLeft: 16 }}>
                   <Link
                     href={`/client/cases/${caseId}/actions/${a.actionId}`}
-                    style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)', textDecoration: 'none', display: 'block' }}
+                    style={{ fontSize: 18, fontWeight: 500, color: 'var(--ink)', textDecoration: 'none', display: 'block', lineHeight: 1.35 }}
                   >
                     {a.title}
                   </Link>
                   {a.detail && (
-                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55 }}>
+                    <div style={{ fontSize: 16, color: 'var(--ink)', marginTop: 6, lineHeight: 1.6, opacity: 0.85 }}>
                       <SectionText
                         text={a.detail}
                         documentUrl={sectionDocUrl}
@@ -251,12 +259,12 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                       />
                     </div>
                   )}
-                  <div style={{ fontSize: 10, color: 'var(--muted, #3B4944)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <span>{a.priority}</span>
+                  <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 10, textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <span>{a.priority === 'urgent' ? 'Important' : a.priority}</span>
                     {a.dueDate && <span>· due {formatDate(a.dueDate)}</span>}
                     <Link
                       href={`/client/cases/${caseId}/actions/${a.actionId}`}
-                      style={{ marginLeft: 'auto', color: 'var(--gold-deep, #7A5A18)', textDecoration: 'none' }}
+                      style={{ marginLeft: 'auto', color: 'var(--gold-deep, #7A5A18)', textDecoration: 'none', fontSize: 13 }}
                     >
                       Open →
                     </Link>
