@@ -697,6 +697,66 @@ export async function listEvents(caseId: number, sinceDate?: string): Promise<Ca
   }
 }
 
+/**
+ * (val 2026-06-15, #682) Operator inline edit on the timeline. Schema columns:
+ * event_date, event_kind, event_title, event_detail, source, source_uri.
+ * No visibility column on case_events — every event renders to every viewer
+ * who can see the case (parents/account_rep/professional/operator). Keep
+ * sensitive log entries in case_action_items where visibility lives.
+ */
+export async function updateEvent(
+  eventId: number,
+  caseId: number,
+  patch: Partial<{
+    eventDate: string;        // YYYY-MM-DD
+    eventKind: string | null;
+    eventTitle: string;
+    eventDetail: string | null;
+    source: string | null;
+    sourceUri: string | null;
+  }>
+): Promise<boolean> {
+  if (!Number.isInteger(eventId) || eventId <= 0) return false;
+  if (!Number.isInteger(caseId) || caseId <= 0) return false;
+  const fields: string[] = [];
+  const params: unknown[] = [];
+  if (patch.eventDate !== undefined) { fields.push('event_date = ?'); params.push(patch.eventDate); }
+  if (patch.eventKind !== undefined) { fields.push('event_kind = ?'); params.push(patch.eventKind); }
+  if (patch.eventTitle !== undefined) { fields.push('event_title = ?'); params.push(patch.eventTitle); }
+  if (patch.eventDetail !== undefined) { fields.push('event_detail = ?'); params.push(patch.eventDetail); }
+  if (patch.source !== undefined) { fields.push('source = ?'); params.push(patch.source); }
+  if (patch.sourceUri !== undefined) { fields.push('source_uri = ?'); params.push(patch.sourceUri); }
+  if (!fields.length) return false;
+  params.push(eventId, caseId);
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `UPDATE case_events SET ${fields.join(', ')} WHERE event_id = ? AND case_id = ?`,
+      params
+    );
+    return res.affectedRows > 0;
+  } catch (err) {
+    console.error('updateEvent failed', err);
+    return false;
+  }
+}
+
+export async function deleteEvent(eventId: number, caseId: number): Promise<boolean> {
+  if (!Number.isInteger(eventId) || eventId <= 0) return false;
+  if (!Number.isInteger(caseId) || caseId <= 0) return false;
+  try {
+    const db = getAvDb();
+    const [res] = await db.execute<ResultSetHeader>(
+      `DELETE FROM case_events WHERE event_id = ? AND case_id = ?`,
+      [eventId, caseId]
+    );
+    return res.affectedRows > 0;
+  } catch (err) {
+    console.error('deleteEvent failed', err);
+    return false;
+  }
+}
+
 // ── Documents ─────────────────────────────────────────────────────────
 
 export interface AttachDocumentInput {

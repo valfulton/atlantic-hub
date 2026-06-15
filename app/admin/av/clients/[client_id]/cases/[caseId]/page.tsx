@@ -30,6 +30,8 @@ import { listExtractsForCase } from '@/lib/case/document_extracts_store';
 import CollaboratorsPanel from '@/components/case/CollaboratorsPanel';
 import SectionText from '@/components/case/SectionText';
 import ActionItemsEditorPanel from '@/components/case/ActionItemsEditorPanel';
+import SynopsisEditor from '@/components/case/SynopsisEditor';
+import TimelineEditorPanel from '@/components/case/TimelineEditorPanel';
 import { listFindingsForCase } from '@/lib/case/document_findings_store';
 
 export const runtime = 'nodejs';
@@ -165,53 +167,52 @@ export default async function CaseDetailPage({ params }: PageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* LEFT — main column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Synopsis */}
+            {/* Synopsis (val 2026-06-15, #682 — inline edit via SynopsisEditor;
+                read-view still passes through SectionText so §-refs stay clickable) */}
             <section className="rounded-xl border border-border bg-[var(--surface-2)] p-5">
               <h2 className="text-sm uppercase tracking-wider text-muted mb-3">Synopsis</h2>
-              <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                {c.caseSynopsis ? (
-                  <SectionText
-                    text={c.caseSynopsis}
-                    documentUrl={sectionDocUrl}
-                    sectionIndex={sectionIndex}
-                  />
-                ) : (
-                  <span className="text-muted italic">No synopsis yet. Add one to give the family + counsel a single paragraph that captures the case.</span>
-                )}
-              </div>
+              <SynopsisEditor
+                caseId={c.caseId}
+                initialSynopsis={c.caseSynopsis}
+                readView={
+                  c.caseSynopsis ? (
+                    <SectionText
+                      text={c.caseSynopsis}
+                      documentUrl={sectionDocUrl}
+                      sectionIndex={sectionIndex}
+                    />
+                  ) : (
+                    <span className="text-muted italic">No synopsis yet. Add one to give the family + counsel a single paragraph that captures the case.</span>
+                  )
+                }
+              />
             </section>
 
-            {/* Timeline */}
+            {/* Timeline (val 2026-06-15, #682 — TimelineEditorPanel adds inline
+                edit + delete + Log entry button so timeline edits don't need SQL.
+                Pre-render per-event details via SectionText so #663 §-refs stay
+                clickable in read-view; TimelineEditorPanel is a client component
+                so it can't import SectionText directly.) */}
             <section className="rounded-xl border border-border bg-[var(--surface-2)] p-5">
               <h2 className="text-sm uppercase tracking-wider text-muted mb-3">Timeline</h2>
-              {full.events.length === 0 ? (
-                <div className="text-sm text-muted italic">No events logged yet.</div>
-              ) : (
-                <ol className="space-y-3">
-                  {full.events.map((e) => (
-                    <li key={e.eventId} className="border-l-2 border-border pl-3">
-                      <div className="text-xs text-muted">
-                        {formatDate(e.eventDate)} {e.eventKind ? `· ${e.eventKind}` : ''}
-                      </div>
-                      <div className="font-medium text-sm">{e.eventTitle}</div>
-                      {e.eventDetail && (
-                        <div className="text-xs text-muted mt-1 whitespace-pre-wrap">
-                          <SectionText
-                            text={e.eventDetail}
-                            documentUrl={sectionDocUrl}
-                            sectionIndex={sectionIndex}
-                          />
-                        </div>
-                      )}
-                      {e.sourceUri && (
-                        <a href={e.sourceUri} target="_blank" rel="noopener noreferrer" className="text-xs text-brand hover:underline">
-                          source →
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ol>
-              )}
+              <TimelineEditorPanel
+                caseId={c.caseId}
+                initialEvents={full.events}
+                renderedDetails={Object.fromEntries(
+                  full.events
+                    .filter((e) => !!e.eventDetail)
+                    .map((e) => [
+                      e.eventId,
+                      (
+                        <SectionText
+                          text={e.eventDetail || ''}
+                          documentUrl={sectionDocUrl}
+                          sectionIndex={sectionIndex}
+                        />
+                      )
+                    ])
+                )}
+              />
             </section>
 
             {/* Document vault — uploadable */}
