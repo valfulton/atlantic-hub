@@ -22,9 +22,14 @@ interface Props {
   documents: DocLite[];
   /** All existing findings on the case, grouped per document below. */
   existingFindings: DocumentFinding[];
+  /** Trust/will/etc — byte-serve URL of the indexable document. When passed,
+   *  each finding's §-ref and page number become click-jumps to the right
+   *  page in the PDF. (#672) */
+  indexableDocumentUrl?: string | null;
+  indexableDocumentId?: number | null;
 }
 
-export default function DocumentFindingsPanel({ caseId, documents, existingFindings }: Props) {
+export default function DocumentFindingsPanel({ caseId, documents, existingFindings, indexableDocumentUrl, indexableDocumentId }: Props) {
   const pdfs = documents.filter((d) => d.mimeType === 'application/pdf');
   if (pdfs.length === 0) return null;
 
@@ -50,12 +55,14 @@ export default function DocumentFindingsPanel({ caseId, documents, existingFindi
         {pdfs.map((d) => {
           const docFindings = byDoc.get(d.documentId) || [];
           const initial = docFindings.map((f) => ({
+            findingId: f.findingId,
             documentId: f.documentId,
             caseId: f.caseId,
             sectionKey: f.sectionKey,
             quote: f.quote,
             oddityType: f.oddityType,
             severity: f.severity,
+            visibility: f.visibility,
             pageNumber: f.pageNumber,
             llmNote: f.llmNote,
             modelId: f.modelId
@@ -77,6 +84,8 @@ export default function DocumentFindingsPanel({ caseId, documents, existingFindi
                 documentId={d.documentId}
                 documentName={d.documentName}
                 initialFindings={initial}
+                indexableDocumentUrl={indexableDocumentUrl ?? null}
+                indexableDocumentId={indexableDocumentId ?? null}
               />
             </li>
           );

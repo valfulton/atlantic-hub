@@ -46,9 +46,14 @@ interface Props {
   documentName: string;
   /** Findings already stored from a prior run, so the panel renders on first paint. */
   initialFindings?: Finding[];
+  /** Trust byte-serve URL — when present, each finding's page number becomes
+   *  a click-jump to that page in the PDF (operator side, mirrors family).
+   *  (#672) */
+  indexableDocumentUrl?: string | null;
+  indexableDocumentId?: number | null;
 }
 
-export default function DocumentReadButton({ caseId, documentId, documentName, initialFindings = [] }: Props) {
+export default function DocumentReadButton({ caseId, documentId, documentName, initialFindings = [], indexableDocumentUrl, indexableDocumentId }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -226,9 +231,48 @@ export default function DocumentReadButton({ caseId, documentId, documentName, i
                   ) : (
                     <span style={{ color: sevColor, fontWeight: 700 }}>{f.severity}</span>
                   )}
-                  {f.sectionKey && <span>· §{f.sectionKey}</span>}
-                  {f.pageNumber && <span>· page {f.pageNumber}</span>}
-                  {f.oddityType && <span>· {f.oddityType.replace(/_/g, ' ')}</span>}
+                  {(() => {
+                    // (#672) Click-jump the §-ref + page number to the trust PDF
+                    // when the finding belongs to the indexable document. Same
+                    // pattern as the family panel.
+                    const canJump =
+                      !!indexableDocumentUrl
+                      && f.pageNumber != null
+                      && (indexableDocumentId == null || f.documentId === indexableDocumentId);
+                    const jumpHref = canJump
+                      ? `${indexableDocumentUrl}#page=${f.pageNumber}`
+                      : null;
+                    const linkStyle: React.CSSProperties = {
+                      color: 'var(--gold, #EBCB6B)',
+                      textDecoration: 'underline',
+                      textDecorationStyle: 'dotted',
+                      textDecorationColor: 'var(--gold, #EBCB6B)',
+                      cursor: 'pointer'
+                    };
+                    return (
+                      <>
+                        {f.sectionKey && (
+                          jumpHref ? (
+                            <a href={jumpHref} target="_blank" rel="noopener noreferrer" style={linkStyle} title="Jump to this section in the document">
+                              · §{f.sectionKey}
+                            </a>
+                          ) : (
+                            <span>· §{f.sectionKey}</span>
+                          )
+                        )}
+                        {f.pageNumber && (
+                          jumpHref ? (
+                            <a href={jumpHref} target="_blank" rel="noopener noreferrer" style={linkStyle} title="Open the document at this page">
+                              · page {f.pageNumber} ↗
+                            </a>
+                          ) : (
+                            <span>· page {f.pageNumber}</span>
+                          )
+                        )}
+                        {f.oddityType && <span>· {f.oddityType.replace(/_/g, ' ')}</span>}
+                      </>
+                    );
+                  })()}
                   {f.findingId && (
                     <button
                       type="button"

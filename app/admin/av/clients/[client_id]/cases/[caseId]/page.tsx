@@ -245,6 +245,8 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 mimeType: d.mimeType
               }))}
               existingFindings={docFindings}
+              indexableDocumentUrl={sectionDocUrl}
+              indexableDocumentId={indexableDoc?.documentId ?? null}
             />
 
             {/* (#671) Structured metadata extracted from documents —
