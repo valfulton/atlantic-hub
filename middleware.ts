@@ -191,7 +191,15 @@ async function verifyJwt(token: string) {
 
 function unauthorizedAdmin(req: NextRequest): NextResponse {
   if (isApiRoute(req.nextUrl.pathname)) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    // (val 2026-06-15) Make the message say what's actually happening so the
+    // operator UI doesn't read this as a permission denial. The 8-hour JWT
+    // TTL means a long-running session quietly expires; without this, the
+    // page still renders (from earlier render) but POST/PATCH alerts say
+    // bare "unauthorized" and look like a permissions bug.
+    return NextResponse.json({
+      error: 'Your session expired — please sign in again.',
+      reason: 'session_expired'
+    }, { status: 401 });
   }
   const loginUrl = new URL('/login', req.url);
   loginUrl.searchParams.set('next', req.nextUrl.pathname);

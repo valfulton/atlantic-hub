@@ -21,6 +21,8 @@ import { loadFullWellness } from '@/lib/case/family_wellness';
 import SectionText from '@/components/case/SectionText';
 import ActionItemDetail, { buildOptionDocsMap } from '@/components/case/ActionItemDetail';
 import DocumentApprovalActions from '@/components/case/DocumentApprovalActions';
+import FamilyFindingsPanel from '@/components/case/FamilyFindingsPanel';
+import { listFamilyVisibleFindingsForCase } from '@/lib/case/document_findings_store';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
 export const dynamic = 'force-dynamic';
@@ -240,10 +242,16 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
       return true;
     });
 
-  const [wellness, indexableDoc] = await Promise.all([
+  const [wellness, indexableDoc, familyFindings] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
-    findIndexableDocumentForCase(caseId)
+    findIndexableDocumentForCase(caseId),
+    listFamilyVisibleFindingsForCase(caseId)
   ]);
+
+  // (#669) Pick the lead document reviewer for attribution. Adriana =
+  // 'attorney' role (label is HARD-RULE remapped client-side). Falls back
+  // to nothing if no reviewer is on the case yet.
+  const docReviewer = reviewers.find(r => /attorney|legal/i.test(r.role || '')) || null;
 
   // Client byte-serve URL for the indexed trust/will/POA. Note this points at
   // the operator API — clients reading their own case will need a client-side
@@ -451,6 +459,23 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 })}
               </div>
             )}
+
+            {/* (val 2026-06-15, #669) Document findings the operator
+                flipped to family_visible. Stealth attribution to the
+                reviewer (Adriana = Legal Document Assistant). Panel
+                hides itself when no family-visible findings exist. */}
+            <FamilyFindingsPanel
+              findings={familyFindings}
+              documents={full.documents.map((d) => ({
+                documentId: d.documentId,
+                documentName: d.documentName,
+                documentKind: d.documentKind
+              }))}
+              reviewerName={docReviewer?.displayName || null}
+              reviewedAt={null}
+              indexableDocumentUrl={sectionDocUrl}
+              indexableDocumentId={indexableDoc?.documentId ?? null}
+            />
           </div>
 
           {/* SIDEBAR */}

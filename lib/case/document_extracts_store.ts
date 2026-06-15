@@ -119,13 +119,15 @@ export async function listExtractsForCase(caseId: number): Promise<DocumentExtra
 }
 
 /** Wipe extracts for a document — called before inserting a fresh batch
- *  so re-runs replace, never append duplicate party rows. */
+ *  so re-runs replace, never append duplicate party rows.
+ *  (#673) NEVER deletes curated rows — anything the operator has edited
+ *  stays put. Only LLM-only rows get cleared. */
 export async function clearDocumentExtracts(documentId: number): Promise<boolean> {
   if (!Number.isInteger(documentId) || documentId <= 0) return false;
   try {
     const db = getAvDb();
     await db.execute<ResultSetHeader>(
-      `DELETE FROM case_document_extracts WHERE document_id = ?`,
+      `DELETE FROM case_document_extracts WHERE document_id = ? AND is_curated = 0`,
       [documentId]
     );
     return true;

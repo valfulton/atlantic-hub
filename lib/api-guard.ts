@@ -45,7 +45,10 @@ export async function guardAdminRequest(
       statusCode: 401,
       errorClass: 'NoActor'
     });
-    return { ok: false, response: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) };
+    return { ok: false, response: NextResponse.json({
+      error: 'Your session expired — please sign in again.',
+      reason: 'session_expired'
+    }, { status: 401 }) };
   }
 
   const rl = await checkAndConsume({

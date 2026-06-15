@@ -16,6 +16,8 @@ import type { CSSProperties } from 'react';
 import { loadFullCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
 import SectionText from '@/components/case/SectionText';
 import ActionItemDetail, { buildOptionDocsMap } from '@/components/case/ActionItemDetail';
+import FamilyFindingsPanel from '@/components/case/FamilyFindingsPanel';
+import { listFamilyVisibleFindingsForCase } from '@/lib/case/document_findings_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import {
   resolveCaseViewerRole,
@@ -275,11 +277,15 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   // synopsis + outstanding items become clickable deep links to the right
   // page in the PDF. Mirror parity with /client/cases/[caseId] — operator
   // viewing the preview must see and verify the same links the family sees.
-  const indexableDoc = await findIndexableDocumentForCase(caseId);
+  const [indexableDoc, familyFindings] = await Promise.all([
+    findIndexableDocumentForCase(caseId),
+    listFamilyVisibleFindingsForCase(caseId)
+  ]);
   const sectionDocUrl = indexableDoc
     ? `/api/admin/av/cases/${c.caseId}/documents/${indexableDoc.documentId}`
     : null;
   const sectionIndex = indexableDoc?.sectionIndex ?? null;
+  const docReviewer = reviewers.find(r => /attorney|legal/i.test(r.role || '')) || null;
 
   return (
     <>
@@ -472,6 +478,21 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                   })}
                 </div>
               )}
+
+              {/* (#669) Preview-mirror parity: family findings panel
+                  appears here so val can verify what Rebecca/parents see. */}
+              <FamilyFindingsPanel
+                findings={familyFindings}
+                documents={full.documents.map((d) => ({
+                  documentId: d.documentId,
+                  documentName: d.documentName,
+                  documentKind: d.documentKind
+                }))}
+                reviewerName={docReviewer?.displayName || null}
+                reviewedAt={null}
+                indexableDocumentUrl={sectionDocUrl}
+                indexableDocumentId={indexableDoc?.documentId ?? null}
+              />
             </div>
 
             <aside>
