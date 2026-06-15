@@ -74,6 +74,10 @@ export default function SectionText({ text, documentUrl, sectionIndex, className
     }
     const page = lookupPage(ref.key);
     if (page) {
+      // (val 2026-06-15, #663) §-ref link style — emerald-deep on cream
+      // gets 9.25:1 contrast (AAA), Fraunces serif marks it as a document
+      // citation, and a thin emerald border-bottom + dotted underline make
+      // it unmistakably clickable. Per UX/UI mock .sref styling.
       segments.push(
         <a
           key={`ref-${i}-${ref.start}`}
@@ -81,13 +85,15 @@ export default function SectionText({ text, documentUrl, sectionIndex, className
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            color: '#E8C25A',                 // Clean champagne gold — readable
-            textDecoration: 'underline',       // on both dark + cream surfaces
-            textDecorationColor: '#E8C25A',
-            textUnderlineOffset: '2px',
-            fontWeight: 600
+            color: 'var(--emerald-deep, #0A4D3C)',
+            fontFamily: 'Fraunces, Cormorant Garamond, Georgia, serif',
+            fontWeight: 600,
+            textDecoration: 'none',
+            borderBottom: '1px solid rgba(10,77,60,0.4)',
+            paddingBottom: '1px',
+            whiteSpace: 'nowrap'
           }}
-          title={`Open ${ref.raw} (page ${page})`}
+          title={`Open ${ref.raw} in the trust document (page ${page})`}
         >
           {ref.raw}
         </a>

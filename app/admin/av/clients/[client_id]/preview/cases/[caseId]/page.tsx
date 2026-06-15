@@ -13,7 +13,8 @@
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
-import { loadFullCase } from '@/lib/case/case_store';
+import { loadFullCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
+import SectionText from '@/components/case/SectionText';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import {
   resolveCaseViewerRole,
@@ -256,6 +257,16 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   const pendingDocs = full.documents.filter((d) => d.approvalStatus === 'pending_review');
   const approvedDocs = full.documents.filter((d) => d.approvalStatus === 'approved');
 
+  // (val 2026-06-15) Load the indexable trust/will PDF so §-refs in the
+  // synopsis + outstanding items become clickable deep links to the right
+  // page in the PDF. Mirror parity with /client/cases/[caseId] — operator
+  // viewing the preview must see and verify the same links the family sees.
+  const indexableDoc = await findIndexableDocumentForCase(caseId);
+  const sectionDocUrl = indexableDoc
+    ? `/api/admin/av/cases/${c.caseId}/documents/${indexableDoc.documentId}`
+    : null;
+  const sectionIndex = indexableDoc?.sectionIndex ?? null;
+
   return (
     <>
       {/* (val 2026-06-13) Use the shared OperatorPreviewChrome — same banner +
@@ -391,10 +402,14 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                       b.kind === 'status' ? (
                         <div key={i} className="status-flag">
                           <p className="fe">Status</p>
-                          <p>{b.text}</p>
+                          <p>
+                            <SectionText text={b.text} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                          </p>
                         </div>
                       ) : (
-                        <p key={i} className="prose-p">{b.text}</p>
+                        <p key={i} className="prose-p">
+                          <SectionText text={b.text} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                        </p>
                       )
                     ))}
                   </div>
@@ -427,7 +442,11 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                             {a.title}
                           </Link>
                         </summary>
-                        {a.detail && <div className="ai-detail">{a.detail}</div>}
+                        {a.detail && (
+                          <div className="ai-detail">
+                            <SectionText text={a.detail} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                          </div>
+                        )}
                       </details>
                     );
                   })}
