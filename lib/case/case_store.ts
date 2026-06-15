@@ -1032,6 +1032,7 @@ export async function updateActionItem(
     detail: string | null;
     status: ActionStatus;
     priority: ActionPriority;
+    visibility: ActionVisibility;
     assignedToUserId: number | null;
     dueDate: string | null;
   }>
@@ -1046,6 +1047,7 @@ export async function updateActionItem(
     params.push(patch.status, patch.status === 'done' ? new Date() : null);
   }
   if (patch.priority !== undefined) { fields.push('priority = ?'); params.push(patch.priority); }
+  if (patch.visibility !== undefined) { fields.push('visibility = ?'); params.push(patch.visibility); }
   if (patch.assignedToUserId !== undefined) { fields.push('assigned_to_user_id = ?'); params.push(patch.assignedToUserId); }
   if (patch.dueDate !== undefined) { fields.push('due_date = ?'); params.push(patch.dueDate); }
   if (!fields.length) return false;
@@ -1059,6 +1061,37 @@ export async function updateActionItem(
     return true;
   } catch (err) {
     console.error('updateActionItem failed', err);
+    return false;
+  }
+}
+
+/**
+ * Hard-delete an action item.  (val 2026-06-14, #632)
+ *
+ * Used by the per-case action item editor. Action items are working state
+ * for the operator — soft-delete adds clutter and val's workflow today is
+ * "draft / rewrite / replace", not "archive". The case_action_item_notes
+ * table will cascade-orphan; we don't preserve them on delete because the
+ * note is tied to the action, not the case.
+ */
+export async function deleteActionItem(actionId: number): Promise<boolean> {
+  if (!Number.isInteger(actionId) || actionId <= 0) return false;
+  try {
+    const db = getAvDb();
+    // Notes first (FK guard — explicit, not relying on ON DELETE CASCADE
+    // since the table didn't ship with one and we don't want a 500 if it's
+    // missing in a given environment).
+    await db.execute<ResultSetHeader>(
+      `DELETE FROM case_action_item_notes WHERE action_id = ?`,
+      [actionId]
+    );
+    const [res] = await db.execute<ResultSetHeader>(
+      `DELETE FROM case_action_items WHERE action_id = ?`,
+      [actionId]
+    );
+    return res.affectedRows > 0;
+  } catch (err) {
+    console.error('deleteActionItem failed', err);
     return false;
   }
 }

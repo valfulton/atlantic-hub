@@ -17,7 +17,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { updateActionItem, type ActionStatus, type ActionPriority } from '@/lib/case/case_store';
+import {
+  updateActionItem,
+  deleteActionItem,
+  type ActionStatus,
+  type ActionPriority,
+  type ActionVisibility
+} from '@/lib/case/case_store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +34,7 @@ interface RouteContext {
 
 const STATUS_OK: ActionStatus[] = ['open', 'in_progress', 'done', 'blocked'];
 const PRIORITY_OK: ActionPriority[] = ['low', 'normal', 'high', 'urgent'];
+const VISIBILITY_OK: ActionVisibility[] = ['parents_safe', 'operator_only'];
 
 export async function PATCH(req: NextRequest, ctx: RouteContext) {
   const guard = await guardAdminRequest(req, {
@@ -68,6 +75,9 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   if (typeof b.priority === 'string' && (PRIORITY_OK as string[]).includes(b.priority)) {
     patch.priority = b.priority as ActionPriority;
   }
+  if (typeof b.visibility === 'string' && (VISIBILITY_OK as string[]).includes(b.visibility)) {
+    patch.visibility = b.visibility as ActionVisibility;
+  }
   if (b.assignedToUserId === null) {
     patch.assignedToUserId = null;
   } else if (typeof b.assignedToUserId === 'number' && Number.isInteger(b.assignedToUserId)) {
@@ -86,6 +96,32 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   const ok = await updateActionItem(actionId, patch);
   if (!ok) {
     return NextResponse.json({ ok: false, error: 'update failed' }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+/**
+ * DELETE /api/admin/av/cases/[caseId]/actions/[actionId]  (val 2026-06-14, #632)
+ *
+ * Hard-delete an action item. Cascades to case_action_item_notes.
+ * Operator-only — there is no client-facing delete.
+ */
+export async function DELETE(req: NextRequest, ctx: RouteContext) {
+  const guard = await guardAdminRequest(req, {
+    targetResource: `case_action:${ctx.params.actionId}`,
+    tenantId: 'av'
+  });
+  if (!guard.ok) return guard.response;
+
+  const actionId = parseInt(ctx.params.actionId, 10);
+  if (!Number.isInteger(actionId) || actionId <= 0) {
+    return NextResponse.json({ ok: false, error: 'bad action id' }, { status: 400 });
+  }
+
+  const ok = await deleteActionItem(actionId);
+  if (!ok) {
+    return NextResponse.json({ ok: false, error: 'delete failed' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

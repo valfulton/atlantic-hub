@@ -25,6 +25,7 @@ import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
 import DocumentVaultPanel from '@/components/case/DocumentVaultPanel';
 import CollaboratorsPanel from '@/components/case/CollaboratorsPanel';
 import SectionText from '@/components/case/SectionText';
+import ActionItemsEditorPanel from '@/components/case/ActionItemsEditorPanel';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -453,51 +454,18 @@ export default async function CaseDetailPage({ params }: PageProps) {
               )}
             </section>
 
-            {/* Action items */}
+            {/* Action items — editable since #632 (val 2026-06-14).
+                Replaces the SQL workflow val was running to rewrite Options
+                A–E on the Johnson trust matter. Inline edit/add/delete with
+                visibility toggle (parents_safe vs operator_only). */}
             <section className="rounded-xl border border-border bg-[var(--surface-2)] p-5">
               <h2 className="text-sm uppercase tracking-wider text-muted mb-3">
-                Action items ({full.actionItems.length})
+                Action items
               </h2>
-              {full.actionItems.length === 0 ? (
-                <div className="text-sm text-muted italic">No action items yet.</div>
-              ) : (
-                <ul className="space-y-3 text-sm">
-                  {full.actionItems.map((a) => (
-                    <li key={a.actionId} className="border-b border-border pb-2 last:border-0 group">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <Link
-                          href={`/admin/av/clients/${clientId}/cases/${c.caseId}/actions/${a.actionId}`}
-                          className="font-medium flex-1 hover:text-brand"
-                        >
-                          {a.title}
-                        </Link>
-                        <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${priorityPill(a.priority)}`}>
-                          {a.priority}
-                        </span>
-                      </div>
-                      {a.detail && (
-                        <div className="text-xs text-muted">
-                          <SectionText
-                            text={a.detail}
-                            documentUrl={sectionDocUrl}
-                            sectionIndex={sectionIndex}
-                          />
-                        </div>
-                      )}
-                      <div className="text-xs text-muted mt-1 flex items-center gap-2">
-                        <span>{a.status}</span>
-                        {a.dueDate && <span>· due {formatDate(a.dueDate)}</span>}
-                        <Link
-                          href={`/admin/av/clients/${clientId}/cases/${c.caseId}/actions/${a.actionId}`}
-                          className="ml-auto text-[10px] uppercase tracking-wider text-emerald-300 hover:text-emerald-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          Open →
-                        </Link>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ActionItemsEditorPanel
+                caseId={c.caseId}
+                initialItems={full.actionItems}
+              />
             </section>
           </aside>
         </div>
