@@ -33,6 +33,19 @@ interface CaseDocumentLite {
 interface Props {
   caseId: number;
   documents: CaseDocumentLite[];
+  /**
+   * (val 2026-06-15, #684) The client_id segment of the operator viewer URL:
+   *   /admin/av/clients/[clientId]/cases/[caseId]/documents/[documentId]/view
+   * When provided, the doc name links to the viewer (where the markdown editor
+   * + PDF section deep-links live) instead of streaming the raw bytes. The
+   * raw-bytes URL is still surfaced as a small 'open file' affordance so val
+   * can grab the binary if she needs to.
+   *
+   * Optional so the panel still works on mounts that don't have a client_id
+   * in scope (preview routes, etc.); in that case it falls back to the
+   * byte-serve URL (today's behavior).
+   */
+  clientId?: number | null;
 }
 
 const INDEXABLE_KINDS = new Set(['trust', 'will', 'poa', 'medical_directive']);
@@ -64,7 +77,7 @@ function formatDate(iso: string | null): string {
   } catch { return iso; }
 }
 
-export default function DocumentVaultPanel({ caseId, documents }: Props) {
+export default function DocumentVaultPanel({ caseId, documents, clientId }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -434,10 +447,18 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
             <li key={d.documentId} className="rounded-md border border-border bg-black/15 p-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2 flex-wrap">
+                  {/* (val 2026-06-15, #684) Route the name to the operator
+                      viewer page when clientId is provided — the viewer renders
+                      markdown inline + surfaces the Edit pencil, and shows the
+                      PDF in a section-aware frame. Without clientId, fall back
+                      to the raw byte-serve URL (legacy behavior). */}
                   <a
-                    href={`/api/admin/av/cases/${caseId}/documents/${d.documentId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={
+                      clientId != null
+                        ? `/admin/av/clients/${clientId}/cases/${caseId}/documents/${d.documentId}/view`
+                        : `/api/admin/av/cases/${caseId}/documents/${d.documentId}`
+                    }
+                    {...(clientId != null ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
                     className="text-sm text-emerald-300 hover:underline truncate"
                   >
                     {d.documentName}
@@ -446,6 +467,19 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
                     <span className="text-[10px] uppercase tracking-wider text-muted">
                       {d.documentKind.replace(/_/g, ' ')}
                     </span>
+                  )}
+                  {/* Small raw-bytes escape hatch — useful when the mime is
+                      application/octet-stream and the viewer can't preview. */}
+                  {clientId != null && (
+                    <a
+                      href={`/api/admin/av/cases/${caseId}/documents/${d.documentId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] uppercase tracking-wider text-muted hover:text-emerald-300"
+                      title="Open raw file (bytes)"
+                    >
+                      raw ↗
+                    </a>
                   )}
                 </div>
                 <div className="text-xs text-muted mt-0.5">

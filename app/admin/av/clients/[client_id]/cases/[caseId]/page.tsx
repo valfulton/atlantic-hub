@@ -215,9 +215,13 @@ export default async function CaseDetailPage({ params }: PageProps) {
               />
             </section>
 
-            {/* Document vault — uploadable */}
+            {/* Document vault — uploadable. (val 2026-06-15, #684)
+                clientId is threaded through so the doc-name link routes to
+                the operator viewer page (with markdown editor) instead of
+                the byte-serve URL (which downloads as octet-stream). */}
             <DocumentVaultPanel
               caseId={c.caseId}
+              clientId={c.clientId}
               documents={full.documents.map((d) => ({
                 documentId: d.documentId,
                 documentName: d.documentName,
