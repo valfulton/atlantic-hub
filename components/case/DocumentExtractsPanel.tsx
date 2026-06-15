@@ -55,11 +55,23 @@ export default function DocumentExtractsPanel({ caseId: _caseId, extracts, docum
   const presentKinds = KIND_ORDER.filter(k => grouped[k]?.length);
 
   return (
-    <section className="rounded-xl border border-border bg-[var(--surface-2)] p-5" style={{ marginTop: 16 }}>
-      <h2 className="text-sm uppercase tracking-wider text-muted mb-2">
-        Pulled from documents ({extracts.length})
-      </h2>
-      <p className="text-xs text-muted mb-4 leading-relaxed">
+    /* (val 2026-06-15, #690) Whole section is collapsible — default closed.
+        This panel is the audit trail (every party, every address, every bar
+        number the LLM scanner pulled). It belongs on the page but shouldn't
+        crowd the top. The drafting attorney hero (separate component) carries
+        the at-a-glance attorney summary above this. */
+    <details className="rounded-xl border border-border bg-[var(--surface-2)] p-5 case-extracts-panel" style={{ marginTop: 16 }}>
+      <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted, #5C6862)', display: 'inline-block', transition: 'transform 0.15s' }} className="case-extracts-chev">▸</span>
+        <h2 className="text-sm uppercase tracking-wider text-muted" style={{ margin: 0, flex: 1 }}>
+          Pulled from documents ({extracts.length})
+        </h2>
+      </summary>
+      <style>{`
+        .case-extracts-panel[open] .case-extracts-chev { transform: rotate(90deg); }
+        .case-extracts-panel summary::-webkit-details-marker { display: none; }
+      `}</style>
+      <p className="text-xs text-muted mt-3 mb-4 leading-relaxed">
         Contact info and parties the scanner extracted from uploaded PDFs. This
         is where the firm&rsquo;s address, phone, bar number, and the names of
         everyone in the file end up — populated once, reusable in letters,
@@ -92,14 +104,15 @@ export default function DocumentExtractsPanel({ caseId: _caseId, extracts, docum
                     <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)' }}>
                       {e.label || '(no label)'}
                     </div>
-                    {/* (val 2026-06-15, #689) Use currentColor so the value
-                        inherits whatever ink the surrounding surface defines —
-                        was using --ink-on-dark fallback #F4F1E8 which rendered
-                        near-white on the cream family surface and killed
-                        legibility. */}
+                    {/* (val 2026-06-15, #690) Use var(--ink) directly instead
+                        of currentColor — the parent's color cascade is
+                        getting overridden somewhere (Tailwind defaults or
+                        the prose styles) so currentColor was inheriting a
+                        muted value. --ink is per-surface (cream + dark both
+                        define it correctly) so this is bulletproof on both. */}
                     <div style={{
                       fontSize: 13,
-                      color: missing ? 'var(--muted, #5C6862)' : 'currentColor',
+                      color: missing ? 'var(--muted, #5C6862)' : 'var(--ink, #14201B)',
                       fontStyle: missing ? 'italic' : 'normal',
                       wordBreak: 'break-word',
                       overflowWrap: 'anywhere',
@@ -126,6 +139,6 @@ export default function DocumentExtractsPanel({ caseId: _caseId, extracts, docum
           </div>
         ))}
       </div>
-    </section>
+    </details>
   );
 }

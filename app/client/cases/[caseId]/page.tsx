@@ -32,6 +32,9 @@ import DocumentExtractsPanel from '@/components/case/DocumentExtractsPanel';
 import { listExtractsForCase } from '@/lib/case/document_extracts_store';
 // (val 2026-06-15, #688) Family-side bulk Collapse/Expand toggle.
 import CollapseAllActionItems from '@/components/case/CollapseAllActionItems';
+// (val 2026-06-15, #690) Drafting attorney hero — hoisted out of the
+// extracts table so it's visible at the top of the case page.
+import DraftingAttorneyHero from '@/components/case/DraftingAttorneyHero';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -417,6 +420,21 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
 
           {/* MAIN COLUMN */}
           <div>
+            {/* (val 2026-06-15, #690) Drafting attorney hero — sits ABOVE
+                Summary so the people on the case always see who drafted
+                the trust without scrolling. Hides itself when no attorney
+                or firm extracts exist (universal across case_kinds). */}
+            <DraftingAttorneyHero
+              caseId={c.caseId}
+              extracts={docExtracts}
+              documents={full.documents.map((d) => ({
+                documentId: d.documentId,
+                documentName: d.documentName
+              }))}
+              documentViewerUrlFor={(documentId, _pageNumber) =>
+                `/client/cases/${c.caseId}/documents/${documentId}/view`
+              }
+            />
             {c.caseSynopsis && (() => {
               const blocks = parseSynopsis(c.caseSynopsis);
               return (

@@ -22,6 +22,8 @@ import { listFamilyVisibleFindingsForCase } from '@/lib/case/document_findings_s
 // operator + family. Mounted here so preview-as-family also shows it.
 import DocumentExtractsPanel from '@/components/case/DocumentExtractsPanel';
 import { listExtractsForCase } from '@/lib/case/document_extracts_store';
+// (val 2026-06-15, #690) Drafting attorney hero — parity with family view.
+import DraftingAttorneyHero from '@/components/case/DraftingAttorneyHero';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import {
   resolveCaseViewerRole,
@@ -422,6 +424,20 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
             `}</style>
 
             <div>
+              {/* (val 2026-06-15, #690) Drafting attorney hero — parity
+                  with the live family view so preview shows the same
+                  thing Rebecca/parents see. */}
+              <DraftingAttorneyHero
+                caseId={c.caseId}
+                extracts={docExtracts}
+                documents={full.documents.map((d) => ({
+                  documentId: d.documentId,
+                  documentName: d.documentName
+                }))}
+                documentViewerUrlFor={(documentId, _pageNumber) =>
+                  `/admin/av/clients/${clientId}/cases/${c.caseId}/documents/${documentId}/view`
+                }
+              />
               {c.caseSynopsis && (() => {
                 const blocks = parseSynopsis(c.caseSynopsis);
                 return (
