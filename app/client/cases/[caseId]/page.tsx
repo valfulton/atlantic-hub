@@ -30,14 +30,21 @@ import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 // asking val for the contact.
 import DocumentExtractsPanel from '@/components/case/DocumentExtractsPanel';
 import { listExtractsForCase } from '@/lib/case/document_extracts_store';
-// (val 2026-06-15, #688) Family-side bulk Collapse/Expand toggle.
-import CollapseAllActionItems from '@/components/case/CollapseAllActionItems';
+// (val 2026-06-15, #688 / #694) CollapseAllActionItems was used by the old
+// single-list outstanding items render. The new #694 bucketed render uses
+// native <details> per bucket so per-item collapse is handled by the
+// inline "Read the full background" expandable per card — no bulk toggle
+// needed. Import removed; component file retained for other callers.
 // (val 2026-06-15, #690) Drafting attorney hero — hoisted out of the
 // extracts table so it's visible at the top of the case page.
 import DraftingAttorneyHero from '@/components/case/DraftingAttorneyHero';
 // (val 2026-06-15, #691) Family-side "Add timeline entry" — Rebecca +
 // parents + Adriana can log calls/conversations without going through val.
 import AddTimelineEntryForm from '@/components/case/AddTimelineEntryForm';
+// (val 2026-06-15, #694) Family acknowledge ("Got it") on each action item
+// + types for the family bucket split.
+import AcknowledgeActionButton from '@/components/case/AcknowledgeActionButton';
+import type { CaseActionItem, ActionFamilyBucket } from '@/lib/case/case_store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -283,6 +290,44 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   // Show only OPEN/IN-PROGRESS action items to clients; completed live in archive
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
 
+  // (val 2026-06-15, #694) Family-view bucketing + calmer labels + ack
+  // progress strip. Lives next to openActions so the family render block
+  // below stays small. Universal across case_kinds — every case page
+  // uses these buckets when rendering on /client/*.
+  type FamilyBucketRender = {
+    bucket: ActionFamilyBucket;
+    label: string;
+    description: string;
+    items: CaseActionItem[];
+    color: string;
+  };
+  const BUCKET_ORDER: ActionFamilyBucket[] = ['family_decision', 'reviewer_handling', 'info_only'];
+  const BUCKET_META: Record<ActionFamilyBucket, { label: string; description: string; color: string }> = {
+    family_decision:    { label: 'Decisions for your family',  description: 'These are choices only you can make. Take your time.', color: 'var(--gold-deep, #7A5A18)' },
+    reviewer_handling:  { label: 'Adriana is handling these',  description: 'You don’t need to do anything. Read when you want — then tap Got it to acknowledge.', color: 'var(--emerald-deep, #0A4D3C)' },
+    info_only:          { label: 'When you have time',         description: 'Context and background. Nothing to act on.', color: 'var(--muted, #5C6862)' }
+  };
+  const bucketed: FamilyBucketRender[] = BUCKET_ORDER
+    .map((b) => ({
+      bucket: b,
+      label: BUCKET_META[b].label,
+      description: BUCKET_META[b].description,
+      color: BUCKET_META[b].color,
+      items: openActions.filter((a) => a.familyBucket === b)
+    }))
+    .filter((g) => g.items.length > 0);
+  const ackTotal = openActions.length;
+  const ackDone = openActions.filter((a) => a.familyAcknowledgedAt != null).length;
+
+  // Calmer family-facing labels for priority. URGENT becomes "Top priority"
+  // (no panic chrome). HIGH becomes "Worth a careful read." NORMAL becomes
+  // "When you have time." Operator side is unchanged — see the editor.
+  function familyPriorityLabel(p: string): { text: string; color: string; bg: string } {
+    if (p === 'urgent') return { text: 'Top priority',         color: '#7A1F1F', bg: 'rgba(122,31,31,0.10)' };
+    if (p === 'high')   return { text: 'Worth a careful read', color: '#7A5A18', bg: 'rgba(122,90,24,0.10)' };
+    return                      { text: 'When you have time',  color: 'var(--muted, #5C6862)', bg: 'rgba(92,104,98,0.10)' };
+  }
+
   // (val 2026-06-14, #662) Split documents BEFORE the layout so we can route
   // approved → sidebar Documents panel and pending → main column action area.
   // Pending docs have interactive Approve/Reject buttons; approved are simple
@@ -461,76 +506,176 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             })()}
 
             {openActions.length > 0 && (
-              /* (val 2026-06-15, #691+#692) Whole Outstanding items section
-                  is collapsible — default CLOSED so the page header +
-                  Summary + Timeline + Awaiting your decision are all
-                  visible at once. Real dropdown caret (▾) instead of the
-                  thin chevron, sized + colored to OWN the header. The
-                  "Expand all" sub-action is demoted to dotted-underline
-                  muted text so it can't compete with the section name. */
-              <details className="case-collapse-section" style={{ marginBottom: 30 }}>
-                <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span
-                      className="case-collapse-chev"
-                      aria-hidden="true"
+              /* (val 2026-06-15, #694) Bucketed outstanding items. The
+                  old single-list "19 URGENT items" panel was overwhelming.
+                  Now items split into three groups — Decisions for your
+                  family / Adriana is handling these / When you have
+                  time — each in its own collapsible section. Progress
+                  strip at the top shows "N of M understood" so the
+                  family sees the work moving even when most items are
+                  Adriana-handled and don't need their action. Each item
+                  shows a calmer priority label, the operator-written
+                  "What we're doing about this:" line above the legal
+                  analysis, and a Got it button that records who tapped
+                  + when. Universal across case_kinds. */
+              <section style={{ marginBottom: 30 }}>
+                <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+                  <h2 className="case-h" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>Outstanding items <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--muted, #5C6862)' }}>({openActions.length})</span></h2>
+                  {ackTotal > 0 && (
+                    <div
+                      role="status"
+                      aria-live="polite"
                       style={{
-                        fontSize: 18,
-                        lineHeight: 1,
-                        color: 'var(--emerald-deep, #0A4D3C)',
-                        transition: 'transform 0.18s ease',
-                        display: 'inline-block',
-                        transform: 'rotate(-90deg)'
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        fontSize: 12,
+                        color: 'var(--ink-soft, #3C4A43)',
+                        background: '#FFFFFF',
+                        border: '1px solid rgba(10,77,60,0.18)',
+                        borderRadius: 999,
+                        padding: '4px 12px'
                       }}
                     >
-                      ▾
-                    </span>
-                    <h2 className="case-h" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>Outstanding items <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--muted, #5C6862)' }}>({openActions.length})</span></h2>
-                  </div>
-                  <CollapseAllActionItems />
-                </summary>
-                {openActions.map((a, i) => {
-                  const tagClass = a.priority === 'urgent' ? 'urg' : a.priority === 'high' ? 'hi' : 'norm';
-                  const tagLabel = a.priority === 'urgent' ? 'Urgent' : a.priority === 'high' ? 'High' : 'Normal';
-                  // (val 2026-06-15, #662) Native <details>/<summary> for
-                  // collapse — server-renderable, no JS needed, full a11y.
-                  // Default OPEN so first-time readers see everything; each
-                  // can be clicked to collapse and shorten the page.
-                  return (
-                    <details key={a.actionId} className="ai-item ai-collapse" open>
-                      <summary>
-                        <div className="ai-top">
-                          <span className="ai-chev" aria-hidden="true">▸</span>
-                          <span className="ai-num">{i + 1}</span>
-                          <span className={`ai-tag ${tagClass}`}>{tagLabel}</span>
-                          {a.dueDate && (
-                            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted, #5C6862)' }}>
-                              Due {formatDate(a.dueDate)}
-                            </span>
-                          )}
+                      <span style={{ width: 80, height: 6, background: 'rgba(10,77,60,0.12)', borderRadius: 999, overflow: 'hidden', display: 'inline-block' }}>
+                        <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, Math.round((ackDone / Math.max(1, ackTotal)) * 100)))}%`, background: 'var(--emerald-deep, #0A4D3C)', transition: 'width 0.3s ease' }} />
+                      </span>
+                      <strong style={{ color: 'var(--ink, #14201B)' }}>{ackDone}</strong> of {ackTotal} understood
+                    </div>
+                  )}
+                </header>
+
+                {bucketed.map((group) => (
+                  <details
+                    key={group.bucket}
+                    open={group.bucket === 'family_decision'}
+                    className="case-collapse-section"
+                    style={{ marginBottom: 16, background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '18px 22px' }}
+                  >
+                    <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                        <span
+                          className="case-collapse-chev"
+                          aria-hidden="true"
+                          style={{
+                            fontSize: 18,
+                            lineHeight: 1,
+                            color: group.color,
+                            transition: 'transform 0.18s ease',
+                            display: 'inline-block',
+                            transform: 'rotate(-90deg)'
+                          }}
+                        >
+                          ▾
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink, #14201B)', lineHeight: 1.25 }}>
+                            {group.label} <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--muted, #5C6862)' }}>· {group.items.length}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)', marginTop: 2, lineHeight: 1.4 }}>
+                            {group.description}
+                          </div>
                         </div>
-                        <Link href={`/client/cases/${caseId}/actions/${a.actionId}`} className="ai-title">
-                          {a.title}
-                        </Link>
-                      </summary>
-                      {a.detail && (
-                        <div className="ai-detail">
-                          <ActionItemDetail
-                            text={a.detail}
-                            documentUrl={sectionDocUrl}
-                            sectionIndex={sectionIndex}
-                            optionDocs={optionDocs}
-                            caseId={c.caseId}
-                            viewerUrlForDocument={(documentId) =>
-                              `/client/cases/${c.caseId}/documents/${documentId}/view`
-                            }
-                          />
-                        </div>
-                      )}
-                    </details>
-                  );
-                })}
-              </details>
+                      </div>
+                    </summary>
+
+                    <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
+                      {group.items.map((a, i) => {
+                        const pri = familyPriorityLabel(a.priority);
+                        const acked = a.familyAcknowledgedAt != null;
+                        return (
+                          <article
+                            key={a.actionId}
+                            style={{
+                              background: acked ? 'rgba(10,77,60,0.04)' : '#FFFFFF',
+                              border: '1px solid rgba(10,10,10,0.08)',
+                              borderLeft: `3px solid ${acked ? 'var(--emerald-deep, #0A4D3C)' : group.color}`,
+                              borderRadius: 10,
+                              padding: '14px 16px',
+                              opacity: acked ? 0.85 : 1
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 11, color: 'var(--muted, #5C6862)' }}>{i + 1}.</span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                    fontWeight: 700,
+                                    color: pri.color,
+                                    background: pri.bg,
+                                    padding: '2px 8px',
+                                    borderRadius: 999
+                                  }}
+                                >
+                                  {pri.text}
+                                </span>
+                                {a.dueDate && (
+                                  <span style={{ fontSize: 11, color: 'var(--muted, #5C6862)' }}>
+                                    by {formatDate(a.dueDate)}
+                                  </span>
+                                )}
+                              </div>
+                              <AcknowledgeActionButton
+                                caseId={c.caseId}
+                                actionId={a.actionId}
+                                acknowledgedAt={a.familyAcknowledgedAt}
+                                acknowledgedByName={null}
+                              />
+                            </div>
+
+                            <Link href={`/client/cases/${caseId}/actions/${a.actionId}`} style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink, #14201B)', textDecoration: 'none', lineHeight: 1.35, display: 'block', marginBottom: 6 }}>
+                              {a.title}
+                            </Link>
+
+                            {a.familyNextStep && (
+                              <div
+                                style={{
+                                  background: 'rgba(10,77,60,0.06)',
+                                  border: '1px solid rgba(10,77,60,0.15)',
+                                  borderRadius: 8,
+                                  padding: '10px 12px',
+                                  marginBottom: 10,
+                                  fontSize: 13,
+                                  lineHeight: 1.5,
+                                  color: 'var(--ink, #14201B)'
+                                }}
+                              >
+                                <div style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 700, marginBottom: 4 }}>
+                                  What we’re doing about this
+                                </div>
+                                {a.familyNextStep}
+                              </div>
+                            )}
+
+                            {a.detail && (
+                              <details style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-soft, #3C4A43)' }}>
+                                <summary style={{ cursor: 'pointer', listStyle: 'none', fontSize: 11, letterSpacing: '0.06em', color: 'var(--muted, #5C6862)', textTransform: 'uppercase' }}>
+                                  Read the full background ▾
+                                </summary>
+                                <div style={{ marginTop: 10 }}>
+                                  <ActionItemDetail
+                                    text={a.detail}
+                                    documentUrl={sectionDocUrl}
+                                    sectionIndex={sectionIndex}
+                                    optionDocs={optionDocs}
+                                    caseId={c.caseId}
+                                    viewerUrlForDocument={(documentId) =>
+                                      `/client/cases/${c.caseId}/documents/${documentId}/view`
+                                    }
+                                  />
+                                </div>
+                              </details>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </details>
+                ))}
+              </section>
             )}
 
             {/* (val 2026-06-15, #669) Document findings the operator

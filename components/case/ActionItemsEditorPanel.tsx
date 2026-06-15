@@ -187,6 +187,8 @@ type Priority = 'low' | 'normal' | 'high' | 'urgent';
 type Status = 'open' | 'in_progress' | 'done' | 'blocked';
 // (val 2026-06-15, #685) legal_team = Rebecca + Adriana + val. Hidden from parents.
 type Visibility = 'parents_safe' | 'operator_only' | 'legal_team';
+// (val 2026-06-15, #694) Family bucket — which group on the family case view.
+type FamilyBucket = 'reviewer_handling' | 'family_decision' | 'info_only';
 
 const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'urgent'];
 const STATUSES: Status[] = ['open', 'in_progress', 'done', 'blocked'];
@@ -198,6 +200,9 @@ interface DraftItem {
   status: Status;
   visibility: Visibility;
   dueDate: string;
+  // (val 2026-06-15, #694) Family-view fields.
+  familyNextStep: string;
+  familyBucket: FamilyBucket;
 }
 
 function emptyDraft(): DraftItem {
@@ -207,7 +212,9 @@ function emptyDraft(): DraftItem {
     priority: 'normal',
     status: 'open',
     visibility: 'parents_safe',
-    dueDate: ''
+    dueDate: '',
+    familyNextStep: '',
+    familyBucket: 'reviewer_handling'
   };
 }
 
@@ -218,7 +225,9 @@ function toDraft(a: CaseActionItem): DraftItem {
     priority: (a.priority as Priority) || 'normal',
     status: (a.status as Status) || 'open',
     visibility: a.visibility || 'parents_safe',
-    dueDate: a.dueDate ? a.dueDate.slice(0, 10) : ''
+    dueDate: a.dueDate ? a.dueDate.slice(0, 10) : '',
+    familyNextStep: a.familyNextStep || '',
+    familyBucket: (a.familyBucket as FamilyBucket) || 'reviewer_handling'
   };
 }
 
@@ -318,7 +327,10 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
             priority: draft.priority,
             status: draft.status,
             visibility: draft.visibility,
-            dueDate: draft.dueDate || null
+            dueDate: draft.dueDate || null,
+            // (val 2026-06-15, #694) Family-view writes.
+            familyNextStep: draft.familyNextStep.trim() || null,
+            familyBucket: draft.familyBucket
           })
         }
       );
@@ -622,6 +634,23 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                           <option value="operator_only">Operator only (val + Rebecca)</option>
                         </select>
                       </label>
+                      {/* (val 2026-06-15, #694) Family bucket — which group on the
+                          family case view this item lands in. Only meaningful
+                          when visibility is parents_safe; we still show it for
+                          legal_team so val can stage items that will become
+                          parents_safe later. */}
+                      <label className="flex items-center gap-1 text-muted">
+                        Family bucket
+                        <select
+                          value={draft.familyBucket}
+                          onChange={(e) => setDraft({ ...draft, familyBucket: e.target.value as FamilyBucket })}
+                          className="bg-[var(--surface-1)] border border-border rounded px-1.5 py-1 text-xs"
+                        >
+                          <option value="reviewer_handling">Adriana is handling</option>
+                          <option value="family_decision">Decision for family</option>
+                          <option value="info_only">When you have time</option>
+                        </select>
+                      </label>
                       <label className="flex items-center gap-1 text-muted">
                         Due
                         <input
@@ -632,6 +661,21 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                         />
                       </label>
                     </div>
+                    {/* (val 2026-06-15, #694) "What we're doing about this" —
+                        one-line plain-English status the family sees ABOVE
+                        the legal detail. Replaces the implicit "read the
+                        legal analysis to figure out what's happening" UX
+                        that was overwhelming parents. Universal across
+                        case_kinds — leave blank to suppress the green
+                        highlight box on the family card. */}
+                    <textarea
+                      value={draft.familyNextStep}
+                      onChange={(e) => setDraft({ ...draft, familyNextStep: e.target.value })}
+                      rows={2}
+                      placeholder="What we're doing about this — plain English for the family. e.g. Adriana is preparing a 17200 petition to ask the court to remove Cecilia as Trustee."
+                      maxLength={500}
+                      className="w-full bg-[var(--surface-1)] border border-emerald-700/30 rounded px-2 py-1.5 text-xs italic"
+                    />
                     <div className="flex justify-between gap-2">
                       <button
                         type="button"

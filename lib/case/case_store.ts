@@ -121,6 +121,14 @@ export type ActionPriority = 'low' | 'normal' | 'high' | 'urgent';
 // the parents. Schema migration 098 adds it to the ENUM.
 export type ActionVisibility = 'parents_safe' | 'operator_only' | 'legal_team';
 
+// (val 2026-06-15, #694) family_bucket — which group the item belongs to on
+// the FAMILY case view. Schema migration 099 adds it. Universal: works for
+// any case_kind, not Johnson-specific.
+//   reviewer_handling = Adriana / the legal reviewer is on it
+//   family_decision   = mom + dad need to choose something
+//   info_only         = read when you can, no action needed
+export type ActionFamilyBucket = 'reviewer_handling' | 'family_decision' | 'info_only';
+
 export interface CaseActionItem {
   actionId: number;
   caseId: number;
@@ -135,6 +143,15 @@ export interface CaseActionItem {
   completedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  // (val 2026-06-15, #694) Family-view fields. Schema 099.
+  /** One-line plain-English status the family sees ABOVE the legal detail. */
+  familyNextStep: string | null;
+  /** Which group on the family Outstanding items section. */
+  familyBucket: ActionFamilyBucket;
+  /** ISO timestamp of when a family member tapped "Got it". NULL = not yet. */
+  familyAcknowledgedAt: string | null;
+  /** client_user_id of the family member who tapped "Got it". */
+  familyAcknowledgedByUserId: number | null;
 }
 
 export interface CaseProperty {
@@ -236,6 +253,11 @@ interface ActionRow extends RowDataPacket {
   completed_at: Date | string | null;
   created_at: Date | string | null;
   updated_at: Date | string | null;
+  // (val 2026-06-15, #694) Family-view columns from schema 099.
+  family_next_step: string | null;
+  family_bucket: string | null;
+  family_acknowledged_at: Date | string | null;
+  family_acknowledged_by_user_id: number | null;
 }
 
 interface PropertyRow extends RowDataPacket {
@@ -400,7 +422,16 @@ function rowToAction(r: ActionRow): CaseActionItem {
     dueDate: toDateString(r.due_date),
     completedAt: toIso(r.completed_at),
     createdAt: toIso(r.created_at),
-    updatedAt: toIso(r.updated_at)
+    updatedAt: toIso(r.updated_at),
+    // (val 2026-06-15, #694) Family-view fields. Migration 099. Default
+    // family_bucket to reviewer_handling for rows that pre-date the migration.
+    familyNextStep: r.family_next_step ?? null,
+    familyBucket:
+      r.family_bucket === 'family_decision' ? 'family_decision' :
+      r.family_bucket === 'info_only' ? 'info_only' :
+      'reviewer_handling',
+    familyAcknowledgedAt: toIso(r.family_acknowledged_at ?? null),
+    familyAcknowledgedByUserId: r.family_acknowledged_by_user_id ?? null
   };
 }
 
@@ -1138,6 +1169,9 @@ export async function updateActionItem(
     visibility: ActionVisibility;
     assignedToUserId: number | null;
     dueDate: string | null;
+    // (val 2026-06-15, #694) Family-view writes from operator editor.
+    familyNextStep: string | null;
+    familyBucket: ActionFamilyBucket;
   }>
 ): Promise<boolean> {
   if (!Number.isInteger(actionId) || actionId <= 0) return false;
@@ -1153,6 +1187,8 @@ export async function updateActionItem(
   if (patch.visibility !== undefined) { fields.push('visibility = ?'); params.push(patch.visibility); }
   if (patch.assignedToUserId !== undefined) { fields.push('assigned_to_user_id = ?'); params.push(patch.assignedToUserId); }
   if (patch.dueDate !== undefined) { fields.push('due_date = ?'); params.push(patch.dueDate); }
+  if (patch.familyNextStep !== undefined) { fields.push('family_next_step = ?'); params.push(patch.familyNextStep); }
+  if (patch.familyBucket !== undefined) { fields.push('family_bucket = ?'); params.push(patch.familyBucket); }
   if (!fields.length) return false;
   params.push(actionId);
   try {
@@ -1165,6 +1201,61 @@ export async function updateActionItem(
   } catch (err) {
     console.error('updateActionItem failed', err);
     return false;
+  }
+}
+
+/**
+ * Family-side acknowledge toggle.  (val 2026-06-15, #694)
+ *
+ * Rebecca / Gordon / Maria / Adriana taps "Got it" on an item from the
+ * family case view. Idempotent — tapping again clears the acknowledgment
+ * (so a family member can untick if they tapped by accident or want to
+ * re-read it). The progress strip at the top of Outstanding items reads
+ * the COUNT(family_acknowledged_at IS NOT NULL).
+ *
+ * This does NOT change status or completed_at — those are operator-only
+ * state. Acknowledgment is a separate "I've seen this and understand
+ * what's being done" signal, not a "this is finished" claim.
+ */
+export async function toggleFamilyAcknowledge(
+  actionId: number,
+  clientUserId: number
+): Promise<{ acknowledged: boolean } | null> {
+  if (!Number.isInteger(actionId) || actionId <= 0) return null;
+  if (!Number.isInteger(clientUserId) || clientUserId <= 0) return null;
+  try {
+    const db = getAvDb();
+    // Read current state to decide toggle direction.
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT family_acknowledged_at FROM case_action_items WHERE action_id = ? LIMIT 1`,
+      [actionId]
+    );
+    if (rows.length === 0) return null;
+    const wasAcked = (rows[0] as { family_acknowledged_at: Date | string | null }).family_acknowledged_at != null;
+    if (wasAcked) {
+      // Clear.
+      await db.execute<ResultSetHeader>(
+        `UPDATE case_action_items
+           SET family_acknowledged_at = NULL,
+               family_acknowledged_by_user_id = NULL
+           WHERE action_id = ?`,
+        [actionId]
+      );
+      return { acknowledged: false };
+    } else {
+      // Set to now + the tapping user.
+      await db.execute<ResultSetHeader>(
+        `UPDATE case_action_items
+           SET family_acknowledged_at = NOW(),
+               family_acknowledged_by_user_id = ?
+           WHERE action_id = ?`,
+        [clientUserId, actionId]
+      );
+      return { acknowledged: true };
+    }
+  } catch (err) {
+    console.error('toggleFamilyAcknowledge failed', err);
+    return null;
   }
 }
 

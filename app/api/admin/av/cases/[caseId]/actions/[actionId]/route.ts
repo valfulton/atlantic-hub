@@ -22,7 +22,8 @@ import {
   deleteActionItem,
   type ActionStatus,
   type ActionPriority,
-  type ActionVisibility
+  type ActionVisibility,
+  type ActionFamilyBucket
 } from '@/lib/case/case_store';
 
 export const runtime = 'nodejs';
@@ -36,6 +37,8 @@ const STATUS_OK: ActionStatus[] = ['open', 'in_progress', 'done', 'blocked'];
 const PRIORITY_OK: ActionPriority[] = ['low', 'normal', 'high', 'urgent'];
 // (val 2026-06-15, #685) legal_team = Rebecca + Adriana + val. Schema 098.
 const VISIBILITY_OK: ActionVisibility[] = ['parents_safe', 'operator_only', 'legal_team'];
+// (val 2026-06-15, #694) family_bucket — group on the family case view.
+const FAMILY_BUCKET_OK: ActionFamilyBucket[] = ['reviewer_handling', 'family_decision', 'info_only'];
 
 export async function PATCH(req: NextRequest, ctx: RouteContext) {
   const guard = await guardAdminRequest(req, {
@@ -88,6 +91,15 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     patch.dueDate = b.dueDate;
   } else if (b.dueDate === null) {
     patch.dueDate = null;
+  }
+  // (val 2026-06-15, #694) Family-view fields. Schema 099.
+  if (typeof b.familyNextStep === 'string') {
+    patch.familyNextStep = b.familyNextStep.trim() || null;
+  } else if (b.familyNextStep === null) {
+    patch.familyNextStep = null;
+  }
+  if (typeof b.familyBucket === 'string' && (FAMILY_BUCKET_OK as string[]).includes(b.familyBucket)) {
+    patch.familyBucket = b.familyBucket as ActionFamilyBucket;
   }
 
   if (Object.keys(patch).length === 0) {
