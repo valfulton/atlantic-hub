@@ -222,21 +222,19 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   if (!full) notFound();
 
   const c = full.case;
-  // (val 2026-06-15, #661) Reviewers — non-revoked attorney/advisor
-  // collaborators, deduped by email (fall back to displayName, then
-  // clientUserId). Email is the durable identity: even when there are
-  // two client_users rows for the same human (Adriana has one from CBB
-  // setup + one from CLDA setup with different client_user_ids), the
-  // email matches, so we render her once. Per HARD RULE 2 we remap the
-  // role label for the family view.
+  // (val 2026-06-15, #667) Reviewers — non-revoked attorney/advisor
+  // collaborators, deduped by displayName first (then email, then
+  // clientUserId). Name-first because the same human commonly has a
+  // brand-specific email per client (Adriana: cbb-* and clda-*) so
+  // email-key dedupe missed. Names are durable across brand setups.
   const collaborators = await listCollaboratorsForCase(caseId);
   const seenReviewerKeys = new Set<string>();
   const reviewers = collaborators
     .filter((c2) => !c2.revokedAt && (c2.role === 'attorney' || c2.role === 'advisor'))
     .filter((c2) => {
-      const email = c2.email?.trim().toLowerCase();
       const name = c2.displayName?.trim().toLowerCase();
-      const key = email ? `e:${email}` : name ? `n:${name}` : `u:${c2.clientUserId}`;
+      const email = c2.email?.trim().toLowerCase();
+      const key = name ? `n:${name}` : email ? `e:${email}` : `u:${c2.clientUserId}`;
       if (seenReviewerKeys.has(key)) return false;
       seenReviewerKeys.add(key);
       return true;

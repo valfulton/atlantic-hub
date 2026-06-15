@@ -246,18 +246,17 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   const c = full.case;
   const wellness = c.wellnessEnabled ? await loadFullWellness(caseId) : null;
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
-  // (val 2026-06-15, #661) Reviewers — dedupe by email (fall back to
-  // displayName) so a multi-brand human with two client_users rows
-  // (Adriana: CBB row + CLDA row, different client_user_ids, same email)
-  // renders once.
+  // (val 2026-06-15, #667) Reviewers deduped by displayName first.
+  // Adriana has two client_users rows (CBB + CLDA setup), likely with
+  // different brand-specific emails — name is the durable identity.
   const collaborators = await listCollaboratorsForCase(caseId);
   const seenReviewerKeys = new Set<string>();
   const reviewers = collaborators
     .filter((cc) => !cc.revokedAt && (cc.role === 'attorney' || cc.role === 'advisor'))
     .filter((cc) => {
-      const email = cc.email?.trim().toLowerCase();
       const name = cc.displayName?.trim().toLowerCase();
-      const key = email ? `e:${email}` : name ? `n:${name}` : `u:${cc.clientUserId}`;
+      const email = cc.email?.trim().toLowerCase();
+      const key = name ? `n:${name}` : email ? `e:${email}` : `u:${cc.clientUserId}`;
       if (seenReviewerKeys.has(key)) return false;
       seenReviewerKeys.add(key);
       return true;
