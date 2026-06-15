@@ -22,7 +22,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { getHotStorage } from '@/lib/storage/provider';
-import { getDocument } from '@/lib/case/case_store';
+import { getDocument, canClientUserAccessCase } from '@/lib/case/case_store';
+import { findClientUserById } from '@/lib/auth/client-user';
+import { activeBrandFor } from '@/lib/client/active-brand';
 import type { ResultSetHeader } from 'mysql2/promise';
 
 export const runtime = 'nodejs';
@@ -46,20 +48,24 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
     tenantId: 'av'
   });
   if (!guard.ok) return guard.response;
-  // Operator-only for v1. Adriana / Rebecca editing comes after val
-  // validates the UX shape.
-  if (guard.actor.role === 'client_user') {
-    return NextResponse.json(
-      { ok: false, error: 'editing is operator-only for now' },
-      { status: 403 }
-    );
-  }
 
   const caseId = parseInt(ctx.params.caseId, 10);
   const documentId = parseInt(ctx.params.documentId, 10);
   if (!Number.isFinite(caseId) || caseId <= 0 ||
       !Number.isFinite(documentId) || documentId <= 0) {
     return NextResponse.json({ ok: false, error: 'invalid id' }, { status: 400 });
+  }
+
+  // (val 2026-06-15) Family-side editing — Adriana likes the viewer, asked
+  // for edit too. Allow client_user when they can access this case.
+  if (guard.actor.role === 'client_user') {
+    const user = await findClientUserById(guard.actor.userId);
+    if (!user) return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+    const primaryClientId = await activeBrandFor(guard.actor.userId, user.client_id ?? null);
+    const allowed = await canClientUserAccessCase(
+      guard.actor.userId, primaryClientId ?? 0, caseId
+    );
+    if (!allowed) return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
   }
 
   let body: { content?: unknown };

@@ -26,8 +26,17 @@ import { findClientUserById } from '@/lib/auth/client-user';
 import { activeBrandFor } from '@/lib/client/active-brand';
 import { getDocument, canClientUserAccessCase } from '@/lib/case/case_store';
 import DocumentViewRenderer from '@/lib/case/document_view_renderer';
+import { getHotStorage } from '@/lib/storage/provider';
+import MarkdownEditButton from '@/components/case/MarkdownEditButton';
 
 export const dynamic = 'force-dynamic';
+
+// Same allowlist the renderer + API use to decide what's editable.
+function isMarkdownDoc(mime: string | null, name: string): boolean {
+  const mt = (mime || '').toLowerCase();
+  if (mt === 'text/markdown' || mt === 'text/x-markdown') return true;
+  return /\.(md|markdown)$/i.test(name);
+}
 export const runtime = 'nodejs';
 
 const CREAM_SKIN = {
@@ -71,6 +80,22 @@ export default async function CaseDocumentViewPage({ params }: PageProps) {
   if (!doc || doc.caseId !== caseId) notFound();
 
   const byteServeUrl = `/api/admin/av/cases/${caseId}/documents/${documentId}`;
+
+  // (#676 Tier B v2, val 2026-06-15) Pre-load the markdown source so the
+  // family-side Edit button has it ready. Adriana asked for edit — opening
+  // markdown editing to anyone who can access the case (operator allows
+  // client_user with case access, mirrors the same gate).
+  let editableSource: string | null = null;
+  if (isMarkdownDoc(doc.mimeType, doc.documentName)) {
+    try {
+      const bytes = await getHotStorage('case-documents').getBytes(doc.storageUri);
+      if (bytes) {
+        editableSource = Buffer.from(bytes).toString('utf-8');
+      }
+    } catch (err) {
+      console.error('family viewer pre-load source failed', err);
+    }
+  }
 
   return (
     <main
@@ -133,17 +158,40 @@ export default async function CaseDocumentViewPage({ params }: PageProps) {
       </header>
 
       <section style={{ maxWidth: 980, margin: '0 auto', padding: '8px 24px 60px' }}>
-        <DocumentViewRenderer
-          doc={{
-            documentId: doc.documentId,
-            caseId: doc.caseId,
-            documentName: doc.documentName,
-            mimeType: doc.mimeType,
-            storageUri: doc.storageUri,
-            sizeBytes: doc.sizeBytes ?? null
-          }}
-          byteServeUrl={byteServeUrl}
-        />
+        {editableSource != null ? (
+          /* (#676 Tier B v2) Family-side markdown editing — Adriana
+              asked. Same edit toggle the operator viewer uses; the API
+              accepts client_user with case access. */
+          <MarkdownEditButton
+            caseId={doc.caseId}
+            documentId={doc.documentId}
+            initialSource={editableSource}
+          >
+            <DocumentViewRenderer
+              doc={{
+                documentId: doc.documentId,
+                caseId: doc.caseId,
+                documentName: doc.documentName,
+                mimeType: doc.mimeType,
+                storageUri: doc.storageUri,
+                sizeBytes: doc.sizeBytes ?? null
+              }}
+              byteServeUrl={byteServeUrl}
+            />
+          </MarkdownEditButton>
+        ) : (
+          <DocumentViewRenderer
+            doc={{
+              documentId: doc.documentId,
+              caseId: doc.caseId,
+              documentName: doc.documentName,
+              mimeType: doc.mimeType,
+              storageUri: doc.storageUri,
+              sizeBytes: doc.sizeBytes ?? null
+            }}
+            byteServeUrl={byteServeUrl}
+          />
+        )}
       </section>
     </main>
   );

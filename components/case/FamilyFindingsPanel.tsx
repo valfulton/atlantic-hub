@@ -110,8 +110,12 @@ export default function FamilyFindingsPanel({
     );
   }
 
-  const reviewer = reviewerName || 'your reviewer';
-  const dateLine = reviewedAt ? ` · Reviewed ${fmtDate(reviewedAt)}` : '';
+  // (val 2026-06-15) Findings are flagged by the document scanner — NOT by
+  // Adriana or any specific person. Earlier copy attributed them to a
+  // reviewer name, which was wrong: val confirmed nobody hand-flagged
+  // them. Keep the header attribution-free; date stays as light context.
+  void reviewerName;
+  const dateLine = reviewedAt ? ` · Noted ${fmtDate(reviewedAt)}` : '';
 
   return (
     <section className="av-panel av-panel--cream" style={{ marginTop: 24 }}>
@@ -137,7 +141,7 @@ export default function FamilyFindingsPanel({
             lineHeight: 1.5
           }}
         >
-          {reviewer} flagged a few clauses while reading through your file.
+          A few clauses to keep in mind as you read through your file.
           {dateLine}
         </p>
       </header>
