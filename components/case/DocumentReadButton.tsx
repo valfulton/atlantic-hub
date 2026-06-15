@@ -81,13 +81,14 @@ export default function DocumentReadButton({ caseId, documentId, documentName, i
         disabled={busy}
         style={{
           fontSize: 11,
-          padding: '4px 10px',
+          padding: '6px 14px',
           borderRadius: 6,
-          border: '1px solid rgba(10,77,60,0.4)',
-          background: busy ? 'rgba(10,77,60,0.08)' : 'rgba(10,77,60,0.03)',
-          color: 'var(--emerald-deep, #0A4D3C)',
+          // Operator chrome is dark — gold-jewelry on dark per brand rules.
+          border: '1px solid rgba(235,203,107,0.55)',
+          background: busy ? 'rgba(235,203,107,0.14)' : 'rgba(235,203,107,0.08)',
+          color: 'var(--gold, #EBCB6B)',
           fontWeight: 600,
-          letterSpacing: '0.04em',
+          letterSpacing: '0.06em',
           textTransform: 'uppercase',
           cursor: busy ? 'wait' : 'pointer'
         }}
