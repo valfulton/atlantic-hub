@@ -301,11 +301,16 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
     items: CaseActionItem[];
     color: string;
   };
-  const BUCKET_ORDER: ActionFamilyBucket[] = ['family_decision', 'reviewer_handling', 'info_only'];
+  // (val 2026-06-15, #696) Four-bucket order. family_decision first (highest
+  // attention — only mom & dad can make these), then family_action (things
+  // they can DO), then reviewer_handling (Adriana's queue), then info_only
+  // (context only). Operator picks the bucket per item from the editor.
+  const BUCKET_ORDER: ActionFamilyBucket[] = ['family_decision', 'family_action', 'reviewer_handling', 'info_only'];
   const BUCKET_META: Record<ActionFamilyBucket, { label: string; description: string; color: string }> = {
-    family_decision:    { label: 'Decisions for your family',  description: 'These are choices only you can make. Take your time.', color: 'var(--gold-deep, #7A5A18)' },
-    reviewer_handling:  { label: 'Adriana is handling these',  description: 'No action needed from you. Read when you want, then tap Got it.', color: 'var(--emerald-deep, #0A4D3C)' },
-    info_only:          { label: 'When you have time',         description: 'Context and background. Nothing to act on.', color: 'var(--muted, #5C6862)' }
+    family_decision:    { label: 'Decisions for your family',  description: 'Choices only you can make. Take your time.',                        color: 'var(--gold-deep, #7A5A18)' },
+    family_action:      { label: 'Things you can do',          description: 'Small steps you can take to keep things moving.',                   color: 'var(--harbor, #2C5A7A)' },
+    reviewer_handling:  { label: 'Adriana is handling these',  description: 'No action needed from you. Read when you want, then tap Got it.',   color: 'var(--emerald-deep, #0A4D3C)' },
+    info_only:          { label: 'Just so you know',           description: 'Context about the trust. Nothing to act on.',                       color: 'var(--muted, #5C6862)' }
   };
   const bucketed: FamilyBucketRender[] = BUCKET_ORDER
     .map((b) => ({

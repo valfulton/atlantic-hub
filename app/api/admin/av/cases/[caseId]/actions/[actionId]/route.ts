@@ -37,8 +37,10 @@ const STATUS_OK: ActionStatus[] = ['open', 'in_progress', 'done', 'blocked'];
 const PRIORITY_OK: ActionPriority[] = ['low', 'normal', 'high', 'urgent'];
 // (val 2026-06-15, #685) legal_team = Rebecca + Adriana + val. Schema 098.
 const VISIBILITY_OK: ActionVisibility[] = ['parents_safe', 'operator_only', 'legal_team'];
-// (val 2026-06-15, #694) family_bucket — group on the family case view.
-const FAMILY_BUCKET_OK: ActionFamilyBucket[] = ['reviewer_handling', 'family_decision', 'info_only'];
+// (val 2026-06-15, #694 + #696) family_bucket — group on the family case view.
+// Schema 099 (initial 3) + 100 (family_action). MUST stay in sync with
+// ActionFamilyBucket in lib/case/case_store.ts.
+const FAMILY_BUCKET_OK: ActionFamilyBucket[] = ['reviewer_handling', 'family_decision', 'family_action', 'info_only'];
 
 export async function PATCH(req: NextRequest, ctx: RouteContext) {
   const guard = await guardAdminRequest(req, {

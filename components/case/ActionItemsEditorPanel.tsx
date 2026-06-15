@@ -187,8 +187,10 @@ type Priority = 'low' | 'normal' | 'high' | 'urgent';
 type Status = 'open' | 'in_progress' | 'done' | 'blocked';
 // (val 2026-06-15, #685) legal_team = Rebecca + Adriana + val. Hidden from parents.
 type Visibility = 'parents_safe' | 'operator_only' | 'legal_team';
-// (val 2026-06-15, #694) Family bucket — which group on the family case view.
-type FamilyBucket = 'reviewer_handling' | 'family_decision' | 'info_only';
+// (val 2026-06-15, #694 + #696) Family bucket — which group on the family case view.
+// Schema 099 (initial 3) + 100 (add family_action). Must stay in sync with
+// ActionFamilyBucket in lib/case/case_store.ts.
+type FamilyBucket = 'reviewer_handling' | 'family_decision' | 'family_action' | 'info_only';
 
 const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'urgent'];
 const STATUSES: Status[] = ['open', 'in_progress', 'done', 'blocked'];
@@ -646,9 +648,10 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                           onChange={(e) => setDraft({ ...draft, familyBucket: e.target.value as FamilyBucket })}
                           className="bg-[var(--surface-1)] border border-border rounded px-1.5 py-1 text-xs"
                         >
-                          <option value="reviewer_handling">Adriana is handling</option>
                           <option value="family_decision">Decision for family</option>
-                          <option value="info_only">When you have time</option>
+                          <option value="family_action">Things you can do</option>
+                          <option value="reviewer_handling">Adriana is handling</option>
+                          <option value="info_only">Just so you know</option>
                         </select>
                       </label>
                       <label className="flex items-center gap-1 text-muted">

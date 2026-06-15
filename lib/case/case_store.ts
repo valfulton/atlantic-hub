@@ -121,13 +121,14 @@ export type ActionPriority = 'low' | 'normal' | 'high' | 'urgent';
 // the parents. Schema migration 098 adds it to the ENUM.
 export type ActionVisibility = 'parents_safe' | 'operator_only' | 'legal_team';
 
-// (val 2026-06-15, #694) family_bucket — which group the item belongs to on
-// the FAMILY case view. Schema migration 099 adds it. Universal: works for
-// any case_kind, not Johnson-specific.
+// (val 2026-06-15, #694 + #696) family_bucket — which group the item belongs
+// to on the FAMILY case view. Schema migrations 099 (initial 3) + 100 (add
+// family_action). Universal: works for any case_kind, not Johnson-specific.
 //   reviewer_handling = Adriana / the legal reviewer is on it
 //   family_decision   = mom + dad need to choose something
+//   family_action     = family homework (call X, confirm Y, gather Z)
 //   info_only         = read when you can, no action needed
-export type ActionFamilyBucket = 'reviewer_handling' | 'family_decision' | 'info_only';
+export type ActionFamilyBucket = 'reviewer_handling' | 'family_decision' | 'family_action' | 'info_only';
 
 export interface CaseActionItem {
   actionId: number;
@@ -428,6 +429,7 @@ function rowToAction(r: ActionRow): CaseActionItem {
     familyNextStep: r.family_next_step ?? null,
     familyBucket:
       r.family_bucket === 'family_decision' ? 'family_decision' :
+      r.family_bucket === 'family_action' ? 'family_action' :
       r.family_bucket === 'info_only' ? 'info_only' :
       'reviewer_handling',
     familyAcknowledgedAt: toIso(r.family_acknowledged_at ?? null),
