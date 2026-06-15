@@ -234,12 +234,18 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   const c = full.case;
   const wellness = c.wellnessEnabled ? await loadFullWellness(caseId) : null;
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
-  // (val 2026-06-14, #661) Collaborators feed the sidebar "Review & approval"
-  // panel. Filter to non-revoked attorney/advisor reviewers.
+  // (val 2026-06-14, #661) Reviewers — non-revoked attorney/advisor
+  // collaborators, deduped by clientUserId (multi-brand collaborator
+  // has multiple fcc rows for the same human).
   const collaborators = await listCollaboratorsForCase(caseId);
-  const reviewers = collaborators.filter((cc) =>
-    !cc.revokedAt && (cc.role === 'attorney' || cc.role === 'advisor')
-  );
+  const seenReviewerIds = new Set<number>();
+  const reviewers = collaborators
+    .filter((cc) => !cc.revokedAt && (cc.role === 'attorney' || cc.role === 'advisor'))
+    .filter((cc) => {
+      if (seenReviewerIds.has(cc.clientUserId)) return false;
+      seenReviewerIds.add(cc.clientUserId);
+      return true;
+    });
 
   return (
     <>

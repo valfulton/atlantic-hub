@@ -213,11 +213,19 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   const c = full.case;
   // (val 2026-06-14, #661) Collaborators feed the sidebar "Review & approval"
   // panel. We surface non-revoked attorney/advisor collaborators with their
-  // family-facing role remapped (HARD RULE 2).
+  // family-facing role remapped (HARD RULE 2). Dedupe by client_user_id —
+  // a multi-brand collaborator (Adriana via CBB-NULL + CLDA via_client_id=10)
+  // has TWO rows in family_case_collaborators but is ONE human; we render
+  // them once.
   const collaborators = await listCollaboratorsForCase(caseId);
-  const reviewers = collaborators.filter((c2) =>
-    !c2.revokedAt && (c2.role === 'attorney' || c2.role === 'advisor')
-  );
+  const seenReviewerIds = new Set<number>();
+  const reviewers = collaborators
+    .filter((c2) => !c2.revokedAt && (c2.role === 'attorney' || c2.role === 'advisor'))
+    .filter((c2) => {
+      if (seenReviewerIds.has(c2.clientUserId)) return false;
+      seenReviewerIds.add(c2.clientUserId);
+      return true;
+    });
 
   const [wellness, indexableDoc] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
