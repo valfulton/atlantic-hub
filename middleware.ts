@@ -254,6 +254,49 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // (#681, val 2026-06-15) Case-document API endpoints accept BOTH operator
+  // and client_user sessions. Adriana tried to "Send back with notes" as a
+  // collaborator and was bounced to login — middleware required the operator
+  // cookie before her POST ever reached the handler. The route handlers
+  // already gate client_user via canClientUserAccessCase + role-edit
+  // allowlist; this carve-out lets them through middleware so the gate runs.
+  //
+  // Matches:
+  //   /api/admin/av/cases/[caseId]/documents/[documentId]            (GET byte-serve)
+  //   /api/admin/av/cases/[caseId]/documents/[documentId]/approval   (POST send-back / approve)
+  //   /api/admin/av/cases/[caseId]/documents/[documentId]/content    (PUT markdown edit)
+  //   /api/admin/av/cases/[caseId]/events                            (POST log entry)
+  if (
+    /^\/api\/admin\/av\/cases\/\d+\/documents\/\d+(?:\/(?:approval|content))?$/.test(pathname) ||
+    /^\/api\/admin\/av\/cases\/\d+\/events$/.test(pathname)
+  ) {
+    // Try operator cookie first (val from operator-side or preview).
+    const adminToken = req.cookies.get(ADMIN_SESSION_COOKIE)?.value;
+    if (adminToken) {
+      const claims = await verifyJwt(adminToken);
+      if (claims && claims.role !== 'client_user') {
+        const h = new Headers(req.headers);
+        h.set('x-ah-user-id', claims.sub);
+        h.set('x-ah-user-role', claims.role);
+        h.set('x-ah-session-id', claims.sid);
+        return NextResponse.next({ request: { headers: h } });
+      }
+    }
+    // Fall back to client cookie (family collaborator: Adriana, Rebecca, parents).
+    const clientToken = req.cookies.get(CLIENT_SESSION_COOKIE)?.value;
+    if (clientToken) {
+      const claims = await verifyJwt(clientToken);
+      if (claims && claims.role === 'client_user') {
+        const h = new Headers(req.headers);
+        h.set('x-ah-user-id', claims.sub);
+        h.set('x-ah-user-role', claims.role);
+        h.set('x-ah-session-id', claims.sid);
+        return NextResponse.next({ request: { headers: h } });
+      }
+    }
+    return unauthorizedClient(req);
+  }
+
   if (isClientPath(pathname)) {
     // Client portal: only the client cookie counts here.
     const token = req.cookies.get(CLIENT_SESSION_COOKIE)?.value;
