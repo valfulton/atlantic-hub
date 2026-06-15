@@ -117,7 +117,9 @@ export interface CaseParty {
 export type ActionStatus = 'open' | 'in_progress' | 'done' | 'blocked';
 export type ActionPriority = 'low' | 'normal' | 'high' | 'urgent';
 
-export type ActionVisibility = 'parents_safe' | 'operator_only';
+// (val 2026-06-15, #685) 'legal_team' = Rebecca + Adriana + val. Hidden from
+// the parents. Schema migration 098 adds it to the ENUM.
+export type ActionVisibility = 'parents_safe' | 'operator_only' | 'legal_team';
 
 export interface CaseActionItem {
   actionId: number;
@@ -389,7 +391,11 @@ function rowToAction(r: ActionRow): CaseActionItem {
     status: r.status,
     priority: r.priority,
     // Default to parents_safe so legacy rows without the column still render.
-    visibility: (r.visibility === 'operator_only' ? 'operator_only' : 'parents_safe'),
+    // (val 2026-06-15, #685) legal_team is the new Rebecca+Adriana+val tier.
+    visibility:
+      r.visibility === 'operator_only' ? 'operator_only' :
+      r.visibility === 'legal_team' ? 'legal_team' :
+      'parents_safe',
     assignedToUserId: r.assigned_to_user_id,
     dueDate: toDateString(r.due_date),
     completedAt: toIso(r.completed_at),
@@ -1293,7 +1299,7 @@ export async function listActionItems(
   /** (val 2026-06-13, #635) Optional visibility filter. When supplied, only
    *  rows whose `visibility` is in the array are returned. Pass undefined
    *  for full operator visibility. */
-  visibleVisibilities?: ('parents_safe' | 'operator_only')[]
+  visibleVisibilities?: ActionVisibility[]
 ): Promise<CaseActionItem[]> {
   if (!Number.isInteger(caseId) || caseId <= 0) return [];
   if (visibleVisibilities && visibleVisibilities.length === 0) return [];
@@ -1443,7 +1449,7 @@ export async function loadFullCase(
   /** (val 2026-06-13, #635) Optional visibility filter applied to action
    *  items. Pass the result of visibleFor(role) — undefined = operator full
    *  visibility. Drives the parents_safe vs operator_only audience split. */
-  visibleVisibilities?: ('parents_safe' | 'operator_only')[]
+  visibleVisibilities?: ActionVisibility[]
 ): Promise<FullCaseLoad | null> {
   const c = await getCase(caseId);
   if (!c) return null;

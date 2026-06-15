@@ -429,17 +429,26 @@ export function canEditCaseDocuments(role: CaseViewerRole): boolean {
 /**
  * Maps a viewer role to the visibility levels they're allowed to see.
  * Renderers filter case items by `visibility IN visibleFor(role)`.
+ *
+ * (val 2026-06-15, #685) Three tiers now:
+ *   parents_safe  — every viewer who can see the case (parents included)
+ *   legal_team    — operator + account_rep + professional (Rebecca + Adriana + val).
+ *                   The "Investigation" surface uses this. Hidden from parents.
+ *   operator_only — operator + account_rep only (Rebecca + val). Hidden from Adriana too.
  */
-export function visibleFor(role: CaseViewerRole): ('parents_safe' | 'operator_only')[] {
+export function visibleFor(role: CaseViewerRole): ('parents_safe' | 'operator_only' | 'legal_team')[] {
   switch (role) {
     case 'operator':
     case 'account_rep':
-      // Internal/A&V eyes — full visibility.
-      return ['parents_safe', 'operator_only'];
-    case 'parent':
+      // Internal/A&V eyes — full visibility (val + Rebecca).
+      return ['parents_safe', 'operator_only', 'legal_team'];
     case 'professional':
+      // Adriana — investigation lane + parent-safe. Operator-only items stay
+      // hidden so val + Rebecca can keep notes Adriana shouldn't see.
+      return ['parents_safe', 'legal_team'];
+    case 'parent':
     case 'family':
-      // Outside-the-A&V-tent — only parent-safe items.
+      // Lifetime beneficiaries + extended family — parent-safe only.
       return ['parents_safe'];
     case 'unknown':
       // No relationship — nothing.

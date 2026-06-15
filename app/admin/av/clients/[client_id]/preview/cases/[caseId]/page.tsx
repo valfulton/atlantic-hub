@@ -18,6 +18,10 @@ import SectionText from '@/components/case/SectionText';
 import ActionItemDetail, { buildOptionDocsMap } from '@/components/case/ActionItemDetail';
 import FamilyFindingsPanel from '@/components/case/FamilyFindingsPanel';
 import { listFamilyVisibleFindingsForCase } from '@/lib/case/document_findings_store';
+// (val 2026-06-15, #685) Attorney + firm + party extracts — same panel as
+// operator + family. Mounted here so preview-as-family also shows it.
+import DocumentExtractsPanel from '@/components/case/DocumentExtractsPanel';
+import { listExtractsForCase } from '@/lib/case/document_extracts_store';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import {
   resolveCaseViewerRole,
@@ -277,9 +281,11 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   // synopsis + outstanding items become clickable deep links to the right
   // page in the PDF. Mirror parity with /client/cases/[caseId] — operator
   // viewing the preview must see and verify the same links the family sees.
-  const [indexableDoc, familyFindings] = await Promise.all([
+  const [indexableDoc, familyFindings, docExtracts] = await Promise.all([
     findIndexableDocumentForCase(caseId),
-    listFamilyVisibleFindingsForCase(caseId)
+    listFamilyVisibleFindingsForCase(caseId),
+    // (val 2026-06-15, #685) Attorney + firm + party extracts for the family view.
+    listExtractsForCase(caseId)
   ]);
   const sectionDocUrl = indexableDoc
     ? `/api/admin/av/cases/${c.caseId}/documents/${indexableDoc.documentId}`
@@ -495,6 +501,17 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                 reviewedAt={null}
                 indexableDocumentUrl={sectionDocUrl}
                 indexableDocumentId={indexableDoc?.documentId ?? null}
+              />
+
+              {/* (val 2026-06-15, #685) Attorney + firm + party extracts —
+                  same panel surfaces on operator + family + this preview. */}
+              <DocumentExtractsPanel
+                caseId={c.caseId}
+                extracts={docExtracts}
+                documents={full.documents.map((d) => ({
+                  documentId: d.documentId,
+                  documentName: d.documentName
+                }))}
               />
             </div>
 

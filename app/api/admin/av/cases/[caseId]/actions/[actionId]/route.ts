@@ -34,7 +34,8 @@ interface RouteContext {
 
 const STATUS_OK: ActionStatus[] = ['open', 'in_progress', 'done', 'blocked'];
 const PRIORITY_OK: ActionPriority[] = ['low', 'normal', 'high', 'urgent'];
-const VISIBILITY_OK: ActionVisibility[] = ['parents_safe', 'operator_only'];
+// (val 2026-06-15, #685) legal_team = Rebecca + Adriana + val. Schema 098.
+const VISIBILITY_OK: ActionVisibility[] = ['parents_safe', 'operator_only', 'legal_team'];
 
 export async function PATCH(req: NextRequest, ctx: RouteContext) {
   const guard = await guardAdminRequest(req, {

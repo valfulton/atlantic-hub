@@ -24,6 +24,12 @@ import DocumentApprovalActions from '@/components/case/DocumentApprovalActions';
 import FamilyFindingsPanel from '@/components/case/FamilyFindingsPanel';
 import { listFamilyVisibleFindingsForCase } from '@/lib/case/document_findings_store';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
+// (val 2026-06-15, #685) Attorney + firm + party info extracted by the LLM
+// scanner. Operator already mounts this; surface on the family view too so
+// Rebecca/parents can see "Drafting Attorney: Gisselle Nooshabadi" without
+// asking val for the contact.
+import DocumentExtractsPanel from '@/components/case/DocumentExtractsPanel';
+import { listExtractsForCase } from '@/lib/case/document_extracts_store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -242,10 +248,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
       return true;
     });
 
-  const [wellness, indexableDoc, familyFindings] = await Promise.all([
+  const [wellness, indexableDoc, familyFindings, docExtracts] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
     findIndexableDocumentForCase(caseId),
-    listFamilyVisibleFindingsForCase(caseId)
+    listFamilyVisibleFindingsForCase(caseId),
+    // (val 2026-06-15, #685) Surface attorney + firm + party extracts to the
+    // family — same data the operator vault already shows.
+    listExtractsForCase(caseId)
   ]);
 
   // (#669) Pick the lead document reviewer for attribution. Adriana =
@@ -485,6 +494,20 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
               reviewedAt={null}
               indexableDocumentUrl={sectionDocUrl}
               indexableDocumentId={indexableDoc?.documentId ?? null}
+            />
+
+            {/* (val 2026-06-15, #685) Attorney + firm + parties + key dates
+                extracted by the LLM scanner. Same component the operator
+                mounts — surfaces on family view so Rebecca/parents can see
+                "Drafting Attorney: Gisselle Nooshabadi · Firm address ..."
+                without asking val. Panel hides itself when no extracts. */}
+            <DocumentExtractsPanel
+              caseId={c.caseId}
+              extracts={docExtracts}
+              documents={full.documents.map((d) => ({
+                documentId: d.documentId,
+                documentName: d.documentName
+              }))}
             />
           </div>
 

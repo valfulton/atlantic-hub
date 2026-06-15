@@ -137,7 +137,12 @@ export default async function DocumentViewRenderer({ doc, byteServeUrl }: Props)
           lineHeight: 1.65,
           fontFamily: '"Fraunces", "Cormorant Garamond", Georgia, serif',
           fontSize: 17,
-          color: 'var(--ink, #14201B)'
+          // (val 2026-06-15, #685) Hardcoded dark text — the card is always
+          // white (background: #FFFFFF above) so we need dark ink. globals.css
+          // defines --ink: #f1f5f9 in the dark/operator scope, so var(--ink)
+          // resolved to near-white here and killed contrast on the viewer.
+          // Don't use a brand token for in-card body text.
+          color: '#14201B'
         }}
         // Safe: markdownToSafeHtml escapes user text + restricts hrefs.
         dangerouslySetInnerHTML={{ __html: html }}
@@ -164,7 +169,8 @@ export default async function DocumentViewRenderer({ doc, byteServeUrl }: Props)
           wordWrap: 'break-word',
           fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
           fontSize: 14,
-          color: 'var(--ink, #14201B)'
+          // (val 2026-06-15, #685) Hardcoded dark — see markdown branch above.
+          color: '#14201B'
         }}
       >
         {src}

@@ -31,7 +31,8 @@ interface Props {
 
 type Priority = 'low' | 'normal' | 'high' | 'urgent';
 type Status = 'open' | 'in_progress' | 'done' | 'blocked';
-type Visibility = 'parents_safe' | 'operator_only';
+// (val 2026-06-15, #685) legal_team = Rebecca + Adriana + val. Hidden from parents.
+type Visibility = 'parents_safe' | 'operator_only' | 'legal_team';
 
 const PRIORITIES: Priority[] = ['low', 'normal', 'high', 'urgent'];
 const STATUSES: Status[] = ['open', 'in_progress', 'done', 'blocked'];
@@ -316,7 +317,8 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                           className="bg-[var(--surface-1)] border border-border rounded px-1.5 py-1 text-xs"
                         >
                           <option value="parents_safe">Family sees it</option>
-                          <option value="operator_only">Operator only</option>
+                          <option value="legal_team">Investigation (Rebecca + Adriana)</option>
+                          <option value="operator_only">Operator only (val + Rebecca)</option>
                         </select>
                       </label>
                       <label className="flex items-center gap-1 text-muted">
@@ -372,12 +374,20 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                     <div className="text-xs text-muted mt-1 flex items-center gap-2 flex-wrap">
                       <span>{a.status}</span>
                       {a.dueDate && <span>· due {formatDate(a.dueDate)}</span>}
+                      {/* (val 2026-06-15, #685) Three tiers — investigation
+                          (legal_team) sits between family-safe and operator-only. */}
                       <span className={`text-[9px] uppercase tracking-wider px-1 py-0.5 rounded ${
                         a.visibility === 'operator_only'
                           ? 'bg-[var(--surface-3)] text-amber-300 border border-amber-700/40'
+                          : a.visibility === 'legal_team'
+                          ? 'bg-indigo-900/30 text-indigo-300 border border-indigo-700/40'
                           : 'bg-emerald-900/20 text-emerald-300 border border-emerald-700/30'
                       }`}>
-                        {a.visibility === 'operator_only' ? 'Operator only' : 'Family sees it'}
+                        {a.visibility === 'operator_only'
+                          ? 'Operator only'
+                          : a.visibility === 'legal_team'
+                          ? 'Investigation'
+                          : 'Family sees it'}
                       </span>
                       <button
                         type="button"
