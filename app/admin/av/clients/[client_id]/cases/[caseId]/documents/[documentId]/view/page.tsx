@@ -15,9 +15,18 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDocument } from '@/lib/case/case_store';
 import DocumentViewRenderer from '@/lib/case/document_view_renderer';
+import { getHotStorage } from '@/lib/storage/provider';
+import MarkdownEditButton from '@/components/case/MarkdownEditButton';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Same allowlist the API + the renderer use to decide what's editable.
+function isMarkdownDoc(mime: string | null, name: string): boolean {
+  const mt = (mime || '').toLowerCase();
+  if (mt === 'text/markdown' || mt === 'text/x-markdown') return true;
+  return /\.(md|markdown)$/i.test(name);
+}
 
 interface PageProps {
   params: { client_id: string; caseId: string; documentId: string };
@@ -40,6 +49,22 @@ export default async function OperatorDocumentViewPage({ params }: PageProps) {
 
   const byteServeUrl = `/api/admin/av/cases/${caseId}/documents/${documentId}`;
   const backToCase = `/admin/av/clients/${clientId}/cases/${caseId}`;
+
+  // (#676 Tier B) If this is a markdown document, pre-load the source so
+  // the operator Edit button has it ready without a separate client fetch
+  // on first click. We fail-soft — if the bytes are missing or the read
+  // throws, editing is unavailable but the viewer still renders.
+  let editableSource: string | null = null;
+  if (isMarkdownDoc(doc.mimeType, doc.documentName)) {
+    try {
+      const bytes = await getHotStorage('case-documents').getBytes(doc.storageUri);
+      if (bytes) {
+        editableSource = Buffer.from(bytes).toString('utf-8');
+      }
+    } catch (err) {
+      console.error('viewer pre-load source failed', err);
+    }
+  }
 
   return (
     <main style={{ background: '#0b1220', minHeight: '100vh', color: '#f1f5f9' }}>
@@ -106,17 +131,41 @@ export default async function OperatorDocumentViewPage({ params }: PageProps) {
       </header>
 
       <section style={{ maxWidth: 980, margin: '0 auto', padding: '8px 24px 60px' }}>
-        <DocumentViewRenderer
-          doc={{
-            documentId: doc.documentId,
-            caseId: doc.caseId,
-            documentName: doc.documentName,
-            mimeType: doc.mimeType,
-            storageUri: doc.storageUri,
-            sizeBytes: doc.sizeBytes ?? null
-          }}
-          byteServeUrl={byteServeUrl}
-        />
+        {editableSource != null ? (
+          /* (#676 Tier B) Markdown — wrap the rendered preview in the
+              Edit toggle. Children are the rendered preview, shown when
+              not editing; on Edit click, the textarea takes the same
+              slot and the children hide. */
+          <MarkdownEditButton
+            caseId={doc.caseId}
+            documentId={doc.documentId}
+            initialSource={editableSource}
+          >
+            <DocumentViewRenderer
+              doc={{
+                documentId: doc.documentId,
+                caseId: doc.caseId,
+                documentName: doc.documentName,
+                mimeType: doc.mimeType,
+                storageUri: doc.storageUri,
+                sizeBytes: doc.sizeBytes ?? null
+              }}
+              byteServeUrl={byteServeUrl}
+            />
+          </MarkdownEditButton>
+        ) : (
+          <DocumentViewRenderer
+            doc={{
+              documentId: doc.documentId,
+              caseId: doc.caseId,
+              documentName: doc.documentName,
+              mimeType: doc.mimeType,
+              storageUri: doc.storageUri,
+              sizeBytes: doc.sizeBytes ?? null
+            }}
+            byteServeUrl={byteServeUrl}
+          />
+        )}
       </section>
     </main>
   );
