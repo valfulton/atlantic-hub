@@ -35,6 +35,9 @@ import CollapseAllActionItems from '@/components/case/CollapseAllActionItems';
 // (val 2026-06-15, #690) Drafting attorney hero — hoisted out of the
 // extracts table so it's visible at the top of the case page.
 import DraftingAttorneyHero from '@/components/case/DraftingAttorneyHero';
+// (val 2026-06-15, #691) Family-side "Add timeline entry" — Rebecca +
+// parents + Adriana can log calls/conversations without going through val.
+import AddTimelineEntryForm from '@/components/case/AddTimelineEntryForm';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -416,6 +419,12 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             .case-grid .ai-chev { font-size: 11px; color: var(--muted, #5C6862); transition: transform 0.18s ease; display: inline-block; transform-origin: center; }
             .case-grid .ai-collapse[open] .ai-chev { transform: rotate(90deg); }
             @media (max-width: 760px) { .case-grid { grid-template-columns: 1fr; gap: 30px; } }
+            /* (val 2026-06-15, #691) Peer-level collapsible sections — chev
+               rotates 0→90 on open. summary::marker hidden so the bullet
+               doesn't bleed into the cream surface. */
+            .case-collapse-section[open] .case-collapse-chev { transform: rotate(90deg); }
+            .case-collapse-section summary::-webkit-details-marker { display: none; }
+            .case-collapse-section summary::marker { content: ''; }
           `}</style>
 
           {/* MAIN COLUMN */}
@@ -459,14 +468,18 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             })()}
 
             {openActions.length > 0 && (
-              <div style={{ marginBottom: 30 }}>
-                {/* (val 2026-06-15, #688) Heading + bulk collapse toggle.
-                    Items still default open per element; this lets val /
-                    Rebecca scan 27+ items by collapsing all at once. */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                  <h2 className="case-h" style={{ margin: 0 }}>Outstanding items</h2>
+              /* (val 2026-06-15, #691) Whole Outstanding items section is
+                  collapsible — default CLOSED so the page header + Summary
+                  + Timeline + Awaiting your decision are all visible at
+                  once. Click the section header to expand the full list. */
+              <details className="case-collapse-section" style={{ marginBottom: 30 }}>
+                <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className="case-collapse-chev" style={{ fontSize: 13, color: 'var(--emerald-deep, #0A4D3C)', transition: 'transform 0.18s ease', display: 'inline-block' }}>▸</span>
+                    <h2 className="case-h" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>Outstanding items <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--muted, #5C6862)' }}>({openActions.length})</span></h2>
+                  </div>
                   <CollapseAllActionItems />
-                </div>
+                </summary>
                 {openActions.map((a, i) => {
                   const tagClass = a.priority === 'urgent' ? 'urg' : a.priority === 'high' ? 'hi' : 'norm';
                   const tagLabel = a.priority === 'urgent' ? 'Urgent' : a.priority === 'high' ? 'High' : 'Normal';
@@ -508,7 +521,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                     </details>
                   );
                 })}
-              </div>
+              </details>
             )}
 
             {/* (val 2026-06-15, #669) Document findings the operator
@@ -528,19 +541,12 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
               indexableDocumentId={indexableDoc?.documentId ?? null}
             />
 
-            {/* (val 2026-06-15, #685) Attorney + firm + parties + key dates
-                extracted by the LLM scanner. Same component the operator
-                mounts — surfaces on family view so Rebecca/parents can see
-                "Drafting Attorney: Gisselle Nooshabadi · Firm address ..."
-                without asking val. Panel hides itself when no extracts. */}
-            <DocumentExtractsPanel
-              caseId={c.caseId}
-              extracts={docExtracts}
-              documents={full.documents.map((d) => ({
-                documentId: d.documentId,
-                documentName: d.documentName
-              }))}
-            />
+            {/* (val 2026-06-15, #691) Extracts panel REMOVED from the
+                family view. The DraftingAttorneyHero at top + the Parties
+                sidebar already cover attorney/firm/trustors/beneficiaries.
+                The full Pulled-From-Documents table just duplicates what
+                the family already sees and adds visual clutter. Still
+                mounted on operator + preview for verification. */}
           </div>
 
           {/* SIDEBAR */}
@@ -676,31 +682,46 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
           </aside>
         </div>
 
-        {/* Timeline */}
-        {full.events.length > 0 && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', marginBottom: 12 }}>
-              Timeline
+        {/* Timeline (val 2026-06-15, #691) — Whole section is collapsible
+            and ALWAYS renders so Rebecca/parents can add an entry even on
+            an empty timeline. Default closed so it doesn't bury Awaiting
+            your decision underneath it. */}
+        <details className="case-collapse-section" style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+          <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="case-collapse-chev" style={{ fontSize: 13, color: 'var(--muted, #3B4944)', transition: 'transform 0.18s ease', display: 'inline-block' }}>▸</span>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', flex: 1 }}>
+              Timeline {full.events.length > 0 && (<span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.7 }}>· {full.events.length}</span>)}
             </div>
-            <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 14 }}>
-              {full.events.map((e) => (
-                <li key={e.eventId} style={{ borderLeft: '2px solid rgba(10,10,10,0.12)', paddingLeft: 14 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)' }}>{formatDate(e.eventDate)}</div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{e.eventTitle}</div>
-                  {e.eventDetail && (
-                    <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
-                      <SectionText
-                        text={e.eventDetail}
-                        documentUrl={sectionDocUrl}
-                        sectionIndex={sectionIndex}
-                      />
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
+          </summary>
+          <div style={{ marginTop: 14 }}>
+            {full.events.length > 0 ? (
+              <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 14 }}>
+                {full.events.map((e) => (
+                  <li key={e.eventId} style={{ borderLeft: '2px solid rgba(10,10,10,0.12)', paddingLeft: 14 }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted, #3B4944)' }}>{formatDate(e.eventDate)}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{e.eventTitle}</div>
+                    {e.eventDetail && (
+                      <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginTop: 4, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                        <SectionText
+                          text={e.eventDetail}
+                          documentUrl={sectionDocUrl}
+                          sectionIndex={sectionIndex}
+                        />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--muted, #3B4944)', fontStyle: 'italic' }}>
+                No entries yet. Add the first one below.
+              </div>
+            )}
+            <div style={{ marginTop: 16 }}>
+              <AddTimelineEntryForm caseId={c.caseId} />
+            </div>
+          </div>
+        </details>
 
         {/* Document vault — split by approval status (val 2026-06-12, #613).
             Pending drafts go to "Awaiting your decision" with Approve/Reject
@@ -713,11 +734,17 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             below the two-column area because they have interactive controls
             Adriana acts on — they belong in the main flow. */}
         {pendingDocs.length > 0 && (
-          <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)', marginBottom: 4 }}>
-              Awaiting your decision
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
+          /* (val 2026-06-15, #691) Awaiting your decision is also a peer
+              collapsible — default OPEN since it's the actionable surface
+              that needs eyes. */
+          <details open className="case-collapse-section" style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+            <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <span className="case-collapse-chev" style={{ fontSize: 13, color: 'var(--gold-deep, #7A5A18)', transition: 'transform 0.18s ease', display: 'inline-block' }}>▸</span>
+              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)' }}>
+                Awaiting your decision <span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.8 }}>· {pendingDocs.length}</span>
+              </div>
+            </summary>
+            <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14, marginTop: 8 }}>
               Drafts are ready for your review. Approve each one, or send it back with a note.
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
@@ -756,7 +783,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         )}
 
         {/* (val 2026-06-15, #680) Sent-back surface — fixes the "won't send

@@ -17,7 +17,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { appendEvent, getCase } from '@/lib/case/case_store';
+import { appendEvent, getCase, canClientUserAccessCase } from '@/lib/case/case_store';
+import { findClientUserById } from '@/lib/auth/client-user';
+import { activeBrandFor } from '@/lib/client/active-brand';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,6 +44,26 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   const existing = await getCase(caseId);
   if (!existing) {
     return NextResponse.json({ ok: false, error: 'case not found' }, { status: 404 });
+  }
+
+  // (val 2026-06-15, #691) Family-side adds. Rebecca + parents + Adriana
+  // can append to the timeline so they don't need val to log every call,
+  // bank conversation, or document arrival. canClientUserAccessCase
+  // covers brand-owner + case_collaborators + sibling_admin paths.
+  // PATCH + DELETE on individual events stay operator-only (separate
+  // route file) so destructive ops are gated.
+  if (guard.actor.role === 'client_user') {
+    const user = await findClientUserById(guard.actor.userId);
+    if (!user) {
+      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+    }
+    const primaryClientId = await activeBrandFor(guard.actor.userId, user.client_id ?? null);
+    const allowed = await canClientUserAccessCase(
+      guard.actor.userId, primaryClientId ?? 0, caseId
+    );
+    if (!allowed) {
+      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+    }
   }
 
   let body: unknown;
