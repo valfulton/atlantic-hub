@@ -304,7 +304,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   const BUCKET_ORDER: ActionFamilyBucket[] = ['family_decision', 'reviewer_handling', 'info_only'];
   const BUCKET_META: Record<ActionFamilyBucket, { label: string; description: string; color: string }> = {
     family_decision:    { label: 'Decisions for your family',  description: 'These are choices only you can make. Take your time.', color: 'var(--gold-deep, #7A5A18)' },
-    reviewer_handling:  { label: 'Adriana is handling these',  description: 'You don’t need to do anything. Read when you want — then tap Got it to acknowledge.', color: 'var(--emerald-deep, #0A4D3C)' },
+    reviewer_handling:  { label: 'Adriana is handling these',  description: 'No action needed from you. Read when you want, then tap Got it.', color: 'var(--emerald-deep, #0A4D3C)' },
     info_only:          { label: 'When you have time',         description: 'Context and background. Nothing to act on.', color: 'var(--muted, #5C6862)' }
   };
   const bucketed: FamilyBucketRender[] = BUCKET_ORDER
@@ -540,7 +540,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                       <span style={{ width: 80, height: 6, background: 'rgba(10,77,60,0.12)', borderRadius: 999, overflow: 'hidden', display: 'inline-block' }}>
                         <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, Math.round((ackDone / Math.max(1, ackTotal)) * 100)))}%`, background: 'var(--emerald-deep, #0A4D3C)', transition: 'width 0.3s ease' }} />
                       </span>
-                      <strong style={{ color: 'var(--ink, #14201B)' }}>{ackDone}</strong> of {ackTotal} understood
+                      <strong style={{ color: 'var(--ink, #14201B)' }}>{ackDone}</strong> of {ackTotal} acknowledged
                     </div>
                   )}
                 </header>
