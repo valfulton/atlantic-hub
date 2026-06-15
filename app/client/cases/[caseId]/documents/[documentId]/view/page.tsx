@@ -51,18 +51,19 @@ export default async function CaseDocumentViewPage({ params }: PageProps) {
     notFound();
   }
 
-  // Auth — same flow the existing case page uses.
-  const h = headers();
-  const actor = readClientActorFromHeaders(h);
+  // Auth — same flow the existing case page uses (actor.clientUserId, not
+  // .userId; headers() needs the cast). Both are easy to get wrong — the
+  // first Netlify build failed on exactly this drift.
+  const actor = readClientActorFromHeaders(headers() as unknown as Headers);
   if (!actor) redirect(`/client/login?next=/client/cases/${caseId}/documents/${documentId}/view`);
 
-  const user = await findClientUserById(actor.userId);
+  const user = await findClientUserById(actor.clientUserId);
   if (!user) redirect('/client/login');
 
-  const primaryClientId = await activeBrandFor(actor.userId, user.client_id ?? null);
+  const primaryClientId = await activeBrandFor(actor.clientUserId, user.client_id ?? null);
   if (!primaryClientId) notFound();
 
-  const allowed = await canClientUserAccessCase(actor.userId, primaryClientId, caseId);
+  const allowed = await canClientUserAccessCase(actor.clientUserId, primaryClientId, caseId);
   if (!allowed) notFound();
 
   // Document — confirm it belongs to the case in the URL (IDOR guard).

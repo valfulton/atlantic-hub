@@ -433,6 +433,13 @@ export default async function CaseDetailPage({ params }: PageProps) {
                   {full.property.county && (
                     <div className="text-xs text-muted">{full.property.county} County</div>
                   )}
+                  {/* (#677, val 2026-06-15) APN — every property gets this. */}
+                  {full.property.apn && (
+                    <div className="text-xs mt-2">
+                      <span className="text-muted uppercase">APN:</span>{' '}
+                      <span className="font-mono">{full.property.apn}</span>
+                    </div>
+                  )}
                   {full.property.currentTitledOwner && (
                     <div className="text-xs mt-2">
                       <span className="text-muted uppercase">Owner:</span>{' '}

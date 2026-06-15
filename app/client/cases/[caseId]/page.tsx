@@ -491,6 +491,14 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                   {[full.property.city, full.property.state, full.property.zip].filter(Boolean).join(', ')}
                   {full.property.county ? <><br />{full.property.county} County</> : null}
                 </div>
+                {/* (#677, val 2026-06-15) APN — canonical field for every
+                    property. Surfaces here so Rebecca + Adriana can quote it
+                    when calling the Assessor or Recorder. */}
+                {full.property.apn && (
+                  <div className="addr-title">
+                    APN: <b style={{ fontFamily: 'ui-monospace, SF Mono, Menlo, Consolas, monospace' }}>{full.property.apn}</b>
+                  </div>
+                )}
                 {full.property.currentTitledOwner && (
                   <div className="addr-title">
                     Titled to: <b>{full.property.currentTitledOwner}</b>
