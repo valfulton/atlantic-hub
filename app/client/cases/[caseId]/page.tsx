@@ -109,20 +109,30 @@ function parseSynopsis(text: string | null | undefined): SynopsisBlock[] {
 
 /**
  * Group case_parties into the document-style sidebar buckets.
- *   (val 2026-06-14, #661)
- * Buckets: Trustors → Trustees → Beneficiaries → Other.
- * Roles are matched case-insensitively. Empty buckets are dropped.
+ *   (val 2026-06-15, #664)
+ * Buckets: Trustors → Trustees → Successor trustees → Beneficiaries → Other.
+ *
+ * ORDER MATTERS: 'successor_trustee' contains 'trustee', so the successor
+ * check MUST run before the plain trustee check. Rebecca (successor) was
+ * being mis-bucketed with Cecilia (current trustee) until we caught this.
  */
 function groupParties(parties: CaseParty[]): Array<{ label: string; members: CaseParty[] }> {
-  const buckets: Record<string, CaseParty[]> = { Trustors: [], Trustees: [], Beneficiaries: [], Other: [] };
+  const buckets: Record<string, CaseParty[]> = {
+    Trustors: [],
+    Trustees: [],
+    'Successor trustees': [],
+    Beneficiaries: [],
+    Other: []
+  };
   for (const p of parties) {
     const r = (p.role || '').toLowerCase();
     if (r.includes('trustor') || r.includes('settlor') || r.includes('grantor')) buckets.Trustors.push(p);
+    else if (r.includes('successor')) buckets['Successor trustees'].push(p);
     else if (r.includes('trustee')) buckets.Trustees.push(p);
     else if (r.includes('beneficiary')) buckets.Beneficiaries.push(p);
     else buckets.Other.push(p);
   }
-  return (['Trustors', 'Trustees', 'Beneficiaries', 'Other'] as const)
+  return (['Trustors', 'Trustees', 'Successor trustees', 'Beneficiaries', 'Other'] as const)
     .map((label) => ({ label, members: buckets[label] }))
     .filter((g) => g.members.length > 0);
 }

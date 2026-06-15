@@ -157,15 +157,25 @@ interface PartyLike {
 }
 
 function groupParties(parties: PartyLike[]): Array<{ label: string; members: PartyLike[] }> {
-  const buckets: Record<string, PartyLike[]> = { Trustors: [], Trustees: [], Beneficiaries: [], Other: [] };
+  // (val 2026-06-15, #664) Successor check MUST precede plain trustee
+  // since 'successor_trustee' contains 'trustee'. Rebecca was being
+  // mis-bucketed with Cecilia until we caught this.
+  const buckets: Record<string, PartyLike[]> = {
+    Trustors: [],
+    Trustees: [],
+    'Successor trustees': [],
+    Beneficiaries: [],
+    Other: []
+  };
   for (const p of parties) {
     const r = (p.role || '').toLowerCase();
     if (r.includes('trustor') || r.includes('settlor') || r.includes('grantor')) buckets.Trustors.push(p);
+    else if (r.includes('successor')) buckets['Successor trustees'].push(p);
     else if (r.includes('trustee')) buckets.Trustees.push(p);
     else if (r.includes('beneficiary')) buckets.Beneficiaries.push(p);
     else buckets.Other.push(p);
   }
-  return (['Trustors', 'Trustees', 'Beneficiaries', 'Other'] as const)
+  return (['Trustors', 'Trustees', 'Successor trustees', 'Beneficiaries', 'Other'] as const)
     .map((label) => ({ label, members: buckets[label] }))
     .filter((g) => g.members.length > 0);
 }
