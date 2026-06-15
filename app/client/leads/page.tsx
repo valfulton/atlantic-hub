@@ -156,7 +156,7 @@ export default async function ClientLeadsPage() {
                 className="app-cta"
                 href="mailto:val@atlanticandvine.com?subject=Upgrade%20to%20Sprint"
               >
-                Talk to Val about upgrading →
+                Talk to us about upgrading →
               </a>
             </p>
           </div>

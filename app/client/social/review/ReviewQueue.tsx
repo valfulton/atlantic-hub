@@ -6,7 +6,8 @@
  * Client-side review for line-born social drafts.
  *   - Branded video preview (or image)
  *   - Editable caption — what they edit becomes what gets published
- *   - "Note to Val" — free-text note that saves on approve OR reject
+ *   - "Note" — free-text note that saves on approve OR reject; surfaces to
+ *     both Adriana + val on the operator review queue
  *   - Download branded mp4 (right-click / save the link)
  *   - Approve & schedule (uses the edited copy) / Reject
  *
@@ -162,10 +163,11 @@ function ReviewCard({
             )}
           </div>
 
-          {/* Note to Val — sends with whichever decision the client makes. */}
+          {/* Note — sends with whichever decision the client makes; surfaces to
+              both Adriana + val on the operator review queue. */}
           <div className="mt-3">
             <label className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">
-              Note to Val (optional)
+              Note (optional)
             </label>
             <textarea
               value={note}
@@ -203,8 +205,8 @@ function ReviewCard({
               }
               title={
                 note && note.trim()
-                  ? 'Reject this draft and send your note back to Val.'
-                  : 'Reject this draft (add a note above to tell Val why).'
+                  ? 'Reject this draft and send your note back with it.'
+                  : 'Reject this draft (add a note above so we know what to change).'
               }
             >
               {note && note.trim() ? 'Reject + send note' : 'Reject'}

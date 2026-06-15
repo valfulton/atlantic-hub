@@ -492,6 +492,22 @@ export default function DocumentVaultPanel({ caseId, documents }: Props) {
                 {flipStatus[d.documentId] && (
                   <span className="text-[10px] text-zinc-400">{flipStatus[d.documentId]}</span>
                 )}
+                {/* (val 2026-06-15) Surface the feedback note inline — was hidden
+                    in a hover tooltip before. Both val (operator vault) and
+                    Adriana (collaborator vault) see this. */}
+                {d.approvalNote && (
+                  (d.approvalStatus === 'rejected' || d.approvalStatus === 'pending_review') && (
+                    <div
+                      className="mt-1 max-w-[260px] text-[11px] leading-snug text-right"
+                      style={{
+                        color: d.approvalStatus === 'rejected' ? 'var(--garnet, #A23B2E)' : 'var(--gold-bright, #E6CE7E)',
+                        fontStyle: 'italic'
+                      }}
+                    >
+                      &ldquo;{d.approvalNote}&rdquo;
+                    </div>
+                  )
+                )}
                 {d.documentKind && INDEXABLE_KINDS.has(d.documentKind) && d.mimeType === 'application/pdf' && (
                   <button
                     type="button"

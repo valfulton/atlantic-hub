@@ -91,7 +91,7 @@ export default function DocumentApprovalActions({ caseId, documentId, documentNa
           }}
           aria-label={`Reject ${documentName}`}
         >
-          Send back to val
+          Send back with notes
         </button>
       </div>
     );

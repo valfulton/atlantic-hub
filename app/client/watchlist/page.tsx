@@ -76,7 +76,7 @@ export default async function ClientWatchlistPage() {
           </p>
           <div className="v3-card__row">
             <a className="v3-link" href="mailto:val@atlanticandvine.com?subject=Upgrade%20to%20Sprint">
-              Talk to Val about upgrading →
+              Talk to us about upgrading →
             </a>
           </div>
         </article>
