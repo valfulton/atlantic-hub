@@ -25,6 +25,8 @@ import { listCollaboratorsForCase } from '@/lib/case/case_collaborators';
 import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
 import DocumentVaultPanel from '@/components/case/DocumentVaultPanel';
 import DocumentFindingsPanel from '@/components/case/DocumentFindingsPanel';
+import DocumentExtractsPanel from '@/components/case/DocumentExtractsPanel';
+import { listExtractsForCase } from '@/lib/case/document_extracts_store';
 import CollaboratorsPanel from '@/components/case/CollaboratorsPanel';
 import SectionText from '@/components/case/SectionText';
 import ActionItemsEditorPanel from '@/components/case/ActionItemsEditorPanel';
@@ -106,11 +108,12 @@ export default async function CaseDetailPage({ params }: PageProps) {
   if (!accessible) notFound();
 
   const c = full.case;
-  const [wellness, collaborators, indexableDoc, docFindings] = await Promise.all([
+  const [wellness, collaborators, indexableDoc, docFindings, docExtracts] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
     listCollaboratorsForCase(caseId),
     findIndexableDocumentForCase(caseId),
-    listFindingsForCase(caseId)
+    listFindingsForCase(caseId),
+    listExtractsForCase(caseId)
   ]);
   // The byte-serve URL the SectionText renderer will deep-link into. Only
   // populated when there's an indexed trust/will/POA on this case.
@@ -242,6 +245,18 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 mimeType: d.mimeType
               }))}
               existingFindings={docFindings}
+            />
+
+            {/* (#671) Structured metadata extracted from documents —
+                attorney + firm contact info, parties, dates. Same LLM
+                call as findings; hides itself when empty. */}
+            <DocumentExtractsPanel
+              caseId={c.caseId}
+              extracts={docExtracts}
+              documents={full.documents.map((d) => ({
+                documentId: d.documentId,
+                documentName: d.documentName
+              }))}
             />
 
             {/* Family + advisors (collaborators) — invite Rebecca's siblings,

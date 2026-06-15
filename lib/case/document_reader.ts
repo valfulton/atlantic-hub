@@ -25,6 +25,7 @@
  */
 import { getHotStorage } from '@/lib/storage/provider';
 import { runLlm } from '@/lib/llm/router';
+import { getAvDb } from '@/lib/db/av';
 import {
   getDocument,
   type CaseDocument
@@ -34,10 +35,21 @@ import {
   insertDocumentFinding,
   type DocumentFindingInput
 } from '@/lib/case/document_findings_store';
+import {
+  clearDocumentExtracts,
+  insertDocumentExtract,
+  type DocumentExtractInput
+} from '@/lib/case/document_extracts_store';
 
 export interface DocumentReadResult {
   ok: boolean;
-  findings: DocumentFindingInput[];
+  /** Findings include findingId for any successfully-inserted row, so the
+   *  operator UI can PATCH severity by id (#668). */
+  findings: (DocumentFindingInput & { findingId?: number })[];
+  /** Structured metadata pulled from the document — parties, attorney +
+   *  firm contact, addresses, bar numbers, dates. Persisted to
+   *  case_document_extracts. (#671) */
+  extracts: (DocumentExtractInput & { extractId?: number })[];
   pageCount: number;
   modelId: string;
   costMicrocents: number;
@@ -72,11 +84,37 @@ Return ONLY a JSON object (no markdown, no preamble) matching this exact shape:
       "page_number": 12,
       "llm_note": "Operator-facing one-paragraph explanation of why this matters."
     }
+  ],
+  "metadata": [
+    {
+      "kind": "attorney" | "firm" | "address" | "contact" | "bar_number" | "party" | "date" | "notary" | "witness" | "other",
+      "label": "Drafting Attorney" | "Drafting Firm" | "Firm Address" | "Firm Phone" | "Firm Email" | "Attorney Bar Number" | "Trustor 1" | "Trustor 2" | "Trustee" | "Successor Trustee" | "Beneficiary" | "Notary" | "Execution Date" | "Notarization Date" | "Witness" | etc.,
+      "value": "Jane Doe, Esq." | "Legacy Counselors at Law, P.C." | "123 Main St, Orange, CA 92866" | "(714) 555-1212" | "123456" | "Gordon Johnson" | "June 28, 2025" | etc.,
+      "page_number": 1,
+      "note": "Optional — where in the document, or 'not present' if a standard field is missing."
+    }
   ]
 }
-If the document is clean — no findings — return {"findings": []}. Do NOT invent
-section references; leave section_key null if the finding isn't tied to a clause.
-Always quote verbatim — never paraphrase, never reword.`.trim();
+
+For the metadata array: extract ALL contact and party information present in the
+document. Specifically look for:
+  - The drafting attorney's name + state bar number (cover, signature page, letterhead, footer)
+  - The drafting firm's name + full address + phone + email + fax (letterhead, footer)
+  - Every named party (Trustor, Trustee, Successor Trustee, Beneficiary, Settlor, Grantor, etc.)
+  - Notary name + commission number
+  - Witnesses (if applicable)
+  - Execution date, notarization date, recording date
+  - Property addresses, beneficiary addresses if listed
+
+If a standard field is MISSING from the document (e.g. no attorney bar number on
+the signature page), include a metadata row with "value": null and "note":
+"not present in document" so the operator knows it's an open question.
+
+If the document is clean of findings, return {"findings": [], "metadata": [...]}
+with metadata still populated. Do NOT invent section references; leave
+section_key null if a finding isn't tied to a clause. Always quote verbatim in
+findings — never paraphrase. For metadata values, copy exactly as written
+(don't normalize phone formats, don't strip middle names).`.trim();
 
 const SYSTEM_PROMPT_TRUST = `You are a senior estate-planning paralegal reviewing an executed family trust for the trustors' family. Your job is to find any clauses that contradict each other, any provisions that look like late drafting changes (mismatched language between adjacent sections), any signature-block conflicts (e.g., joint-trustee vs single-signature authority), any unusual terms (unequal distributions, broad amendment powers, restrictions on the surviving spouse), and any missing fields. Family members will read your output — be precise but plain-spoken; no Latin. ${COMMON_OUTPUT_FORMAT}`;
 
@@ -132,50 +170,81 @@ async function extractPdfText(bytes: Buffer): Promise<{ pages: string[]; pageCou
   }
 }
 
-/** Parse the LLM's JSON response into structured findings. Robust to model
- *  variance — strips markdown fences, trims preamble, tolerates trailing
- *  commas. */
-function parseFindings(raw: string, documentId: number, caseId: number, modelId: string): DocumentFindingInput[] {
+/** Parse the LLM's JSON response into both findings AND extracts. Robust to
+ *  model variance — strips markdown fences, trims preamble. (#671) */
+function parseLlmResponse(
+  raw: string,
+  documentId: number,
+  caseId: number,
+  modelId: string
+): { findings: DocumentFindingInput[]; extracts: DocumentExtractInput[] } {
   // Strip markdown fences if the model added them despite instructions.
   let body = raw.trim();
   if (body.startsWith('```')) {
     body = body.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
   }
-  // Some models prepend chatter — find the first { and the last }.
   const first = body.indexOf('{');
   const last = body.lastIndexOf('}');
-  if (first < 0 || last < 0 || last <= first) return [];
+  if (first < 0 || last < 0 || last <= first) return { findings: [], extracts: [] };
   const slice = body.slice(first, last + 1);
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(slice);
   } catch {
-    return [];
+    return { findings: [], extracts: [] };
   }
-  if (!parsed || typeof parsed !== 'object') return [];
-  const arr = (parsed as Record<string, unknown>).findings;
-  if (!Array.isArray(arr)) return [];
+  if (!parsed || typeof parsed !== 'object') return { findings: [], extracts: [] };
+  const obj = parsed as Record<string, unknown>;
 
+  // --- findings ---
   const allowedSev = new Set(['urgent', 'high', 'normal', 'info']);
-  const out: DocumentFindingInput[] = [];
-  for (const item of arr) {
-    if (!item || typeof item !== 'object') continue;
-    const f = item as Record<string, unknown>;
-    const sev = typeof f.severity === 'string' && allowedSev.has(f.severity) ? f.severity as 'urgent' | 'high' | 'normal' | 'info' : 'normal';
-    out.push({
-      documentId,
-      caseId,
-      sectionKey: typeof f.section_key === 'string' && f.section_key ? f.section_key : null,
-      quote: typeof f.quote === 'string' && f.quote ? f.quote.slice(0, 4000) : null,
-      oddityType: typeof f.oddity_type === 'string' && f.oddity_type ? f.oddity_type.slice(0, 64) : null,
-      severity: sev,
-      pageNumber: typeof f.page_number === 'number' && f.page_number > 0 ? Math.floor(f.page_number) : null,
-      llmNote: typeof f.llm_note === 'string' && f.llm_note ? f.llm_note.slice(0, 4000) : null,
-      modelId
-    });
+  const findings: DocumentFindingInput[] = [];
+  const fArr = obj.findings;
+  if (Array.isArray(fArr)) {
+    for (const item of fArr) {
+      if (!item || typeof item !== 'object') continue;
+      const f = item as Record<string, unknown>;
+      const sev = typeof f.severity === 'string' && allowedSev.has(f.severity)
+        ? f.severity as 'urgent' | 'high' | 'normal' | 'info'
+        : 'normal';
+      findings.push({
+        documentId,
+        caseId,
+        sectionKey: typeof f.section_key === 'string' && f.section_key ? f.section_key : null,
+        quote: typeof f.quote === 'string' && f.quote ? f.quote.slice(0, 4000) : null,
+        oddityType: typeof f.oddity_type === 'string' && f.oddity_type ? f.oddity_type.slice(0, 64) : null,
+        severity: sev,
+        pageNumber: typeof f.page_number === 'number' && f.page_number > 0 ? Math.floor(f.page_number) : null,
+        llmNote: typeof f.llm_note === 'string' && f.llm_note ? f.llm_note.slice(0, 4000) : null,
+        modelId
+      });
+    }
   }
-  return out;
+
+  // --- extracts (structured metadata: parties + attorney + contact info) ---
+  const extracts: DocumentExtractInput[] = [];
+  const mArr = obj.metadata;
+  if (Array.isArray(mArr)) {
+    for (const item of mArr) {
+      if (!item || typeof item !== 'object') continue;
+      const m = item as Record<string, unknown>;
+      const kind = typeof m.kind === 'string' && m.kind ? m.kind.slice(0, 48) : null;
+      if (!kind) continue;
+      extracts.push({
+        documentId,
+        caseId,
+        kind,
+        label: typeof m.label === 'string' && m.label ? m.label.slice(0, 128) : null,
+        value: typeof m.value === 'string' && m.value ? m.value.slice(0, 65535) : null,
+        pageNumber: typeof m.page_number === 'number' && m.page_number > 0 ? Math.floor(m.page_number) : null,
+        note: typeof m.note === 'string' && m.note ? m.note.slice(0, 65535) : null,
+        modelId
+      });
+    }
+  }
+
+  return { findings, extracts };
 }
 
 /**
@@ -184,7 +253,7 @@ function parseFindings(raw: string, documentId: number, caseId: number, modelId:
  */
 export async function readCaseDocument(documentId: number): Promise<DocumentReadResult> {
   const empty = (err: string): DocumentReadResult => ({
-    ok: false, findings: [], pageCount: 0, modelId: '', costMicrocents: 0, cacheSource: 'live', error: err
+    ok: false, findings: [], extracts: [], pageCount: 0, modelId: '', costMicrocents: 0, cacheSource: 'live', error: err
   });
 
   const doc: CaseDocument | null = await getDocument(documentId);
@@ -199,6 +268,29 @@ export async function readCaseDocument(documentId: number): Promise<DocumentRead
   const extracted = await extractPdfText(Buffer.from(bytes));
   if (!extracted) return empty('PDF text extraction failed');
   if (extracted.pageCount === 0) return empty('PDF has zero pages');
+
+  // (#670) Cache the per-page text on case_documents so:
+  //  - subsequent runs don't re-parse PDF bytes
+  //  - operator/chat sessions can grep the document via SQL without
+  //    needing a PDF renderer in the sandbox.
+  //  schema/097 adds the columns. Best-effort — never fail the read on
+  //  a cache-write error.
+  try {
+    const db = getAvDb();
+    const joined = extracted.pages
+      .map((p, i) => `--- PAGE ${i + 1} ---\n${p}`)
+      .join('\n\n');
+    await db.execute(
+      `UPDATE case_documents
+          SET extracted_text = ?,
+              extracted_at = NOW(),
+              extracted_page_count = ?
+        WHERE document_id = ?`,
+      [joined, extracted.pageCount, documentId]
+    );
+  } catch (err) {
+    console.error('document_reader: extracted_text cache write failed', err);
+  }
 
   const systemPrompt = systemPromptFor(doc.documentKind);
   const userPrompt = buildUserPrompt(doc.documentName, doc.documentKind, extracted.pages);
@@ -223,17 +315,31 @@ export async function readCaseDocument(documentId: number): Promise<DocumentRead
     json: true
   });
 
-  const findings = parseFindings(llmResult.text, documentId, doc.caseId, llmResult.model);
+  const parsed = parseLlmResponse(llmResult.text, documentId, doc.caseId, llmResult.model);
 
-  // Replace existing findings (idempotent re-run).
+  // Replace existing findings + extracts (idempotent re-run).
   await clearDocumentFindings(documentId);
-  for (const f of findings) {
-    await insertDocumentFinding(f);
+  await clearDocumentExtracts(documentId);
+
+  // Capture insert IDs so the route can echo findingId back — needed by the
+  // operator UI dropdown (#668) which PATCHes severity by id.
+  const findings: (DocumentFindingInput & { findingId?: number })[] = [];
+  for (const f of parsed.findings) {
+    const id = await insertDocumentFinding(f);
+    findings.push(id ? { ...f, findingId: id } : f);
+  }
+
+  // Extracts: parties + attorney contact + addresses + dates (#671).
+  const extracts: (DocumentExtractInput & { extractId?: number })[] = [];
+  for (const e of parsed.extracts) {
+    const id = await insertDocumentExtract(e);
+    extracts.push(id ? { ...e, extractId: id } : e);
   }
 
   return {
     ok: true,
     findings,
+    extracts,
     pageCount: extracted.pageCount,
     modelId: llmResult.model,
     costMicrocents: llmResult.costMicrocents,

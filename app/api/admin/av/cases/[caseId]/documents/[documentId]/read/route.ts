@@ -54,10 +54,12 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   return NextResponse.json({
     ok: true,
     findingCount: result.findings.length,
+    extractCount: result.extracts.length,
     pageCount: result.pageCount,
     modelId: result.modelId,
     costMicrocents: result.costMicrocents,
     cacheSource: result.cacheSource,
-    findings: result.findings
+    findings: result.findings,
+    extracts: result.extracts
   });
 }
