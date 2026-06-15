@@ -19,6 +19,7 @@ import {
   resolveCaseViewerRole,
   visibleFor,
   listViewAsCandidates,
+  caseAccessibleAsClient,
   type CaseViewerRole
 } from '@/lib/case/case_collaborators';
 import ViewAsPicker from '@/components/case/ViewAsPicker';
@@ -143,7 +144,15 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   // Peek at the case's client_id BEFORE loading the action items so we can
   // resolve the viewer's role with the right brand context.
   const peek = await loadFullCase(caseId);
-  if (!peek || peek.case.clientId !== clientId) notFound();
+  if (!peek) notFound();
+  // (val 2026-06-14, #659) Brand-scope check mirrors the matters card rule —
+  // a case is reachable in this preview if it's homed on this brand OR a
+  // non-revoked collaborator row exists with via_client_id = this brand.
+  // Without this, Adriana's CLDA preview 404s on Johnson because Johnson is
+  // homed on AV Real Estate (client_id 13), not CLDA (10) — but she works it
+  // through CLDA via fcc.via_client_id=10.
+  const accessible = await caseAccessibleAsClient(caseId, clientId, peek.case.clientId);
+  if (!accessible) notFound();
 
   let viewerRole: CaseViewerRole = 'operator';
   let visibilityFilter: ('parents_safe' | 'operator_only')[] | undefined = undefined;

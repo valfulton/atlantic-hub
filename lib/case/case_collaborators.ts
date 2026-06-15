@@ -518,6 +518,60 @@ function roleFromSource(
   }
 }
 
+/**
+ * Is this case reachable when viewing as the given client_id?  (val 2026-06-14, #659)
+ *
+ * The matters card surfaces a case when:
+ *   1. case.client_id == viewer's active brand (case home), OR
+ *   2. via_client_id IS NULL (single-brand collaborator), OR
+ *   3. via_client_id == viewer's active brand (work-context match)
+ *
+ * The operator preview route (`/admin/av/clients/[clientId]/preview/cases/[caseId]`)
+ * needs the same rule, NOT just the case-home equality. Without this,
+ * `clients/10/preview/cases/1` 404s when Johnson is homed on AV Real Estate
+ * (client_id 13) even though Adriana sees it on CLDA via fcc.via_client_id=10.
+ *
+ * Returns true if EITHER condition holds:
+ *   - the case's own client_id equals the viewer's brand
+ *   - a non-revoked collaborator row exists for this case with
+ *     via_client_id = viewer's brand (OR via_client_id IS NULL, single-brand
+ *     collaborator who happens to BE the case home — covered by clause 1)
+ */
+export async function caseAccessibleAsClient(
+  caseId: number,
+  clientId: number,
+  caseHomeClientId: number | null
+): Promise<boolean> {
+  if (!Number.isInteger(caseId) || caseId <= 0) return false;
+  if (!Number.isInteger(clientId) || clientId <= 0) return false;
+
+  // Clause 1: case's own home matches the viewer brand.
+  if (caseHomeClientId && caseHomeClientId === clientId) return true;
+
+  // Clause 3: collaborator row brand-scoped to this viewer brand.
+  // (Clause 2 — via_client_id IS NULL — would surface the case on EVERY brand
+  // the collaborator's owner switches into, including brands they don't work
+  // this case from. That's the bleed #657 fixed. So in operator preview we
+  // ONLY honor explicit via_client_id matches; the dashboard loader keeps
+  // honoring NULL as "no scoping" for single-brand collaborators.)
+  try {
+    const db = getAvDb();
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT 1
+         FROM family_case_collaborators
+        WHERE case_id = ?
+          AND via_client_id = ?
+          AND revoked_at IS NULL
+        LIMIT 1`,
+      [caseId, clientId]
+    );
+    return rows.length > 0;
+  } catch (err) {
+    console.error('caseAccessibleAsClient failed', err);
+    return false;
+  }
+}
+
 /** Soft-revoke a collaborator (sets revoked_at). */
 export async function revokeCollaborator(collaboratorId: number): Promise<boolean> {
   if (!Number.isInteger(collaboratorId) || collaboratorId <= 0) return false;
