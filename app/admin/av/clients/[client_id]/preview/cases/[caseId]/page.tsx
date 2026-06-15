@@ -470,6 +470,9 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                               sectionIndex={sectionIndex}
                               optionDocs={optionDocs}
                               caseId={c.caseId}
+                              viewerUrlForDocument={(documentId) =>
+                                `/client/cases/${c.caseId}/documents/${documentId}/view`
+                              }
                             />
                           </div>
                         )}
@@ -583,8 +586,9 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                   <p className="panel-h">Documents</p>
                   {approvedDocs.map((d) => (
                     <div key={d.documentId} className="doc-row">
+                      {/* (#675) Viewer page — preview mirrors the family link. */}
                       <a
-                        href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                        href={`/client/cases/${c.caseId}/documents/${d.documentId}/view`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -629,8 +633,9 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
                 {pendingDocs.map((d) => (
                   <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
+                    {/* (#675) Viewer page — same target the family clicks. */}
                     <a
-                      href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                      href={`/client/cases/${c.caseId}/documents/${d.documentId}/view`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{

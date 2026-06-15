@@ -39,6 +39,12 @@ interface Props {
   optionDocs?: Record<string, OptionDocRef | undefined>;
   /** Case id used to build the byte-serve URL for the option draft anchor. */
   caseId: number;
+  /** (val 2026-06-15, #675) Optional builder for the per-document viewer URL.
+   *  When provided, option-letter clicks point at the universal viewer page
+   *  (which renders .md/.docx/.pdf inline). When omitted, falls back to the
+   *  byte-serve endpoint — which works for PDFs but force-downloads for
+   *  markdown on Safari, the bug this prop exists to fix. */
+  viewerUrlForDocument?: (documentId: number) => string;
 }
 
 const OPTION_LINE = /^( *)([A-E])\s+—\s+(.*)$/;
@@ -48,7 +54,8 @@ export default function ActionItemDetail({
   documentUrl,
   sectionIndex,
   optionDocs,
-  caseId
+  caseId,
+  viewerUrlForDocument
 }: Props) {
   if (!text) return null;
   const lines = text.split('\n');
@@ -63,7 +70,12 @@ export default function ActionItemDetail({
           const indent = m[1];
           const letter = m[2];
           const rest = m[3];
-          const href = `/api/admin/av/cases/${caseId}/documents/${doc.documentId}`;
+          // (#675) Prefer the viewer page when the parent gave us a builder —
+          // renders .md inline on Safari instead of force-downloading. Fall
+          // back to byte-serve so unmigrated callers keep working.
+          const href = viewerUrlForDocument
+            ? viewerUrlForDocument(doc.documentId)
+            : `/api/admin/av/cases/${caseId}/documents/${doc.documentId}`;
           return (
             <span key={i}>
               {indent}

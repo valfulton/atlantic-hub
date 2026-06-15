@@ -451,6 +451,9 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                             sectionIndex={sectionIndex}
                             optionDocs={optionDocs}
                             caseId={c.caseId}
+                            viewerUrlForDocument={(documentId) =>
+                              `/client/cases/${c.caseId}/documents/${documentId}/view`
+                            }
                           />
                         </div>
                       )}
@@ -583,8 +586,11 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 <p className="panel-h">Documents</p>
                 {approvedDocs.map((d) => (
                   <div key={d.documentId} className="doc-row">
+                    {/* (#675) Viewer page — renders .md / .pdf / image inline.
+                        Safari was force-downloading .md when this pointed at the
+                        byte-serve endpoint. */}
                     <a
-                      href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                      href={`/client/cases/${c.caseId}/documents/${d.documentId}/view`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -647,8 +653,12 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
               {pendingDocs.map((d) => (
                 <li key={d.documentId} style={{ borderLeft: '3px solid var(--gold-deep, #7A5A18)', paddingLeft: 14 }}>
+                  {/* (#675) Viewer page — renders .md / .pdf / image inline.
+                      The Option A-E drafts that prompted the build are markdown,
+                      and Safari was downloading them when this pointed at the
+                      byte-serve route. */}
                   <a
-                    href={`/api/admin/av/cases/${c.caseId}/documents/${d.documentId}`}
+                    href={`/client/cases/${c.caseId}/documents/${d.documentId}/view`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
