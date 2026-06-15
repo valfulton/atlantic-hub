@@ -20,9 +20,163 @@
  * router.refresh() after each mutation so the Server Component re-runs.
  */
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CaseActionItem } from '@/lib/case/case_store';
+
+// (val 2026-06-15, #693) Duplicate detection lives at module scope so it's
+// pure + testable. Three tiers caught:
+//   1. EXACT — identical normalized titles (case/punct/whitespace insensitive)
+//   2. NEAR  — one normalized title is a substring of the other, OR they
+//              share an identical normalized first-80-chars of detail body
+//   3. FUZZY — Jaccard token overlap ≥ 0.65 on title tokens (stopwords
+//              stripped); catches "Request beneficiary statements" vs
+//              "Get beneficiary statements from trustee"
+// Items can belong to ONE group only — first-detected wins. Each group is
+// shown with a colored ring + chip so val can compare side-by-side.
+
+const DUPE_STOPWORDS = new Set([
+  'the', 'a', 'an', 'to', 'of', 'and', 'or', 'for', 'with', 'in', 'on',
+  'at', 'is', 'are', 'be', 'by', 'from', 'as', 'that', 'this', 'it',
+  'all', 'any', 'each', 'every', 'any'
+]);
+
+function normalizeForDupe(s: string | null | undefined): string {
+  if (!s) return '';
+  return s
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function titleTokens(s: string | null | undefined): Set<string> {
+  const norm = normalizeForDupe(s);
+  if (!norm) return new Set();
+  return new Set(
+    norm
+      .split(' ')
+      .filter((w) => w.length > 2 && !DUPE_STOPWORDS.has(w))
+  );
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersect = 0;
+  for (const x of a) if (b.has(x)) intersect++;
+  const union = a.size + b.size - intersect;
+  return union === 0 ? 0 : intersect / union;
+}
+
+interface DupeGroup {
+  groupId: number;
+  reason: 'exact' | 'near' | 'fuzzy';
+  memberIds: number[];
+}
+
+function findDuplicates(items: CaseActionItem[]): {
+  groups: DupeGroup[];
+  groupByActionId: Map<number, DupeGroup>;
+} {
+  const groups: DupeGroup[] = [];
+  const groupByActionId = new Map<number, DupeGroup>();
+  const tokenCache = new Map<number, Set<string>>();
+  const normTitleCache = new Map<number, string>();
+  const normDetailHeadCache = new Map<number, string>();
+
+  for (const a of items) {
+    tokenCache.set(a.actionId, titleTokens(a.title));
+    normTitleCache.set(a.actionId, normalizeForDupe(a.title));
+    normDetailHeadCache.set(a.actionId, normalizeForDupe(a.detail || '').slice(0, 80));
+  }
+
+  let nextGroupId = 1;
+
+  function joinOrCreate(reason: DupeGroup['reason'], a: number, b: number) {
+    const existingA = groupByActionId.get(a);
+    const existingB = groupByActionId.get(b);
+    if (existingA && existingB) {
+      if (existingA === existingB) return;
+      // Merge — keep A's group, fold B's members in.
+      for (const id of existingB.memberIds) {
+        if (!existingA.memberIds.includes(id)) existingA.memberIds.push(id);
+        groupByActionId.set(id, existingA);
+      }
+      // Drop the absorbed group.
+      const idx = groups.indexOf(existingB);
+      if (idx >= 0) groups.splice(idx, 1);
+      return;
+    }
+    if (existingA) {
+      if (!existingA.memberIds.includes(b)) existingA.memberIds.push(b);
+      groupByActionId.set(b, existingA);
+      // Upgrade severity if this new pair is more severe.
+      if (reason === 'exact' || (reason === 'near' && existingA.reason === 'fuzzy')) {
+        existingA.reason = reason;
+      }
+      return;
+    }
+    if (existingB) {
+      if (!existingB.memberIds.includes(a)) existingB.memberIds.push(a);
+      groupByActionId.set(a, existingB);
+      if (reason === 'exact' || (reason === 'near' && existingB.reason === 'fuzzy')) {
+        existingB.reason = reason;
+      }
+      return;
+    }
+    const g: DupeGroup = { groupId: nextGroupId++, reason, memberIds: [a, b] };
+    groups.push(g);
+    groupByActionId.set(a, g);
+    groupByActionId.set(b, g);
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const a = items[i];
+      const b = items[j];
+      const tA = normTitleCache.get(a.actionId) || '';
+      const tB = normTitleCache.get(b.actionId) || '';
+      if (!tA || !tB) continue;
+
+      // Tier 1: exact normalized title match.
+      if (tA === tB) {
+        joinOrCreate('exact', a.actionId, b.actionId);
+        continue;
+      }
+
+      // Tier 2: substring containment (one fully contains the other), OR
+      // identical normalized first-80 of detail body when both non-empty.
+      const dA = normDetailHeadCache.get(a.actionId) || '';
+      const dB = normDetailHeadCache.get(b.actionId) || '';
+      if (
+        (tA.length >= 8 && tB.length >= 8 && (tA.includes(tB) || tB.includes(tA))) ||
+        (dA.length >= 20 && dA === dB)
+      ) {
+        joinOrCreate('near', a.actionId, b.actionId);
+        continue;
+      }
+
+      // Tier 3: fuzzy Jaccard on title tokens.
+      const tokA = tokenCache.get(a.actionId) || new Set();
+      const tokB = tokenCache.get(b.actionId) || new Set();
+      if (tokA.size >= 2 && tokB.size >= 2 && jaccard(tokA, tokB) >= 0.65) {
+        joinOrCreate('fuzzy', a.actionId, b.actionId);
+      }
+    }
+  }
+
+  return { groups, groupByActionId };
+}
+
+// Cycle colors for visual group identification on the cream-on-dark editor.
+const DUPE_GROUP_COLORS = [
+  { ring: '#E0A93C', label: 'amber',   bg: 'rgba(224,169,60,0.10)' },
+  { ring: '#7AA6D8', label: 'sky',     bg: 'rgba(122,166,216,0.10)' },
+  { ring: '#C97B8A', label: 'rose',    bg: 'rgba(201,123,138,0.10)' },
+  { ring: '#7DB89C', label: 'mint',    bg: 'rgba(125,184,156,0.10)' },
+  { ring: '#B89AD8', label: 'lilac',   bg: 'rgba(184,154,216,0.10)' },
+  { ring: '#D8A87A', label: 'peach',   bg: 'rgba(216,168,122,0.10)' }
+];
 
 interface Props {
   caseId: number;
@@ -86,6 +240,34 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
   // Expand-all / Collapse-all buttons at the top for bulk control.
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const allExpanded = expandedIds.size === initialItems.length && initialItems.length > 0;
+
+  // (val 2026-06-15, #693) Find duplicates toggle. When ON we run the
+  // three-tier dupe finder, color-ring the matched rows, and auto-expand
+  // them so val can compare titles + detail bodies without clicking.
+  const [showDupes, setShowDupes] = useState(false);
+  const dupeAnalysis = useMemo(() => findDuplicates(initialItems), [initialItems]);
+  const groupColorByGroupId = useMemo(() => {
+    const map = new Map<number, typeof DUPE_GROUP_COLORS[number]>();
+    dupeAnalysis.groups.forEach((g, i) => {
+      map.set(g.groupId, DUPE_GROUP_COLORS[i % DUPE_GROUP_COLORS.length]);
+    });
+    return map;
+  }, [dupeAnalysis]);
+
+  function toggleFindDupes() {
+    const next = !showDupes;
+    setShowDupes(next);
+    if (next) {
+      // Auto-expand every dupe member so val can compare side-by-side.
+      setExpandedIds((prev) => {
+        const out = new Set(prev);
+        for (const g of dupeAnalysis.groups) {
+          for (const id of g.memberIds) out.add(id);
+        }
+        return out;
+      });
+    }
+  }
 
   function toggleExpand(actionId: number) {
     setExpandedIds((prev) => {
@@ -217,6 +399,23 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
           )}
         </span>
         <div className="flex items-center gap-2">
+          {/* (val 2026-06-15, #693) Find duplicates toggle. Stays out of
+              the way until pressed; when active, banner appears below
+              with group count + summary. */}
+          {initialItems.length >= 3 && (
+            <button
+              type="button"
+              onClick={toggleFindDupes}
+              className={`text-[11px] uppercase tracking-wider px-2 py-1 rounded border transition-colors ${
+                showDupes
+                  ? 'border-amber-600/60 bg-amber-900/30 text-amber-200'
+                  : 'border-amber-700/30 text-amber-300/80 hover:text-amber-200 hover:bg-amber-900/20'
+              }`}
+              title="Scan for items that say the same thing in different words"
+            >
+              {showDupes ? '◉ Showing duplicates' : '🔍 Find duplicates'}
+            </button>
+          )}
           {initialItems.length > 1 && (
             <button
               type="button"
@@ -237,6 +436,52 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
           )}
         </div>
       </div>
+
+      {/* (val 2026-06-15, #693) Duplicate summary banner — only shown
+          when Find duplicates is active. Reports clean / N groups, with
+          breakdown by severity tier. */}
+      {showDupes && (
+        <div
+          className={`rounded-lg border px-3 py-2 text-xs ${
+            dupeAnalysis.groups.length === 0
+              ? 'border-emerald-700/40 bg-emerald-900/20 text-emerald-200'
+              : 'border-amber-700/40 bg-amber-900/20 text-amber-100'
+          }`}
+        >
+          {dupeAnalysis.groups.length === 0 ? (
+            <span>✓ No duplicates found. All {initialItems.length} items look distinct.</span>
+          ) : (
+            <div className="space-y-1">
+              <div>
+                Found <strong>{dupeAnalysis.groups.length}</strong> potential duplicate{dupeAnalysis.groups.length === 1 ? '' : ' group'}s
+                {' '}across{' '}
+                <strong>
+                  {dupeAnalysis.groups.reduce((sum, g) => sum + g.memberIds.length, 0)}
+                </strong>{' '}items.
+              </div>
+              <div className="text-[11px] opacity-80">
+                {(['exact', 'near', 'fuzzy'] as const).map((reason) => {
+                  const n = dupeAnalysis.groups.filter((g) => g.reason === reason).length;
+                  if (n === 0) return null;
+                  const label = reason === 'exact'
+                    ? 'exact title match'
+                    : reason === 'near'
+                    ? 'one contains the other'
+                    : 'fuzzy / shared keywords';
+                  return (
+                    <span key={reason} className="mr-3">
+                      <strong>{n}</strong> {label}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="text-[10px] opacity-60 italic">
+                Click any item to compare. Edit the keeper, delete the others — or merge their details into one.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {err && (
         <div className="text-xs text-red-300 bg-red-900/20 border border-red-700/40 rounded p-2">
@@ -312,10 +557,22 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
           {initialItems.map((a) => {
             const isEditing = editingId === a.actionId;
             const busy = busyId === a.actionId;
+            // (val 2026-06-15, #693) Dupe decoration when Find is on.
+            const dupeGroup = showDupes ? dupeAnalysis.groupByActionId.get(a.actionId) : undefined;
+            const dupeColor = dupeGroup ? groupColorByGroupId.get(dupeGroup.groupId) : undefined;
+            const dupeIndexInGroup = dupeGroup
+              ? dupeGroup.memberIds.indexOf(a.actionId) + 1
+              : 0;
             return (
               <li
                 key={a.actionId}
                 className="border-b border-border pb-2 last:border-0"
+                style={dupeColor ? {
+                  borderLeft: `3px solid ${dupeColor.ring}`,
+                  background: dupeColor.bg,
+                  paddingLeft: 10,
+                  borderRadius: 6
+                } : undefined}
               >
                 {isEditing ? (
                   <div className="space-y-2">
@@ -425,7 +682,22 @@ export default function ActionItemsEditorPanel({ caseId, initialItems }: Props) 
                         >
                           ▸
                         </span>
-                        <div className="flex-1 font-medium">{a.title}</div>
+                        <div className="flex-1 font-medium">
+                          {a.title}
+                          {dupeGroup && dupeColor && (
+                            <span
+                              className="ml-2 inline-flex items-center text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold"
+                              style={{
+                                background: dupeColor.bg,
+                                color: dupeColor.ring,
+                                border: `1px solid ${dupeColor.ring}`
+                              }}
+                              title={`${dupeGroup.reason === 'exact' ? 'Exact title match' : dupeGroup.reason === 'near' ? 'One contains the other' : 'Fuzzy / shared keywords'} — ${dupeGroup.memberIds.length} items in this group`}
+                            >
+                              Dupe #{dupeGroup.groupId} ({dupeIndexInGroup}/{dupeGroup.memberIds.length})
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${priorityPill(a.priority)}`}>
                         {a.priority}
