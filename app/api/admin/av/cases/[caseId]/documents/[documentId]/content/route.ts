@@ -22,9 +22,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
 import { getAvDb } from '@/lib/db/av';
 import { getHotStorage } from '@/lib/storage/provider';
-import { getDocument, canClientUserAccessCase } from '@/lib/case/case_store';
+import { getDocument, canClientUserAccessCase, loadFullCase } from '@/lib/case/case_store';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { activeBrandFor } from '@/lib/client/active-brand';
+import { resolveCaseViewerRole, canEditCaseDocuments } from '@/lib/case/case_collaborators';
 import type { ResultSetHeader } from 'mysql2/promise';
 
 export const runtime = 'nodejs';
@@ -57,7 +58,10 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
   }
 
   // (val 2026-06-15) Family-side editing — Adriana likes the viewer, asked
-  // for edit too. Allow client_user when they can access this case.
+  // for edit too. Allow client_user when they can access this case AND their
+  // case-scoped role is on the edit allowlist (account_rep / professional).
+  // Parents (lifetime beneficiaries) are READ-ONLY so they can't accidentally
+  // damage the case file. (#679 v3)
   if (guard.actor.role === 'client_user') {
     const user = await findClientUserById(guard.actor.userId);
     if (!user) return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
@@ -66,6 +70,19 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
       guard.actor.userId, primaryClientId ?? 0, caseId
     );
     if (!allowed) return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+
+    // (#679) Per-role edit gate — UI hides Edit for parents, but this is
+    // the hard server-side stop in case anyone hits the API directly.
+    const full = await loadFullCase(caseId);
+    const viewerRole = await resolveCaseViewerRole(
+      guard.actor.userId, caseId, full?.case?.clientId ?? null
+    );
+    if (!canEditCaseDocuments(viewerRole)) {
+      return NextResponse.json(
+        { ok: false, error: 'this account is read-only on case documents' },
+        { status: 403 }
+      );
+    }
   }
 
   let body: { content?: unknown };

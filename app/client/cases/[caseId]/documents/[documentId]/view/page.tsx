@@ -24,10 +24,11 @@ import type { CSSProperties } from 'react';
 import { readClientActorFromHeaders } from '@/lib/auth/client-session';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { activeBrandFor } from '@/lib/client/active-brand';
-import { getDocument, canClientUserAccessCase } from '@/lib/case/case_store';
+import { getDocument, canClientUserAccessCase, loadFullCase } from '@/lib/case/case_store';
 import DocumentViewRenderer from '@/lib/case/document_view_renderer';
 import { getHotStorage } from '@/lib/storage/provider';
 import MarkdownEditButton from '@/components/case/MarkdownEditButton';
+import { resolveCaseViewerRole, canEditCaseDocuments } from '@/lib/case/case_collaborators';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,12 +82,31 @@ export default async function CaseDocumentViewPage({ params }: PageProps) {
 
   const byteServeUrl = `/api/admin/av/cases/${caseId}/documents/${documentId}`;
 
-  // (#676 Tier B v2, val 2026-06-15) Pre-load the markdown source so the
-  // family-side Edit button has it ready. Adriana asked for edit — opening
-  // markdown editing to anyone who can access the case (operator allows
-  // client_user with case access, mirrors the same gate).
+  // (#679 v3, val 2026-06-15) Lock the parents out of editing. Lifetime
+  // beneficiaries (Gordon + Maria) need to be able to READ the case file
+  // without any chance of accidentally damaging information. Editing
+  // stays available to:
+  //   account_rep  — Rebecca, sibling_admin
+  //   professional — Adriana
+  // See canEditCaseDocuments() for the canonical allowlist.
+  let viewerRole: Awaited<ReturnType<typeof resolveCaseViewerRole>> = 'unknown';
+  try {
+    // loadFullCase returns the case row so we can pass case_clientId to the
+    // role resolver — the resolver shortcuts to 'parent' when the viewer's
+    // client_users.client_id matches the case's owning client.
+    const full = await loadFullCase(caseId);
+    viewerRole = await resolveCaseViewerRole(
+      actor.clientUserId,
+      caseId,
+      full?.case?.clientId ?? null
+    );
+  } catch (err) {
+    console.error('family viewer role resolve failed', err);
+  }
+  const mayEdit = canEditCaseDocuments(viewerRole);
+
   let editableSource: string | null = null;
-  if (isMarkdownDoc(doc.mimeType, doc.documentName)) {
+  if (mayEdit && isMarkdownDoc(doc.mimeType, doc.documentName)) {
     try {
       const bytes = await getHotStorage('case-documents').getBytes(doc.storageUri);
       if (bytes) {

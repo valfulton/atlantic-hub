@@ -405,6 +405,28 @@ export async function resolveCaseViewerRole(
 }
 
 /**
+ * Whether a case viewer is allowed to edit case documents (markdown drafts).
+ *   (val 2026-06-15, #679)
+ *
+ *   account_rep   — Rebecca (successor_trustee), sibling_admin, primary_caregiver.
+ *                   Trusted working layer. Edit allowed.
+ *   professional  — Adriana (attorney/advisor). Trusted outside professional.
+ *                   Edit allowed.
+ *   parent        — Gordon + Maria. Lifetime beneficiaries. READ-ONLY so
+ *                   they can't accidentally destroy information while
+ *                   navigating the case file. (val's words: "i dont want
+ *                   the information lost.")
+ *   family        — Other family members at large. READ-ONLY by default
+ *                   until they're explicitly promoted.
+ *   operator      — val. Always allowed (operator viewer enforces this
+ *                   separately; this branch is here for completeness).
+ *   unknown       — Block.
+ */
+export function canEditCaseDocuments(role: CaseViewerRole): boolean {
+  return role === 'account_rep' || role === 'professional' || role === 'operator';
+}
+
+/**
  * Maps a viewer role to the visibility levels they're allowed to see.
  * Renderers filter case items by `visibility IN visibleFor(role)`.
  */
