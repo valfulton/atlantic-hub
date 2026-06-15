@@ -19,6 +19,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { loadFullCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
+import { caseAccessibleAsClient } from '@/lib/case/case_collaborators';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import { listCollaboratorsForCase } from '@/lib/case/case_collaborators';
 import WellnessEditorPanel from '@/components/case/WellnessEditorPanel';
@@ -92,7 +93,15 @@ export default async function CaseDetailPage({ params }: PageProps) {
   if (!Number.isInteger(clientId) || !Number.isInteger(caseId)) notFound();
 
   const full = await loadFullCase(caseId);
-  if (!full || full.case.clientId !== clientId) notFound();
+  if (!full) notFound();
+  // (val 2026-06-14, #659/#632) Operator case page mirrors the preview's
+  // brand-scope rule: a case is reachable here if it's homed on this brand
+  // OR a non-revoked collaborator row exists with via_client_id = this brand.
+  // Johnson trust lives on AV Real Estate (client 13) but Adriana works it
+  // through CLDA (10) via fcc.via_client_id=10. Without this, val 404s when
+  // she clicks "Open the matter →" into the CLDA workspace.
+  const accessible = await caseAccessibleAsClient(caseId, clientId, full.case.clientId);
+  if (!accessible) notFound();
 
   const c = full.case;
   const [wellness, collaborators, indexableDoc] = await Promise.all([
