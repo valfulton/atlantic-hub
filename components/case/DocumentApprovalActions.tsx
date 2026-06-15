@@ -24,10 +24,11 @@ interface Props {
 
 export default function DocumentApprovalActions({ caseId, documentId, documentName }: Props) {
   const router = useRouter();
-  const [mode, setMode] = useState<'idle' | 'approving' | 'rejecting'>('idle');
+  const [mode, setMode] = useState<'idle' | 'approving' | 'rejecting' | 'sent'>('idle');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sentMessage, setSentMessage] = useState<string | null>(null);
 
   async function submit(status: 'approved' | 'rejected') {
     setSubmitting(true);
@@ -46,14 +47,44 @@ export default function DocumentApprovalActions({ caseId, documentId, documentNa
         setError(data?.error || 'save failed');
         return;
       }
-      setMode('idle');
+      // (#680) Show a visible confirmation BEFORE refreshing, otherwise the
+      // doc card disappears (rejected drops out of pendingDocs) and the
+      // user thinks the save failed. Hold for 3s then refresh.
+      setSentMessage(
+        status === 'rejected'
+          ? 'Sent back ✓ — val and Adriana will see your note.'
+          : 'Approved ✓ — moving forward.'
+      );
+      setMode('sent');
       setNote('');
-      router.refresh();
+      setTimeout(() => {
+        router.refresh();
+      }, 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'network error');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (mode === 'sent' && sentMessage) {
+    return (
+      <div
+        style={{
+          display: 'inline-block',
+          marginTop: 10,
+          padding: '8px 14px',
+          background: 'rgba(10,77,60,0.08)',
+          border: '1px solid rgba(10,77,60,0.30)',
+          borderRadius: 6,
+          color: 'var(--emerald-deep, #0A4D3C)',
+          fontSize: 13,
+          fontWeight: 600
+        }}
+      >
+        {sentMessage}
+      </div>
+    );
   }
 
   if (mode === 'idle') {

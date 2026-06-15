@@ -272,6 +272,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   // download links and belong in the right rail.
   const pendingDocs = full.documents.filter((d) => d.approvalStatus === 'pending_review');
   const approvedDocs = full.documents.filter((d) => d.approvalStatus === 'approved');
+  // (#680, val 2026-06-15) Rejected docs were vanishing — once Adriana hit
+  // Send back, the doc dropped out of pendingDocs (status='rejected'), out
+  // of approvedDocs (not 'approved'), and there was no third bucket. From
+  // her view: "won't send back." Surface rejected docs in a 'Sent back'
+  // section with the note inline so the sender can verify their own
+  // send-backs and val + Rebecca can read them.
+  const rejectedDocs = full.documents.filter((d) => d.approvalStatus === 'rejected');
 
   // (val 2026-06-15, #665) Option letter (A/B/C/D/E) → draft document map.
   // Scans ALL non-rejected docs (drafts visible in "Awaiting your decision"
@@ -691,6 +698,51 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                     documentId={d.documentId}
                     documentName={d.documentName}
                   />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* (val 2026-06-15, #680) Sent-back surface — fixes the "won't send
+            back" bug Adriana hit. Once she rejected a doc with a note,
+            the doc dropped out of every list and disappeared. Now it
+            appears here with her note inline so she sees it stuck, val
+            sees what Adriana wrote, and Rebecca can read the thread. */}
+        {rejectedDocs.length > 0 && (
+          <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid rgba(162,59,46,0.25)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--garnet, #A23B2E)', marginBottom: 4 }}>
+              Sent back for revision
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
+              These drafts were returned with notes. val is working through them.
+            </div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
+              {rejectedDocs.map((d) => (
+                <li key={d.documentId} style={{ borderLeft: '3px solid var(--garnet, #A23B2E)', paddingLeft: 14 }}>
+                  <a
+                    href={`/client/cases/${c.caseId}/documents/${d.documentId}/view`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: 'var(--garnet, #A23B2E)',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      textDecorationColor: 'rgba(162,59,46,0.3)',
+                      textUnderlineOffset: 2,
+                      fontSize: 14
+                    }}
+                  >
+                    {d.documentName}
+                  </a>
+                  {d.documentKind && (
+                    <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
+                  )}
+                  {d.approvalNote && (
+                    <div style={{ fontSize: 13, color: 'var(--ink-soft, #3C4A43)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.5 }}>
+                      &ldquo;{d.approvalNote}&rdquo;
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
