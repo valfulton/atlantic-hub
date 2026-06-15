@@ -419,31 +419,24 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             .case-grid .ai-chev { font-size: 11px; color: var(--muted, #5C6862); transition: transform 0.18s ease; display: inline-block; transform-origin: center; }
             .case-grid .ai-collapse[open] .ai-chev { transform: rotate(90deg); }
             @media (max-width: 760px) { .case-grid { grid-template-columns: 1fr; gap: 30px; } }
-            /* (val 2026-06-15, #691) Peer-level collapsible sections — chev
-               rotates 0→90 on open. summary::marker hidden so the bullet
-               doesn't bleed into the cream surface. */
-            .case-collapse-section[open] .case-collapse-chev { transform: rotate(90deg); }
+            /* (val 2026-06-15, #691+#692) Peer-level collapsible sections.
+               Caret is ▾ — points DOWN when open, ROTATED -90deg (right)
+               when closed. summary::marker hidden so the bullet doesn't
+               bleed into the cream surface. */
+            .case-collapse-section[open] .case-collapse-chev { transform: rotate(0deg) !important; }
             .case-collapse-section summary::-webkit-details-marker { display: none; }
             .case-collapse-section summary::marker { content: ''; }
+            .case-collapse-section summary:hover .case-collapse-chev { opacity: 0.7; }
           `}</style>
 
           {/* MAIN COLUMN */}
           <div>
-            {/* (val 2026-06-15, #690) Drafting attorney hero — sits ABOVE
-                Summary so the people on the case always see who drafted
-                the trust without scrolling. Hides itself when no attorney
-                or firm extracts exist (universal across case_kinds). */}
-            <DraftingAttorneyHero
-              caseId={c.caseId}
-              extracts={docExtracts}
-              documents={full.documents.map((d) => ({
-                documentId: d.documentId,
-                documentName: d.documentName
-              }))}
-              documentViewerUrlFor={(documentId, _pageNumber) =>
-                `/client/cases/${c.caseId}/documents/${documentId}/view`
-              }
-            />
+            {/* (val 2026-06-15, #692) Drafting attorney REMOVED from the
+                main-column hero spot — per val: "the attorney who did
+                this dirty deal isnt the main event. She is no hero and
+                should appear after Adriana." Moved to the sidebar BELOW
+                Review & Approval (Adriana's panel) as a quiet reference
+                card. */}
             {c.caseSynopsis && (() => {
               const blocks = parseSynopsis(c.caseSynopsis);
               return (
@@ -468,14 +461,30 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             })()}
 
             {openActions.length > 0 && (
-              /* (val 2026-06-15, #691) Whole Outstanding items section is
-                  collapsible — default CLOSED so the page header + Summary
-                  + Timeline + Awaiting your decision are all visible at
-                  once. Click the section header to expand the full list. */
+              /* (val 2026-06-15, #691+#692) Whole Outstanding items section
+                  is collapsible — default CLOSED so the page header +
+                  Summary + Timeline + Awaiting your decision are all
+                  visible at once. Real dropdown caret (▾) instead of the
+                  thin chevron, sized + colored to OWN the header. The
+                  "Expand all" sub-action is demoted to dotted-underline
+                  muted text so it can't compete with the section name. */
               <details className="case-collapse-section" style={{ marginBottom: 30 }}>
                 <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span className="case-collapse-chev" style={{ fontSize: 13, color: 'var(--emerald-deep, #0A4D3C)', transition: 'transform 0.18s ease', display: 'inline-block' }}>▸</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span
+                      className="case-collapse-chev"
+                      aria-hidden="true"
+                      style={{
+                        fontSize: 18,
+                        lineHeight: 1,
+                        color: 'var(--emerald-deep, #0A4D3C)',
+                        transition: 'transform 0.18s ease',
+                        display: 'inline-block',
+                        transform: 'rotate(-90deg)'
+                      }}
+                    >
+                      ▾
+                    </span>
                     <h2 className="case-h" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>Outstanding items <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--muted, #5C6862)' }}>({openActions.length})</span></h2>
                   </div>
                   <CollapseAllActionItems />
@@ -654,6 +663,23 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
               );
             })()}
 
+            {/* (val 2026-06-15, #692) Drafting attorney — quiet reference
+                card placed AFTER Adriana's Review & Approval panel.
+                Surfaces who drafted the operative document (universal:
+                trust, will, contract, deed). Component hides itself when
+                no attorney/firm extracts exist. */}
+            <DraftingAttorneyHero
+              caseId={c.caseId}
+              extracts={docExtracts}
+              documents={full.documents.map((d) => ({
+                documentId: d.documentId,
+                documentName: d.documentName
+              }))}
+              documentViewerUrlFor={(documentId, _pageNumber) =>
+                `/client/cases/${c.caseId}/documents/${documentId}/view`
+              }
+            />
+
             {/* Documents — approved/downloadable docs only (val 2026-06-15, #662).
                 Pending docs with Approve/Reject controls stay in the main column
                 below the two-column body so the interactive surface is prominent. */}
@@ -688,7 +714,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             your decision underneath it. */}
         <details className="case-collapse-section" style={{ background: 'var(--paper, #FFFFFF)', border: '0.5px solid rgba(10,10,10,0.1)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
           <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="case-collapse-chev" style={{ fontSize: 13, color: 'var(--muted, #3B4944)', transition: 'transform 0.18s ease', display: 'inline-block' }}>▸</span>
+            <span className="case-collapse-chev" aria-hidden="true" style={{ fontSize: 18, lineHeight: 1, color: 'var(--muted, #3B4944)', transition: 'transform 0.18s ease', display: 'inline-block', transform: 'rotate(-90deg)' }}>▾</span>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted, #3B4944)', flex: 1 }}>
               Timeline {full.events.length > 0 && (<span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.7 }}>· {full.events.length}</span>)}
             </div>
@@ -739,7 +765,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
               that needs eyes. */
           <details open className="case-collapse-section" style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid var(--gold-deep, #7A5A18)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
             <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <span className="case-collapse-chev" style={{ fontSize: 13, color: 'var(--gold-deep, #7A5A18)', transition: 'transform 0.18s ease', display: 'inline-block' }}>▸</span>
+              <span className="case-collapse-chev" aria-hidden="true" style={{ fontSize: 18, lineHeight: 1, color: 'var(--gold-deep, #7A5A18)', transition: 'transform 0.18s ease', display: 'inline-block', transform: 'rotate(-90deg)' }}>▾</span>
               <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-deep, #7A5A18)' }}>
                 Awaiting your decision <span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.8 }}>· {pendingDocs.length}</span>
               </div>

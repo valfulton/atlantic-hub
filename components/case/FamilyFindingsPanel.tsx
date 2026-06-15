@@ -117,36 +117,77 @@ export default function FamilyFindingsPanel({
   void reviewerName;
   const dateLine = reviewedAt ? ` · Noted ${fmtDate(reviewedAt)}` : '';
 
+  // (val 2026-06-15, #692) The whole "Notes on your documents" section
+  // is now collapsible like Outstanding items / Timeline / Awaiting your
+  // decision. Default CLOSED — these are reference, not the next action.
+  // Each finding inside the body gets a proper card (white surface +
+  // gold-deep top accent + soft shadow) so the "Worth Reviewing" /
+  // "Note" / "For Your Information" headlines lead their own card,
+  // instead of looking like list items inside a single big section.
   return (
     <section className="av-panel av-panel--cream" style={{ marginTop: 24 }}>
-      <header style={{ marginBottom: 18 }}>
-        <h2
+      <details className="case-findings-collapse">
+        <summary
           style={{
-            fontFamily: 'var(--font-fraunces, Fraunces, serif)',
-            fontSize: 22,
-            fontWeight: 500,
-            color: 'var(--ink, #1a1a1a)',
-            letterSpacing: '-0.01em',
-            margin: 0,
-            marginBottom: 6
+            cursor: 'pointer',
+            listStyle: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginBottom: 14
           }}
         >
-          Notes on your documents
-        </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span
+              className="case-findings-chev"
+              aria-hidden="true"
+              style={{
+                fontSize: 18,
+                lineHeight: 1,
+                color: 'var(--ink, #1a1a1a)',
+                transition: 'transform 0.18s ease',
+                display: 'inline-block',
+                transform: 'rotate(-90deg)'
+              }}
+            >
+              ▾
+            </span>
+            <h2
+              style={{
+                fontFamily: 'var(--font-fraunces, Fraunces, serif)',
+                fontSize: 22,
+                fontWeight: 500,
+                color: 'var(--ink, #1a1a1a)',
+                letterSpacing: '-0.01em',
+                margin: 0
+              }}
+            >
+              Notes on your documents <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--muted, #5C6862)' }}>({findings.length})</span>
+            </h2>
+          </div>
+        </summary>
+
+        <style>{`
+          .case-findings-collapse[open] .case-findings-chev { transform: rotate(0deg) !important; }
+          .case-findings-collapse > summary::-webkit-details-marker { display: none; }
+          .case-findings-collapse > summary::marker { content: ''; }
+          .case-findings-collapse > summary:hover .case-findings-chev { opacity: 0.7; }
+        `}</style>
+
         <p
           style={{
             fontSize: 14,
             color: 'var(--muted, #5C6862)',
-            margin: 0,
+            margin: '0 0 18px 0',
             lineHeight: 1.5
           }}
         >
           A few clauses to keep in mind as you read through your file.
           {dateLine}
         </p>
-      </header>
 
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {findings.map((f) => {
           const label = familyLabel(f.severity);
           const where = whereLabel(docMap.get(f.documentId), f);
@@ -154,11 +195,19 @@ export default function FamilyFindingsPanel({
             <li
               key={f.findingId}
               style={{
-                borderLeft: `4px solid ${label.tone}`,
-                background: 'rgba(255,255,255,0.5)',
-                padding: '14px 18px',
-                marginBottom: 14,
-                borderRadius: 6
+                // (val 2026-06-15, #692) Each finding is its own card —
+                // white surface, soft border, top accent stripe colored
+                // by severity, proper drop shadow so it reads as a
+                // distinct card not a list row. The headline label
+                // ("Worth reviewing" / "Note" / "For Your Information")
+                // sits ON the card, not in a shared scroll of items.
+                background: '#FFFFFF',
+                border: '1px solid rgba(10,10,10,0.08)',
+                borderTop: `3px solid ${label.tone}`,
+                boxShadow: '0 1px 3px rgba(10,10,10,0.04), 0 8px 24px -16px rgba(10,10,10,0.08)',
+                padding: '18px 22px',
+                marginBottom: 16,
+                borderRadius: 10
               }}
             >
               <div
@@ -167,14 +216,14 @@ export default function FamilyFindingsPanel({
                   alignItems: 'baseline',
                   gap: 10,
                   flexWrap: 'wrap',
-                  marginBottom: 8
+                  marginBottom: 10
                 }}
               >
                 <span
                   style={{
                     fontSize: 11,
                     fontWeight: 700,
-                    letterSpacing: '0.08em',
+                    letterSpacing: '0.1em',
                     textTransform: 'uppercase',
                     color: label.tone
                   }}
@@ -237,18 +286,19 @@ export default function FamilyFindingsPanel({
         })}
       </ul>
 
-      <p
-        style={{
-          fontSize: 13,
-          color: 'var(--muted, #5C6862)',
-          marginTop: 18,
-          lineHeight: 1.5,
-          fontStyle: 'italic'
-        }}
-      >
-        These are observations, not legal advice. Bring any of them to a
-        licensed attorney before you decide how to act on them.
-      </p>
+        <p
+          style={{
+            fontSize: 13,
+            color: 'var(--muted, #5C6862)',
+            marginTop: 18,
+            lineHeight: 1.5,
+            fontStyle: 'italic'
+          }}
+        >
+          These are observations, not legal advice. Bring any of them to a
+          licensed attorney before you decide how to act on them.
+        </p>
+      </details>
     </section>
   );
 }

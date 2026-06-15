@@ -42,21 +42,25 @@ export default function CollapseAllActionItems({ selector = '.ai-collapse' }: Pr
     setAnyOpen(shouldOpen);
   }
 
+  // (val 2026-06-15, #692) Quiet tertiary: this is a SUB-CONTROL, not the
+  // main interactive surface. Strip the border + uppercase so the section
+  // header reads as primary. Stop click from bubbling to <summary> so the
+  // toggle doesn't also collapse the section it lives in.
   return (
     <button
       type="button"
-      onClick={toggle}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(); }}
       className="ai-collapse-all"
       style={{
         background: 'transparent',
-        border: '1px solid rgba(10,77,60,0.25)',
-        color: 'var(--emerald-deep, #0A4D3C)',
-        fontSize: 11,
-        fontWeight: 600,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        padding: '5px 10px',
-        borderRadius: 6,
+        border: 'none',
+        color: 'var(--muted, #5C6862)',
+        fontSize: 12,
+        fontWeight: 400,
+        textDecoration: 'underline',
+        textDecorationStyle: 'dotted',
+        textUnderlineOffset: 3,
+        padding: '4px 2px',
         cursor: 'pointer'
       }}
     >
