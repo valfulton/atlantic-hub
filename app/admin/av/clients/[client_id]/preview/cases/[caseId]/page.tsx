@@ -15,6 +15,7 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { loadFullCase, findIndexableDocumentForCase } from '@/lib/case/case_store';
 import SectionText from '@/components/case/SectionText';
+import ActionItemDetail, { buildOptionDocsMap } from '@/components/case/ActionItemDetail';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import {
   resolveCaseViewerRole,
@@ -266,6 +267,10 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
   // pending → main column with Approve/Reject actions.
   const pendingDocs = full.documents.filter((d) => d.approvalStatus === 'pending_review');
   const approvedDocs = full.documents.filter((d) => d.approvalStatus === 'approved');
+  // (val 2026-06-15, #665) Option letter → document map. Same logic as the
+  // live family view so operator preview matches what Mrs. Johnson sees.
+  const linkableDocs = full.documents.filter((d) => d.approvalStatus !== 'rejected');
+  const optionDocs = buildOptionDocsMap(linkableDocs);
 
   // (val 2026-06-15) Load the indexable trust/will PDF so §-refs in the
   // synopsis + outstanding items become clickable deep links to the right
@@ -454,7 +459,13 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                         </summary>
                         {a.detail && (
                           <div className="ai-detail">
-                            <SectionText text={a.detail} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                            <ActionItemDetail
+                              text={a.detail}
+                              documentUrl={sectionDocUrl}
+                              sectionIndex={sectionIndex}
+                              optionDocs={optionDocs}
+                              caseId={c.caseId}
+                            />
                           </div>
                         )}
                       </details>

@@ -19,6 +19,7 @@ import { loadFullCase, canClientUserAccessCase, findIndexableDocumentForCase, ty
 import { resolveCaseViewerRole, visibleFor, listCollaboratorsForCase } from '@/lib/case/case_collaborators';
 import { loadFullWellness } from '@/lib/case/family_wellness';
 import SectionText from '@/components/case/SectionText';
+import ActionItemDetail, { buildOptionDocsMap } from '@/components/case/ActionItemDetail';
 import DocumentApprovalActions from '@/components/case/DocumentApprovalActions';
 import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
@@ -266,6 +267,14 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   const pendingDocs = full.documents.filter((d) => d.approvalStatus === 'pending_review');
   const approvedDocs = full.documents.filter((d) => d.approvalStatus === 'approved');
 
+  // (val 2026-06-15, #665) Option letter (A/B/C/D/E) → draft document map.
+  // Scans ALL non-rejected docs (drafts visible in "Awaiting your decision"
+  // are linkable too — the family clicks "A —" in the action item and
+  // jumps to Option A's draft PDF). Universal: any case whose docs follow
+  // the "Option_<A-E>_…" name pattern works.
+  const linkableDocs = full.documents.filter((d) => d.approvalStatus !== 'rejected');
+  const optionDocs = buildOptionDocsMap(linkableDocs);
+
   return (
     <>
       {/* (val 2026-06-13) Mount ClientV3TopNav so logged-in clients
@@ -430,7 +439,13 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                       </summary>
                       {a.detail && (
                         <div className="ai-detail">
-                          <SectionText text={a.detail} documentUrl={sectionDocUrl} sectionIndex={sectionIndex} />
+                          <ActionItemDetail
+                            text={a.detail}
+                            documentUrl={sectionDocUrl}
+                            sectionIndex={sectionIndex}
+                            optionDocs={optionDocs}
+                            caseId={c.caseId}
+                          />
                         </div>
                       )}
                     </details>
