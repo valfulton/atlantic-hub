@@ -49,6 +49,9 @@ import type { CaseActionItem, ActionFamilyBucket } from '@/lib/case/case_store';
 // approval_note hack Adriana was using to leave open letters to the family.
 import { listCaseNotes, visibleAudiencesFor } from '@/lib/case/case_notes_store';
 import AddCaseNoteForm from '@/components/case/AddCaseNoteForm';
+// (val 2026-06-16, #709) Collapsible long notes so Adriana's letter doesn't
+// clobber the page. Family side only — operator keeps full render.
+import CollapsibleNoteBody from '@/components/case/CollapsibleNoteBody';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -637,22 +640,24 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                                 {ts}
                               </div>
                             )}
-                            <div style={{ fontSize: 15, lineHeight: 1.65, color: 'var(--ink, #14201B)', whiteSpace: 'pre-wrap' }}>
-                              {n.body}
-                            </div>
-                            {/* Sign-off for the lead letter */}
-                            {isSingleAuthorThread && idx === 0 && leadAuthor && (
-                              <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(10,77,60,0.10)' }}>
-                                <div style={{ fontFamily: 'var(--font-fraunces, Fraunces, serif)', fontSize: 15, fontStyle: 'italic', color: 'var(--ink, #14201B)' }}>
-                                  — {leadAuthor}
-                                </div>
-                                {(reviewerTitle || reviewerOrgLabel) && (
-                                  <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginTop: 2 }}>
-                                    {[reviewerTitle, reviewerOrgLabel].filter(Boolean).join(' · ')}
+                            <CollapsibleNoteBody
+                              body={n.body}
+                              style={{ fontSize: 15, lineHeight: 1.65, color: 'var(--ink, #14201B)', whiteSpace: 'pre-wrap' }}
+                              signOff={
+                                isSingleAuthorThread && idx === 0 && leadAuthor ? (
+                                  <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(10,77,60,0.10)' }}>
+                                    <div style={{ fontFamily: 'var(--font-fraunces, Fraunces, serif)', fontSize: 15, fontStyle: 'italic', color: 'var(--ink, #14201B)' }}>
+                                      — {leadAuthor}
+                                    </div>
+                                    {(reviewerTitle || reviewerOrgLabel) && (
+                                      <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginTop: 2 }}>
+                                        {[reviewerTitle, reviewerOrgLabel].filter(Boolean).join(' · ')}
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            )}
+                                ) : null
+                              }
+                            />
                           </article>
                         );
                       })}
