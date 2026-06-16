@@ -481,6 +481,107 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
 
           {/* MAIN COLUMN */}
           <div>
+            {/* (val 2026-06-15, #698) Latest from your reviewer — hero
+                section that aggregates ALL approval_notes on approved
+                documents in this case. Adriana was using the
+                approval_note field as a way to send open letters to
+                the family (e.g. her "Dear Gordon and Angelina..." note
+                on Option E) — that's the right intent, our job is to
+                make her notes VISIBLE, not buried as a sidebar caption.
+                Latest note first; doc name shown as context + link;
+                tail of older notes collapsed. Universal: works on any
+                case_kind, hides itself when no approved docs have
+                approval_notes. The reject case has its own surface
+                lower on the page ("Returned with your notes"). */}
+            {(() => {
+              const reviewerLetters = approvedDocs
+                .filter((d) => d.approvalNote && d.approvalNote.trim())
+                .map((d) => ({
+                  documentId: d.documentId,
+                  documentName: d.documentName,
+                  note: d.approvalNote as string,
+                  approvedAt: d.approvedAt ?? null
+                }))
+                .sort((a, b) => {
+                  // Newest first; null timestamps last.
+                  if (!a.approvedAt && !b.approvedAt) return 0;
+                  if (!a.approvedAt) return 1;
+                  if (!b.approvedAt) return -1;
+                  return new Date(b.approvedAt).getTime() - new Date(a.approvedAt).getTime();
+                });
+              if (reviewerLetters.length === 0) return null;
+              const [latest, ...older] = reviewerLetters;
+              return (
+                <section style={{ marginBottom: 30 }}>
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid rgba(10,77,60,0.25)',
+                      borderLeft: '4px solid var(--emerald-deep, #0A4D3C)',
+                      borderRadius: 14,
+                      padding: '22px 24px',
+                      boxShadow: '0 1px 3px rgba(10,10,10,0.04), 0 8px 24px -16px rgba(10,77,60,0.18)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 700, marginBottom: 4 }}>
+                          Latest from your reviewer
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)' }}>
+                          On{' '}
+                          <Link
+                            href={`/client/cases/${c.caseId}/documents/${latest.documentId}/view`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--emerald-deep, #0A4D3C)', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                          >
+                            {latest.documentName.replace(/\.[a-z]+$/i, '')}
+                          </Link>
+                          {latest.approvedAt && (
+                            <span> · {new Date(latest.approvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--ink, #14201B)', whiteSpace: 'pre-wrap' }}>
+                      {latest.note}
+                    </div>
+                    {older.length > 0 && (
+                      <details style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(10,77,60,0.12)' }}>
+                        <summary style={{ cursor: 'pointer', listStyle: 'none', fontSize: 11, color: 'var(--muted, #5C6862)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          {older.length === 1 ? '1 earlier note' : `${older.length} earlier notes`} ▾
+                        </summary>
+                        <div style={{ marginTop: 14, display: 'grid', gap: 14 }}>
+                          {older.map((n) => (
+                            <div key={n.documentId} style={{ paddingTop: 12, borderTop: '1px solid rgba(10,77,60,0.08)' }}>
+                              <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginBottom: 6 }}>
+                                On{' '}
+                                <Link
+                                  href={`/client/cases/${c.caseId}/documents/${n.documentId}/view`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: 'var(--emerald-deep, #0A4D3C)', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                                >
+                                  {n.documentName.replace(/\.[a-z]+$/i, '')}
+                                </Link>
+                                {n.approvedAt && (
+                                  <span> · {new Date(n.approvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--ink-soft, #3C4A43)', whiteSpace: 'pre-wrap' }}>
+                                {n.note}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                </section>
+              );
+            })()}
+
             {/* (val 2026-06-15, #692) Drafting attorney REMOVED from the
                 main-column hero spot — per val: "the attorney who did
                 this dirty deal isnt the main event. She is no hero and
