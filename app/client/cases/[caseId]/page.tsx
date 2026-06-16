@@ -499,7 +499,31 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 anyone with case access (operator + collaborators) write
                 a note. Family members write 'family' audience; operator
                 gets a 3-way picker on the operator-side surface. */}
-            {(caseNotes.length > 0 || true) && (
+            {/* (val 2026-06-15, #700) When the most-recent note has a
+                clear author + audience='family', frame this whole panel
+                as a LETTER from that person to the family. Personal
+                attribution: "Letter from Adriana Candelaria · Legal
+                Document Assistant · Candelaria Legal Document Services"
+                — pulls the title/org from case.metadata.reviewer_*
+                fields if present, falls back to the collaborator role
+                label. Universal — falls back to "Notes on this case"
+                framing when notes are mixed-author or there's no
+                obvious lead reviewer. */}
+            {(() => {
+              // Pick the framing voice from the most-recent family-audience
+              // note's author. Most cases have one lead reviewer; if it's
+              // mixed, we fall back to the neutral header.
+              const familyNotes = caseNotes.filter((n) => n.audience === 'family' && n.authorDisplayName);
+              const leadAuthor = familyNotes[0]?.authorDisplayName ?? null;
+              const isSingleAuthorThread = leadAuthor != null
+                && familyNotes.every((n) => n.authorDisplayName === leadAuthor);
+              const reviewerOrgLabel = typeof c.metadata?.reviewer_org_label === 'string'
+                ? String(c.metadata.reviewer_org_label)
+                : null;
+              const reviewerTitle = typeof c.metadata?.reviewer_title === 'string'
+                ? String(c.metadata.reviewer_title)
+                : null;
+              return (caseNotes.length > 0 || true) && (
               <section style={{ marginBottom: 30 }}>
                 <div
                   style={{
@@ -511,9 +535,24 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                     boxShadow: '0 1px 3px rgba(10,10,10,0.04), 0 8px 24px -16px rgba(10,77,60,0.18)'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                    <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 700 }}>
-                      Notes on this case <span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.8 }}>· {caseNotes.length}</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+                    <div>
+                      <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 700, marginBottom: 6 }}>
+                        {isSingleAuthorThread && leadAuthor ? `A letter for you` : `Notes on this case`}
+                        <span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.8, fontWeight: 500 }}> · {caseNotes.length}</span>
+                      </div>
+                      {isSingleAuthorThread && leadAuthor && (
+                        <div>
+                          <div style={{ fontFamily: 'var(--font-fraunces, Fraunces, serif)', fontSize: 22, fontWeight: 500, color: 'var(--ink, #14201B)', letterSpacing: '-0.01em', marginBottom: 2 }}>
+                            From {leadAuthor}
+                          </div>
+                          {(reviewerTitle || reviewerOrgLabel) && (
+                            <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)', fontStyle: 'italic' }}>
+                              {[reviewerTitle, reviewerOrgLabel].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -522,38 +561,66 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                       No notes yet. Start the conversation below.
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
-                      {caseNotes.map((n) => {
-                        const ts = n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+                    <div style={{ display: 'grid', gap: 20, marginBottom: 18 }}>
+                      {caseNotes.map((n, idx) => {
+                        const ts = n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null;
                         const audienceLabel = n.audience === 'legal_team' ? 'Investigation tier' : n.audience === 'operator_only' ? 'Operator only' : null;
+                        // First note in a single-author thread = the letter body,
+                        // no need to repeat the author byline (it's already in
+                        // the section header). Subsequent notes show byline.
+                        const showByline = !isSingleAuthorThread || idx > 0;
                         return (
                           <article
                             key={n.noteId}
                             style={{
-                              padding: n.pinned ? '14px 16px' : 0,
+                              padding: n.pinned ? '14px 16px' : (idx === 0 ? 0 : '14px 0 0 0'),
                               background: n.pinned ? 'rgba(10,77,60,0.04)' : 'transparent',
                               borderRadius: n.pinned ? 8 : 0,
                               border: n.pinned ? '1px solid rgba(10,77,60,0.18)' : 'none',
-                              borderTop: n.pinned ? '1px solid rgba(10,77,60,0.18)' : '1px solid rgba(10,77,60,0.10)',
-                              paddingTop: n.pinned ? 14 : 14,
-                              marginTop: n.pinned ? 0 : 0
+                              borderTop: idx > 0 && !n.pinned ? '1px solid rgba(10,77,60,0.10)' : 'none'
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                              {n.pinned && (
-                                <span style={{ fontSize: 10, color: 'var(--gold-deep, #7A5A18)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>📌 Pinned</span>
-                              )}
-                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink, #14201B)' }}>
-                                {n.authorDisplayName || 'Reviewer'}
-                              </span>
-                              {ts && <span style={{ fontSize: 11, color: 'var(--muted, #5C6862)' }}>· {ts}</span>}
-                              {audienceLabel && (
-                                <span style={{ fontSize: 9, color: 'var(--gold-deep, #7A5A18)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', border: '1px solid rgba(122,90,24,0.3)', borderRadius: 4, padding: '1px 6px' }}>{audienceLabel}</span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink, #14201B)', whiteSpace: 'pre-wrap' }}>
+                            {(showByline || n.pinned) && (
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                                {n.pinned && (
+                                  <span style={{ fontSize: 10, color: 'var(--gold-deep, #7A5A18)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>📌 Pinned</span>
+                                )}
+                                {showByline && (
+                                  <>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink, #14201B)' }}>
+                                      {n.authorDisplayName || 'Reviewer'}
+                                    </span>
+                                    {ts && <span style={{ fontSize: 11, color: 'var(--muted, #5C6862)' }}>· {ts}</span>}
+                                  </>
+                                )}
+                                {audienceLabel && (
+                                  <span style={{ fontSize: 9, color: 'var(--gold-deep, #7A5A18)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', border: '1px solid rgba(122,90,24,0.3)', borderRadius: 4, padding: '1px 6px' }}>{audienceLabel}</span>
+                                )}
+                              </div>
+                            )}
+                            {/* For the lead letter (idx===0 in single-author
+                                thread) the date sits in the header. */}
+                            {isSingleAuthorThread && idx === 0 && ts && (
+                              <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginBottom: 14, fontStyle: 'italic' }}>
+                                {ts}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 15, lineHeight: 1.65, color: 'var(--ink, #14201B)', whiteSpace: 'pre-wrap' }}>
                               {n.body}
                             </div>
+                            {/* Sign-off for the lead letter */}
+                            {isSingleAuthorThread && idx === 0 && leadAuthor && (
+                              <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(10,77,60,0.10)' }}>
+                                <div style={{ fontFamily: 'var(--font-fraunces, Fraunces, serif)', fontSize: 15, fontStyle: 'italic', color: 'var(--ink, #14201B)' }}>
+                                  — {leadAuthor}
+                                </div>
+                                {(reviewerTitle || reviewerOrgLabel) && (
+                                  <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginTop: 2 }}>
+                                    {[reviewerTitle, reviewerOrgLabel].filter(Boolean).join(' · ')}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </article>
                         );
                       })}
@@ -563,7 +630,8 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                   <AddCaseNoteForm caseId={c.caseId} />
                 </div>
               </section>
-            )}
+              );
+            })()}
 
             {/* (val 2026-06-15, #692) Drafting attorney REMOVED from the
                 main-column hero spot — per val: "the attorney who did
