@@ -12,6 +12,30 @@ import { addCaseNote, type NoteAudience } from '@/lib/case/case_notes_store';
 import { getCase, canClientUserAccessCase } from '@/lib/case/case_store';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { activeBrandFor } from '@/lib/client/active-brand';
+import { getPlatformDb } from '@/lib/db/platform';
+import type { RowDataPacket } from 'mysql2';
+
+/**
+ * Look up an operator's display_name from the platform admin_users table.
+ * guard.actor only carries userId/role/sessionId, so we resolve the name
+ * here. Returns null if the lookup fails — the byline just falls back to
+ * "your reviewer" in the UI rather than crashing the post.
+ */
+async function lookupOperatorDisplayName(userId: number): Promise<string | null> {
+  try {
+    const db = getPlatformDb();
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT display_name FROM admin_users WHERE user_id = ? LIMIT 1`,
+      [userId]
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const name = typeof row.display_name === 'string' ? row.display_name.trim() : '';
+    return name.length > 0 ? name : null;
+  } catch {
+    return null;
+  }
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,7 +78,7 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     authorDisplayName = user.display_name ?? null;
   } else {
     authorRole = guard.actor.role === 'owner' ? 'owner' : 'staff';
-    authorDisplayName = guard.actor.displayName ?? null;
+    authorDisplayName = await lookupOperatorDisplayName(guard.actor.userId);
   }
 
   let body: unknown;

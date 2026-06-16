@@ -300,6 +300,19 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   // here automatically after migration runs.
   const caseNotes = await listCaseNotes(caseId, visibleAudiencesFor(viewerRole));
 
+  // (val 2026-06-15, #700) "Note ends up in both places" suppression.
+  // When a doc's approval_note was already promoted into case_notes (via
+  // backfill source='from_approval_note' OR the same body now lives in a
+  // case_note linked to the doc), don't render the inline doc-row
+  // "Note from your reviewer" panel — the letter is already a hero in the
+  // dedicated notes section and showing it twice flattens its weight.
+  // Universal: works on any doc with a backfilled note across any case.
+  const noteCoveredDocIds = new Set<number>(
+    caseNotes
+      .filter((n) => n.sourceDocumentId != null)
+      .map((n) => Number(n.sourceDocumentId))
+  );
+
   // (val 2026-06-15, #694) Family-view bucketing + calmer labels + ack
   // progress strip. Lives next to openActions so the family render block
   // below stays small. Universal across case_kinds — every case page
@@ -1003,15 +1016,18 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                     {d.documentKind && (
                       <div className="doc-kind">{d.documentKind}</div>
                     )}
-                    {/* (val 2026-06-15, #697) Reviewer's note on the doc.
+                    {/* (val 2026-06-15, #697 + #700) Reviewer's note on the doc.
                         Adriana was using the approval_note field as a
                         family-facing letter ("Dear Gordon and Angelina…")
                         because she had no other writable note surface.
                         It was sitting in the DB but invisible on this view.
                         Now it renders inline so the family actually sees
                         what their reviewer wrote. Universal — works on
-                        any approved doc with a non-empty approval_note. */}
-                    {d.approvalNote && d.approvalNote.trim() && (
+                        any approved doc with a non-empty approval_note.
+                        #700: SUPPRESS when the same note has been promoted
+                        to case_notes (it already renders as a hero letter
+                        in the Notes section above; we don't show it twice). */}
+                    {d.approvalNote && d.approvalNote.trim() && !noteCoveredDocIds.has(d.documentId) && (
                       <div
                         style={{
                           marginTop: 8,
