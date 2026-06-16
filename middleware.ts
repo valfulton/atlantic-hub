@@ -70,7 +70,13 @@ const PUBLIC_WEBHOOK_PATHS = new Set<string>([
   '/api/admin/pr/discover-sweep',
   // Cron dispatcher (#73): one HostGator cron pings this; it fans out to the
   // sweep endpoints below. Validates x-cron-secret internally.
-  '/api/admin/cron/run'
+  '/api/admin/cron/run',
+  // (#707, val 2026-06-16) IMAP poller cron target. HostGator cron hits
+  // this every 5 min; the handler reads inbox@case + inbox@pr, routes
+  // messages to case_notes / pr pipeline, marks them \\Seen, and writes
+  // to inbound_emails. Validates X-Cron-Secret (INBOUND_EMAIL_CRON_SECRET)
+  // inside the handler. See app/api/admin/inbox/imap-poll/route.ts.
+  '/api/admin/inbox/imap-poll'
 ]);
 
 /**
