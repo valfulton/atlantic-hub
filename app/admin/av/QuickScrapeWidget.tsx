@@ -35,6 +35,15 @@ export function QuickScrapeWidget() {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [industry, setIndustry] = useState('');
+  // (val 2026-06-16, #702) Pre-fill fields — when val ALREADY has contact
+  // info (referral, dinner intro, prior email), she pastes it here so we
+  // don't depend on the scraper finding it. Operator values take precedence
+  // over scraped values server-side.
+  const [contactName, setContactName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [company, setCompany] = useState('');
+  const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ScrapeResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -54,7 +63,13 @@ export function QuickScrapeWidget() {
         body: JSON.stringify({
           mode: 'new',
           websiteUrl: url.trim(),
-          industry: industry.trim() || null
+          industry: industry.trim() || null,
+          // (#702) Pre-fill values. Server-side these win over scraped values.
+          contactName: contactName.trim() || null,
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+          company: company.trim() || null,
+          notes: notes.trim() || null
         })
       });
       const j: ScrapeResponse = await res.json().catch(() => ({ ok: false, mode: 'new' }));
@@ -164,6 +179,83 @@ export function QuickScrapeWidget() {
           {busy ? 'Scraping…' : 'Scrape & insert'}
         </button>
       </form>
+
+      {/* (val 2026-06-16, #702) "What I already know" — optional pre-fill.
+          When val has info from a referral / dinner / prior email, paste it
+          here. Operator values override scraper values on the server side.
+          Collapsed by default to keep the widget calm. */}
+      <details className="mt-3">
+        <summary className="cursor-pointer text-[11px] text-muted hover:text-ink select-none">
+          + What I already know (contact name, email, phone, company, notes)
+        </summary>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">
+              Contact name
+            </label>
+            <input
+              type="text"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="e.g. Divine Schultheis"
+              disabled={busy}
+              className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. divine@divinedental.com"
+              disabled={busy}
+              className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">
+              Phone
+            </label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. (555) 555-5555"
+              disabled={busy}
+              className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">
+              Company (override)
+            </label>
+            <input
+              type="text"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              placeholder="Only if scraped title is wrong"
+              disabled={busy}
+              className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-muted mb-1">
+              Notes (how you know them, context, anything Val will want later)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Mike Bannister intro at the Skip dinner — interested in EBW for office holiday party"
+              rows={2}
+              disabled={busy}
+              className="w-full text-sm bg-black/30 border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:border-[color-mix(in_srgb,var(--gold-bright)_50%,transparent)] transition resize-y"
+            />
+          </div>
+        </div>
+      </details>
 
       {result && result.ok && result.inserted && (
         <div

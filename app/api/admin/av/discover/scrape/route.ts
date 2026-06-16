@@ -177,8 +177,24 @@ async function handleNewMode(payload: Record<string, unknown>, actorUserId: numb
       : null;
   const assignToUserId = destClientId ? null : parseAssignToUserId(payload);
 
+  // (val 2026-06-16, #702) Operator-supplied contact info from the
+  // Quick-add widget. When val already has the email / phone / contact
+  // name (referral, prior conversation, dinner intro), she pastes them
+  // here so we don't depend on the scraper finding them. Operator values
+  // take precedence over scraped values. Also bypasses the "no contact
+  // found" rejection when at least one of email/phone is provided.
+  const operatorEmail = typeof payload.email === 'string' && payload.email.trim() ? payload.email.trim() : null;
+  const operatorPhone = typeof payload.phone === 'string' && payload.phone.trim() ? payload.phone.trim() : null;
+  const operatorContactName = typeof payload.contactName === 'string' && payload.contactName.trim()
+    ? payload.contactName.trim() : null;
+  const operatorNotes = typeof payload.notes === 'string' && payload.notes.trim()
+    ? payload.notes.trim().slice(0, 4000) : null;
+  const operatorCompany = typeof payload.company === 'string' && payload.company.trim()
+    ? payload.company.trim() : null;
+
   const scraped = await scrapeContactPage(websiteUrl);
-  if (!scraped.email && !scraped.phone) {
+  // Allow insert if the SCRAPER found contact info OR the operator typed it in.
+  if (!scraped.email && !scraped.phone && !operatorEmail && !operatorPhone) {
     return NextResponse.json({
       ok: false,
       mode: 'new',
@@ -209,9 +225,14 @@ async function handleNewMode(payload: Record<string, unknown>, actorUserId: numb
     });
   }
 
-  const company = scraped.companyTitle || domain || websiteUrl;
-  const email = scraped.email || `noemail+scrape-${(domain ?? 'unknown').replace(/[^a-z0-9]/g, '').slice(0, 20)}@eventsbywater.com`;
-  const phone = scraped.phone;
+  // Operator values win when supplied; otherwise fall back to scraped values
+  // or the noemail+ placeholder. This lets val pre-fill what she already
+  // knows (referral conversation, dinner intro, prior email) without losing
+  // the scraper's other intelligence.
+  const company = operatorCompany || scraped.companyTitle || domain || websiteUrl;
+  const email = operatorEmail || scraped.email || `noemail+scrape-${(domain ?? 'unknown').replace(/[^a-z0-9]/g, '').slice(0, 20)}@eventsbywater.com`;
+  const phone = operatorPhone || scraped.phone;
+  const contactName = operatorContactName;
   const auditId = randomUUID();
 
   const sourcePayload = {
@@ -220,18 +241,29 @@ async function handleNewMode(payload: Record<string, unknown>, actorUserId: numb
     pages_fetched: scraped.pagesFetched,
     pages_failed: scraped.pagesFailed,
     socials: scraped.socials,
-    company_title: scraped.companyTitle
+    company_title: scraped.companyTitle,
+    // (val 2026-06-16) Capture which fields val typed vs which the scraper
+    // found — so per-field provenance survives. Operator notes also live
+    // here (no dedicated leads column yet).
+    operator_supplied: {
+      email: operatorEmail,
+      phone: operatorPhone,
+      contact_name: operatorContactName,
+      company: operatorCompany
+    },
+    operator_notes: operatorNotes
   };
 
   const [result] = await db.execute<ResultSetHeader>(
     `INSERT INTO leads (
-       audit_id, company, email, phone, website, normalized_domain,
+       audit_id, company, contact_name, email, phone, website, normalized_domain,
        industry, lead_status, source_type, target_business, source_payload, client_id, last_activity_at
      )
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, ?, NOW())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', 'scrape', ?, ?, ?, NOW())`,
     [
       auditId,
       company,
+      contactName,
       email,
       phone,
       websiteUrl,
