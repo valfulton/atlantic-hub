@@ -45,6 +45,10 @@ import AddTimelineEntryForm from '@/components/case/AddTimelineEntryForm';
 // + types for the family bucket split.
 import AcknowledgeActionButton from '@/components/case/AcknowledgeActionButton';
 import type { CaseActionItem, ActionFamilyBucket } from '@/lib/case/case_store';
+// (val 2026-06-15, #699) First-class case_notes system — replaces the
+// approval_note hack Adriana was using to leave open letters to the family.
+import { listCaseNotes, visibleAudiencesFor } from '@/lib/case/case_notes_store';
+import AddCaseNoteForm from '@/components/case/AddCaseNoteForm';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -290,6 +294,12 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
   // Show only OPEN/IN-PROGRESS action items to clients; completed live in archive
   const openActions = full.actionItems.filter((a) => a.status !== 'done');
 
+  // (val 2026-06-15, #699) Case-level notes (first-class). Replaces the
+  // approval_note aggregator from #698. Backfill in schema/101 ingests
+  // existing approval_notes so Adriana's Option E letter still appears
+  // here automatically after migration runs.
+  const caseNotes = await listCaseNotes(caseId, visibleAudiencesFor(viewerRole));
+
   // (val 2026-06-15, #694) Family-view bucketing + calmer labels + ack
   // progress strip. Lives next to openActions so the family render block
   // below stays small. Universal across case_kinds — every case page
@@ -481,106 +491,79 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
 
           {/* MAIN COLUMN */}
           <div>
-            {/* (val 2026-06-15, #698) Latest from your reviewer — hero
-                section that aggregates ALL approval_notes on approved
-                documents in this case. Adriana was using the
-                approval_note field as a way to send open letters to
-                the family (e.g. her "Dear Gordon and Angelina..." note
-                on Option E) — that's the right intent, our job is to
-                make her notes VISIBLE, not buried as a sidebar caption.
-                Latest note first; doc name shown as context + link;
-                tail of older notes collapsed. Universal: works on any
-                case_kind, hides itself when no approved docs have
-                approval_notes. The reject case has its own surface
-                lower on the page ("Returned with your notes"). */}
-            {(() => {
-              const reviewerLetters = approvedDocs
-                .filter((d) => d.approvalNote && d.approvalNote.trim())
-                .map((d) => ({
-                  documentId: d.documentId,
-                  documentName: d.documentName,
-                  note: d.approvalNote as string,
-                  approvedAt: d.approvedAt ?? null
-                }))
-                .sort((a, b) => {
-                  // Newest first; null timestamps last.
-                  if (!a.approvedAt && !b.approvedAt) return 0;
-                  if (!a.approvedAt) return 1;
-                  if (!b.approvedAt) return -1;
-                  return new Date(b.approvedAt).getTime() - new Date(a.approvedAt).getTime();
-                });
-              if (reviewerLetters.length === 0) return null;
-              const [latest, ...older] = reviewerLetters;
-              return (
-                <section style={{ marginBottom: 30 }}>
-                  <div
-                    style={{
-                      background: '#FFFFFF',
-                      border: '1px solid rgba(10,77,60,0.25)',
-                      borderLeft: '4px solid var(--emerald-deep, #0A4D3C)',
-                      borderRadius: 14,
-                      padding: '22px 24px',
-                      boxShadow: '0 1px 3px rgba(10,10,10,0.04), 0 8px 24px -16px rgba(10,77,60,0.18)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                      <div>
-                        <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 700, marginBottom: 4 }}>
-                          Latest from your reviewer
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)' }}>
-                          On{' '}
-                          <Link
-                            href={`/client/cases/${c.caseId}/documents/${latest.documentId}/view`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: 'var(--emerald-deep, #0A4D3C)', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
-                          >
-                            {latest.documentName.replace(/\.[a-z]+$/i, '')}
-                          </Link>
-                          {latest.approvedAt && (
-                            <span> · {new Date(latest.approvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                          )}
-                        </div>
-                      </div>
+            {/* (val 2026-06-15, #699) Case notes hero — first-class notes
+                channel. Replaces the #698 approval_note aggregator. Notes
+                come from the case_notes table (backfilled via schema 101
+                from existing approval_notes). Audience-filtered server-
+                side via visibleAudiencesFor(viewerRole). Add form lets
+                anyone with case access (operator + collaborators) write
+                a note. Family members write 'family' audience; operator
+                gets a 3-way picker on the operator-side surface. */}
+            {(caseNotes.length > 0 || true) && (
+              <section style={{ marginBottom: 30 }}>
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(10,77,60,0.25)',
+                    borderLeft: '4px solid var(--emerald-deep, #0A4D3C)',
+                    borderRadius: 14,
+                    padding: '22px 24px',
+                    boxShadow: '0 1px 3px rgba(10,10,10,0.04), 0 8px 24px -16px rgba(10,77,60,0.18)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 700 }}>
+                      Notes on this case <span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.8 }}>· {caseNotes.length}</span>
                     </div>
-                    <div style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--ink, #14201B)', whiteSpace: 'pre-wrap' }}>
-                      {latest.note}
-                    </div>
-                    {older.length > 0 && (
-                      <details style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(10,77,60,0.12)' }}>
-                        <summary style={{ cursor: 'pointer', listStyle: 'none', fontSize: 11, color: 'var(--muted, #5C6862)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                          {older.length === 1 ? '1 earlier note' : `${older.length} earlier notes`} ▾
-                        </summary>
-                        <div style={{ marginTop: 14, display: 'grid', gap: 14 }}>
-                          {older.map((n) => (
-                            <div key={n.documentId} style={{ paddingTop: 12, borderTop: '1px solid rgba(10,77,60,0.08)' }}>
-                              <div style={{ fontSize: 11, color: 'var(--muted, #5C6862)', marginBottom: 6 }}>
-                                On{' '}
-                                <Link
-                                  href={`/client/cases/${c.caseId}/documents/${n.documentId}/view`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{ color: 'var(--emerald-deep, #0A4D3C)', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
-                                >
-                                  {n.documentName.replace(/\.[a-z]+$/i, '')}
-                                </Link>
-                                {n.approvedAt && (
-                                  <span> · {new Date(n.approvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--ink-soft, #3C4A43)', whiteSpace: 'pre-wrap' }}>
-                                {n.note}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
                   </div>
-                </section>
-              );
-            })()}
+
+                  {caseNotes.length === 0 ? (
+                    <div style={{ fontSize: 13, color: 'var(--muted, #5C6862)', marginBottom: 14, fontStyle: 'italic' }}>
+                      No notes yet. Start the conversation below.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
+                      {caseNotes.map((n) => {
+                        const ts = n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+                        const audienceLabel = n.audience === 'legal_team' ? 'Investigation tier' : n.audience === 'operator_only' ? 'Operator only' : null;
+                        return (
+                          <article
+                            key={n.noteId}
+                            style={{
+                              padding: n.pinned ? '14px 16px' : 0,
+                              background: n.pinned ? 'rgba(10,77,60,0.04)' : 'transparent',
+                              borderRadius: n.pinned ? 8 : 0,
+                              border: n.pinned ? '1px solid rgba(10,77,60,0.18)' : 'none',
+                              borderTop: n.pinned ? '1px solid rgba(10,77,60,0.18)' : '1px solid rgba(10,77,60,0.10)',
+                              paddingTop: n.pinned ? 14 : 14,
+                              marginTop: n.pinned ? 0 : 0
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                              {n.pinned && (
+                                <span style={{ fontSize: 10, color: 'var(--gold-deep, #7A5A18)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>📌 Pinned</span>
+                              )}
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink, #14201B)' }}>
+                                {n.authorDisplayName || 'Reviewer'}
+                              </span>
+                              {ts && <span style={{ fontSize: 11, color: 'var(--muted, #5C6862)' }}>· {ts}</span>}
+                              {audienceLabel && (
+                                <span style={{ fontSize: 9, color: 'var(--gold-deep, #7A5A18)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', border: '1px solid rgba(122,90,24,0.3)', borderRadius: 4, padding: '1px 6px' }}>{audienceLabel}</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink, #14201B)', whiteSpace: 'pre-wrap' }}>
+                              {n.body}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <AddCaseNoteForm caseId={c.caseId} />
+                </div>
+              </section>
+            )}
 
             {/* (val 2026-06-15, #692) Drafting attorney REMOVED from the
                 main-column hero spot — per val: "the attorney who did

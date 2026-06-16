@@ -267,10 +267,12 @@ export async function middleware(req: NextRequest) {
   //   /api/admin/av/cases/[caseId]/documents/[documentId]/content    (PUT markdown edit)
   //   /api/admin/av/cases/[caseId]/events                            (POST log entry)
   //   /api/admin/av/cases/[caseId]/actions/[actionId]/acknowledge    (POST family Got it)  (val 2026-06-15, #694)
+  //   /api/admin/av/cases/[caseId]/notes                             (POST case-level note)  (val 2026-06-15, #699)
   if (
     /^\/api\/admin\/av\/cases\/\d+\/documents\/\d+(?:\/(?:approval|content))?$/.test(pathname) ||
     /^\/api\/admin\/av\/cases\/\d+\/events$/.test(pathname) ||
-    /^\/api\/admin\/av\/cases\/\d+\/actions\/\d+\/acknowledge$/.test(pathname)
+    /^\/api\/admin\/av\/cases\/\d+\/actions\/\d+\/acknowledge$/.test(pathname) ||
+    /^\/api\/admin\/av\/cases\/\d+\/notes$/.test(pathname)
   ) {
     // Try operator cookie first (val from operator-side or preview).
     const adminToken = req.cookies.get(ADMIN_SESSION_COOKIE)?.value;
