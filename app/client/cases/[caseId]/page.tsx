@@ -932,6 +932,45 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                               {p.relationship || (p.role ? p.role.replace(/_/g, ' ') : '')}
                             </div>
                           )}
+                          {/* (val 2026-06-16) Surface known contact info per
+                              party. When the trust document captured a phone
+                              or email, render it inline as a tel:/mailto:
+                              link so a click dials or opens compose. val's
+                              ask: "the call function should pick up that data
+                              next time as well." Universal — every case_kind
+                              renders contact info the same way. */}
+                          {(p.contactPhone || p.contactEmail) && (
+                            <div className="party-contact" style={{
+                              fontSize: 12, color: 'var(--muted, #5C6862)',
+                              marginTop: 4, lineHeight: 1.4
+                            }}>
+                              {p.contactPhone && (
+                                <a
+                                  href={`tel:${p.contactPhone.replace(/[^0-9+]/g, '')}`}
+                                  style={{
+                                    color: 'var(--emerald-deep, #0A4D3C)',
+                                    textDecoration: 'none', fontWeight: 500
+                                  }}
+                                >
+                                  {p.contactPhone}
+                                </a>
+                              )}
+                              {p.contactPhone && p.contactEmail && (
+                                <span style={{ margin: '0 6px', color: 'var(--muted, #5C6862)' }}>·</span>
+                              )}
+                              {p.contactEmail && (
+                                <a
+                                  href={`mailto:${p.contactEmail}`}
+                                  style={{
+                                    color: 'var(--emerald-deep, #0A4D3C)',
+                                    textDecoration: 'none', fontWeight: 500
+                                  }}
+                                >
+                                  {p.contactEmail}
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
