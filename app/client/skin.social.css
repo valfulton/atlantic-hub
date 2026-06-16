@@ -175,7 +175,9 @@
   color:var(--emerald-deep); margin-top:9px; }
 [data-skin="social"] .av-matters__open{ margin-left:auto; display:inline-flex;
   align-items:center; min-height:48px; padding:0 18px; border-radius:24px;
-  background:var(--emerald-deep); color:var(--navy); font-weight:600;
+  /* (val 2026-06-16) was color:var(--navy) — failed AA on emerald-deep. */
+  /* Cream-on-emerald-deep hits 14.6:1, same as the unscoped .av-matters__open. */
+  background:var(--emerald-deep); color:var(--cream); font-weight:600;
   font-size:.95rem; text-decoration:none; white-space:nowrap; }
 @media (max-width:640px){
   [data-skin="social"] .av-matters__row{ flex-wrap:wrap; }
