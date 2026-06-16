@@ -33,6 +33,12 @@ import ActionItemsEditorPanel from '@/components/case/ActionItemsEditorPanel';
 import SynopsisEditor from '@/components/case/SynopsisEditor';
 import TimelineEditorPanel from '@/components/case/TimelineEditorPanel';
 import { listFindingsForCase } from '@/lib/case/document_findings_store';
+// (val 2026-06-16) Mirror the family case-notes UI onto the operator side
+// so val can drop a note "send things to johnson@case.atlanticandvine.com"
+// directly from the operator case view without bouncing through the family
+// page. Same components, audience picker on for operator.
+import { listCaseNotes, visibleAudiencesFor } from '@/lib/case/case_notes_store';
+import AddCaseNoteForm from '@/components/case/AddCaseNoteForm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -110,12 +116,16 @@ export default async function CaseDetailPage({ params }: PageProps) {
   if (!accessible) notFound();
 
   const c = full.case;
-  const [wellness, collaborators, indexableDoc, docFindings, docExtracts] = await Promise.all([
+  const [wellness, collaborators, indexableDoc, docFindings, docExtracts, caseNotes] = await Promise.all([
     c.wellnessEnabled ? loadFullWellness(caseId) : Promise.resolve(null),
     listCollaboratorsForCase(caseId),
     findIndexableDocumentForCase(caseId),
     listFindingsForCase(caseId),
-    listExtractsForCase(caseId)
+    listExtractsForCase(caseId),
+    // (val 2026-06-16) Operator sees notes in every audience (family,
+    // legal_team, operator_only). The picker on AddCaseNoteForm respects
+    // this by sending the operator's chosen audience on submit.
+    listCaseNotes(caseId, visibleAudiencesFor('operator'))
   ]);
   // The byte-serve URL the SectionText renderer will deep-link into. Only
   // populated when there's an indexed trust/will/POA on this case.
@@ -212,6 +222,63 @@ export default async function CaseDetailPage({ params }: PageProps) {
                       )
                     ])
                 )}
+              />
+            </section>
+
+            {/* (val 2026-06-16) Notes panel — was on family side only, val
+                couldn't add notes from the operator case page. Mirrors the
+                family list with audience picker on for operator. */}
+            <section
+              id="case-notes"
+              className="rounded-2xl border border-border bg-surface p-5 mb-5"
+              style={{ scrollMarginTop: 24 }}
+            >
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-sm uppercase tracking-wider text-muted">
+                  Notes on this case
+                </h2>
+                <span className="text-[11px] text-muted">{caseNotes.length}</span>
+              </div>
+
+              {caseNotes.length === 0 ? (
+                <p className="text-sm text-muted mb-3">
+                  No notes yet. Start the conversation below.
+                </p>
+              ) : (
+                <ul className="space-y-3 mb-4">
+                  {caseNotes.map((n) => (
+                    <li
+                      key={n.noteId}
+                      className="rounded-md border border-border/60 bg-black/20 p-3"
+                    >
+                      <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                        <div className="text-[11px] uppercase tracking-[0.12em] text-muted">
+                          {n.authorDisplayName || 'unknown'}
+                          {n.audience !== 'family' && (
+                            <span className="ml-2 text-amber-300/80">
+                              · {n.audience.replace('_', ' ')}
+                            </span>
+                          )}
+                          {n.pinned && (
+                            <span className="ml-2 text-amber-300/80">· pinned</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted">
+                          {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
+                        </div>
+                      </div>
+                      <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed">
+                        {n.body}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <AddCaseNoteForm
+                caseId={c.caseId}
+                showAudiencePicker
+                showPinToggle
               />
             </section>
 
