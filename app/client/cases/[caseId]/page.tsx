@@ -851,6 +851,41 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                     {d.documentKind && (
                       <div className="doc-kind">{d.documentKind}</div>
                     )}
+                    {/* (val 2026-06-15, #697) Reviewer's note on the doc.
+                        Adriana was using the approval_note field as a
+                        family-facing letter ("Dear Gordon and Angelina…")
+                        because she had no other writable note surface.
+                        It was sitting in the DB but invisible on this view.
+                        Now it renders inline so the family actually sees
+                        what their reviewer wrote. Universal — works on
+                        any approved doc with a non-empty approval_note. */}
+                    {d.approvalNote && d.approvalNote.trim() && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          padding: '10px 12px',
+                          background: 'rgba(10,77,60,0.06)',
+                          border: '1px solid rgba(10,77,60,0.18)',
+                          borderRadius: 8,
+                          fontSize: 13,
+                          lineHeight: 1.5,
+                          color: 'var(--ink, #14201B)',
+                          whiteSpace: 'pre-wrap'
+                        }}
+                      >
+                        <div style={{
+                          fontSize: 10,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: 'var(--emerald-deep, #0A4D3C)',
+                          fontWeight: 700,
+                          marginBottom: 4
+                        }}>
+                          Note from your reviewer
+                        </div>
+                        {d.approvalNote}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -968,37 +1003,74 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
             appears here with her note inline so she sees it stuck, val
             sees what Adriana wrote, and Rebecca can read the thread. */}
         {rejectedDocs.length > 0 && (
+          /* (val 2026-06-15, #697) Returned-drafts section.
+              - HARD RULE fix: removed "val is working through them" — val's
+                name doesn't go on client surfaces (per memory).
+              - Stronger framing: "Returned with your notes" (active voice,
+                makes clear the note was RECEIVED) replaces the passive
+                "Sent back for revision".
+              - Each returned doc gets a visible ✓ confirmation that the
+                note was saved + caller attribution, so a family member
+                who just sent the doc back can see their own note safely
+                landed and isn't lost. */
           <section style={{ background: 'var(--paper, #FFFFFF)', border: '1px solid rgba(162,59,46,0.25)', borderRadius: 14, padding: '22px 24px', marginBottom: '1.5rem' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--garnet, #A23B2E)', marginBottom: 4 }}>
-              Sent back for revision
+              Returned with your notes <span style={{ textTransform: 'none', letterSpacing: 'normal', fontSize: 12, opacity: 0.8 }}>· {rejectedDocs.length}</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted, #3B4944)', marginBottom: 14 }}>
-              These drafts were returned with notes. val is working through them.
+              These drafts went back to your reviewer with your notes attached. The notes are saved on the case so everyone sees them.
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
               {rejectedDocs.map((d) => (
-                <li key={d.documentId} style={{ borderLeft: '3px solid var(--garnet, #A23B2E)', paddingLeft: 14 }}>
-                  <a
-                    href={`/client/cases/${c.caseId}/documents/${d.documentId}/view`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: 'var(--garnet, #A23B2E)',
-                      fontWeight: 600,
-                      textDecoration: 'underline',
-                      textDecorationColor: 'rgba(162,59,46,0.3)',
-                      textUnderlineOffset: 2,
-                      fontSize: 14
-                    }}
-                  >
-                    {d.documentName}
-                  </a>
-                  {d.documentKind && (
-                    <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
-                  )}
-                  {d.approvalNote && (
-                    <div style={{ fontSize: 13, color: 'var(--ink-soft, #3C4A43)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.5 }}>
-                      &ldquo;{d.approvalNote}&rdquo;
+                <li
+                  key={d.documentId}
+                  style={{
+                    borderLeft: '3px solid var(--garnet, #A23B2E)',
+                    background: 'rgba(162,59,46,0.04)',
+                    padding: '12px 14px',
+                    borderRadius: 6
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                    <a
+                      href={`/client/cases/${c.caseId}/documents/${d.documentId}/view`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'var(--garnet, #A23B2E)',
+                        fontWeight: 600,
+                        textDecoration: 'underline',
+                        textDecorationColor: 'rgba(162,59,46,0.3)',
+                        textUnderlineOffset: 2,
+                        fontSize: 14
+                      }}
+                    >
+                      {d.documentName}
+                    </a>
+                    {d.documentKind && (
+                      <span style={{ fontSize: 10, color: 'var(--muted, #3B4944)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{d.documentKind}</span>
+                    )}
+                  </div>
+                  {d.approvalNote ? (
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid rgba(10,77,60,0.18)',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        marginTop: 4
+                      }}
+                    >
+                      <div style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 700, marginBottom: 4 }}>
+                        ✓ Note saved to the case
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--ink, #14201B)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                        {d.approvalNote}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)', fontStyle: 'italic', marginTop: 4 }}>
+                      Returned without a note attached.
                     </div>
                   )}
                 </li>
