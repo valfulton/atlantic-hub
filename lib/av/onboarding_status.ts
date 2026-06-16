@@ -15,6 +15,7 @@
  */
 import { getAvDb } from '@/lib/db/av';
 import { INTAKE_KEYS } from '@/lib/client/intake_fields';
+import { PR_INBOX_DOMAIN } from '@/lib/clients/pr_inbox';
 import type { RowDataPacket } from 'mysql2';
 
 export type StageStatus = 'done' | 'inProgress' | 'notStarted';
@@ -131,7 +132,8 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
     contentCount,
     contentLast,
     outreachCount,
-    callConnectedCount
+    callConnectedCount,
+    prInboxRow
   ] = await Promise.all([
     safeOne<RowDataPacket & {
       client_user_id: number;
@@ -209,6 +211,19 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       `SELECT COUNT(*) AS n FROM call_log cl
          JOIN leads l ON l.id = cl.lead_id
         WHERE l.client_id = ? AND cl.call_outcome IN ('connected','follow_up','meeting_booked','converted')`,
+      [clientId]
+    ),
+    // (#381, val 2026-06-16) PR inbox slug. Slug is auto-generated at client
+    // create time; the chip shows the full email address as a reminder of
+    // what val needs to wire on HostGator (forwarder OR catch-all). Stays
+    // amber (in-progress) until a future increment adds a forwarder-confirmed
+    // flag toggle in PrInboxPanel.
+    safeOne<RowDataPacket & {
+      pr_inbox_slug: string | null;
+      pr_inbox_set_at: string | null;
+    }>(
+      `SELECT pr_inbox_slug, pr_inbox_set_at
+         FROM clients WHERE client_id = ? LIMIT 1`,
       [clientId]
     )
   ]);
@@ -352,15 +367,37 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       detail: socialsCount > 0 ? `${socialsCount} on file` : undefined,
       anchor: 'social-channels'
     },
+    (() => {
+      // (#381, val 2026-06-16) PR inbox chip. Surfaces the FULL email address
+      // val needs to create a forwarder for on HostGator so journalists can
+      // email this client's PR address and have it land in inbox@pr.
+      // status:
+      //   - notStarted: slug not yet generated (client created pre-#226)
+      //   - inProgress: slug exists; the chip stays amber as a standing
+      //                 reminder until a future increment adds a
+      //                 forwarder-confirmed toggle in PrInboxPanel.
+      const slug = prInboxRow?.pr_inbox_slug ?? null;
+      const email = slug ? `${slug}@${PR_INBOX_DOMAIN}` : null;
+      const stat: StageStatus = slug ? 'inProgress' : 'notStarted';
+      const detail = slug ? (email ?? undefined) : 'no address yet';
+      return {
+        id: 8,
+        key: 'pr_inbox',
+        label: 'PR inbox',
+        status: stat,
+        detail,
+        anchor: 'pr-inbox'
+      } as StageState;
+    })(),
     {
-      id: 8,
+      id: 9,
       key: 'campaigns',
       label: 'Campaigns',
       status: campaignsCount > 0 ? 'done' : 'notStarted',
       detail: campaignsCount > 0 ? `${campaignsCount} active` : undefined
     },
     {
-      id: 9,
+      id: 10,
       key: 'leads',
       label: 'Leads',
       status: leadsCount > 0 ? 'done' : 'notStarted',
@@ -368,21 +405,21 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
       anchor: 'find-leads'
     },
     {
-      id: 10,
+      id: 11,
       key: 'first_audit',
       label: 'First audit',
       status: auditCount > 0 ? 'done' : 'notStarted',
       detail: auditCount > 0 ? `${auditCount} audited` : undefined
     },
     {
-      id: 11,
+      id: 12,
       key: 'first_content',
       label: 'Content',
       status: contentCount > 0 ? 'done' : 'notStarted',
       detail: contentCount > 0 ? `${contentCount} drafted` : undefined
     },
     {
-      id: 12,
+      id: 13,
       key: 'first_outreach',
       label: 'Outreach',
       status: (outreachCount + callConnectedCount) > 0 ? 'done' : 'notStarted',
@@ -392,17 +429,19 @@ export async function loadOnboardingStatus(clientId: number): Promise<Onboarding
     }
   ];
 
-  const doneOfFirst12 = stages.filter((s) => s.status === 'done').length;
-  // "Demo ready" auto-flips green when at least 9 of the prior 12 stages are done
-  // AND brand kit + at least one content artifact exist (the two "looks complete"
-  // signals val flagged as most important for not embarrassing herself on calls).
-  const demoReady = doneOfFirst12 >= 9 && brandHasKit && contentCount > 0;
+  const doneOfFirst13 = stages.filter((s) => s.status === 'done').length;
+  // "Demo ready" auto-flips green when at least 10 of the prior 13 stages are
+  // done (PR inbox is now stage 8, so the threshold bumps from 9/12 to 10/13)
+  // AND brand kit + at least one content artifact exist (the two "looks
+  // complete" signals val flagged as most important for not embarrassing
+  // herself on calls).
+  const demoReady = doneOfFirst13 >= 10 && brandHasKit && contentCount > 0;
   stages.push({
-    id: 13,
+    id: 14,
     key: 'demo_ready',
     label: 'Demo ready',
     status: demoReady ? 'done' : 'notStarted',
-    detail: demoReady ? 'ship it' : `${doneOfFirst12} / 12 lit`
+    detail: demoReady ? 'ship it' : `${doneOfFirst13} / 13 lit`
   });
 
   // ----- Action statuses (used by panel headers) -----

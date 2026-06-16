@@ -9,9 +9,11 @@
  * Server component — the status object is computed in the page and passed in.
  * No client-side data fetching here; mirrors what's actually in the DB right now.
  *
- * Two-row layout (7 + 6) so 13 chips don't crush at narrow widths. The
- * "Demo ready" chip is the last one, spans two columns visually, and reads
- * differently from the others (gold-tone done state).
+ * Two-row layout (7 + 7 = 14) so chips don't crush at narrow widths.
+ * (#381, 2026-06-16) Was 7+6 for 13 chips with Demo spanning two columns.
+ * Adding the PR inbox chip brings us to 14, which fits 7+7 perfectly with
+ * Demo at single width.
+ * The "Demo ready" chip reads differently from the others (gold-tone done).
  */
 import type { StageState, OnboardingStatus } from '@/lib/av/onboarding_status';
 
@@ -53,14 +55,14 @@ function StageChip({ stage }: { stage: StageState }) {
     return (
       <a
         href={`#${stage.anchor}`}
-        className={`block ${isDemo ? 'col-span-2' : ''}`}
+        className="block"
         title={stage.label}
       >
         {content}
       </a>
     );
   }
-  return <div className={isDemo ? 'col-span-2' : ''}>{content}</div>;
+  return <div>{content}</div>;
 }
 
 export default function StageStrip({ status }: { status: OnboardingStatus }) {

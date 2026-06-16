@@ -737,16 +737,19 @@ export default async function ClientDetailPage({ params }: { params: { client_id
 
       {/* (#226) Per-client PR ingest mailbox. Address goes on John White's
           media list, etc., and routes journalist requests straight into the
-          PR pipeline -- ending the val-as-middleware pattern. */}
-      <PrInboxPanel
-        clientId={clientId}
-        clientName={d.name}
-        initial={await getInboxRecord(clientId).then((r) => ({
-          slug: r?.slug ?? null,
-          email: r?.email ?? null,
-          setAt: r?.setAt ?? null
-        })).catch(() => ({ slug: null, email: null, setAt: null }))}
-      />
+          PR pipeline -- ending the val-as-middleware pattern.
+          (#381, 2026-06-16) id="pr-inbox" so the onboarding chip scrolls here. */}
+      <div id="pr-inbox" style={{ scrollMarginTop: 24 }}>
+        <PrInboxPanel
+          clientId={clientId}
+          clientName={d.name}
+          initial={await getInboxRecord(clientId).then((r) => ({
+            slug: r?.slug ?? null,
+            email: r?.email ?? null,
+            setAt: r?.setAt ?? null
+          })).catch(() => ({ slug: null, email: null, setAt: null }))}
+        />
+      </div>
 
       {/* (#214) Per-client PR discovery source tuning. RSS feeds tagged to
           this client only, so John's political feeds / Adriana's legal feeds /
