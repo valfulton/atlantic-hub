@@ -125,10 +125,25 @@ export interface AddCaseNoteInput {
   sourceDocumentId?: number | null;
 }
 
+/**
+ * (val 2026-06-16, #708) Module-level last-error capture so the route can
+ * surface the real DB message in the response without breaking the
+ * Promise<number | null> contract that other callers depend on.
+ */
+let LAST_ADD_NOTE_ERROR: string | null = null;
+export function lastAddCaseNoteError(): string | null { return LAST_ADD_NOTE_ERROR; }
+
 export async function addCaseNote(input: AddCaseNoteInput): Promise<number | null> {
-  if (!Number.isInteger(input.caseId) || input.caseId <= 0) return null;
+  LAST_ADD_NOTE_ERROR = null;
+  if (!Number.isInteger(input.caseId) || input.caseId <= 0) {
+    LAST_ADD_NOTE_ERROR = 'bad case id';
+    return null;
+  }
   const body = (input.body || '').trim();
-  if (!body) return null;
+  if (!body) {
+    LAST_ADD_NOTE_ERROR = 'empty body';
+    return null;
+  }
   try {
     const db = getAvDb();
     const [res] = await db.execute<ResultSetHeader>(
@@ -150,6 +165,7 @@ export async function addCaseNote(input: AddCaseNoteInput): Promise<number | nul
     );
     return res.insertId || null;
   } catch (err) {
+    LAST_ADD_NOTE_ERROR = (err as Error).message || String(err);
     console.error('addCaseNote failed', err);
     return null;
   }

@@ -113,7 +113,10 @@ export default function AddCaseNoteForm({
             borderRadius: 6,
             fontSize: 14,
             lineHeight: 1.5,
-            color: 'var(--ink, #14201B)',
+            // (val 2026-06-16) Explicit dark hex — NOT var(--ink), because
+            // --ink resolves to a LIGHT color on the operator dark theme,
+            // making typed text invisible on the white textarea background.
+            color: '#14201B',
             background: '#fff',
             fontFamily: 'inherit',
             resize: 'vertical'
@@ -128,7 +131,13 @@ export default function AddCaseNoteForm({
                 <select
                   value={audience}
                   onChange={(e) => setAudience(e.target.value as 'family' | 'legal_team' | 'operator_only')}
-                  style={{ fontSize: 12, padding: '4px 8px', border: '1px solid rgba(10,77,60,0.25)', borderRadius: 4 }}
+                  style={{
+                    fontSize: 12, padding: '4px 8px',
+                    border: '1px solid rgba(10,77,60,0.25)', borderRadius: 4,
+                    // (val 2026-06-16) Explicit colors so the operator dark
+                    // theme doesn't render this as white-on-white.
+                    background: '#fff', color: '#14201B'
+                  }}
                 >
                   <option value="family">Family sees it</option>
                   <option value="legal_team">Investigation tier</option>

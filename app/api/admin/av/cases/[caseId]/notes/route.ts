@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { guardAdminRequest } from '@/lib/api-guard';
-import { addCaseNote, type NoteAudience } from '@/lib/case/case_notes_store';
+import { addCaseNote, lastAddCaseNoteError, type NoteAudience } from '@/lib/case/case_notes_store';
 import { getCase, canClientUserAccessCase } from '@/lib/case/case_store';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { activeBrandFor } from '@/lib/client/active-brand';
@@ -115,7 +115,13 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   });
 
   if (!noteId) {
-    return NextResponse.json({ ok: false, error: 'insert failed' }, { status: 500 });
+    // (val 2026-06-16) Surface the actual DB error so val can see what's
+    // wrong (table missing, ENUM mismatch, etc.) instead of a generic 500.
+    const why = lastAddCaseNoteError() || 'unknown';
+    return NextResponse.json(
+      { ok: false, error: `insert failed: ${why}` },
+      { status: 500 }
+    );
   }
   return NextResponse.json({ ok: true, noteId });
 }
