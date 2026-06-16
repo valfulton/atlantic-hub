@@ -569,6 +569,65 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           </section>
         )}
 
+        {/* (val 2026-06-16) Earn with A&V — universal CTA card across every
+            client dashboard (Rebecca, Adriana, Ron, Lyons, all). Points at the
+            /client/apply surface where someone signals interest in becoming an
+            Independent Contractor (caller, manager, referrer). Operator sees
+            applications under /admin/av/ic-applications. Card sits AFTER matters
+            so existing primary content stays primary. */}
+        <Link
+          href="/client/apply"
+          aria-label="Apply for an A&V Independent Contractor position"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '14px 16px',
+            margin: '16px 0',
+            background: 'var(--paper, #FFFFFF)',
+            border: '1px solid rgba(10,77,60,0.18)',
+            borderLeft: '3px solid var(--gold-deep, #7A5A18)',
+            borderRadius: 12,
+            textDecoration: 'none',
+            color: 'var(--ink, #14201B)',
+            transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+          }}
+        >
+          <span style={{
+            width: 38, height: 38, flex: '0 0 38px',
+            borderRadius: 8,
+            background: 'rgba(122,90,24,0.10)',
+            color: 'var(--gold-deep, #7A5A18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }} aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <path d="M12 2v20M5 9l7-7 7 7" />
+            </svg>
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{
+              display: 'block',
+              fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--gold-deep, #7A5A18)', fontWeight: 700, marginBottom: 2
+            }}>
+              Earn with Atlantic & Vine
+            </span>
+            <span style={{
+              display: 'block',
+              fontFamily: 'var(--font-display, Fraunces, serif)',
+              fontSize: 15, fontWeight: 600, color: 'var(--ink, #14201B)'
+            }}>
+              Apply for an Independent Contractor position
+            </span>
+            <span style={{ display: 'block', fontSize: 12, color: 'var(--muted, #5C6862)', marginTop: 2 }}>
+              Call ready leads · build a team · earn commission on what you close
+            </span>
+          </span>
+          <span style={{ color: 'var(--emerald-deep, #0A4D3C)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            Apply →
+          </span>
+        </Link>
+
         {/* (#551) Watchlist — gated by kind (lead_gen + political_campaign show
             it as district pulse; defense_pr / hospitality / book_pr hide it). */}
         {p.kindConfig.showWatchlistPanel && (<>

@@ -155,7 +155,12 @@ export const config = {
     '/api/client/pr/:path*',
     // Client campaign actions (publish own approved content). Guarded so the
     // route receives x-ah-client-user-id and rejects anonymous callers.
-    '/api/client/campaign/:path*'
+    '/api/client/campaign/:path*',
+    // (val 2026-06-16) /client/apply — "Earn with A&V" IC application surface.
+    // Any logged-in client_user can submit interest in becoming an Independent
+    // Contractor. POST goes to /api/client/ic-application.
+    '/client/apply',
+    '/api/client/ic-application'
   ]
 };
 
