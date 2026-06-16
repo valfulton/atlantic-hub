@@ -313,6 +313,23 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
       .map((n) => Number(n.sourceDocumentId))
   );
 
+  // (val 2026-06-16) Reviewer identity for the doc-sidebar callout label.
+  // Reads case.metadata.reviewer_title + reviewer_org_label set per-case.
+  // When set we render "From {Adriana} · {Legal Document Assistant} ·
+  // {CLDA Services}" instead of the generic "NOTE FROM YOUR REVIEWER"
+  // eyebrow. Falls back gracefully when metadata is absent.
+  const sidebarReviewerOrgLabel = typeof c.metadata?.reviewer_org_label === 'string'
+    ? String(c.metadata.reviewer_org_label) : null;
+  const sidebarReviewerTitle = typeof c.metadata?.reviewer_title === 'string'
+    ? String(c.metadata.reviewer_title) : null;
+  // Lead family-audience author = the canonical reviewer name; in Adriana's
+  // case it's "Adriana Candelaria". Lifted to page scope so the doc-sidebar
+  // callout below can attribute the inline approval_note the same way the
+  // case_notes hero does.
+  const sidebarLeadAuthor = caseNotes
+    .filter((n) => n.audience === 'family' && n.authorDisplayName)
+    .map((n) => n.authorDisplayName)[0] ?? null;
+
   // (val 2026-06-15, #694) Family-view bucketing + calmer labels + ack
   // progress strip. Lives next to openActions so the family render block
   // below stays small. Universal across case_kinds — every case page
@@ -1041,16 +1058,54 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                           whiteSpace: 'pre-wrap'
                         }}
                       >
-                        <div style={{
-                          fontSize: 10,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: 'var(--emerald-deep, #0A4D3C)',
-                          fontWeight: 700,
-                          marginBottom: 4
-                        }}>
-                          Note from your reviewer
-                        </div>
+                        {/* (val 2026-06-16) Attribute the note to the actual
+                            reviewer using case.metadata + the case_notes lead
+                            author, NOT a generic "NOTE FROM YOUR REVIEWER"
+                            eyebrow. Falls back to the generic label only if
+                            metadata is missing. */}
+                        {sidebarLeadAuthor ? (
+                          <div style={{ marginBottom: 6 }}>
+                            <div style={{
+                              fontSize: 10,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              color: 'var(--emerald-deep, #0A4D3C)',
+                              fontWeight: 700
+                            }}>
+                              A note for you
+                            </div>
+                            <div style={{
+                              fontFamily: 'var(--font-display, Fraunces, serif)',
+                              fontSize: 15,
+                              fontWeight: 600,
+                              color: 'var(--ink, #14201B)',
+                              marginTop: 2
+                            }}>
+                              From {sidebarLeadAuthor}
+                            </div>
+                            {(sidebarReviewerTitle || sidebarReviewerOrgLabel) && (
+                              <div style={{
+                                fontStyle: 'italic',
+                                fontSize: 11.5,
+                                color: 'var(--muted, #5C6862)',
+                                marginTop: 1
+                              }}>
+                                {[sidebarReviewerTitle, sidebarReviewerOrgLabel].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{
+                            fontSize: 10,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            color: 'var(--emerald-deep, #0A4D3C)',
+                            fontWeight: 700,
+                            marginBottom: 4
+                          }}>
+                            A note for you
+                          </div>
+                        )}
                         {d.approvalNote}
                       </div>
                     )}
