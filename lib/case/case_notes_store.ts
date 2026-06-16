@@ -84,12 +84,33 @@ function rowToNote(r: NoteRow): CaseNote {
 /**
  * Audiences a viewer is allowed to see based on their case role.
  * Mirrors the visibleFor() pattern in lib/case/case_collaborators.ts.
+ *
+ * (val 2026-06-15, #700) Accepts the canonical CaseViewerRole shape from
+ * lib/case/case_collaborators.ts — the page passes that type directly, so
+ * keeping a parallel shorthand here was the source of the build break.
+ *
+ *   parent         → family only (Gordon + Maria: top-level family view)
+ *   account_rep    → family + legal_team (Rebecca: successor trustee /
+ *                    sibling admin runs the case, sees investigation tier)
+ *   professional   → family + legal_team (Adriana: LDA reviewer)
+ *   family         → family only (general family member, parent-equivalent)
+ *   operator       → all three audiences
+ *   unknown        → nothing (shouldn't happen on this surface, but safe)
  */
-export function visibleAudiencesFor(viewerRole: 'parent' | 'sibling_admin' | 'attorney' | 'operator'): NoteAudience[] {
+export type NoteViewerRole =
+  | 'parent'
+  | 'account_rep'
+  | 'professional'
+  | 'family'
+  | 'operator'
+  | 'unknown';
+
+export function visibleAudiencesFor(viewerRole: NoteViewerRole): NoteAudience[] {
   if (viewerRole === 'operator') return ['family', 'legal_team', 'operator_only'];
-  if (viewerRole === 'sibling_admin' || viewerRole === 'attorney') return ['family', 'legal_team'];
-  // parent
-  return ['family'];
+  if (viewerRole === 'account_rep' || viewerRole === 'professional') return ['family', 'legal_team'];
+  if (viewerRole === 'parent' || viewerRole === 'family') return ['family'];
+  // unknown
+  return [];
 }
 
 export interface AddCaseNoteInput {
