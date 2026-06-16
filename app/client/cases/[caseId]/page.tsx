@@ -499,8 +499,10 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                Documents panel and its rows don't horizontally overflow the
                aside column when filenames lack spaces (e.g.
                Property-Report-for-1657-Kingsly-Dr-Pittsburg-CA-94565.pdf). */
-            .case-grid aside .panel { overflow-wrap: anywhere; word-break: break-word; }
-            .case-grid .doc-row { min-width: 0; overflow-wrap: anywhere; }
+            .case-grid aside { min-width: 0; }
+            .case-grid aside .panel { overflow-wrap: anywhere; word-break: break-word; max-width: 100%; box-sizing: border-box; }
+            .case-grid .doc-row { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+            .case-grid .doc-row a { display: block; max-width: 100%; word-break: break-all; overflow-wrap: anywhere; }
             .case-grid .doc-row a:hover { text-decoration-color: var(--emerald-deep, #0A4D3C); }
             .case-grid .doc-kind { font-size: 10px; color: var(--muted, #5C6862); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
             .case-grid .ai-collapse summary { cursor: pointer; list-style: none; }
@@ -554,7 +556,7 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
                 ? String(c.metadata.reviewer_title)
                 : null;
               return (caseNotes.length > 0 || true) && (
-              <section style={{ marginBottom: 30 }}>
+              <section id="case-notes" style={{ marginBottom: 30, scrollMarginTop: 24 }}>
                 <div
                   style={{
                     background: '#FFFFFF',
@@ -892,6 +894,95 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
 
           {/* SIDEBAR */}
           <aside>
+            {/* (val 2026-06-16, #704) Reviewer hero — bubbles Adriana to the
+                top of the sidebar with full contact info + "Ask a question"
+                CTA that scrolls to the notes composer. Universal across any
+                case_kind that has a reviewer; renders nothing when reviewers
+                is empty. */}
+            {reviewers.length > 0 && (() => {
+              const orgLabel = typeof c.metadata?.reviewer_org_label === 'string'
+                ? String(c.metadata.reviewer_org_label)
+                : 'Legal services';
+              const reviewerTitle = typeof c.metadata?.reviewer_title === 'string'
+                ? String(c.metadata.reviewer_title)
+                : null;
+              const blurb = typeof c.metadata?.reviewer_blurb === 'string'
+                ? String(c.metadata.reviewer_blurb)
+                : 'Reviews and approves new documents for this matter — and answers your questions.';
+              return (
+                <div className="panel reviewer-hero" style={{
+                  borderLeft: '3px solid var(--gold-deep, #7A5A18)',
+                  background: 'var(--paper, #FFFFFF)',
+                  padding: '18px 16px 16px',
+                  marginBottom: 20
+                }}>
+                  <p className="panel-h" style={{ color: 'var(--gold-deep, #7A5A18)', letterSpacing: '0.08em' }}>
+                    Your reviewer
+                  </p>
+                  {reviewers.map((r) => (
+                    <div key={r.collaboratorId} style={{ marginBottom: 12 }}>
+                      <div style={{
+                        fontFamily: 'var(--font-display, Fraunces, Georgia, serif)',
+                        fontSize: 18, fontWeight: 600,
+                        color: 'var(--ink, #14201B)',
+                        marginBottom: 4
+                      }}>
+                        {r.displayName || r.email}
+                      </div>
+                      {reviewerTitle && (
+                        <div style={{
+                          fontSize: 12, fontStyle: 'italic',
+                          color: 'var(--muted, #5C6862)',
+                          marginBottom: 2
+                        }}>
+                          {reviewerTitle}
+                        </div>
+                      )}
+                      <div style={{
+                        fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 600,
+                        marginBottom: 8
+                      }}>
+                        {orgLabel}
+                      </div>
+                      {r.email && (
+                        <div style={{ fontSize: 13, marginBottom: 4, overflowWrap: 'anywhere' }}>
+                          <a
+                            href={`mailto:${r.email}`}
+                            style={{
+                              color: 'var(--emerald-deep, #0A4D3C)',
+                              textDecoration: 'none', fontWeight: 500
+                            }}
+                          >
+                            {r.email}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <div style={{
+                    fontSize: 12, color: 'var(--muted, #5C6862)',
+                    lineHeight: 1.55, marginBottom: 12
+                  }}>
+                    {blurb}
+                  </div>
+                  <a
+                    href="#case-notes"
+                    style={{
+                      display: 'block', textAlign: 'center',
+                      background: 'var(--emerald-deep, #0A4D3C)',
+                      color: '#fff', textDecoration: 'none',
+                      padding: '10px 14px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600,
+                      letterSpacing: '0.02em'
+                    }}
+                  >
+                    Ask {(reviewers[0]?.displayName ?? 'your reviewer').split(' ')[0]} a question →
+                  </a>
+                </div>
+              );
+            })()}
+
             {full.property && (
               <div className="panel">
                 <p className="panel-h">Property</p>
@@ -1008,31 +1099,9 @@ export default async function ClientCaseDetailPage({ params }: PageProps) {
               );
             })()}
 
-            {/* Review & approval — Adriana (HARD RULE 2: NEVER "attorney"
-                or "lawyer" on a family surface; HARD RULE 3: framed as
-                REVIEWER, not author). Operator can override the org label
-                via case.metadata.reviewer_org_label; otherwise fall back to
-                "Legal services". */}
-            {reviewers.length > 0 && (() => {
-              const orgLabel = typeof c.metadata?.reviewer_org_label === 'string'
-                ? String(c.metadata.reviewer_org_label)
-                : 'Legal services';
-              const blurb = typeof c.metadata?.reviewer_blurb === 'string'
-                ? String(c.metadata.reviewer_blurb)
-                : 'Reviews and approves new documents for this matter.';
-              return (
-                <div className="panel">
-                  <p className="panel-h">Review &amp; approval</p>
-                  {reviewers.map((r) => (
-                    <div key={r.collaboratorId} style={{ marginBottom: 12 }}>
-                      <div className="prep-name">{r.displayName || r.email}</div>
-                      <div className="prep-role">{orgLabel} · {familyFacingRoleLabel(r.role)}</div>
-                    </div>
-                  ))}
-                  <div className="prep-date">{blurb}</div>
-                </div>
-              );
-            })()}
+            {/* (val 2026-06-16, #704) Old "Review & approval" panel removed.
+                Bubbled to the top of the sidebar above as the prominent
+                Reviewer Hero block with full contact + Ask-a-question CTA. */}
 
             {/* (val 2026-06-15, #692) Drafting attorney — quiet reference
                 card placed AFTER Adriana's Review & Approval panel.
