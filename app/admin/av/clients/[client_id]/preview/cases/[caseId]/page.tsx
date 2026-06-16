@@ -595,23 +595,70 @@ export default async function PreviewCasePage({ params, searchParams }: PageProp
                 );
               })()}
 
+              {/* (val 2026-06-16, #704) Reviewer hero — drift-swept to match
+                  the live /client/cases/[caseId] page.tsx. Same gold-accented
+                  block with title, firm, mailto, and Ask-a-question CTA. */}
               {reviewers.length > 0 && (() => {
                 const orgLabel = typeof c.metadata?.reviewer_org_label === 'string'
                   ? String(c.metadata.reviewer_org_label)
                   : 'Legal services';
+                const reviewerTitle = typeof c.metadata?.reviewer_title === 'string'
+                  ? String(c.metadata.reviewer_title)
+                  : null;
                 const blurb = typeof c.metadata?.reviewer_blurb === 'string'
                   ? String(c.metadata.reviewer_blurb)
-                  : 'Reviews and approves new documents for this matter.';
+                  : 'Reviews and approves new documents for this matter — and answers your questions.';
                 return (
-                  <div className="panel">
-                    <p className="panel-h">Review &amp; approval</p>
+                  <div className="panel" style={{
+                    borderLeft: '3px solid var(--gold-deep, #7A5A18)',
+                    background: 'var(--paper, #FFFFFF)',
+                    padding: '18px 16px 16px',
+                    marginBottom: 20
+                  }}>
+                    <p className="panel-h" style={{ color: 'var(--gold-deep, #7A5A18)', letterSpacing: '0.08em' }}>
+                      Your reviewer
+                    </p>
                     {reviewers.map((r) => (
                       <div key={r.collaboratorId} style={{ marginBottom: 12 }}>
-                        <div className="prep-name">{r.displayName || r.email}</div>
-                        <div className="prep-role">{orgLabel} · {familyFacingRoleLabel(r.role)}</div>
+                        <div style={{
+                          fontFamily: 'var(--font-display, Fraunces, Georgia, serif)',
+                          fontSize: 18, fontWeight: 600,
+                          color: 'var(--ink, #14201B)', marginBottom: 4
+                        }}>
+                          {r.displayName || r.email}
+                        </div>
+                        {reviewerTitle && (
+                          <div style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--muted, #5C6862)', marginBottom: 2 }}>
+                            {reviewerTitle}
+                          </div>
+                        )}
+                        <div style={{
+                          fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
+                          color: 'var(--emerald-deep, #0A4D3C)', fontWeight: 600, marginBottom: 8
+                        }}>
+                          {orgLabel}
+                        </div>
+                        {r.email && (
+                          <div style={{ fontSize: 13, marginBottom: 4, overflowWrap: 'anywhere' }}>
+                            <a href={`mailto:${r.email}`} style={{ color: 'var(--emerald-deep, #0A4D3C)', textDecoration: 'none', fontWeight: 500 }}>
+                              {r.email}
+                            </a>
+                          </div>
+                        )}
                       </div>
                     ))}
-                    <div className="prep-date">{blurb}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted, #5C6862)', lineHeight: 1.55, marginBottom: 12 }}>
+                      {blurb}
+                    </div>
+                    <a href="#case-notes" style={{
+                      display: 'block', textAlign: 'center',
+                      background: 'var(--emerald-deep, #0A4D3C)',
+                      color: '#fff', textDecoration: 'none',
+                      padding: '10px 14px', borderRadius: 8,
+                      fontSize: 13, fontWeight: 600, letterSpacing: '0.02em'
+                    }}>
+                      Ask {(reviewers[0]?.displayName ?? 'your reviewer').split(' ')[0]} a question →
+                    </a>
                   </div>
                 );
               })()}
