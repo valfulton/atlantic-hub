@@ -108,8 +108,8 @@ export async function getDistrictHeatMap(
         WHERE p.zip IN (${placeholders})
         GROUP BY zip, signal_kind
         ORDER BY n DESC
-        LIMIT ?`,
-      [...zips, limit * 2]
+        LIMIT ${limit * 2}`,
+      [...zips]
     );
 
     // Severity is computed from recency: anything seen in the last 7 days

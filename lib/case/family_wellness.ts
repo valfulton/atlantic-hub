@@ -412,12 +412,21 @@ export async function listMeetingNotes(caseId: number): Promise<MeetingNote[]> {
 
 export async function listWellnessChecks(caseId: number, limit = 50): Promise<WellnessCheck[]> {
   if (!Number.isInteger(caseId) || caseId <= 0) return [];
+  // (val 2026-06-16, #706) mysql2 prepared-statement quirk: binding LIMIT as
+  // a parameter throws ER_WRONG_ARGUMENTS / errno 1210 on some MySQL versions
+  // (HostGator's MariaDB hits this). The fix is to validate the limit as a
+  // positive integer + interpolate it into the SQL string (no SQL injection
+  // risk: we control the value and clamp it to [1, 500]). The bug was crashing
+  // the live /client/cases/[caseId] page render (server-side exception
+  // digest 2183789934) for every viewer that landed on a case with this
+  // call in the loader.
+  const safeLimit = Math.min(Math.max(Math.trunc(limit) || 50, 1), 500);
   try {
     const db = getAvDb();
     const [rows] = await db.execute<CheckRow[]>(
       `SELECT * FROM family_wellness_checks WHERE case_id = ?
-       ORDER BY observed_at DESC LIMIT ?`,
-      [caseId, limit]
+       ORDER BY observed_at DESC LIMIT ${safeLimit}`,
+      [caseId]
     );
     return rows.map((r) => ({
       checkId: r.check_id, caseId: r.case_id, partyObservedId: r.party_observed_id,

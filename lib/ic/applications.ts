@@ -128,17 +128,19 @@ export interface ListApplicationsFilter {
 
 export async function listIcApplications(f: ListApplicationsFilter = {}): Promise<IcApplication[]> {
   const db = getAvDb();
-  const limit = Math.min(Math.max(f.limit ?? 200, 1), 500);
+  // (#706) mysql2 prepared-statement quirk: LIMIT bound as a parameter
+  // throws ER_WRONG_ARGUMENTS on MariaDB. Inline the validated integer.
+  const limit = Math.min(Math.max(Math.trunc(f.limit ?? 200) || 200, 1), 500);
   if (f.status && f.status !== 'all') {
     const [rows] = await db.execute<IcAppRow[]>(
-      `SELECT * FROM ic_applications WHERE status = ? ORDER BY created_at DESC LIMIT ?`,
-      [f.status, limit]
+      `SELECT * FROM ic_applications WHERE status = ? ORDER BY created_at DESC LIMIT ${limit}`,
+      [f.status]
     );
     return rows.map(rowToApp);
   }
   const [rows] = await db.execute<IcAppRow[]>(
-    `SELECT * FROM ic_applications ORDER BY created_at DESC LIMIT ?`,
-    [limit]
+    `SELECT * FROM ic_applications ORDER BY created_at DESC LIMIT ${limit}`,
+    []
   );
   return rows.map(rowToApp);
 }

@@ -59,6 +59,8 @@ function toNote(r: NoteRow): ClientNote {
 /** The full thread for a brand, oldest first (chat order). */
 export async function listNotes(clientId: number, limit = 300): Promise<ClientNote[]> {
   if (!Number.isInteger(clientId) || clientId <= 0) return [];
+  // (#706) Inline LIMIT — see family_wellness.ts for the mysql2/MariaDB quirk.
+  const safeLimit = Math.min(Math.max(Math.trunc(limit) || 300, 1), 1000);
   try {
     const db = getAvDb();
     const [rows] = await db.execute<NoteRow[]>(
@@ -66,8 +68,8 @@ export async function listNotes(clientId: number, limit = 300): Promise<ClientNo
          FROM client_notes
         WHERE client_id = ?
         ORDER BY created_at ASC, note_id ASC
-        LIMIT ?`,
-      [clientId, limit]
+        LIMIT ${safeLimit}`,
+      [clientId]
     );
     return rows.map(toNote);
   } catch (err) {

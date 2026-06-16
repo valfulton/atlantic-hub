@@ -319,8 +319,8 @@ export async function maybeAuditAndScriptTopFits(args: {
           AND client_icp_fit_score IS NOT NULL
           AND client_icp_fit_score >= ?
         ORDER BY client_icp_fit_score DESC, id DESC
-        LIMIT ?`,
-      [clientId, DISCOVERY_AUDIT_MIN_FIT, DISCOVERY_AUDIT_TOP_N]
+        LIMIT ${DISCOVERY_AUDIT_TOP_N}`,
+      [clientId, DISCOVERY_AUDIT_MIN_FIT]
     );
     if (topRows.length === 0) return;
 
@@ -425,8 +425,8 @@ export async function maybeRegenerateStaleAudits(args: { clientId: number | null
         ORDER BY (l.client_icp_fit_score IS NULL) ASC,
                  l.client_icp_fit_score DESC,
                  l.id DESC
-        LIMIT ?`,
-      [clientId, STALE_AUDIT_REGEN_TOP_N]
+        LIMIT ${STALE_AUDIT_REGEN_TOP_N}`,
+      [clientId]
     );
 
     if (staleRows.length === 0) return;
