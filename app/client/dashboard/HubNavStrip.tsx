@@ -1,79 +1,41 @@
 /**
- * HubNavStrip  (val 2026-06-17, #695 — naming + visual cleanup of #693)
+ * HubNavStrip  (val 2026-06-17, #696 — single source of nav labels)
  *
- * Flat row of pill links that match the EXISTING operator-preview chip nav
- * (Dashboard · Matters · Leads · Watchlist · Campaigns · Calendar · Content ·
- * Press queue · Notes · Newsroom · ...). One canonical label per room — no
- * eyebrows, no synonyms, no second-line descriptions, no card grid.
+ * Flat row of pill links reading from `client_nav_items.ts`, the SAME
+ * source ClientV3TopNav reads from. There is no per-room label or href in
+ * this file — only a list of ids to show for each engagement kind. Rename
+ * a room in one place and every surface follows; the drift from earlier
+ * today ("Press" vs "Press queue" vs "Press desk" vs "In the press" — same
+ * route, four made-up names) can't repeat.
  *
- * The drift fix from v1: every room had TWO names (eyebrow "Your stories" +
- * title "Campaigns", eyebrow "Two-way" + title "Notes", etc.). Killed both
- * layers. Use the same word the nav uses. One word, one room.
- *
- * Per-kind sets: political/defense/hospitality/book each get the rooms that
- * actually apply; lead_gen renders nothing so the existing surface is
- * untouched.
+ * Per-kind subset: rooms relevant to the kind, minus 'home' (we're on it).
+ * lead_gen returns [] so its existing surface stays untouched.
  */
 import Link from 'next/link';
+import { NAV_ITEMS, type ClientNavItem } from '@/app/client/_components/client_nav_items';
 import type { EngagementKind } from '@/lib/client/engagement_kind';
 
-interface HubLink {
-  label: string;
-  href: string;
-}
-
-/** Canonical room sets per kind. Labels match the operator-preview chip nav
- *  (the "SEE WHAT JOHN WHITE SEES" strip) so the client view, the operator
- *  preview, and this hub strip all use the same word for the same room. */
-function linksFor(kind: EngagementKind): HubLink[] {
+/** Which canonical room ids to surface for each engagement kind. Labels +
+ *  hrefs are NEVER hardcoded here — they live in client_nav_items.ts. */
+function idsForKind(kind: EngagementKind): ClientNavItem['id'][] {
   switch (kind) {
     case 'political_campaign':
-      return [
-        { label: 'Campaigns',   href: '/client/campaigns' },
-        { label: 'Calendar',    href: '/client/calendar' },
-        { label: 'Content',     href: '/client/content' },
-        { label: 'Press queue', href: '/client/pr' },
-        { label: 'Notes',       href: '/client/notes' },
-        { label: 'Newsroom',    href: '/newsroom' }
-      ];
     case 'defense_pr':
-      return [
-        { label: 'Campaigns',   href: '/client/campaigns' },
-        { label: 'Calendar',    href: '/client/calendar' },
-        { label: 'Content',     href: '/client/content' },
-        { label: 'Press queue', href: '/client/pr' },
-        { label: 'Notes',       href: '/client/notes' },
-        { label: 'Newsroom',    href: '/newsroom' }
-      ];
     case 'luxury_hospitality':
-      return [
-        { label: 'Campaigns',   href: '/client/campaigns' },
-        { label: 'Calendar',    href: '/client/calendar' },
-        { label: 'Content',     href: '/client/content' },
-        { label: 'Press queue', href: '/client/pr' },
-        { label: 'Notes',       href: '/client/notes' },
-        { label: 'Newsroom',    href: '/newsroom' }
-      ];
     case 'book_pr':
-      return [
-        { label: 'Campaigns',   href: '/client/campaigns' },
-        { label: 'Calendar',    href: '/client/calendar' },
-        { label: 'Content',     href: '/client/content' },
-        { label: 'Press queue', href: '/client/pr' },
-        { label: 'Notes',       href: '/client/notes' },
-        { label: 'Newsroom',    href: '/newsroom' }
-      ];
+      return ['campaigns', 'calendar', 'content', 'press', 'notes', 'newsroom'];
     case 'lead_gen':
     default:
-      // lead_gen keeps its current dashboard surface (leads + watchlist do the
-      // talking). Returning empty hides the strip entirely.
       return [];
   }
 }
 
 export default function HubNavStrip({ kind }: { kind: EngagementKind }) {
-  const links = linksFor(kind);
-  if (links.length === 0) return null;
+  const ids = idsForKind(kind);
+  if (ids.length === 0) return null;
+  const items = ids
+    .map((id) => NAV_ITEMS.find((n) => n.id === id))
+    .filter((n): n is ClientNavItem => !!n);
 
   return (
     <nav
@@ -85,10 +47,10 @@ export default function HubNavStrip({ kind }: { kind: EngagementKind }) {
         margin: '20px 0 4px'
       }}
     >
-      {links.map((link) => (
+      {items.map((item) => (
         <Link
-          key={link.href}
-          href={link.href}
+          key={item.href}
+          href={item.href}
           style={{
             fontFamily: 'var(--sans)',
             fontSize: 13,
@@ -102,7 +64,7 @@ export default function HubNavStrip({ kind }: { kind: EngagementKind }) {
             whiteSpace: 'nowrap'
           }}
         >
-          {link.label}
+          {item.label}
         </Link>
       ))}
     </nav>

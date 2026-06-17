@@ -11,37 +11,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-
-const NAV = [
-  { href: '/client/dashboard', label: 'Home' },
-  // (val 2026-06-12) Matters — the case-management surface. Without this
-  // link, family + counsel collaborators (Rebecca, Adriana on Johnson) had
-  // NO way to reach /client/cases — they could log in but never find the
-  // case dashboard they were invited to. Critical for defense_pr +
-  // family_legacy_care + estate_litigation engagement_kinds.
-  { href: '/client/cases', label: 'Matters' },
-  { href: '/client/leads', label: 'Leads' },
-  { href: '/client/watchlist', label: 'Watchlist' },
-  // (#433) Campaigns + Calendar — the narrative-line spine + the approval queue.
-  // Mirror entries live in OperatorPreviewChrome TABS; per the nav-tab mirror
-  // rule, edits to either array must land together.
-  { href: '/client/campaigns', label: 'Campaigns' },
-  { href: '/client/calendar', label: 'Calendar' },
-  // (#419) Content Studio — generated posts ready to approve, true-to-platform preview.
-  { href: '/client/content', label: 'Content' },
-  { href: '/client/pr', label: 'Press' },
-  // (val 2026-06-14, UX/UI audit) Notes — two-way thread to the A&V team.
-  // Was reachable only via mobile BottomTabBar's "More" overflow; promoted to
-  // desktop nav so clients can find the channel without hunting. Mirror at
-  // /admin/av/clients/[id]/preview/notes is already shipped (#575).
-  { href: '/client/notes', label: 'Notes' },
-  // Newsroom — the public Wire surfacing published work. Same URL for client and
-  // operator (public route), so the mirror discipline is satisfied by the URL itself.
-  { href: '/newsroom', label: 'Newsroom' }
-  // (val 2026-06-09) "You" / /client/intake hidden from client-facing nav.
-  // Page stays in code for operator backend editing only; new client intake
-  // system pending separate design pass. DO NOT re-add without val's say-so.
-];
+// (val 2026-06-17, #696) NAV moved to client_nav_items.ts so the top nav,
+// the dashboard HubNavStrip, and any future surface read the SAME labels.
+// Adding/renaming a room belongs in client_nav_items.ts — never inline here.
+import { NAV_ITEMS as NAV } from './client_nav_items';
 
 export default function ClientV3TopNav({
   brands,
