@@ -34,7 +34,19 @@ interface CampaignRow extends RowDataPacket {
   state: string | null;
 }
 
-async function loadCampaigns(clientId: number | null): Promise<CampaignRow[]> {
+interface DraftRow extends RowDataPacket {
+  approval_id: number;
+  narrative_line_id: number | null;
+  approval_kind: 'press_release' | 'social' | 'commercial' | 'op_ed';
+  title: string;
+  status: 'pending' | 'approved' | 'published' | 'killed';
+}
+
+interface CampaignWithDrafts extends CampaignRow {
+  drafts: DraftRow[];
+}
+
+async function loadCampaigns(clientId: number | null): Promise<CampaignWithDrafts[]> {
   if (!clientId) return [];
   try {
     const db = getAvDb();
@@ -46,11 +58,37 @@ async function loadCampaigns(clientId: number | null): Promise<CampaignRow[]> {
         LIMIT 8`,
       [clientId]
     );
-    return rows;
+    if (rows.length === 0) return [];
+    // (val 2026-06-17, #701) Join the drafts. Was reading lanes only and
+    // rendering them as empty thesis cards — the disconnect val flagged.
+    // narrative_lanes.lane_id IS the id cockpit_approvals.narrative_line_id
+    // references, per schema + the dashboard's JOIN.
+    const laneIds = rows.map((r) => r.lane_id);
+    const placeholders = laneIds.map(() => '?').join(',');
+    const [draftRows] = await db.execute<DraftRow[]>(
+      `SELECT approval_id, narrative_line_id, approval_kind, title, status
+         FROM cockpit_approvals
+        WHERE client_id = ?
+          AND narrative_line_id IN (${placeholders})
+          AND status IN ('pending','approved','published')
+        ORDER BY FIELD(status,'pending','approved','published'), created_at DESC`,
+      [clientId, ...laneIds]
+    );
+    return rows.map((r) => ({
+      ...r,
+      drafts: draftRows.filter((d) => d.narrative_line_id === r.lane_id)
+    }));
   } catch {
     return [];
   }
 }
+
+const KIND_LABEL: Record<DraftRow['approval_kind'], string> = {
+  press_release: 'Press release',
+  op_ed: 'Op-ed',
+  social: 'Social post',
+  commercial: 'Commercial'
+};
 
 export default async function ClientCampaignsPage() {
   const actor = readClientActorFromHeaders(headers() as unknown as Headers);
@@ -105,12 +143,35 @@ export default async function ClientCampaignsPage() {
         </article>
       ) : (
         <section className="v3-grid">
-          {campaigns.map((c) => (
-            <article key={c.lane_id} className="v3-card">
-              <h3 className="v3-card__h">{c.name ?? 'Untitled campaign'}</h3>
-              <p className="v3-card__p">{c.thesis ?? 'Thesis pending — refining from your intake.'}</p>
-            </article>
-          ))}
+          {campaigns.map((c) => {
+            const pending = c.drafts.filter((d) => d.status === 'pending').length;
+            return (
+              <article key={c.lane_id} className="v3-card">
+                <h3 className="v3-card__h">{c.name ?? 'Untitled campaign'}</h3>
+                <p className="v3-card__p">{c.thesis ?? 'Thesis pending — refining from your intake.'}</p>
+                {c.drafts.length > 0 && (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--card-border)' }}>
+                    <div style={{ fontFamily: 'var(--sans)', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-mute, #5F5E5A)', marginBottom: 8 }}>
+                      {c.drafts.length} piece{c.drafts.length === 1 ? '' : 's'}
+                      {pending > 0 ? ` · ${pending} waiting on you` : ''}
+                    </div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                      {c.drafts.slice(0, 8).map((d) => (
+                        <li key={d.approval_id} style={{ fontFamily: 'var(--sans)', fontSize: 13, color: 'var(--ink)' }}>
+                          <span style={{ display: 'inline-block', minWidth: 92, fontSize: 11, color: 'var(--ink-mute, #5F5E5A)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {KIND_LABEL[d.approval_kind]}
+                          </span>
+                          <a href={`/client/dashboard#draft-${d.approval_id}`} style={{ color: 'var(--emerald-deep)', textDecoration: 'none' }}>
+                            {d.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </section>
       )}
 

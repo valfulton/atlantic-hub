@@ -142,14 +142,17 @@ export async function POST(req: NextRequest) {
       });
       if (touchId) dispatch.pressTouchId = touchId;
     } else if (a.approval_kind === 'social' || a.approval_kind === 'commercial') {
-      // Minimal outbox row. Once the publisher schema is confirmed we'll route
-      // through the real social_outbox upsert lib; for now write a thin row.
+      // (val 2026-06-17, #701 — tenant fix) Was tenant_id='av'; /client/content
+      // and /client/calendar both filter by tenant_id='client:<id>', so greenlit
+      // social/commercials were landing in a tenant the client surfaces couldn't
+      // see. clientTenantId(N) returns 'client:N' — same pattern social_review
+      // already uses end-to-end.
       try {
         const [res] = await db.execute<ResultSetHeader>(
           `INSERT INTO social_outbox
              (tenant_id, client_id, content_type, status, draft_text, source_label, created_at, updated_at)
-           VALUES ('av', ?, ?, 'draft', ?, ?, NOW(), NOW())`,
-          [a.client_id, a.approval_kind === 'commercial' ? 'commercial' : 'social_post', a.title, a.source]
+           VALUES (?, ?, ?, 'draft', ?, ?, NOW(), NOW())`,
+          [`client:${a.client_id}`, a.client_id, a.approval_kind === 'commercial' ? 'commercial' : 'social_post', a.title, a.source]
         );
         if (res.insertId) dispatch.outboxId = res.insertId;
       } catch (err) {

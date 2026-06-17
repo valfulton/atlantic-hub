@@ -30,6 +30,19 @@ interface CampaignRow extends RowDataPacket {
   thesis: string | null;
   state: string | null;
 }
+interface DraftRow extends RowDataPacket {
+  approval_id: number;
+  narrative_line_id: number | null;
+  approval_kind: 'press_release' | 'social' | 'commercial' | 'op_ed';
+  title: string;
+  status: 'pending' | 'approved' | 'published' | 'killed';
+}
+const KIND_LABEL: Record<DraftRow['approval_kind'], string> = {
+  press_release: 'Press release',
+  op_ed: 'Op-ed',
+  social: 'Social post',
+  commercial: 'Commercial'
+};
 
 export default async function PreviewCampaignsMirror({ params }: { params: { client_id: string } }) {
   const role = headers().get('x-ah-user-role') as 'owner' | 'staff' | 'client_user' | null;
@@ -47,7 +60,7 @@ export default async function PreviewCampaignsMirror({ params }: { params: { cli
   const clientName = crows[0].client_name || `Client #${clientId}`;
   const firstName = clientName.split(/[ ,]/)[0];
 
-  let campaigns: CampaignRow[] = [];
+  let campaigns: (CampaignRow & { drafts: DraftRow[] })[] = [];
   try {
     const [rows] = await db.execute<CampaignRow[]>(
       `SELECT lane_id, name, thesis, state
@@ -57,7 +70,26 @@ export default async function PreviewCampaignsMirror({ params }: { params: { cli
         LIMIT 8`,
       [clientId]
     );
-    campaigns = rows;
+    // (#701) Join drafts under each campaign — mirror of /client/campaigns fix.
+    let draftRows: DraftRow[] = [];
+    if (rows.length > 0) {
+      const laneIds = rows.map((r) => r.lane_id);
+      const placeholders = laneIds.map(() => '?').join(',');
+      const [drows] = await db.execute<DraftRow[]>(
+        `SELECT approval_id, narrative_line_id, approval_kind, title, status
+           FROM cockpit_approvals
+          WHERE client_id = ?
+            AND narrative_line_id IN (${placeholders})
+            AND status IN ('pending','approved','published')
+          ORDER BY FIELD(status,'pending','approved','published'), created_at DESC`,
+        [clientId, ...laneIds]
+      );
+      draftRows = drows;
+    }
+    campaigns = rows.map((r) => ({
+      ...r,
+      drafts: draftRows.filter((d) => d.narrative_line_id === r.lane_id)
+    }));
   } catch {
     campaigns = [];
   }
@@ -91,12 +123,33 @@ export default async function PreviewCampaignsMirror({ params }: { params: { cli
           </article>
         ) : (
           <section className="v3-grid">
-            {campaigns.map((c) => (
-              <article key={c.lane_id} className="v3-card">
-                <h3 className="v3-card__h">{c.name ?? 'Untitled campaign'}</h3>
-                <p className="v3-card__p">{c.thesis ?? 'Thesis pending.'}</p>
-              </article>
-            ))}
+            {campaigns.map((c) => {
+              const pending = c.drafts.filter((d) => d.status === 'pending').length;
+              return (
+                <article key={c.lane_id} className="v3-card">
+                  <h3 className="v3-card__h">{c.name ?? 'Untitled campaign'}</h3>
+                  <p className="v3-card__p">{c.thesis ?? 'Thesis pending.'}</p>
+                  {c.drafts.length > 0 && (
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--card-border)' }}>
+                      <div style={{ fontFamily: 'var(--sans)', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-mute, #5F5E5A)', marginBottom: 8 }}>
+                        {c.drafts.length} piece{c.drafts.length === 1 ? '' : 's'}
+                        {pending > 0 ? ` · ${pending} waiting on you` : ''}
+                      </div>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                        {c.drafts.slice(0, 8).map((d) => (
+                          <li key={d.approval_id} style={{ fontFamily: 'var(--sans)', fontSize: 13, color: 'var(--ink)' }}>
+                            <span style={{ display: 'inline-block', minWidth: 92, fontSize: 11, color: 'var(--ink-mute, #5F5E5A)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                              {KIND_LABEL[d.approval_kind]}
+                            </span>
+                            <span>{d.title}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </section>
         )}
 
