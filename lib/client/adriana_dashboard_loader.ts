@@ -14,7 +14,7 @@ import { listEmployeesForClient } from '@/lib/client/employees_on_account';
 import { getAvDb } from '@/lib/db/av';
 import { getCopyMap } from '@/lib/copy/store';
 import { getClientDealModel, leadMonthlyCents } from '@/lib/sales/deal_model';
-import { getEngagementKind, configForKind } from '@/lib/client/engagement_kind';
+import { getEngagementKind, configForKind, type EngagementKind } from '@/lib/client/engagement_kind';
 import { getBriefPayload } from '@/lib/client/brief_store';
 import { listPressTouches, countPressTouchesThisWeek, type PressTouch } from '@/lib/client/press_touches';
 import { getDistrictHeatMap, parseDistrictZips, type DistrictSignal } from '@/lib/client/district_heatmap';
@@ -613,9 +613,29 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   }).length;
   // (val 2026-06-06, UX/UI 13:12) Greeting subhead — never "quiet" when the
   // pipeline is busy. Priority: new-this-week > steady pipeline > truly empty.
+  //
+  // (val 2026-06-17) Engagement-kind-aware. The lead_gen voice ("scanning for
+  // your next opportunities") leaked onto John's political campaign + every
+  // other non-lead_gen client. Each kind gets the line that matches the work.
+  const KIND_SUBHEAD_BUSY: Partial<Record<EngagementKind, string>> = {
+    political_campaign: 'Your team is on the trail. Drafts ready for your green-light land below.',
+    defense_pr:         'Your team is on the case. Drafts ready for your green-light land below.',
+    luxury_hospitality: 'Your team is lining up the next chapter. Drafts ready for your green-light land below.',
+    book_pr:            'Your team is working the launch. Drafts ready for your green-light land below.'
+  };
+  const KIND_SUBHEAD_QUIET: Partial<Record<EngagementKind, string>> = {
+    political_campaign: 'Your team is working the trail. The next pieces will land here as we draft them.',
+    defense_pr:         'Your team is working the case. The next pieces will land here as we draft them.',
+    luxury_hospitality: 'Your team is lining up the next chapter. Pieces will land here as we draft them.',
+    book_pr:            'Your team is working the launch. Pieces will land here as we draft them.'
+  };
   const subhead =
     newCount > 0
       ? `${newCount} new ${newCount === 1 ? 'prospect' : 'prospects'} worth watching since yesterday. Here’s what’s worth a move.`
+      : engagementKind !== 'lead_gen' && (kindData.cockpitDraftsPending ?? 0) > 0
+      ? (KIND_SUBHEAD_BUSY[engagementKind] ?? 'Your team is at work. Drafts ready for your green-light land below.')
+      : engagementKind !== 'lead_gen'
+      ? (KIND_SUBHEAD_QUIET[engagementKind] ?? 'Your team is at work. Pieces will land here as we draft them.')
       : pipeline.total > 0
       ? 'Your pipeline is steady. Keep working the ones in play below.'
       : 'We’re scanning for your next opportunities — the strongest ones will appear here as we spot them.';
