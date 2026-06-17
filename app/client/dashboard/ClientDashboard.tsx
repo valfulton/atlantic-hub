@@ -1,5 +1,5 @@
 /**
- * AdrianaDashboard — /client/dashboard's mobile-app body.
+ * ClientDashboard — /client/dashboard's mobile-app body.
  *
  * Mirrors Atlantic_Hub_Playbook/client_view_social_mock.html exactly:
  *   1. Sticky cream top bar — A&V logo + brand + "Client" pill + initials avatar
@@ -31,7 +31,7 @@ import { KindHero, KindPanels } from './KindPanels';
 import RaceTrackerHero from './RaceTrackerHero';
 import ApprovalsStrip from './ApprovalsStrip';
 // (val 2026-06-17, #699) Canonical nav labels for the in-header nav row.
-// AdrianaDashboard renders on TWO surfaces — /client/dashboard AND
+// ClientDashboard renders on TWO surfaces — /client/dashboard AND
 // /admin/av/clients/[id]/preview/page.tsx — so nav has to live inside the
 // component to be on both. Pulling labels from NAV_ITEMS keeps them in
 // sync with ClientV3TopNav (no drift).
@@ -45,7 +45,7 @@ import EndorsementsPanel from './EndorsementsPanel';
 // (val 2026-06-17, #698 — HubNavStrip retired) The real fix was that the
 // dashboard page never mounted ClientV3TopNav like every other /client/*
 // page does. The strip at the bottom was a wrong-place band-aid. Nav now
-// lives at the top via ClientV3TopNav wrapped around AdrianaDashboard in
+// lives at the top via ClientV3TopNav wrapped around ClientDashboard in
 // app/client/dashboard/page.tsx.
 import type { PressTouch } from '@/lib/client/press_touches';
 import type { DistrictSignal } from '@/lib/client/district_heatmap';
@@ -164,7 +164,7 @@ export interface TeamMember {
   lastActivityAt: string | null;
 }
 
-export interface AdrianaDashboardProps {
+export interface ClientDashboardProps {
   brandName: string;          // header brand name (e.g. "Atlantic & Vine")
   brandPill: string;          // header pill (e.g. "Client")
   firstName: string;          // "Adriana"
@@ -218,7 +218,7 @@ export interface AdrianaDashboardProps {
   kindData?: KindData;
 }
 
-function timeWord(t: AdrianaDashboardProps['greetingTime']): string {
+function timeWord(t: ClientDashboardProps['greetingTime']): string {
   return t === 'morning' ? 'Good morning' : t === 'afternoon' ? 'Good afternoon' : 'Good evening';
 }
 
@@ -440,7 +440,7 @@ function TeamRow({ team }: { team: TeamMember[] }) {
   );
 }
 
-export default function AdrianaDashboard(p: AdrianaDashboardProps) {
+export default function ClientDashboard(p: ClientDashboardProps) {
   // Outer .app wrapper lives in app/client/layout.tsx so every /client/*
   // page inherits the design system without re-wrapping.
   // (val 2026-06-14) Surface the ACTIVE BRAND name so a multi-brand owner

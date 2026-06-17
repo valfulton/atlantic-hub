@@ -18,7 +18,7 @@
 'use client';
 
 import type { EngagementKind, EngagementKindConfig } from '@/lib/client/engagement_kind';
-import type { KindData } from './AdrianaDashboard';
+import type { KindData } from './ClientDashboard';
 import PressTouchesPanel from './PressTouchesPanel';
 import CaseBriefPanel from './CaseBriefPanel';
 import DistrictHeatMapPanel from './DistrictHeatMapPanel';

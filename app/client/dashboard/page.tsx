@@ -7,7 +7,7 @@
  * SignalCard grids, bottom tab bar (from layout).
  *
  * Auth + access gate kept from prior page. Body component is
- * AdrianaDashboard (this page is thin — orchestration only).
+ * ClientDashboard (this page is thin — orchestration only).
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -19,10 +19,10 @@ import { activeBrandFor } from '@/lib/client/active-brand';
 import { getClientAccessState } from '@/lib/av/client_access';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
 import AccessPaused from '@/app/client/_components/AccessPaused';
-import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
+import { loadClientDashboard } from '@/lib/client/client_dashboard_loader';
 import { getWelcomePopupSlides, getWelcomeSlidesForEngagement } from '@/lib/welcome/copy';
-import AdrianaDashboard from './AdrianaDashboard';
-// (val 2026-06-17, #699) Nav now lives INSIDE AdrianaDashboard's app-top
+import ClientDashboard from './ClientDashboard';
+// (val 2026-06-17, #699) Nav now lives INSIDE ClientDashboard's app-top
 // header so it travels everywhere the component is rendered — including the
 // operator preview at /admin/av/clients/[id]/preview/page.tsx, which is the
 // other dashboard surface val cares about. Wrapping the page in
@@ -64,7 +64,7 @@ export default async function ClientDashboardPage() {
     displayName: user.display_name
   });
 
-  const props = await loadAdrianaDashboard({
+  const props = await loadClientDashboard({
     clientUserId: actor.clientUserId,
     activeClientId: clientId,
     firstName: data.firstName || 'there',
@@ -88,7 +88,7 @@ export default async function ClientDashboardPage() {
         tier={user.tier}
         slides={welcomeSlides}
       />
-      <AdrianaDashboard {...props} />
+      <ClientDashboard {...props} />
     </>
   );
 }

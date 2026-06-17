@@ -1,5 +1,5 @@
 /**
- * AdrianaDashboard loader — assembles the props that AdrianaDashboard.tsx
+ * ClientDashboard loader — assembles the props that ClientDashboard.tsx
  * renders, from real Hub state:
  *   - brand_members → brand switcher chips
  *   - watchlistForClient (distress engine) → hero + watchlist cards w/ cascade
@@ -22,7 +22,7 @@ import { parseItinerary, nextStops, type ItineraryStop } from '@/lib/client/itin
 import { listDraftsForClient, countPendingDraftsForClient, type ClientCockpitDraft } from '@/lib/client/cockpit_drafts';
 import { parseRaceData, type RaceData } from '@/lib/client/race_data';
 import type { RowDataPacket } from 'mysql2';
-import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember, MatterCard } from '@/app/client/dashboard/AdrianaDashboard';
+import type { ClientDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember, MatterCard } from '@/app/client/dashboard/ClientDashboard';
 
 /** (#550 v2) Kind-specific live data the dashboard panels render. Every field
  *  is optional — only the panels enabled by the active engagement_kind get
@@ -499,7 +499,7 @@ async function loadMattersForUser(
   }
 }
 
-export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDashboardProps> {
+export async function loadClientDashboard(args: LoaderArgs): Promise<ClientDashboardProps> {
   const { clientUserId, activeClientId, firstName, brandName, brandPill } = args;
 
   // (#551) Engagement kind drives hero copy + which panels mount. Resolved from

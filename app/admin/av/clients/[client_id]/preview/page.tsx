@@ -17,15 +17,15 @@ import Link from 'next/link';
 import { getAvDb } from '@/lib/db/av';
 import { findClientUserById } from '@/lib/auth/client-user';
 import { getClientDashboardData } from '@/lib/client/dashboard_data';
-import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
-import AdrianaDashboard from '@/app/client/dashboard/AdrianaDashboard';
+import { loadClientDashboard } from '@/lib/client/client_dashboard_loader';
+import ClientDashboard from '@/app/client/dashboard/ClientDashboard';
 import OperatorPreviewChrome from '@/app/admin/av/clients/[client_id]/preview/_components/OperatorPreviewChrome';
 // (val 2026-06-07, #487) Mount the WelcomePopover in preview-mode so the
 // operator sees the EXACT popovers her client is about to see. Without this,
 // the client reads it to val for the first time on the call.
 import WelcomePopover from '@/app/client/_components/WelcomePopover';
 import { getWelcomePopupSlides, getWelcomeSlidesForEngagement } from '@/lib/welcome/copy';
-// AdrianaDashboard renders against the canonical client-app design system.
+// ClientDashboard renders against the canonical client-app design system.
 // The operator preview route doesn't go through app/client/layout.tsx, so
 // we import the design system here directly.
 // (val 2026-06-14) app.css alone styles .app-* (greeting/hero/brand) but NOT
@@ -84,7 +84,7 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
   });
 
   // Same loader the live /client/dashboard calls — mirror cannot drift.
-  const props = await loadAdrianaDashboard({
+  const props = await loadClientDashboard({
     clientUserId: member?.client_user_id ?? 0,
     activeClientId: clientId,
     firstName: data.firstName || clientName.split(/\s+/)[0] || 'there',
@@ -121,7 +121,7 @@ export default async function ClientDashboardPreview({ params }: { params: { cli
           route doesn't pass through app/client/layout.tsx (which is where
           the design-system shell normally hangs). */}
       <div className="app">
-        <AdrianaDashboard {...props} />
+        <ClientDashboard {...props} />
         {/* (val 2026-06-07, #487) Ultimate mirror: same popovers the real
             client sees, force-shown (previewMode=true skips localStorage and
             does not persist a dismissal — so the real client's first-visit
