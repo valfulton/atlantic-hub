@@ -30,6 +30,12 @@ import { KindHero, KindPanels } from './KindPanels';
 // ApprovalsStrip sits above it as the "what do I do next" answer.
 import RaceTrackerHero from './RaceTrackerHero';
 import ApprovalsStrip from './ApprovalsStrip';
+// (val 2026-06-17, #699) Canonical nav labels for the in-header nav row.
+// AdrianaDashboard renders on TWO surfaces — /client/dashboard AND
+// /admin/av/clients/[id]/preview/page.tsx — so nav has to live inside the
+// component to be on both. Pulling labels from NAV_ITEMS keeps them in
+// sync with ClientV3TopNav (no drift).
+import { NAV_ITEMS } from '@/app/client/_components/client_nav_items';
 // (val 2026-06-17, UX/UI Phase 3) Opponent watch + endorsements board for
 // political_campaign clients. Both empty-state honestly when their fields
 // are unconfirmed (no opponent name → "name your opponent"; no endorsements
@@ -447,7 +453,11 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
   const [mattersMin, setMattersMin] = useState(false);
   return (
     <>
-      {/* Top bar */}
+      {/* Top bar — brand row + canonical nav row.
+          (val 2026-06-17, #699) Nav row added INSIDE the dashboard component
+          so it ships on BOTH surfaces this component renders on:
+          /client/dashboard (live) AND /admin/av/clients/[id]/preview (mirror).
+          Labels come from NAV_ITEMS — same source as ClientV3TopNav. */}
       <div className="app-top">
         <div className="app-top-in">
           <img src="https://atlanticandvine.netlify.app/av-logo.png" alt="A&amp;V" />
@@ -458,6 +468,33 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             <span className="av" aria-hidden="true">{p.userInitial}</span>
           </div>
         </div>
+        <nav
+          aria-label="Client navigation"
+          style={{
+            display: 'flex',
+            gap: 18,
+            padding: '8px 16px 10px',
+            overflowX: 'auto',
+            borderTop: '1px solid var(--card-border, rgba(10,10,10,0.06))',
+            fontFamily: 'var(--sans)',
+            fontSize: 13,
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {NAV_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              style={{
+                color: 'var(--emerald-deep)',
+                textDecoration: 'none',
+                fontWeight: 500
+              }}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
       </div>
 
       <div className="app-wrap">
