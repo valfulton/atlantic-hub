@@ -84,13 +84,23 @@ export const ENGAGEMENT_KIND_CONFIG: Record<EngagementKind, EngagementKindConfig
   },
   political_campaign: {
     heroLabel: 'Your district. Your message. Your green-light.',
-    pipelineLabel: 'Narrative lines this week',
+    // (val 2026-06-17, UX/UI Phase 1) Engine-vocab purge — "Narrative lines"
+    // is the operator-side term for the spine. A candidate thinks in stops
+    // and stories, not narrative lines. The race tracker hero will replace
+    // this sub-line in Phase 2; until then, keep it candidate-voiced.
+    pipelineLabel: 'Where the story is this week',
     showLeadsPanel: false,
     showWatchlistPanel: true, // distress signals as district pulse
     showPressTouchesPanel: true,
     showCaseBriefPanel: false,
     showDistrictHeatMap: true,
-    showItineraryPanel: false,
+    // (val 2026-06-17, UX/UI Phase 1) Itinerary re-enabled for political —
+    // candidates live in the rhythm of stops (rallies, town halls, debates,
+    // fundraisers). The hospitality copy is replaced per-kind inside
+    // ItineraryPanel; the schema (port/arrival/departure) is reused as
+    // (location/date/dateEnd) until kind-aware intake (#554) ships richer
+    // fields.
+    showItineraryPanel: true,
     welcomePopoverKeys: ['welcome.political.s1', 'welcome.political.s2', 'welcome.political.s3']
   },
   luxury_hospitality: {

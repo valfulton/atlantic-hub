@@ -113,6 +113,7 @@ function StubPanel({
  *  always has a deep-link to fill in the missing brief field. */
 export function KindPanels({
   config,
+  kind,
   data
 }: {
   config: EngagementKindConfig;
@@ -180,7 +181,20 @@ export function KindPanels({
       )}
       {config.showItineraryPanel && (
         data?.itineraryStops !== undefined ? (
-          <ItineraryPanel stops={data.itineraryStops} />
+          // (val 2026-06-17, UX/UI Phase 1) Thread kind through so the panel
+          // renders "Next on the trail" + candidate-voiced empty-state for
+          // political_campaign, and keeps the "Itinerary" / port voice for
+          // hospitality.
+          <ItineraryPanel stops={data.itineraryStops} kind={kind} />
+        ) : kind === 'political_campaign' ? (
+          // (val 2026-06-17, UX/UI Phase 1) Kind-aware stub so the political
+          // dashboard doesn't show the hospitality "port" copy when the brief
+          // is empty.
+          <StubPanel
+            title="Next on the trail"
+            eyebrow="— Set the dates —"
+            body="Your next rallies, debates, town halls, and fundraisers will land here as the team adds them — and we will build the press around them."
+          />
         ) : (
           <StubPanel
             title="Itinerary"

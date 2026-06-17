@@ -1,7 +1,15 @@
 /**
- * ItineraryPanel — luxury_hospitality engagement (#550 v2).
+ * ItineraryPanel — luxury_hospitality + political_campaign engagement.
  *
- * Renders the next 3 stops as horizontal cards: port · countdown · local
+ * (val 2026-06-17, UX/UI Phase 1) Re-enabled for political_campaign with a
+ * kind-aware header label. The underlying shape (port / arrival / departure /
+ * localPressOutlets) is reused as-is for the political voice — a "port" is
+ * a stop on the trail (rally / town hall / debate / fundraiser / district
+ * visit). Schema enrichment (an explicit `stopKind` enum) is queued under
+ * the kind-aware intake refactor (#554) and will land in Phase 2; until
+ * then, the labels above the same data are what changes.
+ *
+ * Renders the next 3 stops as horizontal cards: stop · countdown · local
  * press outlets pre-listed. Pure read of parsed brief.itinerary; no DB.
  *
  * Empty state: deep-link to /admin/av/brief so val knows where to add the
@@ -9,6 +17,37 @@
  */
 import type { ItineraryStop } from '@/lib/client/itinerary';
 import { daysToArrival } from '@/lib/client/itinerary';
+import type { EngagementKind } from '@/lib/client/engagement_kind';
+
+/** Header copy per engagement kind. Centralized so the political vs.
+ *  hospitality voice doesn't drift between the empty-state and the loaded
+ *  state. Future kinds plug in here. */
+interface ItineraryCopy {
+  title: string;
+  countLabel: (n: number) => string;
+  emptyEyebrow: string;
+  emptyBody: string;
+}
+
+function copyForKind(kind?: EngagementKind): ItineraryCopy {
+  if (kind === 'political_campaign') {
+    return {
+      title: 'Next on the trail',
+      countLabel: (n) => `${n} stop${n === 1 ? '' : 's'} ahead`,
+      emptyEyebrow: '— Set the dates —',
+      emptyBody:
+        'Add your next rallies, debates, town halls, or fundraisers in the brief and we will build the press around them.'
+    };
+  }
+  // Default — luxury_hospitality + any future kind that opts in.
+  return {
+    title: 'Itinerary',
+    countLabel: (n) => `${n} stops ahead`,
+    emptyEyebrow: '— The next chapter —',
+    emptyBody:
+      "Add your itinerary in the brief — each port becomes a chapter we can tell, with local press lined up in advance. Format: a JSON array of stops, or plain lines like “Cap d’Antibes — 2026-07-12 → 2026-07-19”."
+  };
+}
 
 function formatCountdown(stop: ItineraryStop): string {
   const d = daysToArrival(stop);
@@ -33,24 +72,29 @@ function formatDates(stop: ItineraryStop): string {
   return `until ${fmt(stop.departure)}`;
 }
 
-export default function ItineraryPanel({ stops }: { stops: ItineraryStop[] }) {
+export default function ItineraryPanel({
+  stops,
+  kind
+}: {
+  stops: ItineraryStop[];
+  /** (val 2026-06-17, UX/UI Phase 1) When omitted, defaults to the
+   *  hospitality voice — keeps existing Lyons/Flame render unchanged. */
+  kind?: EngagementKind;
+}) {
+  const copy = copyForKind(kind);
   return (
     <>
       <div className="app-sh">
-        <h3>Itinerary</h3>
+        <h3>{copy.title}</h3>
         {stops.length > 0 ? (
-          <span className="ct">{stops.length} stops ahead</span>
+          <span className="ct">{copy.countLabel(stops.length)}</span>
         ) : null}
       </div>
 
       {stops.length === 0 ? (
         <div className="app-wire">
-          <span className="eb">— The next chapter —</span>
-          <p>
-            Add your itinerary in the brief — each port becomes a chapter we can
-            tell, with local press lined up in advance. Format: a JSON array of
-            stops, or plain lines like “Cap d&apos;Antibes — 2026-07-12 → 2026-07-19”.
-          </p>
+          <span className="eb">{copy.emptyEyebrow}</span>
+          <p>{copy.emptyBody}</p>
         </div>
       ) : (
         <div
