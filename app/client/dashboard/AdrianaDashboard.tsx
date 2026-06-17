@@ -34,6 +34,10 @@ import type { PressTouch } from '@/lib/client/press_touches';
 import type { DistrictSignal } from '@/lib/client/district_heatmap';
 import type { ItineraryStop } from '@/lib/client/itinerary';
 import type { ClientCockpitDraft } from '@/lib/client/cockpit_drafts';
+// (val 2026-06-17, UX/UI Phase 2) RaceData type for the political_campaign
+// dashboard hero — the loader populates this and the dashboard passes it
+// through to RaceTrackerHero.
+import type { RaceData } from '@/lib/client/race_data';
 
 /** (#557) Live data for the kind-specific dashboard panels. Every field is
  *  optional — only panels enabled by the active engagement_kind get populated;
@@ -55,6 +59,11 @@ export interface KindData {
    *  per draft lands in /client/notes via a deep-link. Lead_gen kinds skip. */
   cockpitDrafts?: ClientCockpitDraft[];
   cockpitDraftsPending?: number;
+  /** (val 2026-06-17, UX/UI Phase 2) Race tracker hero data for the
+   *  political_campaign engagement kind. Populated by the loader via
+   *  parseRaceData(briefObj). Empty-states every unconfirmed field; the
+   *  hero never invents data. */
+  raceData?: RaceData;
 }
 
 export interface BrandChip {
