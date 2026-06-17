@@ -26,6 +26,19 @@
  * can fill the gaps in one place.
  */
 
+export interface Endorsement {
+  /** Endorser name (e.g. "Rep. Andy Harris"). */
+  name: string;
+  /** Their title / role / org. Optional. */
+  role: string | null;
+  /** ISO date logged. Optional. */
+  date: string | null;
+  /** A one-line quote, if recorded. Optional. */
+  quote: string | null;
+  /** URL to the source — press release, article, video. Optional. */
+  sourceUrl: string | null;
+}
+
 export interface RaceData {
   candidateName: string | null;
   office: string | null;              // e.g. "U.S. House"
@@ -44,6 +57,9 @@ export interface RaceData {
   incumbentName: string | null;
   /** "(D)" / "(R)" if we parsed one. */
   incumbentParty: string | null;
+  /** Endorsements logged in the brief. Empty array when none have been
+   *  added — the panel renders an honest empty-state, not invented rows. */
+  endorsements: Endorsement[];
 }
 
 const EMPTY: RaceData = {
@@ -56,14 +72,78 @@ const EMPTY: RaceData = {
   ballotStatus: null,
   party: null,
   incumbentName: null,
-  incumbentParty: null
+  incumbentParty: null,
+  endorsements: []
 };
+
+/** Parse brief.endorsements which may be a JSON array, a JSON-encoded string,
+ *  or absent. Each entry can have name (required), plus optional role/date/
+ *  quote/sourceUrl. Anything malformed is silently dropped — empty-state is
+ *  honest, garbage rows would not be. */
+function parseEndorsements(briefObj: Record<string, unknown>): Endorsement[] {
+  const raw = briefObj.endorsements;
+  if (!raw) return [];
+  let arr: unknown = raw;
+  if (typeof raw === 'string') {
+    try { arr = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  const out: Endorsement[] = [];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const name = typeof r.name === 'string' ? r.name.trim() : '';
+    if (!name || isPlaceholderText(name)) continue;
+    const pickStr = (k: string): string | null => {
+      const v = r[k];
+      if (typeof v !== 'string') return null;
+      const t = v.trim();
+      if (t.length === 0 || isPlaceholderText(t)) return null;
+      return t;
+    };
+    out.push({
+      name,
+      role: pickStr('role') || pickStr('title') || pickStr('org'),
+      date: pickStr('date'),
+      quote: pickStr('quote'),
+      sourceUrl: pickStr('sourceUrl') || pickStr('source_url') || pickStr('url')
+    });
+  }
+  return out;
+}
+
+/** Treat operator-intake placeholder strings as null so they never leak to a
+ *  client surface. John's brief has `party: "TODO_ASK — confirm with John
+ *  (D / R / I)"` from the intake gen — without this guard the RaceTrackerHero
+ *  was rendering that text inside a solid emerald pill instead of falling
+ *  back to the honest "Party — confirming" dashed pill. Universal — protects
+ *  every political_campaign brief whose intake left placeholders behind. */
+const PLACEHOLDER_MARKERS = [
+  'todo_ask',
+  '[ask]',
+  '[todo]',
+  'confirm with',
+  'tbd',
+  'tbc',
+  'to be confirmed',
+  'to be determined'
+];
+
+function isPlaceholderText(s: string): boolean {
+  const lower = s.toLowerCase();
+  for (const m of PLACEHOLDER_MARKERS) {
+    if (lower.includes(m)) return true;
+  }
+  return false;
+}
 
 function pick(briefObj: Record<string, unknown>, key: string): string | null {
   const v = briefObj[key];
   if (typeof v !== 'string') return null;
   const t = v.trim();
-  return t.length > 0 ? t : null;
+  if (t.length === 0) return null;
+  if (isPlaceholderText(t)) return null;
+  return t;
 }
 
 /** "John White for Congress" → "John White"; "John White" → "John White". */
@@ -226,6 +306,7 @@ export function parseRaceData(
     ballotStatus: pick(briefObj, 'ballot_status'),
     party: pick(briefObj, 'party'),
     incumbentName: pick(briefObj, 'opponent_name') || incumbent.name,
-    incumbentParty: incumbent.party
+    incumbentParty: incumbent.party,
+    endorsements: parseEndorsements(briefObj)
   };
 }

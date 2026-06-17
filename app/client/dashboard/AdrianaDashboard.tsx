@@ -30,6 +30,12 @@ import { KindHero, KindPanels } from './KindPanels';
 // ApprovalsStrip sits above it as the "what do I do next" answer.
 import RaceTrackerHero from './RaceTrackerHero';
 import ApprovalsStrip from './ApprovalsStrip';
+// (val 2026-06-17, UX/UI Phase 3) Opponent watch + endorsements board for
+// political_campaign clients. Both empty-state honestly when their fields
+// are unconfirmed (no opponent name → "name your opponent"; no endorsements
+// logged → "name the three you're chasing").
+import OpponentWatchPanel from './OpponentWatchPanel';
+import EndorsementsPanel from './EndorsementsPanel';
 import type { PressTouch } from '@/lib/client/press_touches';
 import type { DistrictSignal } from '@/lib/client/district_heatmap';
 import type { ItineraryStop } from '@/lib/client/itinerary';
@@ -498,7 +504,8 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
               race={p.kindData?.raceData ?? {
                 candidateName: null, office: null, districtLabel: null,
                 nextElectionDate: null, nextElectionLabel: null, daysToNext: null,
-                ballotStatus: null, party: null, incumbentName: null, incumbentParty: null
+                ballotStatus: null, party: null, incumbentName: null, incumbentParty: null,
+                endorsements: []
               }}
             />
           </>
@@ -514,6 +521,24 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             Real panels render when kindData carries their payload; otherwise
             the on-brand stub still shows so the surface is never blank. */}
         <KindPanels config={p.kindConfig} kind={p.engagementKind} data={p.kindData} />
+
+        {/* (val 2026-06-17, UX/UI Phase 3) Political-campaign-only war-room
+            panels: opponent watch + endorsements. Both empty-state honestly
+            when the underlying brief fields are unconfirmed — no invented
+            rows, no faked endorsements. Mounted after KindPanels so the
+            existing press touches + district pulse still flow in their
+            current order. */}
+        {p.engagementKind === 'political_campaign' && (
+          <>
+            <OpponentWatchPanel
+              opponentName={p.kindData?.raceData?.incumbentName ?? null}
+              pressTouches={p.kindData?.pressTouches ?? []}
+            />
+            <EndorsementsPanel
+              endorsements={p.kindData?.raceData?.endorsements ?? []}
+            />
+          </>
+        )}
 
         {/* (val 2026-06-06) The ClientHero white pipeline card was duplicating
             the greeting subhead ("Your pipeline is steady. Keep working the
