@@ -72,14 +72,57 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: 'file not found in storage' }, { status: 404 });
   }
 
+  // (val 2026-06-16) Force-correct the content-type for known file extensions
+  // BEFORE handing bytes to the browser. The DB-stored mimeType is unreliable
+  // because uploads frequently arrive as application/octet-stream (especially
+  // from email attachments and the docx-as-octet-stream case). When the
+  // browser sees octet-stream + content-disposition:inline on a .pdf, it
+  // refuses to use its built-in PDF viewer and the iframe goes BLANK — which
+  // is the bug val flagged 2026-06-16 ("Documents are still not pulling up
+  // properly"). The disposition header was always correct; the type was lying.
+  const inferredType = inferMimeFromName(doc.documentName, doc.mimeType);
+
   return new NextResponse(Buffer.from(bytes), {
     status: 200,
     headers: {
-      'content-type': doc.mimeType || 'application/octet-stream',
+      'content-type': inferredType,
       'content-disposition': `inline; filename="${doc.documentName.replace(/[^a-zA-Z0-9._ -]/g, '_')}"`,
       'cache-control': 'private, no-store'
     }
   });
+}
+
+/**
+ * Infer a usable content-type. Trusts the DB value when it's a real type;
+ * falls back to the file extension; final fallback is octet-stream so the
+ * download still works even on unknown formats.
+ *
+ * The critical case: PDFs uploaded via email or generic file pickers often
+ * land with mimeType='application/octet-stream'. Browsers will not render an
+ * octet-stream as a PDF inside an iframe even when content-disposition:inline
+ * is set. Forcing 'application/pdf' for *.pdf files fixes the blank-iframe
+ * symptom without touching anything else.
+ */
+function inferMimeFromName(name: string, stored: string | null): string {
+  const lower = (name || '').toLowerCase();
+  const trustStored = stored
+    && stored !== 'application/octet-stream'
+    && stored !== 'binary/octet-stream'
+    && stored !== '';
+
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (lower.endsWith('.doc')) return 'application/msword';
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'text/markdown; charset=utf-8';
+  if (lower.endsWith('.txt')) return 'text/plain; charset=utf-8';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.svg')) return 'image/svg+xml';
+
+  if (trustStored) return stored as string;
+  return 'application/octet-stream';
 }
 
 /** PATCH — update document metadata. Today: just the kind. The body is

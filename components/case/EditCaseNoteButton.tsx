@@ -51,15 +51,19 @@ export default function EditCaseNoteButton({
         onClick={() => { setOpen(true); setBody(initialBody); setPinned(initialPinned); setErr(null); }}
         title="Edit this note"
         style={{
+          // (val 2026-06-16, color fix) Gold accent — matches the
+          // MarkdownEditButton on the operator viewer. Emerald-deep dies on
+          // the operator dark panel; gold is the canonical "jewelry on dark"
+          // pattern across the operator surface (per the brand memory).
           background: 'transparent',
-          border: 'none',
-          color: 'var(--emerald-deep, #0A4D3C)',
+          border: '1px solid rgba(230,206,126,0.35)',
+          color: '#E6CE7E',
           fontSize: 12,
-          fontWeight: 500,
+          fontWeight: 600,
+          letterSpacing: '0.04em',
           cursor: 'pointer',
-          padding: '2px 6px',
-          textDecoration: 'underline',
-          textUnderlineOffset: 3
+          padding: '4px 12px',
+          borderRadius: 6
         }}
         aria-label="Edit note"
       >
@@ -137,9 +141,10 @@ export default function EditCaseNoteButton({
           onClick={() => { setOpen(false); setErr(null); }}
           disabled={pending}
           style={{
+            // Cancel: ghost on dark — matches MarkdownEditButton viewer Cancel.
             background: 'transparent',
-            border: '1px solid rgba(10,77,60,0.3)',
-            color: '#0A4D3C',
+            border: '1px solid rgba(255,255,255,0.18)',
+            color: '#94a3b8',
             padding: '6px 14px',
             borderRadius: 6,
             fontSize: 13,
@@ -153,13 +158,17 @@ export default function EditCaseNoteButton({
           onClick={save}
           disabled={pending}
           style={{
-            background: 'var(--emerald-deep, #0A4D3C)',
+            // Save: solid gold on dark — same as MarkdownEditButton viewer Save.
+            // Disabled state dims to slate so the button doesn't shout when
+            // there's nothing to save.
+            background: pending ? '#94a3b8' : '#E6CE7E',
             border: 'none',
-            color: '#FAF8F4',
+            color: '#0a0f1a',
             padding: '6px 16px',
             borderRadius: 6,
             fontSize: 13,
-            fontWeight: 600,
+            fontWeight: 700,
+            letterSpacing: '0.04em',
             cursor: pending ? 'wait' : 'pointer'
           }}
         >
