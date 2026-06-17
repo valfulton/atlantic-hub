@@ -39,6 +39,10 @@ import { listFindingsForCase } from '@/lib/case/document_findings_store';
 // page. Same components, audience picker on for operator.
 import { listCaseNotes, visibleAudiencesFor } from '@/lib/case/case_notes_store';
 import AddCaseNoteForm from '@/components/case/AddCaseNoteForm';
+// (val 2026-06-16, #710) Inline edit on existing notes — kills the SQL
+// workflow for fixing typos / re-categorizing audience / unpinning. Pencil
+// is hidden on archived rows (we don't render those today).
+import EditCaseNoteButton from '@/components/case/EditCaseNoteButton';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -269,6 +273,17 @@ export default async function CaseDetailPage({ params }: PageProps) {
                       </div>
                       <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed">
                         {n.body}
+                      </div>
+                      {/* (val 2026-06-16, #710) Pencil → inline editor.
+                          Operator can edit any note + toggle pinned. */}
+                      <div className="mt-2">
+                        <EditCaseNoteButton
+                          caseId={c.caseId}
+                          noteId={n.noteId}
+                          initialBody={n.body}
+                          showPinToggle
+                          initialPinned={n.pinned}
+                        />
                       </div>
                     </li>
                   ))}
