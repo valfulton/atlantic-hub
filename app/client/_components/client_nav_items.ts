@@ -35,7 +35,8 @@ export interface ClientNavItem {
     | 'content'
     | 'press'
     | 'notes'
-    | 'newsroom';
+    | 'newsroom'
+    | 'intelligence';
   href: string;
   /** Canonical user-facing label. ONE per room. Do not synonym-pile in any
    *  individual surface — change it here instead. */
@@ -60,6 +61,10 @@ export const NAV_ITEMS: readonly ClientNavItem[] = [
   { id: 'press',     href: '/client/pr',         label: 'Press' },
   // Notes — two-way thread to the A&V team.
   { id: 'notes',     href: '/client/notes',      label: 'Notes' },
+  // Intelligence — cross-page intelligence feed (was orphaned: page lived at
+  // /client/intelligence but had no nav entry, matched only by the operator-
+  // preview chip strip. Added 2026-06-17 via the nav-audit sweep #697).
+  { id: 'intelligence', href: '/client/intelligence', label: 'Intelligence' },
   // Newsroom — public Wire (same URL for client + operator).
   { id: 'newsroom',  href: '/newsroom',          label: 'Newsroom' }
 ] as const;

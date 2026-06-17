@@ -10,7 +10,9 @@
     "lint": "next lint",
     "generate-owner-hash": "node scripts/generate-owner-hash.js",
     "smoke": "bash tests/smoke.sh",
-    "audit:brief": "node scripts/audit_brief_payload_usage.mjs"
+    "audit:brief": "node scripts/audit_brief_payload_usage.mjs",
+    "nav:audit": "node scripts/audit_client_nav.mjs",
+    "prebuild": "node scripts/audit_client_nav.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
