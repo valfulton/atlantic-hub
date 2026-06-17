@@ -194,19 +194,66 @@ function daysBetween(targetIso: string, today: Date): number | null {
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
-/** "Incumbent Sarah Elfreth (D) in general." → { name: "Sarah Elfreth", party: "D" } */
+/**
+ * Parse the brief's `competitors` field into an opponent name + party.
+ *
+ * (val 2026-06-17 — parser regression fix) The original version only matched
+ * the literal phrase "Incumbent <Name>" — so a brief that just said
+ * "Sarah Elfreth" or "Sarah Elfreth (D)" returned null and OpponentWatchPanel
+ * empty-stated. John's brief had Elfreth as plain competitor text; the panel
+ * read empty for that reason, not because the data was missing.
+ *
+ * Accepted shapes, in priority order:
+ *   1. "Incumbent Sarah Elfreth (D)"      → "Sarah Elfreth", "D"
+ *   2. "Sarah Elfreth (D)"                → "Sarah Elfreth", "D"
+ *   3. "Sarah Elfreth"                    → "Sarah Elfreth", null
+ *   4. Multiline / comma-separated lists  → first name on first line wins
+ *   5. Sentence prose ("running against Sarah Elfreth, who…") — first
+ *      Capitalized 2-word run after "against" / "vs" / "opponent" wins
+ *
+ * Placeholder text ("TODO_ASK …", "—", etc.) is treated as empty.
+ */
 function parseIncumbent(competitors: string | null): {
   name: string | null;
   party: string | null;
 } {
   if (!competitors) return { name: null, party: null };
-  // Look for "Incumbent <Name> (<P>)" first, then fall back to any "(<P>)" tail.
-  const m = competitors.match(
+  const raw = competitors.trim();
+  if (!raw || isPlaceholderText(raw)) return { name: null, party: null };
+
+  // First non-empty line / first list item — "Sarah Elfreth (D), Joe Smith"
+  // and a multi-line list both resolve to "Sarah Elfreth (D)".
+  const firstChunk = raw
+    .split(/\n|;|,/)
+    .map((s) => s.trim())
+    .find((s) => s.length > 0 && !isPlaceholderText(s)) || raw;
+
+  // Shape 1 — "Incumbent <Name> (<P>)" anywhere in the line.
+  const incMatch = firstChunk.match(
     /incumbent\s+([A-Z][a-zA-Z'.-]+(?:\s+[A-Z][a-zA-Z'.-]+){0,3})(?:\s*\(\s*([A-Za-z])\s*\))?/i
   );
-  if (m) {
-    return { name: m[1].trim(), party: (m[2] || '').toUpperCase() || null };
+  if (incMatch) {
+    return { name: incMatch[1].trim(), party: (incMatch[2] || '').toUpperCase() || null };
   }
+
+  // Shape 5 — prose with "against / vs / opponent: <Name>".
+  const cueMatch = firstChunk.match(
+    /(?:running\s+against|against|vs\.?|opponent\s*[:\-—–]?)\s+([A-Z][a-zA-Z'.-]+(?:\s+[A-Z][a-zA-Z'.-]+){0,3})(?:\s*\(\s*([A-Za-z])\s*\))?/i
+  );
+  if (cueMatch) {
+    return { name: cueMatch[1].trim(), party: (cueMatch[2] || '').toUpperCase() || null };
+  }
+
+  // Shapes 2/3 — bare "<Name>" or "<Name> (<P>)" at the start of the chunk.
+  // Strip optional leading "—" / "-" so "— Sarah Elfreth (D)" still parses.
+  const bare = firstChunk.replace(/^[\s\-—–·]+/, '');
+  const nameMatch = bare.match(
+    /^([A-Z][a-zA-Z'.-]+(?:\s+[A-Z][a-zA-Z'.-]+){0,3})(?:\s*\(\s*([A-Za-z])\s*\))?/
+  );
+  if (nameMatch) {
+    return { name: nameMatch[1].trim(), party: (nameMatch[2] || '').toUpperCase() || null };
+  }
+
   return { name: null, party: null };
 }
 
