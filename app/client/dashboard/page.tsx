@@ -22,6 +22,11 @@ import AccessPaused from '@/app/client/_components/AccessPaused';
 import { loadAdrianaDashboard } from '@/lib/client/adriana_dashboard_loader';
 import { getWelcomePopupSlides, getWelcomeSlidesForEngagement } from '@/lib/welcome/copy';
 import AdrianaDashboard from './AdrianaDashboard';
+// (val 2026-06-17, #698) The dashboard was the ONE /client/* page that didn't
+// mount ClientV3TopNav — every other page (campaigns, calendar, content, pr,
+// notes, watchlist, intelligence, cases) wraps the route with it. That's why
+// John's hub felt nav-less: it literally had no top nav rendered. Fixed.
+import ClientV3TopNav from '@/app/client/_components/ClientV3TopNav';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -83,6 +88,7 @@ export default async function ClientDashboardPage() {
         tier={user.tier}
         slides={welcomeSlides}
       />
+      <ClientV3TopNav />
       <AdrianaDashboard {...props} />
     </>
   );
