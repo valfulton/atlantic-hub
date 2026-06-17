@@ -130,10 +130,15 @@ export function KindPanels({
        * the fix for "I can't see any of the content we added yesterday
        * to the client dashboards." */}
       {data?.cockpitDrafts !== undefined && (
-        <DraftsInQueuePanel
-          drafts={data.cockpitDrafts}
-          pendingCount={data.cockpitDraftsPending ?? 0}
-        />
+        /* (val 2026-06-17, UX/UI Phase 2) The #approvals-queue anchor is the
+           scroll target for ApprovalsStrip's "Review queue" button. Wrapping
+           in a div so the anchor doesn't change DraftsInQueuePanel's contract. */
+        <div id="approvals-queue" style={{ scrollMarginTop: 16 }}>
+          <DraftsInQueuePanel
+            drafts={data.cockpitDrafts}
+            pendingCount={data.cockpitDraftsPending ?? 0}
+          />
+        </div>
       )}
       {config.showPressTouchesPanel && (
         data?.pressTouches !== undefined ? (

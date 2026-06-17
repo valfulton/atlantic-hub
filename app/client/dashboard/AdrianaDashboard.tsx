@@ -25,6 +25,11 @@ import { accent } from '@/lib/copy/accent';
 import ClientHero from '@/app/client/_components/ClientHero';
 import type { EngagementKind, EngagementKindConfig } from '@/lib/client/engagement_kind';
 import { KindHero, KindPanels } from './KindPanels';
+// (val 2026-06-17, UX/UI Phase 2) Race-tracker war-room redesign for the
+// political_campaign engagement kind. RaceTrackerHero replaces KindHero;
+// ApprovalsStrip sits above it as the "what do I do next" answer.
+import RaceTrackerHero from './RaceTrackerHero';
+import ApprovalsStrip from './ApprovalsStrip';
 import type { PressTouch } from '@/lib/client/press_touches';
 import type { DistrictSignal } from '@/lib/client/district_heatmap';
 import type { ItineraryStop } from '@/lib/client/itinerary';
@@ -472,9 +477,27 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
           </Link>
         </div>
 
-        {/* (#551) Engagement-kind hero — only for non-lead_gen kinds. lead_gen
-            keeps the greeting-as-summary + Featured Signal below, unchanged. */}
-        {p.engagementKind !== 'lead_gen' && <KindHero config={p.kindConfig} />}
+        {/* (val 2026-06-17, UX/UI Phase 2) Political campaigns get the
+            race-tracker war-room treatment: an approvals strip ("what do I do
+            next") above a RaceTrackerHero ("where am I in the race"). Both
+            replace the generic KindHero — the hierarchy fix from UX/UI's spec
+            is "one emerald surface max." */}
+        {p.engagementKind === 'political_campaign' ? (
+          <>
+            <ApprovalsStrip pendingCount={p.kindData?.cockpitDraftsPending ?? 0} />
+            <RaceTrackerHero
+              race={p.kindData?.raceData ?? {
+                candidateName: null, office: null, districtLabel: null,
+                nextElectionDate: null, nextElectionLabel: null, daysToNext: null,
+                ballotStatus: null, party: null, incumbentName: null, incumbentParty: null
+              }}
+            />
+          </>
+        ) : (
+          /* (#551) Engagement-kind hero — only for non-lead_gen kinds. lead_gen
+              keeps the greeting-as-summary + Featured Signal below, unchanged. */
+          p.engagementKind !== 'lead_gen' && <KindHero config={p.kindConfig} />
+        )}
 
         {/* (#551 + #557) Kind-specific panels (Press touches / Case brief /
             District heat map / Itinerary). Each is gated inside by a config

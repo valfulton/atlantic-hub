@@ -20,6 +20,7 @@ import { listPressTouches, countPressTouchesThisWeek, type PressTouch } from '@/
 import { getDistrictHeatMap, parseDistrictZips, type DistrictSignal } from '@/lib/client/district_heatmap';
 import { parseItinerary, nextStops, type ItineraryStop } from '@/lib/client/itinerary';
 import { listDraftsForClient, countPendingDraftsForClient, type ClientCockpitDraft } from '@/lib/client/cockpit_drafts';
+import { parseRaceData, type RaceData } from '@/lib/client/race_data';
 import type { RowDataPacket } from 'mysql2';
 import type { AdrianaDashboardProps, BrandChip, SignalCard, FeaturedSignal, CascadeNode, TeamMember, MatterCard } from '@/app/client/dashboard/AdrianaDashboard';
 
@@ -42,6 +43,11 @@ export interface KindData {
    *  link to /client/notes scoped to that draft for two-way comments. */
   cockpitDrafts?: ClientCockpitDraft[];
   cockpitDraftsPending?: number;
+  /** (val 2026-06-17, UX/UI Phase 2) Race tracker hero data for
+   *  political_campaign clients. Parsed from brief_payload via
+   *  lib/client/race_data.parseRaceData(). Honestly empty-states every
+   *  unconfirmed field — no invented party, no invented ballot status. */
+  raceData?: RaceData;
 }
 
 interface LoaderArgs {
@@ -683,6 +689,13 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
     if (kindConfig.showItineraryPanel) {
       const stops = parseItinerary(briefObj);
       kindData.itineraryStops = nextStops(stops, 3);
+    }
+
+    // (val 2026-06-17, UX/UI Phase 2) Race tracker hero data — only for
+    // political_campaign. The hero replaces KindHero for this kind; the
+    // parser empty-states every unconfirmed field rather than inventing one.
+    if (engagementKind === 'political_campaign') {
+      kindData.raceData = parseRaceData(briefObj);
     }
 
     // (#578) Drafts the operator wrote/generated for this client. Mount on every
