@@ -187,35 +187,6 @@ function parseDate(raw: string): string | null {
   return null;
 }
 
-/** Scan a free-text timeline string for the next election. Looks for the
- *  earliest "Primary"/"General"/"Election"/"Runoff" keyword paired with a
- *  parseable date that is AFTER `today`. Falls back to first parseable date
- *  if no keyword match. */
-function scanTimelineForNextElection(
-  timeline: string,
-  today: Date
-): { iso: string; label: string } | null {
-  // Split on common separators so each chunk has one candidate date.
-  const chunks = timeline.split(/[.;\n]/).map((s) => s.trim()).filter(Boolean);
-  const keyword = /\b(primary|general|election|runoff)\b/i;
-  const candidates: Array<{ iso: string; label: string }> = [];
-  for (const chunk of chunks) {
-    const date = parseDate(chunk);
-    if (!date) continue;
-    const t = Date.parse(date + 'T12:00:00Z');
-    if (!Number.isFinite(t) || t < today.getTime()) continue;
-    const m = chunk.match(keyword);
-    const label = m
-      ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()
-      : 'Election';
-    candidates.push({ iso: date, label });
-  }
-  if (candidates.length === 0) return null;
-  // Earliest future election wins (primary before general).
-  candidates.sort((a, b) => a.iso.localeCompare(b.iso));
-  return candidates[0];
-}
-
 function daysBetween(targetIso: string, today: Date): number | null {
   const t = Date.parse(targetIso + 'T12:00:00Z');
   if (!Number.isFinite(t)) return null;
@@ -278,20 +249,52 @@ export function parseRaceData(
     pick(briefObj, 'contact_name') ||
     stripCampaignSuffix(pick(briefObj, 'company'));
 
-  // Next election — explicit date wins; otherwise scan the timeline string.
-  let nextDate = pick(briefObj, 'next_election_date') ||
-                 pick(briefObj, 'election_date');
-  let nextLabel = pick(briefObj, 'next_election_label');
-  if (!nextDate) {
-    const timeline = pick(briefObj, 'timeline');
-    if (timeline) {
-      const found = scanTimelineForNextElection(timeline, today);
-      if (found) {
-        nextDate = found.iso;
-        if (!nextLabel) nextLabel = found.label;
-      }
+  // (val 2026-06-17, fix) Next election = EARLIEST future date across every
+  // known source. The previous version preferred `election_date` and never
+  // looked at the timeline if that field existed — which meant John's
+  // November 3 general clobbered the June 23 primary that was 6 days away.
+  // Now we collect every parseable candidate (explicit fields + timeline
+  // scan) and pick the soonest one that is still in the future.
+  const candidates: Array<{ iso: string; label: string | null }> = [];
+
+  const pushIso = (raw: string | null, label: string | null) => {
+    if (!raw) return;
+    const parsed = parseDate(raw) || (raw.match(/^\d{4}-\d{2}-\d{2}$/) ? raw : null);
+    if (!parsed) return;
+    candidates.push({ iso: parsed, label });
+  };
+  pushIso(pick(briefObj, 'primary_election_date'), 'Primary');
+  pushIso(pick(briefObj, 'general_election_date'), 'General');
+  pushIso(pick(briefObj, 'runoff_election_date'), 'Runoff');
+  pushIso(pick(briefObj, 'next_election_date'), pick(briefObj, 'next_election_label'));
+  pushIso(pick(briefObj, 'election_date'), pick(briefObj, 'next_election_label'));
+
+  const timeline = pick(briefObj, 'timeline');
+  if (timeline) {
+    // scanTimelineForNextElection returns just one (the earliest); to merge
+    // properly with explicit fields, scan ALL future dates in the timeline.
+    const chunks = timeline.split(/[.;\n]/).map((s) => s.trim()).filter(Boolean);
+    const keyword = /\b(primary|general|election|runoff)\b/i;
+    for (const chunk of chunks) {
+      const date = parseDate(chunk);
+      if (!date) continue;
+      const m = chunk.match(keyword);
+      const label = m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : 'Election';
+      candidates.push({ iso: date, label });
     }
   }
+
+  // Filter to future + pick earliest. (Equal dates: explicit field wins by
+  // virtue of being pushed first.)
+  const future = candidates.filter((c) => {
+    const t = Date.parse(c.iso + 'T12:00:00Z');
+    return Number.isFinite(t) && t >= today.getTime();
+  });
+  future.sort((a, b) => a.iso.localeCompare(b.iso));
+  const winner = future[0] || null;
+
+  const nextDate = winner?.iso ?? null;
+  const nextLabel = winner?.label ?? null;
   const days = nextDate ? daysBetween(nextDate, today) : null;
 
   const incumbent = parseIncumbent(pick(briefObj, 'competitors'));
