@@ -126,19 +126,9 @@ function DraftCard({ draft }: { draft: ClientCockpitDraft }) {
         {draft.title}
       </h4>
 
-      {/* Campaign name — plain text, no jargon */}
-      {draft.campaignName ? (
-        <div
-          style={{
-            fontFamily: 'var(--sans)',
-            fontSize: 13,
-            color: 'var(--emerald-deep)',
-            margin: '0 0 6px'
-          }}
-        >
-          Campaign · <em style={{ fontFamily: 'var(--serif)', fontStyle: 'italic' }}>{draft.campaignName}</em>
-        </div>
-      ) : null}
+      {/* (val 2026-06-17, #718) Per-card campaign line dropped — the campaign
+          header above the bucket carries that info. Keeping the field on the
+          data so any future ungrouped surface still has it. */}
 
       {/* Body preview line */}
       <div
@@ -211,6 +201,127 @@ function DraftCard({ draft }: { draft: ClientCockpitDraft }) {
   );
 }
 
+/**
+ * (val 2026-06-17, #718) Bundle drafts by campaign so a press push reads as a
+ * single coordinated story instead of 10 disconnected cards. UX/UI's spec
+ * called this out for John specifically — a campaign should land as
+ * [press release + video + 5 social posts + op-ed] under one header, not
+ * floating siblings.
+ *
+ * Bucket rules:
+ *   - Drafts with the same `campaignName` group together.
+ *   - Drafts with no campaign land in an "Other" bucket (rendered last) so
+ *     the surface stays honest about what isn't yet linked.
+ *   - Within a bucket, drafts keep their incoming order (newest pending first
+ *     — already sorted upstream by listDraftsForClient).
+ *   - Buckets sort by the count of pending drafts inside them (most active
+ *     story first), then by total count.
+ */
+interface DraftBucket {
+  /** Display name. Null = the "Other" bucket. */
+  campaignName: string | null;
+  campaignId: number | null;
+  drafts: ClientCockpitDraft[];
+  pendingCount: number;
+}
+
+function bucketByCampaign(drafts: ClientCockpitDraft[]): DraftBucket[] {
+  const byKey = new Map<string, DraftBucket>();
+  for (const d of drafts) {
+    const key = d.campaignId != null ? `id:${d.campaignId}` : 'orphan';
+    let b = byKey.get(key);
+    if (!b) {
+      b = {
+        campaignName: d.campaignName,
+        campaignId: d.campaignId,
+        drafts: [],
+        pendingCount: 0
+      };
+      byKey.set(key, b);
+    }
+    b.drafts.push(d);
+    if (d.status === 'pending') b.pendingCount += 1;
+  }
+  const buckets = Array.from(byKey.values());
+  buckets.sort((a, b) => {
+    // "Other" bucket always last.
+    if (a.campaignId == null && b.campaignId != null) return 1;
+    if (a.campaignId != null && b.campaignId == null) return -1;
+    // Most pending first, then total drafts.
+    if (b.pendingCount !== a.pendingCount) return b.pendingCount - a.pendingCount;
+    return b.drafts.length - a.drafts.length;
+  });
+  return buckets;
+}
+
+function BucketHeader({ bucket }: { bucket: DraftBucket }) {
+  const name = bucket.campaignName || 'Not yet tied to a campaign';
+  const total = bucket.drafts.length;
+  const pending = bucket.pendingCount;
+  const subtitle =
+    pending > 0
+      ? `${total} piece${total === 1 ? '' : 's'} · ${pending} waiting on you`
+      : `${total} piece${total === 1 ? '' : 's'}`;
+  return (
+    <div
+      style={{
+        margin: '18px 0 10px',
+        paddingBottom: 8,
+        borderBottom: '1px solid var(--card-border)'
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--sans)',
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: bucket.campaignId
+            ? 'var(--gold-deep, #7A5A18)'
+            : 'var(--ink-mute, #5F5E5A)',
+          marginBottom: 3
+        }}
+      >
+        Campaign
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap'
+        }}
+      >
+        <h4
+          style={{
+            fontFamily: 'var(--serif)',
+            fontWeight: 500,
+            fontSize: 19,
+            margin: 0,
+            color: bucket.campaignId
+              ? 'var(--emerald-deep)'
+              : 'var(--ink-mute, #5F5E5A)',
+            fontStyle: bucket.campaignId ? 'italic' : 'normal'
+          }}
+        >
+          {name}
+        </h4>
+        <div
+          style={{
+            fontFamily: 'var(--sans)',
+            fontSize: 12,
+            color: 'var(--ink-mute, #5F5E5A)'
+          }}
+        >
+          {subtitle}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DraftsInQueuePanel({
   drafts,
   pendingCount
@@ -236,6 +347,8 @@ export default function DraftsInQueuePanel({
     );
   }
 
+  const buckets = bucketByCampaign(drafts);
+
   return (
     <>
       <div className="app-sh">
@@ -245,8 +358,13 @@ export default function DraftsInQueuePanel({
         </span>
       </div>
       <div>
-        {drafts.map((d) => (
-          <DraftCard key={d.id} draft={d} />
+        {buckets.map((b) => (
+          <section key={b.campaignId ?? 'orphan'}>
+            <BucketHeader bucket={b} />
+            {b.drafts.map((d) => (
+              <DraftCard key={d.id} draft={d} />
+            ))}
+          </section>
         ))}
       </div>
     </>
