@@ -36,6 +36,13 @@ import ApprovalsStrip from './ApprovalsStrip';
 // logged → "name the three you're chasing").
 import OpponentWatchPanel from './OpponentWatchPanel';
 import EndorsementsPanel from './EndorsementsPanel';
+// (val 2026-06-17, #693) Hub navigator strip — the connective tissue from the
+// dashboard to the rest of John's hub (campaigns, calendar, social review,
+// press desk, notes, newsroom). Replicable per engagement_kind so every
+// political/defense/hospitality/book client sees the same room set without
+// each dashboard reinventing nav. lead_gen still renders nothing (returns []
+// from linksFor) so the existing surface stays untouched.
+import HubNavStrip from './HubNavStrip';
 import type { PressTouch } from '@/lib/client/press_touches';
 import type { DistrictSignal } from '@/lib/client/district_heatmap';
 import type { ItineraryStop } from '@/lib/client/itinerary';
@@ -539,6 +546,11 @@ export default function AdrianaDashboard(p: AdrianaDashboardProps) {
             />
           </>
         )}
+
+        {/* (val 2026-06-17, #693) Hub navigator — connect the dashboard to the
+            rest of the hub for every non-lead-gen engagement kind. Renders
+            nothing for lead_gen, where leads + watchlist do the talking. */}
+        <HubNavStrip kind={p.engagementKind} />
 
         {/* (val 2026-06-06) The ClientHero white pipeline card was duplicating
             the greeting subhead ("Your pipeline is steady. Keep working the

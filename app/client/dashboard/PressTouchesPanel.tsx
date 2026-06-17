@@ -34,7 +34,7 @@ const STATUS_VAR: Record<PressTouchStatus, { bg: string; fg: string }> = {
   drafted:     { bg: 'var(--paper-soft, #F7F1E1)', fg: 'var(--ink-soft, #5F5E5A)' },
   pitched:     { bg: 'var(--harbor-soft, #E6F1FB)', fg: 'var(--harbor-deep, #0C447C)' },
   replied:     { bg: 'var(--mint-soft, #E1F5EE)', fg: 'var(--emerald-deep, #085041)' },
-  published:   { bg: 'var(--gold-soft, #FAEEDA)', fg: 'var(--gold-ink, #633806)' },
+  published:   { bg: 'rgba(201,169,97,.16)', fg: 'var(--ink, #14201B)' },
   declined:    { bg: 'var(--rose-soft, #FBEAF0)', fg: 'var(--rose-ink, #72243E)' },
   no_response: { bg: 'var(--paper-soft, #F7F1E1)', fg: 'var(--ink-soft, #5F5E5A)' }
 };

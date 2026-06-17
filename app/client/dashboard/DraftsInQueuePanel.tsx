@@ -26,7 +26,10 @@ import { useState } from 'react';
 import type { ClientCockpitDraft } from '@/lib/client/cockpit_drafts';
 
 const STATUS_LABEL: Record<ClientCockpitDraft['status'], string> = {
-  pending: 'Pending your team',
+  // (val 2026-06-17) Pending is the DEFAULT state and the bucket header already
+  // says "N waiting on you" — repeating "Pending your team" on every card was
+  // pure redundancy. Only the meaningful, non-default states get a card label.
+  pending: '',
   approved: 'Approved',
   published: 'Published',
   killed: '' // never displayed — filtered out upstream
@@ -353,9 +356,10 @@ export default function DraftsInQueuePanel({
     <>
       <div className="app-sh">
         <h3>Drafts in your queue</h3>
-        <span className="ct">
-          {pendingCount > 0 ? `${pendingCount} pending your team` : 'all caught up'}
-        </span>
+        {/* (val 2026-06-17) Pending count dropped here — it duplicated the
+            approvals strip above and the per-campaign bucket counts below.
+            Keep only the positive "all caught up" signal. */}
+        {pendingCount === 0 ? <span className="ct">all caught up</span> : null}
       </div>
       <div>
         {buckets.map((b) => (

@@ -122,7 +122,7 @@ export default function ItineraryPanel({
                   fontSize: 10,
                   textTransform: 'uppercase',
                   letterSpacing: '0.08em',
-                  color: 'var(--gold-ink, #7A5A18)'
+                  color: 'var(--gold-deep)'
                 }}
               >
                 Stop {i + 1}
@@ -169,8 +169,8 @@ export default function ItineraryPanel({
                           fontSize: 11,
                           padding: '2px 8px',
                           borderRadius: 6,
-                          background: 'var(--gold-soft, #FAEEDA)',
-                          color: 'var(--gold-ink, #633806)'
+                          background: 'var(--emerald-mist, #EDF4F0)',
+                          color: 'var(--emerald-deep, #0A4D3C)'
                         }}
                       >
                         {o}

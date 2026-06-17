@@ -617,11 +617,14 @@ export async function loadAdrianaDashboard(args: LoaderArgs): Promise<AdrianaDas
   // (val 2026-06-17) Engagement-kind-aware. The lead_gen voice ("scanning for
   // your next opportunities") leaked onto John's political campaign + every
   // other non-lead_gen client. Each kind gets one line in its own voice.
+  // (val 2026-06-17) Tails trimmed — "Drafts ready for your green-light land
+  // below" duplicated the approvals strip + the drafts section header. One
+  // clean line per kind; the strip carries the call-to-action.
   const KIND_SUBHEAD: Partial<Record<EngagementKind, string>> = {
-    political_campaign: 'Your team is on the trail. Drafts ready for your green-light land below.',
-    defense_pr:         'Your team is on the case. Drafts ready for your green-light land below.',
-    luxury_hospitality: 'Your team is lining up the next chapter. Drafts land below as we write them.',
-    book_pr:            'Your team is working the launch. Drafts ready for your green-light land below.'
+    political_campaign: 'Your team is on the trail.',
+    defense_pr:         'Your team is on the case.',
+    luxury_hospitality: 'Your team is lining up the next chapter.',
+    book_pr:            'Your team is working the launch.'
   };
   const subhead =
     newCount > 0

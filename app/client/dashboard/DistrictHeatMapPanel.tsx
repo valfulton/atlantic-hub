@@ -22,7 +22,7 @@ const KIND_LABEL: Record<string, string> = {
 
 const SEVERITY_COLOR: Record<DistrictSignal['severity'], { dot: string; label: string }> = {
   rising: { dot: 'var(--rose-ink, #993556)',    label: 'rising' },
-  new:    { dot: 'var(--gold-ink, #633806)',    label: 'new'    },
+  new:    { dot: 'var(--gold, #C9A961)',        label: 'new'    },
   steady: { dot: 'var(--ink-soft, #5F5E5A)',    label: 'steady' }
 };
 
