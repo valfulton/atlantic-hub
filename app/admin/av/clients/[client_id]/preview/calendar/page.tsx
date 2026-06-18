@@ -38,6 +38,21 @@ interface ArtifactRow extends RowDataPacket {
   title: string | null;
   status: string | null;
 }
+// (#702) cockpit_approvals — press_releases, op_eds, socials, commercials.
+interface CockpitRow extends RowDataPacket {
+  approval_id: number;
+  approval_kind: 'press_release' | 'op_ed' | 'social' | 'commercial';
+  title: string;
+  status: 'pending' | 'approved' | 'published' | 'killed';
+  scheduled_at: Date | string | null;
+  created_at: Date | string | null;
+}
+const COCKPIT_KIND_LABEL: Record<CockpitRow['approval_kind'], string> = {
+  press_release: 'Press release',
+  op_ed: 'Op-ed',
+  social: 'Social post',
+  commercial: 'Commercial'
+};
 
 interface CalItem {
   id: string;
@@ -114,6 +129,36 @@ export default async function PreviewCalendarMirror({ params }: { params: { clie
         channel: r.artifact_type,
         title: r.title ?? 'Untitled draft',
         detail: 'Awaiting review'
+      });
+    }
+  } catch { /* non-fatal */ }
+
+  // (#702) cockpit_approvals — mirror of the /client/calendar fix.
+  try {
+    const [cockpit] = await db.execute<CockpitRow[]>(
+      `SELECT approval_id, approval_kind, title, status, scheduled_at, created_at
+         FROM cockpit_approvals
+        WHERE client_id = ?
+          AND status IN ('pending','approved','published')
+        ORDER BY COALESCE(scheduled_at, created_at) ASC
+        LIMIT 100`,
+      [clientId]
+    );
+    for (const r of cockpit) {
+      const whenRaw = r.scheduled_at || r.created_at;
+      const isScheduled = !!r.scheduled_at;
+      const detail = isScheduled
+        ? (r.status === 'approved' ? 'Scheduled · approved' : r.status === 'published' ? 'Published' : 'Scheduled · pending')
+        : (r.status === 'approved' ? 'Approved — needs a date' : r.status === 'published' ? 'Published' : 'Draft — needs your green-light');
+      items.push({
+        id: `cockpit-${r.approval_id}`,
+        outboxId: null,
+        reschedulable: false,
+        whenISO: whenRaw ? new Date(whenRaw).toISOString() : null,
+        kind: r.status === 'pending' ? 'draft' : 'queued',
+        channel: COCKPIT_KIND_LABEL[r.approval_kind] ?? r.approval_kind,
+        title: r.title,
+        detail
       });
     }
   } catch { /* non-fatal */ }

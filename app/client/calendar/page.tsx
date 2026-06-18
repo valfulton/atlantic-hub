@@ -56,6 +56,27 @@ interface ArtifactRow extends RowDataPacket {
   status: string | null;
 }
 
+// (val 2026-06-17, #702) cockpit_approvals — where press_releases, op_eds,
+// socials, commercials live as drafts BEFORE val greenlights them. The
+// calendar used to ignore this table entirely, so approved press_releases
+// with a scheduled_at never showed up. We read approval_kind so the calendar
+// can label each card (Press release / Op-ed / Social / Commercial).
+interface CockpitRow extends RowDataPacket {
+  approval_id: number;
+  approval_kind: 'press_release' | 'op_ed' | 'social' | 'commercial';
+  title: string;
+  status: 'pending' | 'approved' | 'published' | 'killed';
+  scheduled_at: Date | string | null;
+  created_at: Date | string | null;
+}
+
+const COCKPIT_KIND_LABEL: Record<CockpitRow['approval_kind'], string> = {
+  press_release: 'Press release',
+  op_ed: 'Op-ed',
+  social: 'Social post',
+  commercial: 'Commercial'
+};
+
 async function loadCalendar(clientId: number | null): Promise<CalendarItem[]> {
   if (!clientId) return [];
   const items: CalendarItem[] = [];
@@ -115,6 +136,41 @@ async function loadCalendar(clientId: number | null): Promise<CalendarItem[]> {
         channel: r.artifact_type,
         title: r.title ?? 'Untitled draft',
         detail: 'Awaiting your review'
+      });
+    }
+  } catch { /* non-fatal */ }
+
+  // (#702) cockpit_approvals — the source of truth for press_releases, op_eds,
+  // socials, commercials before greenlight dispatches them downstream. A
+  // press_release with a scheduled_at is "going out on that date"; without one
+  // it's a draft that needs a date assignment. Either way it belongs on the
+  // calendar so val can plan around it. Killed status filtered out.
+  try {
+    const db = getAvDb();
+    const [cockpit] = await db.execute<CockpitRow[]>(
+      `SELECT approval_id, approval_kind, title, status, scheduled_at, created_at
+         FROM cockpit_approvals
+        WHERE client_id = ?
+          AND status IN ('pending','approved','published')
+        ORDER BY COALESCE(scheduled_at, created_at) ASC
+        LIMIT 100`,
+      [clientId]
+    );
+    for (const r of cockpit) {
+      const whenRaw = r.scheduled_at || r.created_at;
+      const isScheduled = !!r.scheduled_at;
+      const detail = isScheduled
+        ? (r.status === 'approved' ? 'Scheduled · approved' : r.status === 'published' ? 'Published' : 'Scheduled · pending')
+        : (r.status === 'approved' ? 'Approved — needs a date' : r.status === 'published' ? 'Published' : 'Draft — needs your green-light');
+      items.push({
+        id: `cockpit-${r.approval_id}`,
+        outboxId: null,
+        reschedulable: false,
+        whenISO: whenRaw ? new Date(whenRaw).toISOString() : null,
+        kind: r.status === 'pending' ? 'draft' : 'queued',
+        channel: COCKPIT_KIND_LABEL[r.approval_kind] ?? r.approval_kind,
+        title: r.title,
+        detail
       });
     }
   } catch { /* non-fatal */ }
